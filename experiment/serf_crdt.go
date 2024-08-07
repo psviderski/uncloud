@@ -123,11 +123,17 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(tint.NewHandler(os.Stdout, &tint.Options{
-		AddSource:  true,
-		Level:      slog.LevelDebug,
+		AddSource: true,
+		Level:     slog.LevelDebug,
+		//Level:      slog.LevelInfo,
 		TimeFormat: time.RFC3339Nano,
 	}))
 	slog.SetDefault(logger)
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	// A channel to signal that shutdown is done.
+	done := make(chan bool, 1)
 
 	config := createSerfAgentConfig(*name, *bindAddr, *rpcAddr)
 	serfAgent, err := createSerfAgent(config)
@@ -140,57 +146,72 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	// Ideally, the broadcaster should be registered as an event handler before starting the agent.
-	// However, we need the agent.serf to be initialized which is done in agent.Start().
-	broadcaster := NewSerfBroadcaster(ctx, serfAgent.Serf())
-	serfAgent.RegisterEventHandler(broadcaster)
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	// A channel to signal that shutdown is done.
-	done := make(chan bool, 1)
-
 	localStore, err := badger.NewDatastore(*storeDir, nil) // default options
 	if err != nil {
 		panic(err)
 	}
-	syncer := newDAGSyncer(localStore, ds.NewKey("/node"))
+	syncer := newDAGSyncer(localStore, ds.NewKey("/node"), serfAgent.Serf())
+
+	// Ideally, the broadcaster should be registered as an event handler before starting the agent.
+	// However, we need the agent.serf to be initialized which is done in agent.Start().
+	broadcaster := NewSerfBroadcaster(ctx, serfAgent.Serf())
+	serfAgent.RegisterEventHandler(broadcaster)
+	serfAgent.RegisterEventHandler(syncer)
 
 	opts := crdt.DefaultOptions()
 	opts.Logger = newIPFSLogger(logger)
+	//opts.MultiHeadProcessing = true
+	// TODO: debug why the heads count may grow on the receiving side if the backlog is huge and perhaps when the node
+	//  is shutdowned before processing all the backlog.
 	store, err := crdt.New(localStore, ds.NewKey("/"), syncer, broadcaster, opts)
 	if err != nil {
 		panic(err)
 	}
 
-	if *runTick {
-		ticker := time.NewTicker(10 * time.Second)
-		go func() {
-			for {
-				select {
-				case t := <-ticker.C:
+	//ticker := time.NewTicker(10 * time.Millisecond)
+	ticker := time.NewTicker(3 * time.Second)
+	go func() {
+		for {
+			select {
+			case t := <-ticker.C:
+				if *runTick {
 					err = store.Put(ctx, ds.NewKey("/tick"), []byte(t.String()))
 					if err != nil {
 						slog.Error("Put /tick", "error", err)
 					}
-				case <-ctx.Done():
-					return
+					value, err := store.Get(ctx, ds.NewKey("/tick"))
+					if err != nil {
+						slog.Error("Get /tick", "error", err)
+					}
+					slog.Info("Get /tick", "value", string(value))
+					stats := store.InternalStats()
+					slog.Info("CRDT store stats", "stats", stats, "heads_count", len(stats.Heads))
+				} else {
+					value, err := store.Get(ctx, ds.NewKey("/tick"))
+					if err != nil {
+						slog.Error("Get /tick", "error", err)
+					}
+					slog.Info("Get /tick", "value", string(value))
+					stats := store.InternalStats()
+					slog.Info("CRDT store stats", "stats", stats, "heads_count", len(stats.Heads))
 				}
+			case <-ctx.Done():
+				return
 			}
-		}()
-	}
+		}
+	}()
 
 	//err = store.Put(ctx, ds.NewKey("/test3"), []byte("hello3"))
 	//if err != nil {
 	//	panic(err)
 	//}
-	v, err := store.Get(ctx, ds.NewKey("/test"))
-	if err != nil {
-		slog.Error("Get /test", "error", err)
-	}
-	slog.Info("Get /test", "value", string(v))
+	//v, err := store.Get(ctx, ds.NewKey("/test"))
+	//if err != nil {
+	//	slog.Error("Get /test", "error", err)
+	//}
+	//slog.Info("Get /test", "value", string(v))
 
-	_ = store.PrintDAG()
+	//_ = store.PrintDAG()
 
 	// Start a goroutine to handle signals.
 	go func() {
