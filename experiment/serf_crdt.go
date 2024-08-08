@@ -19,12 +19,14 @@ import (
 	"time"
 )
 
-func createSerfAgentConfig(name, bindAddr, rpcAddr string) *agent.Config {
+func createSerfAgentConfig(name, bindAddr, rpcAddr, profile string) *agent.Config {
 	config := agent.DefaultConfig()
 	config.NodeName = name
 	config.BindAddr = bindAddr
 	config.RPCAddr = rpcAddr
-
+	config.Profile = profile
+	// TODO: configure logging for serf and memberlist to slog.
+	//  check: https://github.com/hashicorp/serf/issues/512
 	return config
 }
 
@@ -119,6 +121,8 @@ func main() {
 	bindAddr := flag.String("bind", "0.0.0.0:7946", "Bind address")
 	rpcAddr := flag.String("rpc-addr", "127.0.0.1:7373", "RPC address")
 	storeDir := flag.String("store-dir", "./store", "Store directory path")
+	profile := flag.String("profile", "lan",
+		"Timing profile for Serf. The supported choices are \"wan\", \"lan\", and \"local\".")
 	runTick := flag.Bool("tick", false, "Periodically update /tick value")
 	flag.Parse()
 
@@ -135,7 +139,7 @@ func main() {
 	// A channel to signal that shutdown is done.
 	done := make(chan bool, 1)
 
-	config := createSerfAgentConfig(*name, *bindAddr, *rpcAddr)
+	config := createSerfAgentConfig(*name, *bindAddr, *rpcAddr, *profile)
 	serfAgent, err := createSerfAgent(config)
 	if err != nil {
 		panic(err)
@@ -161,8 +165,8 @@ func main() {
 	opts := crdt.DefaultOptions()
 	opts.Logger = newIPFSLogger(logger)
 	//opts.MultiHeadProcessing = true
-	// TODO: debug why the heads count may grow on the receiving side if the backlog is huge and perhaps when the node
-	//  is shutdowned before processing all the backlog.
+	// TODO: debug why the heads count may grow on the receiving side if the event backlog is huge and the processing
+	//  is slow.
 	store, err := crdt.New(localStore, ds.NewKey("/"), syncer, broadcaster, opts)
 	if err != nil {
 		panic(err)
