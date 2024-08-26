@@ -19,7 +19,7 @@ type Config struct {
 	Subnet     netip.Prefix
 	PrivateKey secret.Secret
 	PublicKey  secret.Secret
-	Peers      []*PeerConfig
+	Peers      []PeerConfig
 }
 
 type PeerConfig struct {

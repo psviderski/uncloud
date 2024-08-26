@@ -144,9 +144,16 @@ func (c *Cluster) AddMachine(ctx context.Context, name, user, host string, port 
 	if err != nil {
 		return "", fmt.Errorf("write machine config to %q: %w", mcfgPath, err)
 	}
+	fmt.Println("Machine config written to", mcfgPath)
 
 	// TODO: download and install the latest uncloudd binary by running the install shell script from GitHub.
 	//  For now upload the binary using scp manually.
+
+	out, err := exec.Run(ctx, cmdexec.QuoteCommand(sudoPrefix, "systemctl", "restart", "uncloudd"))
+	if err != nil {
+		return "", fmt.Errorf("start uncloudd: %w: %s", err, out)
+	}
+	fmt.Println("uncloudd started")
 
 	connConfig := config.MachineConnection{
 		User:   user,
