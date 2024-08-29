@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package cluster;
+
+option go_package = "github.com/psviderski/uncloud/internal/machine/cluster/pb";
+
+service Cluster {
+  rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
+}
+
+message MachineInfo {
+  bytes id = 1;
+  string name = 2;
+  IPPrefix subnet = 3;
+  repeated IPPort endpoints = 4;
+  bytes publicKey = 5;
+}
+
+message AddMachineRequest {
+  MachineInfo machine = 1;
+}
+
+message AddMachineResponse {
+  MachineInfo machine = 1;
+}
+
+message IPPort {
+  bytes ip = 1;
+  int32 port = 2;
+}
+
+message IPPrefix {
+  bytes ip = 1;
+  int32 bits = 2;
+}
