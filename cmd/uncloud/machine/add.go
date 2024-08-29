@@ -61,6 +61,7 @@ func add(ctx context.Context, uncli *cli.CLI, host string, opts addOptions) erro
 				if err != nil {
 					return fmt.Errorf("create default cluster: %w", err)
 				}
+				fmt.Printf("Created %q cluster\n", cluster.Name)
 			} else {
 				return fmt.Errorf("get current cluster: %w", err)
 			}

@@ -48,7 +48,7 @@ func ConfigPath(dataDir string) string {
 }
 
 // NewBootstrapConfig returns a new machine configuration that should be applied to the first machine in a cluster.
-func NewBootstrapConfig(name string, subnet netip.Prefix) (*Config, error) {
+func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerConfig) (*Config, error) {
 	mid, err := secret.NewID()
 	if err != nil {
 		return nil, fmt.Errorf("generate machine ID: %w", err)
@@ -75,6 +75,7 @@ func NewBootstrapConfig(name string, subnet netip.Prefix) (*Config, error) {
 			Subnet:     subnet,
 			PrivateKey: privKey,
 			PublicKey:  pubKey,
+			Peers:      peers,
 		},
 	}, nil
 }

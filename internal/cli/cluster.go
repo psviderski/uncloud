@@ -9,6 +9,7 @@ import (
 	"uncloud/internal/cli/config"
 	"uncloud/internal/cmdexec"
 	"uncloud/internal/machine"
+	"uncloud/internal/machine/network"
 	"uncloud/internal/secret"
 )
 
@@ -30,7 +31,7 @@ func (c *Cluster) toConfig() *config.Cluster {
 	}
 }
 
-func (cli *CLI) CreateCluster(name string, privateKey ed25519.PrivateKey) (*Cluster, error) {
+func (cli *CLI) CreateCluster(name string, privateKey ed25519.PrivateKey, userPrivateKey secret.Secret) (*Cluster, error) {
 	if _, ok := cli.config.Clusters[name]; ok {
 		return nil, fmt.Errorf("cluster %q already exists", name)
 	}
@@ -41,13 +42,22 @@ func (cli *CLI) CreateCluster(name string, privateKey ed25519.PrivateKey) (*Clus
 			return nil, fmt.Errorf("generate cluster secret: %w", err)
 		}
 	}
+	if userPrivateKey == nil {
+		user, err := NewUser(nil)
+		if err != nil {
+			return nil, fmt.Errorf("generate user: %w", err)
+		}
+		userPrivateKey = user.PrivateKey()
+	}
 
 	c := &Cluster{
 		Name:       name,
 		privateKey: privateKey,
 		config:     cli.config,
 	}
-	cli.config.Clusters[name] = c.toConfig()
+	cfg := c.toConfig()
+	cfg.UserKey = userPrivateKey
+	cli.config.Clusters[name] = cfg
 	if err := cli.config.Save(); err != nil {
 		return nil, err
 	}
@@ -56,7 +66,7 @@ func (cli *CLI) CreateCluster(name string, privateKey ed25519.PrivateKey) (*Clus
 }
 
 func (cli *CLI) CreateDefaultCluster() (*Cluster, error) {
-	c, err := cli.CreateCluster("default", nil)
+	c, err := cli.CreateCluster("default", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +126,19 @@ func (c *Cluster) AddMachine(ctx context.Context, name, user, host string, port 
 		_ = exec.Close()
 	}()
 
-	mcfg, err := machine.NewBootstrapConfig(name, netip.Prefix{})
+	wgUserKey := c.config.Clusters[c.Name].UserKey
+	if wgUserKey == nil {
+		return "", errors.New("cluster user_key must be set in the config")
+	}
+	wgUser, err := NewUser(wgUserKey)
+	if err != nil {
+		return "", fmt.Errorf("create user from key: %w", err)
+	}
+	userPeerCfg := network.PeerConfig{
+		Subnet:    netip.PrefixFrom(wgUser.Address(), 128),
+		PublicKey: wgUser.PublicKey(),
+	}
+	mcfg, err := machine.NewBootstrapConfig(name, netip.Prefix{}, userPeerCfg)
 	if err != nil {
 		return "", fmt.Errorf("generate machine bootstrap config: %w", err)
 	}
@@ -153,13 +175,14 @@ func (c *Cluster) AddMachine(ctx context.Context, name, user, host string, port 
 	if err != nil {
 		return "", fmt.Errorf("start uncloudd: %w: %s", err, out)
 	}
-	fmt.Println("uncloudd started")
+	fmt.Println("uncloudd daemon started")
 
 	connConfig := config.MachineConnection{
-		User:   user,
-		Host:   host,
-		Port:   port,
-		SSHKey: sshKeyPath,
+		User:      user,
+		Host:      host,
+		Port:      port,
+		SSHKey:    sshKeyPath,
+		PublicKey: mcfg.Network.PublicKey,
 	}
 	c.config.Clusters[c.Name].Machines = append(c.config.Clusters[c.Name].Machines, connConfig)
 	if err = c.config.Save(); err != nil {

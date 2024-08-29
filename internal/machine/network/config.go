@@ -19,13 +19,13 @@ type Config struct {
 	Subnet     netip.Prefix
 	PrivateKey secret.Secret
 	PublicKey  secret.Secret
-	Peers      []PeerConfig
+	Peers      []PeerConfig `json:",omitempty"`
 }
 
 type PeerConfig struct {
 	Subnet       netip.Prefix
-	Endpoint     netip.AddrPort
-	AllEndpoints []netip.AddrPort
+	Endpoint     *netip.AddrPort  `json:",omitempty"`
+	AllEndpoints []netip.AddrPort `json:",omitempty"`
 	PublicKey    secret.Secret
 }
 
@@ -43,16 +43,17 @@ func (c Config) toDeviceConfig() (wgtypes.Config, error) {
 		if kErr != nil {
 			return wgtypes.Config{}, fmt.Errorf("parse peer public key: %w", kErr)
 		}
-		endpoint := &net.UDPAddr{
-			IP:   peerConfig.Endpoint.Addr().AsSlice(),
-			Port: int(peerConfig.Endpoint.Port()),
-		}
 		wgPeerConfigs[i] = wgtypes.PeerConfig{
 			PublicKey:                   peerPublicKey,
-			Endpoint:                    endpoint,
 			ReplaceAllowedIPs:           true,
 			AllowedIPs:                  []net.IPNet{prefixToIPNet(peerConfig.Subnet)},
 			PersistentKeepaliveInterval: &persistentKeepalive,
+		}
+		if peerConfig.Endpoint != nil {
+			wgPeerConfigs[i].Endpoint = &net.UDPAddr{
+				IP:   peerConfig.Endpoint.Addr().AsSlice(),
+				Port: int(peerConfig.Endpoint.Port()),
+			}
 		}
 	}
 
