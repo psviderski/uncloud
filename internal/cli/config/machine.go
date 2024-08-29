@@ -1,6 +1,8 @@
 package config
 
-import "uncloud/internal/secret"
+import (
+	"uncloud/internal/secret"
+)
 
 type MachineConnection struct {
 	User      string        `toml:"user,omitempty"`

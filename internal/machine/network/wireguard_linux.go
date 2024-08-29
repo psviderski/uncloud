@@ -11,6 +11,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"log/slog"
 	"net/netip"
+	"slices"
 	"time"
 )
 
@@ -101,11 +102,15 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	}
 	slog.Info("Configured WireGuard interface.", "name", n.link.Attrs().Name)
 
-	if err = n.updateSubnet(config.Subnet); err != nil {
+	machineIP := MachineIP(config.Subnet)
+	machineIPSubnet := netip.PrefixFrom(machineIP, config.Subnet.Bits())
+	machineIPv6 := netip.PrefixFrom(PeerIPv6(config.PublicKey), 128)
+	addrs := []netip.Prefix{machineIPSubnet, machineIPv6}
+	if err = n.updateAddresses(addrs); err != nil {
 		return err
 	}
-	slog.Info("Updated the subnet of the WireGuard interface.",
-		"name", n.link.Attrs().Name, "subnet", config.Subnet)
+	slog.Info("Updated addresses of the WireGuard interface.",
+		"name", n.link.Attrs().Name, "addrs", addrs)
 
 	// Bring the WireGuard interface up if it's not already up.
 	if n.link.Attrs().Flags&unix.IFF_UP != unix.IFF_UP {
@@ -123,27 +128,30 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	return nil
 }
 
-// updateSubnet assigns the subnet and the first IP address in it to the WireGuard interface.
+// updateAddresses assigns addresses to the WireGuard interface and removes old ones.
 // It also removes any other addresses that have been added out of band.
-func (n *WireGuardNetwork) updateSubnet(subnet netip.Prefix) error {
-	machineIP := MachineIP(subnet)
-	ipSubnet := prefixToIPNet(netip.PrefixFrom(machineIP, subnet.Bits()))
-	if err := netlink.AddrAdd(n.link, &netlink.Addr{IPNet: &ipSubnet}); err != nil {
-		if !errors.Is(err, unix.EEXIST) {
-			return fmt.Errorf("add subnet address to WireGuard link %q: %w", n.link.Attrs().Name, err)
+func (n *WireGuardNetwork) updateAddresses(addrs []netip.Prefix) error {
+	for _, addr := range addrs {
+		ipNet := prefixToIPNet(addr)
+		if err := netlink.AddrAdd(n.link, &netlink.Addr{IPNet: &ipNet}); err != nil {
+			if !errors.Is(err, unix.EEXIST) {
+				return fmt.Errorf("add subnet address to WireGuard link %q: %w", n.link.Attrs().Name, err)
+			}
 		}
 	}
-	// Remove the old subnet address if it has changed and remove any other addresses that have been added out of band.
+	// Remove the old addresses or any other addresses that have been added out of band.
 	linkAddrs, err := netlink.AddrList(n.link, netlink.FAMILY_ALL)
 	if err != nil {
 		return fmt.Errorf("list addresses on WireGuard link %q: %w", n.link.Attrs().Name, err)
 	}
-	for _, addr := range linkAddrs {
-		if addr.IPNet.String() == ipSubnet.String() {
+	for _, linkAddr := range linkAddrs {
+		if slices.ContainsFunc(addrs, func(a netip.Prefix) bool {
+			return linkAddr.IPNet.String() == a.String()
+		}) {
 			continue
 		}
-		if err = netlink.AddrDel(n.link, &addr); err != nil {
-			return fmt.Errorf("remove address %q from WireGuard link %q: %w", addr.IPNet, n.link.Attrs().Name, err)
+		if err = netlink.AddrDel(n.link, &linkAddr); err != nil {
+			return fmt.Errorf("remove address %q from WireGuard link %q: %w", linkAddr.IPNet, n.link.Attrs().Name, err)
 		}
 	}
 	return nil

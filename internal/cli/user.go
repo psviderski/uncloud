@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"net/netip"
+	"uncloud/internal/machine/network"
 	"uncloud/internal/secret"
 )
 
@@ -43,9 +44,6 @@ func (u *User) PublicKey() secret.Secret {
 	return pubKey[:]
 }
 
-func (u *User) Address() netip.Addr {
-	pubKey := u.PublicKey()
-	bytes := [16]byte{0xfd, 0xcc}
-	copy(bytes[2:], pubKey[:14])
-	return netip.AddrFrom16(bytes)
+func (u *User) IPv6() netip.Addr {
+	return network.PeerIPv6(u.PublicKey())
 }

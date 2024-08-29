@@ -24,6 +24,22 @@ type Cluster struct {
 	config *config.Config
 }
 
+func (c *Cluster) User() (*User, error) {
+	userKey := c.config.Clusters[c.Name].UserKey
+	if userKey == nil {
+		return nil, errors.New("cluster user_key must be set in the config")
+	}
+	return NewUser(userKey)
+}
+
+func (c *Cluster) Machines() []config.MachineConnection {
+	cfg, ok := c.config.Clusters[c.Name]
+	if !ok {
+		return nil
+	}
+	return cfg.Machines
+}
+
 func (c *Cluster) toConfig() *config.Cluster {
 	return &config.Cluster{
 		Name:   c.Name,
@@ -126,17 +142,13 @@ func (c *Cluster) AddMachine(ctx context.Context, name, user, host string, port 
 		_ = exec.Close()
 	}()
 
-	wgUserKey := c.config.Clusters[c.Name].UserKey
-	if wgUserKey == nil {
-		return "", errors.New("cluster user_key must be set in the config")
-	}
-	wgUser, err := NewUser(wgUserKey)
+	clusterUser, err := c.User()
 	if err != nil {
-		return "", fmt.Errorf("create user from key: %w", err)
+		return "", err
 	}
 	userPeerCfg := network.PeerConfig{
-		Subnet:    netip.PrefixFrom(wgUser.Address(), 128),
-		PublicKey: wgUser.PublicKey(),
+		Subnet:    netip.PrefixFrom(clusterUser.IPv6(), 128),
+		PublicKey: clusterUser.PublicKey(),
 	}
 	mcfg, err := machine.NewBootstrapConfig(name, netip.Prefix{}, userPeerCfg)
 	if err != nil {
