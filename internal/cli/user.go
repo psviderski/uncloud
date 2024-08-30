@@ -44,6 +44,6 @@ func (u *User) PublicKey() secret.Secret {
 	return pubKey[:]
 }
 
-func (u *User) IPv6() netip.Addr {
+func (u *User) ManagementIP() netip.Addr {
 	return network.PeerIPv6(u.PublicKey())
 }

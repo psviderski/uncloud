@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vishvananda/netlink"
+	"go4.org/netipx"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"log/slog"
@@ -102,10 +103,12 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	}
 	slog.Info("Configured WireGuard interface.", "name", n.link.Attrs().Name)
 
-	machineIP := MachineIP(config.Subnet)
-	machineIPSubnet := netip.PrefixFrom(machineIP, config.Subnet.Bits())
-	machineIPv6 := netip.PrefixFrom(PeerIPv6(config.PublicKey), 128)
-	addrs := []netip.Prefix{machineIPSubnet, machineIPv6}
+	machinePrefix := netip.PrefixFrom(MachineIP(config.Subnet), config.Subnet.Bits())
+	managementPrefix, err := addrToSingleIPPrefix(config.ManagementIP)
+	if err != nil {
+		return fmt.Errorf("parse management IP: %w", err)
+	}
+	addrs := []netip.Prefix{managementPrefix, machinePrefix}
 	if err = n.updateAddresses(addrs); err != nil {
 		return err
 	}
@@ -160,39 +163,55 @@ func (n *WireGuardNetwork) updateAddresses(addrs []netip.Prefix) error {
 // updatePeerRoutes adds routes to the peers via the WireGuard interface and removes old routes to peers
 // that are no longer in the configuration.
 func (n *WireGuardNetwork) updatePeerRoutes() error {
-	// Add routes to the peers via the WireGuard link.
+	// Build a set of compacted IP ranges for all peers.
+	var ipsetBuilder netipx.IPSetBuilder
 	for _, p := range n.peers {
-		dst := prefixToIPNet(p.config.Subnet)
-		if err := netlink.RouteAdd(&netlink.Route{
+		prefixes, err := p.prefixes()
+		if err != nil {
+			return fmt.Errorf("get peer addresses: %w", err)
+		}
+		for _, pref := range prefixes {
+			ipsetBuilder.AddPrefix(pref)
+		}
+	}
+	ipset, err := ipsetBuilder.IPSet()
+	if err != nil {
+		return fmt.Errorf("build list of IP ranges for peers: %w", err)
+	}
+
+	// Add routes to the computed IP ranges via the WireGuard link.
+	for _, prefix := range ipset.Prefixes() {
+		dst := prefixToIPNet(prefix)
+		if err = netlink.RouteAdd(&netlink.Route{
 			LinkIndex: n.link.Attrs().Index,
 			Scope:     netlink.SCOPE_LINK,
 			Dst:       &dst,
 		}); err != nil && !errors.Is(err, unix.EEXIST) {
 			return fmt.Errorf("add route to WireGuard link %q: %w", n.link.Attrs().Name, err)
 		}
-		slog.Debug("Added route to peer via WireGuard interface.",
-			"name", n.link.Attrs().Name, "peer", dst)
+		slog.Debug("Added route to peer(s) via WireGuard interface.",
+			"name", n.link.Attrs().Name, "dst", prefix)
 	}
-	// Remove old routes to peers that are no longer in the configuration.
+
+	// Remove old routes to IP ranges that are no longer in the configuration.
+	addedRoutes := ipset.Prefixes()
 	routes, err := netlink.RouteList(n.link, netlink.FAMILY_ALL)
 	if err != nil {
 		return fmt.Errorf("list routes on WireGuard link %q: %w", n.link.Attrs().Name, err)
 	}
 	for _, route := range routes {
-		old := true
-		for _, p := range n.peers {
-			if route.Dst.String() == p.config.Subnet.String() {
-				old = false
-				break
-			}
+		routePrefix, pErr := ipNetToPrefix(*route.Dst)
+		if pErr != nil {
+			return fmt.Errorf("parse route destination: %w", pErr)
 		}
-		if old {
-			if err = netlink.RouteDel(&route); err != nil {
-				return fmt.Errorf("remove route %q from WireGuard link %q: %w", route.Dst, n.link.Attrs().Name, err)
-			}
-			slog.Debug("Removed route to peer via WireGuard interface.",
-				"name", n.link.Attrs().Name, "peer", route.Dst)
+		if slices.Contains(addedRoutes, routePrefix) {
+			continue
 		}
+		if err = netlink.RouteDel(&route); err != nil {
+			return fmt.Errorf("remove route %q from WireGuard link %q: %w", route.Dst, n.link.Attrs().Name, err)
+		}
+		slog.Debug("Removed route to peer(s) via WireGuard interface.",
+			"name", n.link.Attrs().Name, "dst", routePrefix)
 	}
 	return nil
 }
@@ -200,4 +219,16 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 func (n *WireGuardNetwork) Run(ctx context.Context) error {
 	<-ctx.Done()
 	return nil
+}
+
+func (p peer) prefixes() ([]netip.Prefix, error) {
+	managePrefix, err := addrToSingleIPPrefix(p.config.ManagementIP)
+	if err != nil {
+		return nil, fmt.Errorf("parse management IP: %w", err)
+	}
+	prefixes := []netip.Prefix{managePrefix}
+	if p.config.Subnet != nil {
+		prefixes = append(prefixes, *p.config.Subnet)
+	}
+	return prefixes, nil
 }

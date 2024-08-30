@@ -72,10 +72,11 @@ func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerC
 		ID:   mid,
 		Name: name,
 		Network: &network.Config{
-			Subnet:     subnet,
-			PrivateKey: privKey,
-			PublicKey:  pubKey,
-			Peers:      peers,
+			Subnet:       subnet,
+			ManagementIP: network.PeerIPv6(pubKey),
+			PrivateKey:   privKey,
+			PublicKey:    pubKey,
+			Peers:        peers,
 		},
 	}, nil
 }

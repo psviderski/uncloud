@@ -147,8 +147,8 @@ func (c *Cluster) AddMachine(ctx context.Context, name, user, host string, port 
 		return "", err
 	}
 	userPeerCfg := network.PeerConfig{
-		Subnet:    netip.PrefixFrom(clusterUser.IPv6(), 128),
-		PublicKey: clusterUser.PublicKey(),
+		ManagementIP: clusterUser.ManagementIP(),
+		PublicKey:    clusterUser.PublicKey(),
 	}
 	mcfg, err := machine.NewBootstrapConfig(name, netip.Prefix{}, userPeerCfg)
 	if err != nil {

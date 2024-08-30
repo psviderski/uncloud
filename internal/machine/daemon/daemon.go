@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"log/slog"
 	"net"
+	"strconv"
 	"uncloud/internal/machine"
 	"uncloud/internal/machine/api"
 	"uncloud/internal/machine/api/pb"
@@ -40,8 +41,8 @@ func Run(ctx context.Context, dataDir string) error {
 	//}
 	//fmt.Println("Addresses:", addrs)
 
-	addr := fmt.Sprintf("127.0.0.1:%d", MachineAPIPort)
-	listener, err := net.Listen("tcp", addr)
+	apiAddr := net.JoinHostPort(cfg.Network.ManagementIP.String(), strconv.Itoa(MachineAPIPort))
+	listener, err := net.Listen("tcp", apiAddr)
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
 	}
@@ -51,7 +52,7 @@ func Run(ctx context.Context, dataDir string) error {
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple daemon components.
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
-		slog.Info("Starting API server.", "addr", addr)
+		slog.Info("Starting API server.", "addr", apiAddr)
 		if sErr := grpcServer.Serve(listener); sErr != nil {
 			return fmt.Errorf("API server failed: %w", sErr)
 		}

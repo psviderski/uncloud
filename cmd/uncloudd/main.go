@@ -12,6 +12,8 @@ import (
 )
 
 func main() {
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+
 	var dataDir string
 	cmd := &cobra.Command{
 		Use:           "uncloudd",

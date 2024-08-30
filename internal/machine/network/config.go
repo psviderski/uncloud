@@ -16,14 +16,20 @@ var (
 type Config struct {
 	// Subnet is the IPv4 address range allocated to the machine. The machine's IP address is the first address
 	// in the subnet. Other IP addresses are allocated to containers running on the machine.
-	Subnet     netip.Prefix
-	PrivateKey secret.Secret
-	PublicKey  secret.Secret
-	Peers      []PeerConfig `json:",omitempty"`
+	Subnet netip.Prefix
+	// ManagementIP is the ManagementIP address assigned to the machine within the WireGuard network. This address is used
+	// for cluster management traffic, such as gRPC communication with the machine API server and Serf gossip.
+	ManagementIP netip.Addr
+	PrivateKey   secret.Secret
+	PublicKey    secret.Secret
+	Peers        []PeerConfig `json:",omitempty"`
 }
 
 type PeerConfig struct {
-	Subnet       netip.Prefix
+	Subnet *netip.Prefix `json:",omitempty"`
+	// ManagementIP is the ManagementIP address assigned to the peer within the WireGuard network. This address is used
+	// for cluster management traffic, such as gRPC communication with the machine API server and Serf gossip.
+	ManagementIP netip.Addr
 	Endpoint     *netip.AddrPort  `json:",omitempty"`
 	AllEndpoints []netip.AddrPort `json:",omitempty"`
 	PublicKey    secret.Secret
@@ -32,7 +38,7 @@ type PeerConfig struct {
 func (c Config) toDeviceConfig() (wgtypes.Config, error) {
 	privateKey, err := wgtypes.NewKey(c.PrivateKey)
 	if err != nil {
-		panic(fmt.Errorf("parse private key: %w", err))
+		return wgtypes.Config{}, fmt.Errorf("parse private key: %w", err)
 	}
 	listenPort := WireGuardPort
 
@@ -43,10 +49,18 @@ func (c Config) toDeviceConfig() (wgtypes.Config, error) {
 		if kErr != nil {
 			return wgtypes.Config{}, fmt.Errorf("parse peer public key: %w", kErr)
 		}
+		manageIP, mErr := addrToSingleIPPrefix(peerConfig.ManagementIP)
+		if mErr != nil {
+			return wgtypes.Config{}, fmt.Errorf("parse management IP: %w", mErr)
+		}
+		allowedIPs := []net.IPNet{prefixToIPNet(manageIP)}
+		if peerConfig.Subnet != nil {
+			allowedIPs = append(allowedIPs, prefixToIPNet(*peerConfig.Subnet))
+		}
 		wgPeerConfigs[i] = wgtypes.PeerConfig{
 			PublicKey:                   peerPublicKey,
 			ReplaceAllowedIPs:           true,
-			AllowedIPs:                  []net.IPNet{prefixToIPNet(peerConfig.Subnet)},
+			AllowedIPs:                  allowedIPs,
 			PersistentKeepaliveInterval: &persistentKeepalive,
 		}
 		if peerConfig.Endpoint != nil {
