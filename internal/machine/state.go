@@ -14,13 +14,13 @@ import (
 
 const (
 	DefaultDataDir = "/var/lib/uncloud"
-	ConfigFileName = "machine.json"
+	StateFileName  = "machine.json"
 	APIPort        = 51000
 )
 
-// Config defines the machine-specific configuration within a cluster for the Uncloud daemon. It encapsulates
-// essential identifiers and settings required to establish an overlay network and join the cluster.
-type Config struct {
+// State defines the machine-specific configuration within a cluster. It encapsulates essential identifiers
+// and settings required to establish an overlay network and operate as a member of a cluster.
+type State struct {
 	// ID uniquely identifies this machine in the cluster.
 	ID string
 	// Name provides a human-readable identifier for the machine.
@@ -32,18 +32,18 @@ type Config struct {
 	path string
 }
 
-// ConfigPath returns the path to the machine configuration file within the given data directory.
-func ConfigPath(dataDir string) string {
-	return filepath.Join(dataDir, ConfigFileName)
+// StatePath returns the path to the machine state file within the given data directory.
+func StatePath(dataDir string) string {
+	return filepath.Join(dataDir, StateFileName)
 }
 
-// ParseConfig reads and decodes a config from the file at the given path.
-func ParseConfig(path string) (*Config, error) {
+// ParseState reads and decodes a state from the file at the given path.
+func ParseState(path string) (*State, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}
-	var config Config
+	var config State
 	if err = json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("parse config file %q: %w", path, err)
 	}
@@ -54,13 +54,13 @@ func ParseConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
-// SetPath sets the file path the config can be saved to.
-func (c *Config) SetPath(path string) {
+// SetPath sets the file path the state can be saved to.
+func (c *State) SetPath(path string) {
 	c.path = path
 }
 
-// Encode returns the JSON encoded config data.
-func (c *Config) Encode() ([]byte, error) {
+// Encode returns the JSON encoded state data.
+func (c *State) Encode() ([]byte, error) {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal config: %w", err)
@@ -68,8 +68,8 @@ func (c *Config) Encode() ([]byte, error) {
 	return data, nil
 }
 
-// Save writes the config data to the file at the given path.
-func (c *Config) Save() error {
+// Save writes the state data to the file at the given path.
+func (c *State) Save() error {
 	if c.path == "" {
 		return fmt.Errorf("config path not set")
 	}
@@ -105,7 +105,7 @@ func NewRandomName() (string, error) {
 }
 
 // NewBootstrapConfig returns a new machine configuration that should be applied to the first machine in a cluster.
-func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerConfig) (*Config, error) {
+func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerConfig) (*State, error) {
 	mid, err := NewID()
 	if err != nil {
 		return nil, fmt.Errorf("generate machine ID: %w", err)
@@ -125,7 +125,7 @@ func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerC
 		subnet = netip.PrefixFrom(network.DefaultNetwork.Addr(), network.DefaultSubnetBits)
 	}
 
-	return &Config{
+	return &State{
 		ID:   mid,
 		Name: name,
 		Network: &network.Config{

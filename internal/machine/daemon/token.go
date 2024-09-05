@@ -12,14 +12,14 @@ import (
 // MachineToken returns the local machine's token that can be used for adding the machine to a cluster.
 // TODO: ideally, this should be an RPC call to the daemon API to ensure the config is created and up-to-date.
 func MachineToken(dataDir string) (machine.Token, error) {
-	cfg, err := machine.ParseConfig(machine.ConfigPath(dataDir))
+	state, err := machine.ParseState(machine.StatePath(dataDir))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return machine.Token{}, fmt.Errorf("load machine config (is uncloudd daemon running?): %w", err)
 		}
 		return machine.Token{}, fmt.Errorf("load machine config: %w", err)
 	}
-	if len(cfg.Network.PublicKey) == 0 {
+	if len(state.Network.PublicKey) == 0 {
 		return machine.Token{}, errors.New("public key is not set in machine config")
 	}
 
@@ -37,5 +37,5 @@ func MachineToken(dataDir string) (machine.Token, error) {
 	for i, ip := range ips {
 		endpoints[i] = netip.AddrPortFrom(ip, network.WireGuardPort)
 	}
-	return machine.NewToken(cfg.Network.PublicKey, endpoints), nil
+	return machine.NewToken(state.Network.PublicKey, endpoints), nil
 }

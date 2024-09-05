@@ -32,7 +32,7 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 	}
 
 	state := cluster.NewState(cluster.StatePath(dataDir))
-	c := cluster.NewCluster(state, "")
+	c := cluster.NewCluster(&cluster.Config{}, state)
 	if err = c.SetNetwork(netPrefix); err != nil {
 		return fmt.Errorf("set cluster network: %w", err)
 	}
@@ -69,7 +69,7 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 	if err != nil {
 		return err
 	}
-	mcfg := &machine.Config{
+	mcfg := &machine.State{
 		ID:   m.Id,
 		Name: m.Name,
 		Network: &network.Config{
@@ -97,7 +97,7 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 	}
 	mcfg.Network.Peers = peers
 
-	mcfg.SetPath(machine.ConfigPath(dataDir))
+	mcfg.SetPath(machine.StatePath(dataDir))
 	if err = mcfg.Save(); err != nil {
 		return fmt.Errorf("save machine config: %w", err)
 	}
@@ -107,55 +107,57 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 }
 
 type Daemon struct {
-	config  *machine.Config
+	state   *machine.State
 	cluster *cluster.Cluster
 }
 
 func New(dataDir string) (*Daemon, error) {
-	cfgPath := machine.ConfigPath(dataDir)
-	cfg, err := machine.ParseConfig(cfgPath)
+	mstatePath := machine.StatePath(dataDir)
+	mstate, err := machine.ParseState(mstatePath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("load machine config: %w", err)
 		}
 		// Generate an empty machine config with a new key pair.
-		slog.Info("Machine config not found, creating a new one.", "path", cfgPath)
+		slog.Info("Machine config not found, creating a new one.", "path", mstatePath)
 		privKey, pubKey, kErr := network.NewMachineKeys()
 		if kErr != nil {
 			return nil, fmt.Errorf("generate machine keys: %w", kErr)
 		}
 		slog.Info("Generated machine key pair.", "pubkey", pubKey)
 
-		cfg = &machine.Config{
+		mstate = &machine.State{
 			Network: &network.Config{
 				PrivateKey: privKey,
 				PublicKey:  pubKey,
 			},
 		}
-		cfg.SetPath(cfgPath)
-		if err = cfg.Save(); err != nil {
+		mstate.SetPath(mstatePath)
+		if err = mstate.Save(); err != nil {
 			return nil, fmt.Errorf("save machine config: %w", err)
 		}
 	}
 
-	statePath := cluster.StatePath(dataDir)
-	state := cluster.NewState(statePath)
-	if err = state.Load(); err != nil {
+	cstatePath := cluster.StatePath(dataDir)
+	cstate := cluster.NewState(cstatePath)
+	if err = cstate.Load(); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("load cluster state: %w", err)
 		}
-		slog.Info("Cluster state not found, creating a new one.", "path", statePath)
-		if err = state.Save(); err != nil {
+		slog.Info("Cluster state not found, creating a new one.", "path", cstatePath)
+		if err = cstate.Save(); err != nil {
 			return nil, fmt.Errorf("save cluster state: %w", err)
 		}
 	}
 
 	d := &Daemon{
-		config: cfg,
+		state: mstate,
 	}
-	if cfg.Network.IsConfigured() {
-		apiAddr := net.JoinHostPort(cfg.Network.ManagementIP.String(), strconv.Itoa(machine.APIPort))
-		d.cluster = cluster.NewCluster(state, apiAddr)
+	if mstate.Network.IsConfigured() {
+		config := &cluster.Config{
+			APIAddr: net.JoinHostPort(mstate.Network.ManagementIP.String(), strconv.Itoa(machine.APIPort)),
+		}
+		d.cluster = cluster.NewCluster(config, cstate)
 	}
 
 	return d, nil
@@ -166,12 +168,12 @@ func (d *Daemon) Run(ctx context.Context) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Start the network only if it is configured.
-	if d.config.Network.IsConfigured() {
+	if d.state.Network.IsConfigured() {
 		wgnet, err := network.NewWireGuardNetwork()
 		if err != nil {
 			return fmt.Errorf("create WireGuard network: %w", err)
 		}
-		if err = wgnet.Configure(*d.config.Network); err != nil {
+		if err = wgnet.Configure(*d.state.Network); err != nil {
 			return fmt.Errorf("configure WireGuard network: %w", err)
 		}
 

@@ -22,31 +22,37 @@ const (
 	StateFile = "cluster.pb"
 )
 
+type Config struct {
+	APIAddr     string
+	APISockPath string
+}
+
 type Cluster struct {
 	// TODO: implement grpc ClusterServer
 	pb.UnimplementedClusterServer
-	state *State
 
-	apiAddr string
-	server  *grpc.Server
+	config Config
+	state  *State
+
+	server *grpc.Server
 }
 
-func NewCluster(state *State, apiAddr string) *Cluster {
+func NewCluster(config *Config, state *State) *Cluster {
 	c := &Cluster{
-		state:   state,
-		apiAddr: apiAddr,
-		server:  grpc.NewServer(),
+		config: *config,
+		state:  state,
+		server: grpc.NewServer(),
 	}
 	pb.RegisterClusterServer(c.server, c)
 	return c
 }
 
 func (c *Cluster) Run() error {
-	listener, err := net.Listen("tcp", c.apiAddr)
+	listener, err := net.Listen("tcp", c.config.APIAddr)
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
 	}
-	slog.Info("Starting API server.", "addr", c.apiAddr)
+	slog.Info("Starting API server.", "addr", c.config.APIAddr)
 	if err = c.server.Serve(listener); err != nil {
 		return fmt.Errorf("API server failed: %w", err)
 	}
