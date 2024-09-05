@@ -22,7 +22,7 @@ func NewInitCommand() *cobra.Command {
 	opts := initOptions{}
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Initialise a new cluster that consists of the local or remote machine",
+		Short: "Initialise a new cluster that consists of the local or remote machine.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			netPrefix, err := netip.ParsePrefix(opts.network)
 			if err != nil {

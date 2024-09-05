@@ -38,7 +38,7 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 	}
 
 	// Use all routable addresses as endpoints.
-	addrs, err := network.ListRoutableAddresses()
+	addrs, err := network.ListRoutableIPs()
 	if err != nil {
 		return fmt.Errorf("list routable addresses: %w", err)
 	}
@@ -112,9 +112,30 @@ type Daemon struct {
 }
 
 func New(dataDir string) (*Daemon, error) {
-	cfg, err := machine.ParseConfig(machine.ConfigPath(dataDir))
+	cfgPath := machine.ConfigPath(dataDir)
+	cfg, err := machine.ParseConfig(cfgPath)
 	if err != nil {
-		return nil, fmt.Errorf("load machine config: %w", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("load machine config: %w", err)
+		}
+		// Generate an empty machine config with a new key pair.
+		slog.Info("Machine config not found, creating a new one.", "path", cfgPath)
+		privKey, pubKey, kErr := network.NewMachineKeys()
+		if kErr != nil {
+			return nil, fmt.Errorf("generate machine keys: %w", kErr)
+		}
+		slog.Info("Generated machine key pair.", "pubkey", pubKey)
+
+		cfg = &machine.Config{
+			Network: &network.Config{
+				PrivateKey: privKey,
+				PublicKey:  pubKey,
+			},
+		}
+		cfg.SetPath(cfgPath)
+		if err = cfg.Save(); err != nil {
+			return nil, fmt.Errorf("save machine config: %w", err)
+		}
 	}
 
 	statePath := cluster.StatePath(dataDir)
@@ -123,59 +144,74 @@ func New(dataDir string) (*Daemon, error) {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("load cluster state: %w", err)
 		}
-		slog.Info("No cluster state found, creating a new one.", "path", statePath)
+		slog.Info("Cluster state not found, creating a new one.", "path", statePath)
 		if err = state.Save(); err != nil {
 			return nil, fmt.Errorf("save cluster state: %w", err)
 		}
 	}
 
-	apiAddr := net.JoinHostPort(cfg.Network.ManagementIP.String(), strconv.Itoa(machine.APIPort))
-	c := cluster.NewCluster(state, apiAddr)
+	d := &Daemon{
+		config: cfg,
+	}
+	if cfg.Network.IsConfigured() {
+		apiAddr := net.JoinHostPort(cfg.Network.ManagementIP.String(), strconv.Itoa(machine.APIPort))
+		d.cluster = cluster.NewCluster(state, apiAddr)
+	}
 
-	return &Daemon{
-		config:  cfg,
-		cluster: c,
-	}, nil
+	return d, nil
 }
 
 func (d *Daemon) Run(ctx context.Context) error {
-	wgnet, err := network.NewWireGuardNetwork()
-	if err != nil {
-		return fmt.Errorf("create WireGuard network: %w", err)
-	}
-	if err = wgnet.Configure(*d.config.Network); err != nil {
-		return fmt.Errorf("configure WireGuard network: %w", err)
-	}
-	//ctx, cancel := context.WithCancel(context.Background())
-	//go wgnet.WatchEndpoints(ctx, peerEndpointChangeNotifier)
-
-	//addrs, err := network.ListRoutableAddresses()
-	//if err != nil {
-	//	return err
-	//}
-	//fmt.Println("Addresses:", addrs)
-
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple daemon components.
 	errGroup, ctx := errgroup.WithContext(ctx)
-	errGroup.Go(func() error {
-		slog.Info("Starting cluster.")
-		if err = d.cluster.Run(); err != nil {
-			return fmt.Errorf("cluster failed: %w", err)
+
+	// Start the network only if it is configured.
+	if d.config.Network.IsConfigured() {
+		wgnet, err := network.NewWireGuardNetwork()
+		if err != nil {
+			return fmt.Errorf("create WireGuard network: %w", err)
 		}
-		return nil
-	})
-	errGroup.Go(func() error {
-		if err = wgnet.Run(ctx); err != nil {
-			return fmt.Errorf("WireGuard network failed: %w", err)
+		if err = wgnet.Configure(*d.config.Network); err != nil {
+			return fmt.Errorf("configure WireGuard network: %w", err)
 		}
-		return nil
-	})
+
+		//ctx, cancel := context.WithCancel(context.Background())
+		//go wgnet.WatchEndpoints(ctx, peerEndpointChangeNotifier)
+
+		//addrs, err := network.ListRoutableIPs()
+		//if err != nil {
+		//	return err
+		//}
+		//fmt.Println("Addresses:", addrs)
+
+		errGroup.Go(func() error {
+			if err = wgnet.Run(ctx); err != nil {
+				return fmt.Errorf("WireGuard network failed: %w", err)
+			}
+			return nil
+		})
+	} else {
+		slog.Info("Waiting for network configuration to start WireGuard network.")
+	}
+
+	if d.cluster != nil {
+		errGroup.Go(func() error {
+			slog.Info("Starting cluster.")
+			if err := d.cluster.Run(); err != nil {
+				return fmt.Errorf("cluster failed: %w", err)
+			}
+			return nil
+		})
+	}
+
 	// Shutdown goroutine.
 	errGroup.Go(func() error {
 		<-ctx.Done()
-		slog.Info("Stopping cluster.")
-		d.cluster.Stop()
-		slog.Info("Cluster stopped.")
+		if d.cluster != nil {
+			slog.Info("Stopping cluster.")
+			d.cluster.Stop()
+			slog.Info("Cluster stopped.")
+		}
 		return nil
 	})
 

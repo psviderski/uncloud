@@ -41,11 +41,15 @@ func ConfigPath(dataDir string) string {
 func ParseConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read config file %q: %w", path, err)
+		return nil, fmt.Errorf("read config file: %w", err)
 	}
 	var config Config
 	if err = json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("parse config file %q: %w", path, err)
+	}
+
+	if config.Network == nil {
+		return nil, fmt.Errorf("missing network configuration in config file %q", path)
 	}
 	return &config, nil
 }

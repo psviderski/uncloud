@@ -35,6 +35,11 @@ type PeerConfig struct {
 	PublicKey    secret.Secret
 }
 
+func (c Config) IsConfigured() bool {
+	return c.Subnet != (netip.Prefix{}) && c.ManagementIP != (netip.Addr{}) &&
+		c.PrivateKey != nil && c.PublicKey != nil
+}
+
 func (c Config) toDeviceConfig() (wgtypes.Config, error) {
 	privateKey, err := wgtypes.NewKey(c.PrivateKey)
 	if err != nil {
