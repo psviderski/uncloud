@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.3
-// source: internal/machine/cluster/pb/cluster.proto
+// source: internal/machine/api/pb/cluster.proto
 
 package pb
 
@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Cluster_AddMachine_FullMethodName = "/cluster.Cluster/AddMachine"
+	Cluster_AddMachine_FullMethodName           = "/cluster.Cluster/AddMachine"
+	Cluster_ListMachineEndpoints_FullMethodName = "/cluster.Cluster/ListMachineEndpoints"
 )
 
 // ClusterClient is the client API for Cluster service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ClusterClient interface {
 	AddMachine(ctx context.Context, in *AddMachineRequest, opts ...grpc.CallOption) (*AddMachineResponse, error)
+	ListMachineEndpoints(ctx context.Context, in *ListMachineEndpointsRequest, opts ...grpc.CallOption) (*ListMachineEndpointsResponse, error)
 }
 
 type clusterClient struct {
@@ -47,11 +49,22 @@ func (c *clusterClient) AddMachine(ctx context.Context, in *AddMachineRequest, o
 	return out, nil
 }
 
+func (c *clusterClient) ListMachineEndpoints(ctx context.Context, in *ListMachineEndpointsRequest, opts ...grpc.CallOption) (*ListMachineEndpointsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMachineEndpointsResponse)
+	err := c.cc.Invoke(ctx, Cluster_ListMachineEndpoints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServer is the server API for Cluster service.
 // All implementations must embed UnimplementedClusterServer
 // for forward compatibility.
 type ClusterServer interface {
 	AddMachine(context.Context, *AddMachineRequest) (*AddMachineResponse, error)
+	ListMachineEndpoints(context.Context, *ListMachineEndpointsRequest) (*ListMachineEndpointsResponse, error)
 	mustEmbedUnimplementedClusterServer()
 }
 
@@ -64,6 +77,9 @@ type UnimplementedClusterServer struct{}
 
 func (UnimplementedClusterServer) AddMachine(context.Context, *AddMachineRequest) (*AddMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddMachine not implemented")
+}
+func (UnimplementedClusterServer) ListMachineEndpoints(context.Context, *ListMachineEndpointsRequest) (*ListMachineEndpointsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMachineEndpoints not implemented")
 }
 func (UnimplementedClusterServer) mustEmbedUnimplementedClusterServer() {}
 func (UnimplementedClusterServer) testEmbeddedByValue()                 {}
@@ -104,6 +120,24 @@ func _Cluster_AddMachine_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cluster_ListMachineEndpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMachineEndpointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).ListMachineEndpoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_ListMachineEndpoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).ListMachineEndpoints(ctx, req.(*ListMachineEndpointsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Cluster_ServiceDesc is the grpc.ServiceDesc for Cluster service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -115,7 +149,11 @@ var Cluster_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "AddMachine",
 			Handler:    _Cluster_AddMachine_Handler,
 		},
+		{
+			MethodName: "ListMachineEndpoints",
+			Handler:    _Cluster_ListMachineEndpoints_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/machine/cluster/pb/cluster.proto",
+	Metadata: "internal/machine/api/pb/cluster.proto",
 }

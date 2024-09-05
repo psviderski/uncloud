@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.34.2
 // 	protoc        v5.27.3
-// source: internal/machine/cluster/pb/cluster.proto
+// source: internal/machine/api/pb/cluster.proto
 
 package pb
 
@@ -20,35 +20,33 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type MachineInfo struct {
+type Machine struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id        []byte    `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name      string    `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Subnet    *IPPrefix `protobuf:"bytes,3,opt,name=subnet,proto3" json:"subnet,omitempty"`
-	Endpoints []*IPPort `protobuf:"bytes,4,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
-	PublicKey []byte    `protobuf:"bytes,5,opt,name=publicKey,proto3" json:"publicKey,omitempty"`
+	Id      string         `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name    string         `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Network *NetworkConfig `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
 }
 
-func (x *MachineInfo) Reset() {
-	*x = MachineInfo{}
+func (x *Machine) Reset() {
+	*x = Machine{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[0]
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *MachineInfo) String() string {
+func (x *Machine) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MachineInfo) ProtoMessage() {}
+func (*Machine) ProtoMessage() {}
 
-func (x *MachineInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[0]
+func (x *Machine) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,42 +57,368 @@ func (x *MachineInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MachineInfo.ProtoReflect.Descriptor instead.
-func (*MachineInfo) Descriptor() ([]byte, []int) {
-	return file_internal_machine_cluster_pb_cluster_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use Machine.ProtoReflect.Descriptor instead.
+func (*Machine) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *MachineInfo) GetId() []byte {
+func (x *Machine) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return nil
+	return ""
 }
 
-func (x *MachineInfo) GetName() string {
+func (x *Machine) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *MachineInfo) GetSubnet() *IPPrefix {
+func (x *Machine) GetNetwork() *NetworkConfig {
+	if x != nil {
+		return x.Network
+	}
+	return nil
+}
+
+type NetworkConfig struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Subnet       *IPPrefix `protobuf:"bytes,1,opt,name=subnet,proto3" json:"subnet,omitempty"`
+	ManagementIp *IP       `protobuf:"bytes,2,opt,name=management_ip,json=managementIp,proto3" json:"management_ip,omitempty"`
+	Endpoints    []*IPPort `protobuf:"bytes,3,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	PublicKey    []byte    `protobuf:"bytes,4,opt,name=publicKey,proto3" json:"publicKey,omitempty"`
+}
+
+func (x *NetworkConfig) Reset() {
+	*x = NetworkConfig{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *NetworkConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkConfig) ProtoMessage() {}
+
+func (x *NetworkConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkConfig.ProtoReflect.Descriptor instead.
+func (*NetworkConfig) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *NetworkConfig) GetSubnet() *IPPrefix {
 	if x != nil {
 		return x.Subnet
 	}
 	return nil
 }
 
-func (x *MachineInfo) GetEndpoints() []*IPPort {
+func (x *NetworkConfig) GetManagementIp() *IP {
+	if x != nil {
+		return x.ManagementIp
+	}
+	return nil
+}
+
+func (x *NetworkConfig) GetEndpoints() []*IPPort {
 	if x != nil {
 		return x.Endpoints
 	}
 	return nil
 }
 
-func (x *MachineInfo) GetPublicKey() []byte {
+func (x *NetworkConfig) GetPublicKey() []byte {
 	if x != nil {
 		return x.PublicKey
+	}
+	return nil
+}
+
+type MachineEndpoints struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id        string    `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Endpoints []*IPPort `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+}
+
+func (x *MachineEndpoints) Reset() {
+	*x = MachineEndpoints{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *MachineEndpoints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MachineEndpoints) ProtoMessage() {}
+
+func (x *MachineEndpoints) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MachineEndpoints.ProtoReflect.Descriptor instead.
+func (*MachineEndpoints) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *MachineEndpoints) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *MachineEndpoints) GetEndpoints() []*IPPort {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
+type ListMachineEndpointsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+}
+
+func (x *ListMachineEndpointsRequest) Reset() {
+	*x = ListMachineEndpointsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListMachineEndpointsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMachineEndpointsRequest) ProtoMessage() {}
+
+func (x *ListMachineEndpointsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMachineEndpointsRequest.ProtoReflect.Descriptor instead.
+func (*ListMachineEndpointsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListMachineEndpointsRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type ListMachineEndpointsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Endpoints *MachineEndpoints `protobuf:"bytes,1,opt,name=endpoints,proto3" json:"endpoints,omitempty"`
+}
+
+func (x *ListMachineEndpointsResponse) Reset() {
+	*x = ListMachineEndpointsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListMachineEndpointsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMachineEndpointsResponse) ProtoMessage() {}
+
+func (x *ListMachineEndpointsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMachineEndpointsResponse.ProtoReflect.Descriptor instead.
+func (*ListMachineEndpointsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListMachineEndpointsResponse) GetEndpoints() *MachineEndpoints {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
+type User struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Network *NetworkConfig `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
+}
+
+func (x *User) Reset() {
+	*x = User{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *User) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*User) ProtoMessage() {}
+
+func (x *User) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use User.ProtoReflect.Descriptor instead.
+func (*User) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *User) GetNetwork() *NetworkConfig {
+	if x != nil {
+		return x.Network
+	}
+	return nil
+}
+
+type State struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Network *IPPrefix `protobuf:"bytes,1,opt,name=Network,proto3" json:"Network,omitempty"`
+	// The machine configuration in the state is the source of truth set by the administrator.
+	// The machine itself can't update it.
+	Machines  map[string]*Machine          `protobuf:"bytes,2,rep,name=machines,proto3" json:"machines,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Endpoints map[string]*MachineEndpoints `protobuf:"bytes,3,rep,name=endpoints,proto3" json:"endpoints,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Users     []*User                      `protobuf:"bytes,4,rep,name=users,proto3" json:"users,omitempty"`
+}
+
+func (x *State) Reset() {
+	*x = State{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *State) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*State) ProtoMessage() {}
+
+func (x *State) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use State.ProtoReflect.Descriptor instead.
+func (*State) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *State) GetNetwork() *IPPrefix {
+	if x != nil {
+		return x.Network
+	}
+	return nil
+}
+
+func (x *State) GetMachines() map[string]*Machine {
+	if x != nil {
+		return x.Machines
+	}
+	return nil
+}
+
+func (x *State) GetEndpoints() map[string]*MachineEndpoints {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
+func (x *State) GetUsers() []*User {
+	if x != nil {
+		return x.Users
 	}
 	return nil
 }
@@ -104,13 +428,14 @@ type AddMachineRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Machine *MachineInfo `protobuf:"bytes,1,opt,name=machine,proto3" json:"machine,omitempty"`
+	Name    string         `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Network *NetworkConfig `protobuf:"bytes,2,opt,name=network,proto3" json:"network,omitempty"`
 }
 
 func (x *AddMachineRequest) Reset() {
 	*x = AddMachineRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[1]
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -123,7 +448,7 @@ func (x *AddMachineRequest) String() string {
 func (*AddMachineRequest) ProtoMessage() {}
 
 func (x *AddMachineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[1]
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -136,12 +461,19 @@ func (x *AddMachineRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddMachineRequest.ProtoReflect.Descriptor instead.
 func (*AddMachineRequest) Descriptor() ([]byte, []int) {
-	return file_internal_machine_cluster_pb_cluster_proto_rawDescGZIP(), []int{1}
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *AddMachineRequest) GetMachine() *MachineInfo {
+func (x *AddMachineRequest) GetName() string {
 	if x != nil {
-		return x.Machine
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AddMachineRequest) GetNetwork() *NetworkConfig {
+	if x != nil {
+		return x.Network
 	}
 	return nil
 }
@@ -151,13 +483,13 @@ type AddMachineResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Machine *MachineInfo `protobuf:"bytes,1,opt,name=machine,proto3" json:"machine,omitempty"`
+	Machine *Machine `protobuf:"bytes,1,opt,name=machine,proto3" json:"machine,omitempty"`
 }
 
 func (x *AddMachineResponse) Reset() {
 	*x = AddMachineResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[2]
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -170,7 +502,7 @@ func (x *AddMachineResponse) String() string {
 func (*AddMachineResponse) ProtoMessage() {}
 
 func (x *AddMachineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[2]
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -183,12 +515,59 @@ func (x *AddMachineResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddMachineResponse.ProtoReflect.Descriptor instead.
 func (*AddMachineResponse) Descriptor() ([]byte, []int) {
-	return file_internal_machine_cluster_pb_cluster_proto_rawDescGZIP(), []int{2}
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *AddMachineResponse) GetMachine() *MachineInfo {
+func (x *AddMachineResponse) GetMachine() *Machine {
 	if x != nil {
 		return x.Machine
+	}
+	return nil
+}
+
+type IP struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Ip []byte `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
+}
+
+func (x *IP) Reset() {
+	*x = IP{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *IP) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IP) ProtoMessage() {}
+
+func (x *IP) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IP.ProtoReflect.Descriptor instead.
+func (*IP) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *IP) GetIp() []byte {
+	if x != nil {
+		return x.Ip
 	}
 	return nil
 }
@@ -198,14 +577,14 @@ type IPPort struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Ip   []byte `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
-	Port int32  `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	Ip   *IP    `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
+	Port uint32 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
 }
 
 func (x *IPPort) Reset() {
 	*x = IPPort{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[3]
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -218,7 +597,7 @@ func (x *IPPort) String() string {
 func (*IPPort) ProtoMessage() {}
 
 func (x *IPPort) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[3]
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -231,17 +610,17 @@ func (x *IPPort) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IPPort.ProtoReflect.Descriptor instead.
 func (*IPPort) Descriptor() ([]byte, []int) {
-	return file_internal_machine_cluster_pb_cluster_proto_rawDescGZIP(), []int{3}
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *IPPort) GetIp() []byte {
+func (x *IPPort) GetIp() *IP {
 	if x != nil {
 		return x.Ip
 	}
 	return nil
 }
 
-func (x *IPPort) GetPort() int32 {
+func (x *IPPort) GetPort() uint32 {
 	if x != nil {
 		return x.Port
 	}
@@ -253,14 +632,14 @@ type IPPrefix struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Ip   []byte `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
-	Bits int32  `protobuf:"varint,2,opt,name=bits,proto3" json:"bits,omitempty"`
+	Ip   *IP    `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
+	Bits uint32 `protobuf:"varint,2,opt,name=bits,proto3" json:"bits,omitempty"`
 }
 
 func (x *IPPrefix) Reset() {
 	*x = IPPrefix{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[4]
+		mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -273,7 +652,7 @@ func (x *IPPrefix) String() string {
 func (*IPPrefix) ProtoMessage() {}
 
 func (x *IPPrefix) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_cluster_pb_cluster_proto_msgTypes[4]
+	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -286,108 +665,191 @@ func (x *IPPrefix) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IPPrefix.ProtoReflect.Descriptor instead.
 func (*IPPrefix) Descriptor() ([]byte, []int) {
-	return file_internal_machine_cluster_pb_cluster_proto_rawDescGZIP(), []int{4}
+	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *IPPrefix) GetIp() []byte {
+func (x *IPPrefix) GetIp() *IP {
 	if x != nil {
 		return x.Ip
 	}
 	return nil
 }
 
-func (x *IPPrefix) GetBits() int32 {
+func (x *IPPrefix) GetBits() uint32 {
 	if x != nil {
 		return x.Bits
 	}
 	return 0
 }
 
-var File_internal_machine_cluster_pb_cluster_proto protoreflect.FileDescriptor
+var File_internal_machine_api_pb_cluster_proto protoreflect.FileDescriptor
 
-var file_internal_machine_cluster_pb_cluster_proto_rawDesc = []byte{
-	0x0a, 0x29, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6d, 0x61, 0x63, 0x68, 0x69,
-	0x6e, 0x65, 0x2f, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2f, 0x70, 0x62, 0x2f, 0x63, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x07, 0x63, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x22, 0xa9, 0x01, 0x0a, 0x0b, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65,
-	0x49, 0x6e, 0x66, 0x6f, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c,
-	0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x29, 0x0a, 0x06, 0x73, 0x75, 0x62, 0x6e,
-	0x65, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74,
-	0x65, 0x72, 0x2e, 0x49, 0x50, 0x50, 0x72, 0x65, 0x66, 0x69, 0x78, 0x52, 0x06, 0x73, 0x75, 0x62,
-	0x6e, 0x65, 0x74, 0x12, 0x2d, 0x0a, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73,
-	0x18, 0x04, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x2e, 0x49, 0x50, 0x50, 0x6f, 0x72, 0x74, 0x52, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e,
-	0x74, 0x73, 0x12, 0x1c, 0x0a, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x18,
-	0x05, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79,
-	0x22, 0x43, 0x0a, 0x11, 0x41, 0x64, 0x64, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x07, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x2e, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x07, 0x6d, 0x61,
-	0x63, 0x68, 0x69, 0x6e, 0x65, 0x22, 0x44, 0x0a, 0x12, 0x41, 0x64, 0x64, 0x4d, 0x61, 0x63, 0x68,
-	0x69, 0x6e, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2e, 0x0a, 0x07, 0x6d,
-	0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x63,
-	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x49, 0x6e,
-	0x66, 0x6f, 0x52, 0x07, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x22, 0x2c, 0x0a, 0x06, 0x49,
-	0x50, 0x50, 0x6f, 0x72, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x0c, 0x52, 0x02, 0x69, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x05, 0x52, 0x04, 0x70, 0x6f, 0x72, 0x74, 0x22, 0x2e, 0x0a, 0x08, 0x49, 0x50, 0x50,
-	0x72, 0x65, 0x66, 0x69, 0x78, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x0c, 0x52, 0x02, 0x69, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x62, 0x69, 0x74, 0x73, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x05, 0x52, 0x04, 0x62, 0x69, 0x74, 0x73, 0x32, 0x50, 0x0a, 0x07, 0x43, 0x6c, 0x75,
+var file_internal_machine_api_pb_cluster_proto_rawDesc = []byte{
+	0x0a, 0x25, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6d, 0x61, 0x63, 0x68, 0x69,
+	0x6e, 0x65, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x70, 0x62, 0x2f, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x22, 0x5f, 0x0a, 0x07, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e,
+	0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12,
+	0x30, 0x0a, 0x07, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x16, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x4e, 0x65, 0x74, 0x77, 0x6f,
+	0x72, 0x6b, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x07, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72,
+	0x6b, 0x22, 0xb9, 0x01, 0x0a, 0x0d, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x43, 0x6f, 0x6e,
+	0x66, 0x69, 0x67, 0x12, 0x29, 0x0a, 0x06, 0x73, 0x75, 0x62, 0x6e, 0x65, 0x74, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x49, 0x50,
+	0x50, 0x72, 0x65, 0x66, 0x69, 0x78, 0x52, 0x06, 0x73, 0x75, 0x62, 0x6e, 0x65, 0x74, 0x12, 0x30,
+	0x0a, 0x0d, 0x6d, 0x61, 0x6e, 0x61, 0x67, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x5f, 0x69, 0x70, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e,
+	0x49, 0x50, 0x52, 0x0c, 0x6d, 0x61, 0x6e, 0x61, 0x67, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x49, 0x70,
+	0x12, 0x2d, 0x0a, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x03, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x49, 0x50,
+	0x50, 0x6f, 0x72, 0x74, 0x52, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x12,
+	0x1c, 0x0a, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x18, 0x04, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x22, 0x51, 0x0a,
+	0x10, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74,
+	0x73, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69,
+	0x64, 0x12, 0x2d, 0x0a, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x02,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x49,
+	0x50, 0x50, 0x6f, 0x72, 0x74, 0x52, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73,
+	0x22, 0x2d, 0x0a, 0x1b, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x45,
+	0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
+	0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x22,
+	0x57, 0x0a, 0x1c, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x45, 0x6e,
+	0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x37, 0x0a, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x19, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x4d, 0x61, 0x63,
+	0x68, 0x69, 0x6e, 0x65, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x52, 0x09, 0x65,
+	0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x22, 0x38, 0x0a, 0x04, 0x55, 0x73, 0x65, 0x72,
+	0x12, 0x30, 0x0a, 0x07, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x16, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x4e, 0x65, 0x74, 0x77,
+	0x6f, 0x72, 0x6b, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x07, 0x6e, 0x65, 0x74, 0x77, 0x6f,
+	0x72, 0x6b, 0x22, 0xf8, 0x02, 0x0a, 0x05, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x2b, 0x0a, 0x07,
+	0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x11, 0x2e,
+	0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x49, 0x50, 0x50, 0x72, 0x65, 0x66, 0x69, 0x78,
+	0x52, 0x07, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x12, 0x38, 0x0a, 0x08, 0x6d, 0x61, 0x63,
+	0x68, 0x69, 0x6e, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x63, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x2e, 0x4d, 0x61, 0x63, 0x68,
+	0x69, 0x6e, 0x65, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x08, 0x6d, 0x61, 0x63, 0x68, 0x69,
+	0x6e, 0x65, 0x73, 0x12, 0x3b, 0x0a, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73,
+	0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x2e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x2e, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73,
+	0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x09, 0x65, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73,
+	0x12, 0x23, 0x0a, 0x05, 0x75, 0x73, 0x65, 0x72, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x0d, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x55, 0x73, 0x65, 0x72, 0x52, 0x05,
+	0x75, 0x73, 0x65, 0x72, 0x73, 0x1a, 0x4d, 0x0a, 0x0d, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65,
+	0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x26, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x2e, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
+	0x3a, 0x02, 0x38, 0x01, 0x1a, 0x57, 0x0a, 0x0e, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74,
+	0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x2f, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x2e, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e,
+	0x74, 0x73, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x59, 0x0a,
+	0x11, 0x41, 0x64, 0x64, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x30, 0x0a, 0x07, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72,
+	0x6b, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x16, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x2e, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52,
+	0x07, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x22, 0x40, 0x0a, 0x12, 0x41, 0x64, 0x64, 0x4d,
+	0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2a,
+	0x0a, 0x07, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x10, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e,
+	0x65, 0x52, 0x07, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x22, 0x14, 0x0a, 0x02, 0x49, 0x50,
+	0x12, 0x0e, 0x0a, 0x02, 0x69, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x02, 0x69, 0x70,
+	0x22, 0x39, 0x0a, 0x06, 0x49, 0x50, 0x50, 0x6f, 0x72, 0x74, 0x12, 0x1b, 0x0a, 0x02, 0x69, 0x70,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x2e, 0x49, 0x50, 0x52, 0x02, 0x69, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x70, 0x6f, 0x72, 0x74, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x70, 0x6f, 0x72, 0x74, 0x22, 0x3b, 0x0a, 0x08, 0x49,
+	0x50, 0x50, 0x72, 0x65, 0x66, 0x69, 0x78, 0x12, 0x1b, 0x0a, 0x02, 0x69, 0x70, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x49, 0x50,
+	0x52, 0x02, 0x69, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x62, 0x69, 0x74, 0x73, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x04, 0x62, 0x69, 0x74, 0x73, 0x32, 0xb5, 0x01, 0x0a, 0x07, 0x43, 0x6c, 0x75,
 	0x73, 0x74, 0x65, 0x72, 0x12, 0x45, 0x0a, 0x0a, 0x41, 0x64, 0x64, 0x4d, 0x61, 0x63, 0x68, 0x69,
 	0x6e, 0x65, 0x12, 0x1a, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x41, 0x64, 0x64,
 	0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b,
 	0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x41, 0x64, 0x64, 0x4d, 0x61, 0x63, 0x68,
-	0x69, 0x6e, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x3b, 0x5a, 0x39, 0x67,
-	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x73, 0x76, 0x69, 0x64, 0x65,
-	0x72, 0x73, 0x6b, 0x69, 0x2f, 0x75, 0x6e, 0x63, 0x6c, 0x6f, 0x75, 0x64, 0x2f, 0x69, 0x6e, 0x74,
-	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x2f, 0x63, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x69, 0x6e, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x63, 0x0a, 0x14, 0x4c,
+	0x69, 0x73, 0x74, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69,
+	0x6e, 0x74, 0x73, 0x12, 0x24, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x4c, 0x69,
+	0x73, 0x74, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e,
+	0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x63, 0x6c, 0x75, 0x73,
+	0x74, 0x65, 0x72, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x45,
+	0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x42, 0x3b, 0x5a, 0x39, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70,
+	0x73, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73, 0x6b, 0x69, 0x2f, 0x75, 0x6e, 0x63, 0x6c, 0x6f, 0x75,
+	0x64, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6d, 0x61, 0x63, 0x68, 0x69,
+	0x6e, 0x65, 0x2f, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
-	file_internal_machine_cluster_pb_cluster_proto_rawDescOnce sync.Once
-	file_internal_machine_cluster_pb_cluster_proto_rawDescData = file_internal_machine_cluster_pb_cluster_proto_rawDesc
+	file_internal_machine_api_pb_cluster_proto_rawDescOnce sync.Once
+	file_internal_machine_api_pb_cluster_proto_rawDescData = file_internal_machine_api_pb_cluster_proto_rawDesc
 )
 
-func file_internal_machine_cluster_pb_cluster_proto_rawDescGZIP() []byte {
-	file_internal_machine_cluster_pb_cluster_proto_rawDescOnce.Do(func() {
-		file_internal_machine_cluster_pb_cluster_proto_rawDescData = protoimpl.X.CompressGZIP(file_internal_machine_cluster_pb_cluster_proto_rawDescData)
+func file_internal_machine_api_pb_cluster_proto_rawDescGZIP() []byte {
+	file_internal_machine_api_pb_cluster_proto_rawDescOnce.Do(func() {
+		file_internal_machine_api_pb_cluster_proto_rawDescData = protoimpl.X.CompressGZIP(file_internal_machine_api_pb_cluster_proto_rawDescData)
 	})
-	return file_internal_machine_cluster_pb_cluster_proto_rawDescData
+	return file_internal_machine_api_pb_cluster_proto_rawDescData
 }
 
-var file_internal_machine_cluster_pb_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
-var file_internal_machine_cluster_pb_cluster_proto_goTypes = []any{
-	(*MachineInfo)(nil),        // 0: cluster.MachineInfo
-	(*AddMachineRequest)(nil),  // 1: cluster.AddMachineRequest
-	(*AddMachineResponse)(nil), // 2: cluster.AddMachineResponse
-	(*IPPort)(nil),             // 3: cluster.IPPort
-	(*IPPrefix)(nil),           // 4: cluster.IPPrefix
+var file_internal_machine_api_pb_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_internal_machine_api_pb_cluster_proto_goTypes = []any{
+	(*Machine)(nil),                      // 0: cluster.Machine
+	(*NetworkConfig)(nil),                // 1: cluster.NetworkConfig
+	(*MachineEndpoints)(nil),             // 2: cluster.MachineEndpoints
+	(*ListMachineEndpointsRequest)(nil),  // 3: cluster.ListMachineEndpointsRequest
+	(*ListMachineEndpointsResponse)(nil), // 4: cluster.ListMachineEndpointsResponse
+	(*User)(nil),                         // 5: cluster.User
+	(*State)(nil),                        // 6: cluster.State
+	(*AddMachineRequest)(nil),            // 7: cluster.AddMachineRequest
+	(*AddMachineResponse)(nil),           // 8: cluster.AddMachineResponse
+	(*IP)(nil),                           // 9: cluster.IP
+	(*IPPort)(nil),                       // 10: cluster.IPPort
+	(*IPPrefix)(nil),                     // 11: cluster.IPPrefix
+	nil,                                  // 12: cluster.State.MachinesEntry
+	nil,                                  // 13: cluster.State.EndpointsEntry
 }
-var file_internal_machine_cluster_pb_cluster_proto_depIdxs = []int32{
-	4, // 0: cluster.MachineInfo.subnet:type_name -> cluster.IPPrefix
-	3, // 1: cluster.MachineInfo.endpoints:type_name -> cluster.IPPort
-	0, // 2: cluster.AddMachineRequest.machine:type_name -> cluster.MachineInfo
-	0, // 3: cluster.AddMachineResponse.machine:type_name -> cluster.MachineInfo
-	1, // 4: cluster.Cluster.AddMachine:input_type -> cluster.AddMachineRequest
-	2, // 5: cluster.Cluster.AddMachine:output_type -> cluster.AddMachineResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+var file_internal_machine_api_pb_cluster_proto_depIdxs = []int32{
+	1,  // 0: cluster.Machine.network:type_name -> cluster.NetworkConfig
+	11, // 1: cluster.NetworkConfig.subnet:type_name -> cluster.IPPrefix
+	9,  // 2: cluster.NetworkConfig.management_ip:type_name -> cluster.IP
+	10, // 3: cluster.NetworkConfig.endpoints:type_name -> cluster.IPPort
+	10, // 4: cluster.MachineEndpoints.endpoints:type_name -> cluster.IPPort
+	2,  // 5: cluster.ListMachineEndpointsResponse.endpoints:type_name -> cluster.MachineEndpoints
+	1,  // 6: cluster.User.network:type_name -> cluster.NetworkConfig
+	11, // 7: cluster.State.Network:type_name -> cluster.IPPrefix
+	12, // 8: cluster.State.machines:type_name -> cluster.State.MachinesEntry
+	13, // 9: cluster.State.endpoints:type_name -> cluster.State.EndpointsEntry
+	5,  // 10: cluster.State.users:type_name -> cluster.User
+	1,  // 11: cluster.AddMachineRequest.network:type_name -> cluster.NetworkConfig
+	0,  // 12: cluster.AddMachineResponse.machine:type_name -> cluster.Machine
+	9,  // 13: cluster.IPPort.ip:type_name -> cluster.IP
+	9,  // 14: cluster.IPPrefix.ip:type_name -> cluster.IP
+	0,  // 15: cluster.State.MachinesEntry.value:type_name -> cluster.Machine
+	2,  // 16: cluster.State.EndpointsEntry.value:type_name -> cluster.MachineEndpoints
+	7,  // 17: cluster.Cluster.AddMachine:input_type -> cluster.AddMachineRequest
+	3,  // 18: cluster.Cluster.ListMachineEndpoints:input_type -> cluster.ListMachineEndpointsRequest
+	8,  // 19: cluster.Cluster.AddMachine:output_type -> cluster.AddMachineResponse
+	4,  // 20: cluster.Cluster.ListMachineEndpoints:output_type -> cluster.ListMachineEndpointsResponse
+	19, // [19:21] is the sub-list for method output_type
+	17, // [17:19] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
-func init() { file_internal_machine_cluster_pb_cluster_proto_init() }
-func file_internal_machine_cluster_pb_cluster_proto_init() {
-	if File_internal_machine_cluster_pb_cluster_proto != nil {
+func init() { file_internal_machine_api_pb_cluster_proto_init() }
+func file_internal_machine_api_pb_cluster_proto_init() {
+	if File_internal_machine_api_pb_cluster_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_internal_machine_cluster_pb_cluster_proto_msgTypes[0].Exporter = func(v any, i int) any {
-			switch v := v.(*MachineInfo); i {
+		file_internal_machine_api_pb_cluster_proto_msgTypes[0].Exporter = func(v any, i int) any {
+			switch v := v.(*Machine); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -398,7 +860,79 @@ func file_internal_machine_cluster_pb_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_internal_machine_cluster_pb_cluster_proto_msgTypes[1].Exporter = func(v any, i int) any {
+		file_internal_machine_api_pb_cluster_proto_msgTypes[1].Exporter = func(v any, i int) any {
+			switch v := v.(*NetworkConfig); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_cluster_proto_msgTypes[2].Exporter = func(v any, i int) any {
+			switch v := v.(*MachineEndpoints); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_cluster_proto_msgTypes[3].Exporter = func(v any, i int) any {
+			switch v := v.(*ListMachineEndpointsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_cluster_proto_msgTypes[4].Exporter = func(v any, i int) any {
+			switch v := v.(*ListMachineEndpointsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_cluster_proto_msgTypes[5].Exporter = func(v any, i int) any {
+			switch v := v.(*User); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_cluster_proto_msgTypes[6].Exporter = func(v any, i int) any {
+			switch v := v.(*State); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_cluster_proto_msgTypes[7].Exporter = func(v any, i int) any {
 			switch v := v.(*AddMachineRequest); i {
 			case 0:
 				return &v.state
@@ -410,7 +944,7 @@ func file_internal_machine_cluster_pb_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_internal_machine_cluster_pb_cluster_proto_msgTypes[2].Exporter = func(v any, i int) any {
+		file_internal_machine_api_pb_cluster_proto_msgTypes[8].Exporter = func(v any, i int) any {
 			switch v := v.(*AddMachineResponse); i {
 			case 0:
 				return &v.state
@@ -422,7 +956,19 @@ func file_internal_machine_cluster_pb_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_internal_machine_cluster_pb_cluster_proto_msgTypes[3].Exporter = func(v any, i int) any {
+		file_internal_machine_api_pb_cluster_proto_msgTypes[9].Exporter = func(v any, i int) any {
+			switch v := v.(*IP); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_cluster_proto_msgTypes[10].Exporter = func(v any, i int) any {
 			switch v := v.(*IPPort); i {
 			case 0:
 				return &v.state
@@ -434,7 +980,7 @@ func file_internal_machine_cluster_pb_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_internal_machine_cluster_pb_cluster_proto_msgTypes[4].Exporter = func(v any, i int) any {
+		file_internal_machine_api_pb_cluster_proto_msgTypes[11].Exporter = func(v any, i int) any {
 			switch v := v.(*IPPrefix); i {
 			case 0:
 				return &v.state
@@ -451,18 +997,18 @@ func file_internal_machine_cluster_pb_cluster_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_internal_machine_cluster_pb_cluster_proto_rawDesc,
+			RawDescriptor: file_internal_machine_api_pb_cluster_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_internal_machine_cluster_pb_cluster_proto_goTypes,
-		DependencyIndexes: file_internal_machine_cluster_pb_cluster_proto_depIdxs,
-		MessageInfos:      file_internal_machine_cluster_pb_cluster_proto_msgTypes,
+		GoTypes:           file_internal_machine_api_pb_cluster_proto_goTypes,
+		DependencyIndexes: file_internal_machine_api_pb_cluster_proto_depIdxs,
+		MessageInfos:      file_internal_machine_api_pb_cluster_proto_msgTypes,
 	}.Build()
-	File_internal_machine_cluster_pb_cluster_proto = out.File
-	file_internal_machine_cluster_pb_cluster_proto_rawDesc = nil
-	file_internal_machine_cluster_pb_cluster_proto_goTypes = nil
-	file_internal_machine_cluster_pb_cluster_proto_depIdxs = nil
+	File_internal_machine_api_pb_cluster_proto = out.File
+	file_internal_machine_api_pb_cluster_proto_rawDesc = nil
+	file_internal_machine_api_pb_cluster_proto_goTypes = nil
+	file_internal_machine_api_pb_cluster_proto_depIdxs = nil
 }

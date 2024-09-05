@@ -6,30 +6,67 @@ option go_package = "github.com/psviderski/uncloud/internal/machine/cluster/pb";
 
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
+  rpc ListMachineEndpoints(ListMachineEndpointsRequest) returns (ListMachineEndpointsResponse);
 }
 
-message MachineInfo {
-  bytes id = 1;
+message Machine {
+  string id = 1;
   string name = 2;
-  IPPrefix subnet = 3;
-  repeated IPPort endpoints = 4;
-  bytes publicKey = 5;
+  NetworkConfig network = 3;
+}
+
+message NetworkConfig {
+  IPPrefix subnet = 1;
+  IP management_ip = 2;
+  repeated IPPort endpoints = 3;
+  bytes publicKey = 4;
+}
+
+message MachineEndpoints {
+  string id = 1;
+  repeated IPPort endpoints = 2;
+}
+
+message ListMachineEndpointsRequest {
+  string id = 1;
+}
+
+message ListMachineEndpointsResponse {
+  MachineEndpoints endpoints = 1;
+}
+
+message User {
+  NetworkConfig network = 1;
+}
+
+message State {
+  IPPrefix Network = 1;
+  // The machine configuration in the state is the source of truth set by the administrator.
+  // The machine itself can't update it.
+  map<string, Machine> machines = 2;
+  map<string, MachineEndpoints> endpoints = 3;
+  repeated User users = 4;
 }
 
 message AddMachineRequest {
-  MachineInfo machine = 1;
+  string name = 1;
+  NetworkConfig network = 2;
 }
 
 message AddMachineResponse {
-  MachineInfo machine = 1;
+  Machine machine = 1;
+}
+
+message IP {
+  bytes ip = 1;
 }
 
 message IPPort {
-  bytes ip = 1;
-  int32 port = 2;
+  IP ip = 1;
+  uint32 port = 2;
 }
 
 message IPPrefix {
-  bytes ip = 1;
-  int32 bits = 2;
+  IP ip = 1;
+  uint32 bits = 2;
 }
