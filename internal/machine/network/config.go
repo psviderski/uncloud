@@ -17,7 +17,7 @@ type Config struct {
 	// Subnet is the IPv4 address range allocated to the machine. The machine's IP address is the first address
 	// in the subnet. Other IP addresses are allocated to containers running on the machine.
 	Subnet netip.Prefix
-	// ManagementIP is the ManagementIP address assigned to the machine within the WireGuard network. This address is used
+	// ManagementIP is the IPv6 address assigned to the machine within the WireGuard network. This address is used
 	// for cluster management traffic, such as gRPC communication with the machine API server and Serf gossip.
 	ManagementIP netip.Addr
 	PrivateKey   secret.Secret
@@ -27,7 +27,7 @@ type Config struct {
 
 type PeerConfig struct {
 	Subnet *netip.Prefix `json:",omitempty"`
-	// ManagementIP is the ManagementIP address assigned to the peer within the WireGuard network. This address is used
+	// ManagementIP is the IPv6 address assigned to the peer within the WireGuard network. This address is used
 	// for cluster management traffic, such as gRPC communication with the machine API server and Serf gossip.
 	ManagementIP netip.Addr
 	Endpoint     *netip.AddrPort  `json:",omitempty"`

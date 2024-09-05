@@ -15,6 +15,7 @@ import (
 const (
 	DefaultDataDir = "/var/lib/uncloud"
 	ConfigFileName = "machine.json"
+	APIPort        = 51000
 )
 
 // Config defines the machine-specific configuration within a cluster for the Uncloud daemon. It encapsulates
@@ -26,9 +27,66 @@ type Config struct {
 	Name string
 	// Network specifies the network configuration for this machine.
 	Network *network.Config
+
+	// path is the file path config is read from and saved to.
+	path string
 }
 
-// NewRandomName returns a random machine name in the format "machine-xxxx".
+// ConfigPath returns the path to the machine configuration file within the given data directory.
+func ConfigPath(dataDir string) string {
+	return filepath.Join(dataDir, ConfigFileName)
+}
+
+// ParseConfig reads and decodes a config from the file at the given path.
+func ParseConfig(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config file %q: %w", path, err)
+	}
+	var config Config
+	if err = json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("parse config file %q: %w", path, err)
+	}
+	return &config, nil
+}
+
+// SetPath sets the file path the config can be saved to.
+func (c *Config) SetPath(path string) {
+	c.path = path
+}
+
+// Encode returns the JSON encoded config data.
+func (c *Config) Encode() ([]byte, error) {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal config: %w", err)
+	}
+	return data, nil
+}
+
+// Save writes the config data to the file at the given path.
+func (c *Config) Save() error {
+	if c.path == "" {
+		return fmt.Errorf("config path not set")
+	}
+	dir, _ := filepath.Split(c.path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("create config directory %q: %w", dir, err)
+	}
+
+	data, err := c.Encode()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(c.path, data, 0600)
+}
+
+// NewID generates a new unique machine ID.
+func NewID() (string, error) {
+	return secret.NewID()
+}
+
+// NewRandomName generates a random machine name in the format "machine-xxxx".
 func NewRandomName() (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 	suffix := make([]byte, 4)
@@ -42,14 +100,9 @@ func NewRandomName() (string, error) {
 	return "machine-" + string(suffix), nil
 }
 
-// ConfigPath returns the path to the machine configuration file within the given data directory.
-func ConfigPath(dataDir string) string {
-	return filepath.Join(dataDir, ConfigFileName)
-}
-
 // NewBootstrapConfig returns a new machine configuration that should be applied to the first machine in a cluster.
 func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerConfig) (*Config, error) {
-	mid, err := secret.NewID()
+	mid, err := NewID()
 	if err != nil {
 		return nil, fmt.Errorf("generate machine ID: %w", err)
 	}
@@ -73,46 +126,10 @@ func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerC
 		Name: name,
 		Network: &network.Config{
 			Subnet:       subnet,
-			ManagementIP: network.PeerIPv6(pubKey),
+			ManagementIP: network.ManagementIP(pubKey),
 			PrivateKey:   privKey,
 			PublicKey:    pubKey,
 			Peers:        peers,
 		},
 	}, nil
-}
-
-// ParseConfig reads and decodes a config from the file at the given path.
-func ParseConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read config file %q: %w", path, err)
-	}
-	var config Config
-	if err = json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("parse config file %q: %w", path, err)
-	}
-	return &config, nil
-}
-
-// Encode returns the JSON encoded config data.
-func (c *Config) Encode() ([]byte, error) {
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("marshal config: %w", err)
-	}
-	return data, nil
-}
-
-// Save writes the config data to the file at the given path.
-func (c *Config) Save(path string) error {
-	dir, _ := filepath.Split(path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("create config directory %q: %w", dir, err)
-	}
-
-	data, err := c.Encode()
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0600)
 }
