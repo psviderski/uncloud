@@ -9,6 +9,15 @@ import (
 
 type Secret []byte
 
+// FromHexString parses a hex-encoded string into a secret.
+func FromHexString(s string) (Secret, error) {
+	decoded, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hex-encoded secret: %w", err)
+	}
+	return decoded, nil
+}
+
 // String returns the hex-encoded string representation of the secret.
 //
 //goland:noinspection GoMixedReceiverTypes
@@ -23,11 +32,11 @@ func (s Secret) MarshalText() ([]byte, error) {
 
 //goland:noinspection GoMixedReceiverTypes
 func (s *Secret) UnmarshalText(text []byte) error {
-	decoded, err := hex.DecodeString(string(text))
+	secret, err := FromHexString(string(text))
 	if err != nil {
-		return fmt.Errorf("invalid hex-encoded secret: %w", err)
+		return err
 	}
-	*s = decoded
+	*s = secret
 	return nil
 }
 

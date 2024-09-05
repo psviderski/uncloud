@@ -21,7 +21,14 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return daemon.Run(cmd.Context(), dataDir)
+			d, err := daemon.New(dataDir)
+			if err != nil {
+				return err
+			}
+			if err = d.Run(cmd.Context()); err == nil {
+				slog.Info("Daemon stopped.")
+			}
+			return err
 		},
 	}
 	cmd.PersistentFlags().StringVarP(&dataDir, "data-dir", "d", machine.DefaultDataDir,
@@ -41,5 +48,5 @@ func main() {
 	}()
 
 	cobra.CheckErr(cmd.ExecuteContext(ctx))
-	slog.Info("Daemon stopped.")
+
 }
