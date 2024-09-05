@@ -108,7 +108,7 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 
 type Daemon struct {
 	state   *machine.State
-	cluster *cluster.Cluster
+	cluster *cluster.Server
 }
 
 func New(dataDir string) (*Daemon, error) {
@@ -212,7 +212,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		if d.cluster != nil {
 			slog.Info("Stopping cluster.")
 			d.cluster.Stop()
-			slog.Info("Cluster stopped.")
+			slog.Info("Cluster server stopped.")
 		}
 		return nil
 	})

@@ -27,8 +27,8 @@ type Config struct {
 	APISockPath string
 }
 
-type Cluster struct {
-	// TODO: implement grpc ClusterServer
+type Server struct {
+	// TODO: implement grpc Server
 	pb.UnimplementedClusterServer
 
 	config Config
@@ -37,8 +37,8 @@ type Cluster struct {
 	server *grpc.Server
 }
 
-func NewCluster(config *Config, state *State) *Cluster {
-	c := &Cluster{
+func NewCluster(config *Config, state *State) *Server {
+	c := &Server{
 		config: *config,
 		state:  state,
 		server: grpc.NewServer(),
@@ -47,7 +47,7 @@ func NewCluster(config *Config, state *State) *Cluster {
 	return c
 }
 
-func (c *Cluster) Run() error {
+func (c *Server) Run() error {
 	listener, err := net.Listen("tcp", c.config.APIAddr)
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
@@ -59,21 +59,21 @@ func (c *Cluster) Run() error {
 	return nil
 }
 
-func (c *Cluster) Stop() {
+func (c *Server) Stop() {
 	slog.Info("Stopping API server.")
 	// TODO: implement timeout for graceful shutdown.
 	c.server.GracefulStop()
 	slog.Info("API server stopped.")
 }
 
-func (c *Cluster) Network() (netip.Prefix, error) {
+func (c *Server) Network() (netip.Prefix, error) {
 	if c.state.State.Network == nil {
 		return netip.Prefix{}, fmt.Errorf("network not set")
 	}
 	return c.state.State.Network.ToPrefix()
 }
 
-func (c *Cluster) SetNetwork(network netip.Prefix) error {
+func (c *Server) SetNetwork(network netip.Prefix) error {
 	if c.state.State.Network != nil {
 		return fmt.Errorf("network already set and cannot be changed")
 	}
@@ -82,7 +82,7 @@ func (c *Cluster) SetNetwork(network netip.Prefix) error {
 }
 
 // AddMachine adds a machine to the cluster.
-func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb.AddMachineResponse, error) {
+func (c *Server) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb.AddMachineResponse, error) {
 	// TODO: replace errors with gRPC status.Error(f), e.g. status.Error(codes.InvalidArgument, "management IP not set")
 	if req.Network.PublicKey == nil {
 		return nil, fmt.Errorf("public key not set")
@@ -165,7 +165,7 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	return resp, nil
 }
 
-func (c *Cluster) ListMachineEndpoints(ctx context.Context, req *pb.ListMachineEndpointsRequest) (*pb.ListMachineEndpointsResponse, error) {
+func (c *Server) ListMachineEndpoints(ctx context.Context, req *pb.ListMachineEndpointsRequest) (*pb.ListMachineEndpointsResponse, error) {
 	endpoints, ok := c.state.State.Endpoints[req.Id]
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "machine %q not found", req.Id)
@@ -173,12 +173,12 @@ func (c *Cluster) ListMachineEndpoints(ctx context.Context, req *pb.ListMachineE
 	return &pb.ListMachineEndpointsResponse{Endpoints: endpoints}, nil
 }
 
-func (c *Cluster) AddUser(user *pb.User) error {
+func (c *Server) AddUser(user *pb.User) error {
 	c.state.State.Users = append(c.state.State.Users, user)
 	return c.state.Save()
 }
 
-func (c *Cluster) ListUsers() []*pb.User {
+func (c *Server) ListUsers() []*pb.User {
 	return c.state.State.Users
 }
 
