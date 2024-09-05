@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"uncloud/internal/daemon"
 	"uncloud/internal/machine"
-	"uncloud/internal/machine/daemon"
 )
 
 func main() {
