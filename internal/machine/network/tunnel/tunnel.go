@@ -55,7 +55,7 @@ func Connect(config *Config) (*Tunnel, error) {
 		return nil, fmt.Errorf("create WireGuard TUN device: %w", err)
 	}
 
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, "WireGuard tunnel: "))
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelError, "WireGuard tunnel: "))
 	conf := fmt.Sprintf(
 		"private_key=%s\n"+
 			"public_key=%s\n"+
