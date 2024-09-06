@@ -30,7 +30,7 @@ func MachineToken(dataDir string) (machine.Token, error) {
 	publicIP, err := network.GetPublicIP()
 	// Ignore the error if failed to get the public IP using API services.
 	if err == nil {
-		ips = append([]netip.Addr{publicIP}, ips...)
+		ips = append(ips, publicIP)
 	}
 
 	endpoints := make([]netip.AddrPort, len(ips))

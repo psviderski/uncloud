@@ -177,7 +177,7 @@ func (m *Machine) InitCluster(machineName string, netPrefix netip.Prefix, users 
 	publicIP, err := network.GetPublicIP()
 	// Ignore the error if failed to get the public IP using API services.
 	if err == nil {
-		ips = append([]netip.Addr{publicIP}, ips...)
+		ips = append(ips, publicIP)
 	}
 	endpoints := make([]*pb.IPPort, len(ips))
 	for i, addr := range ips {
