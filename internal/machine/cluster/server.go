@@ -4,66 +4,24 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"log/slog"
-	"net"
 	"net/netip"
-	"os"
-	"path/filepath"
-	"uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/network"
 )
 
-const (
-	StateFile = "cluster.pb"
-)
-
-type Config struct {
-	APIAddr     string
-	APISockPath string
-}
-
 type Server struct {
-	// TODO: implement grpc Server
 	pb.UnimplementedClusterServer
 
-	config Config
-	state  *State
-
-	server *grpc.Server
+	state *State
 }
 
-func NewCluster(config *Config, state *State) *Server {
-	c := &Server{
-		config: *config,
-		state:  state,
-		server: grpc.NewServer(),
+func NewServer(state *State) *Server {
+	return &Server{
+		state: state,
 	}
-	pb.RegisterClusterServer(c.server, c)
-	return c
-}
-
-func (c *Server) Run() error {
-	listener, err := net.Listen("tcp", c.config.APIAddr)
-	if err != nil {
-		return fmt.Errorf("listen API port: %w", err)
-	}
-	slog.Info("Starting API server.", "addr", c.config.APIAddr)
-	if err = c.server.Serve(listener); err != nil {
-		return fmt.Errorf("API server failed: %w", err)
-	}
-	return nil
-}
-
-func (c *Server) Stop() {
-	slog.Info("Stopping API server.")
-	// TODO: implement timeout for graceful shutdown.
-	c.server.GracefulStop()
-	slog.Info("API server stopped.")
 }
 
 func (c *Server) Network() (netip.Prefix, error) {
@@ -109,7 +67,7 @@ func (c *Server) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb
 		i++
 	}
 
-	mid, err := machine.NewID()
+	mid, err := NewMachineID()
 	if err != nil {
 		return nil, fmt.Errorf("generate machine ID: %w", err)
 	}
@@ -126,7 +84,7 @@ func (c *Server) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb
 		},
 	}
 	if m.Name == "" {
-		m.Name, err = machine.NewRandomName()
+		m.Name, err = NewRandomMachineName()
 		if err != nil {
 			return nil, fmt.Errorf("generate machine name: %w", err)
 		}
@@ -185,42 +143,4 @@ func (c *Server) ListUsers() []*pb.User {
 type State struct {
 	State *pb.State
 	path  string
-}
-
-func StatePath(dataDir string) string {
-	return filepath.Join(dataDir, StateFile)
-}
-
-func NewState(path string) *State {
-	return &State{
-		State: &pb.State{
-			Machines:  make(map[string]*pb.Machine),
-			Endpoints: make(map[string]*pb.MachineEndpoints),
-		},
-		path: path,
-	}
-}
-
-func (s *State) Load() error {
-	data, err := os.ReadFile(s.path)
-	if err != nil {
-		return fmt.Errorf("read state file %q: %w", s.path, err)
-	}
-	if err = proto.Unmarshal(data, s.State); err != nil {
-		return fmt.Errorf("parse state file %q: %w", s.path, err)
-	}
-	return nil
-}
-
-func (s *State) Save() error {
-	dir, _ := filepath.Split(s.path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("create state directory %q: %w", dir, err)
-	}
-
-	data, err := proto.Marshal(s.State)
-	if err != nil {
-		return fmt.Errorf("marshal state: %w", err)
-	}
-	return os.WriteFile(s.path, data, 0600)
 }

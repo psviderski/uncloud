@@ -21,7 +21,7 @@ import (
 func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*pb.User) error {
 	var err error
 	if machineName == "" {
-		machineName, err = machine.NewRandomName()
+		machineName, err = cluster.NewRandomMachineName()
 		if err != nil {
 			return fmt.Errorf("generate machine name: %w", err)
 		}
@@ -32,7 +32,7 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 	}
 
 	state := cluster.NewState(cluster.StatePath(dataDir))
-	c := cluster.NewCluster(&cluster.Config{}, state)
+	c := cluster.NewServer(state)
 	if err = c.SetNetwork(netPrefix); err != nil {
 		return fmt.Errorf("set cluster network: %w", err)
 	}
@@ -107,6 +107,8 @@ func InitCluster(dataDir, machineName string, netPrefix netip.Prefix, users []*p
 }
 
 type Daemon struct {
+	machine *machine.Machine
+
 	state   *machine.State
 	cluster *cluster.Server
 }
@@ -154,10 +156,13 @@ func New(dataDir string) (*Daemon, error) {
 		state: mstate,
 	}
 	if mstate.Network.IsConfigured() {
-		config := &cluster.Config{
+		config := &machine.Config{
 			APIAddr: net.JoinHostPort(mstate.Network.ManagementIP.String(), strconv.Itoa(machine.APIPort)),
 		}
-		d.cluster = cluster.NewCluster(config, cstate)
+		d.machine, err = machine.NewMachine(config)
+		if err != nil {
+			return nil, fmt.Errorf("init machine: %w", err)
+		}
 	}
 
 	return d, nil
@@ -199,7 +204,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if d.cluster != nil {
 		errGroup.Go(func() error {
 			slog.Info("Starting cluster.")
-			if err := d.cluster.Run(); err != nil {
+			if err := d.machine.Run(); err != nil {
 				return fmt.Errorf("cluster failed: %w", err)
 			}
 			return nil
@@ -211,7 +216,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		<-ctx.Done()
 		if d.cluster != nil {
 			slog.Info("Stopping cluster.")
-			d.cluster.Stop()
+			d.machine.Stop()
 			slog.Info("Cluster server stopped.")
 		}
 		return nil

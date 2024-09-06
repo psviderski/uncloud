@@ -1,15 +1,13 @@
 package machine
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/network"
-	"uncloud/internal/secret"
 )
 
 const (
@@ -85,33 +83,14 @@ func (c *State) Save() error {
 	return os.WriteFile(c.path, data, 0600)
 }
 
-// NewID generates a new unique machine ID.
-func NewID() (string, error) {
-	return secret.NewID()
-}
-
-// NewRandomName generates a random machine name in the format "machine-xxxx".
-func NewRandomName() (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	suffix := make([]byte, 4)
-	for i := range suffix {
-		randIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", fmt.Errorf("get random number: %w", err)
-		}
-		suffix[i] = charset[randIdx.Int64()]
-	}
-	return "machine-" + string(suffix), nil
-}
-
 // NewBootstrapConfig returns a new machine configuration that should be applied to the first machine in a cluster.
 func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerConfig) (*State, error) {
-	mid, err := NewID()
+	mid, err := cluster.NewMachineID()
 	if err != nil {
 		return nil, fmt.Errorf("generate machine ID: %w", err)
 	}
 	if name == "" {
-		name, err = NewRandomName()
+		name, err = cluster.NewRandomMachineName()
 		if err != nil {
 			return nil, fmt.Errorf("generate machine name: %w", err)
 		}
