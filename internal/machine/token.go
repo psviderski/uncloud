@@ -29,8 +29,8 @@ func NewToken(publicKey secret.Secret, endpoints []netip.AddrPort) Token {
 
 // ParseToken decodes a machine token from the given string.
 func ParseToken(s string) (Token, error) {
-	if strings.HasPrefix(s, TokenPrefix) {
-		return Token{}, fmt.Errorf("invalid token prefix")
+	if !strings.HasPrefix(s, TokenPrefix) {
+		return Token{}, fmt.Errorf("invalid token prefix: %s", s)
 	}
 	decoded, err := base64.StdEncoding.DecodeString(s[len(TokenPrefix):])
 	if err != nil {

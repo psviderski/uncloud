@@ -30,19 +30,16 @@ func (r *Remote) Run(ctx context.Context, cmd string) (string, error) {
 	done := make(chan result)
 	go func() {
 		outBytes, outErr := session.CombinedOutput(cmd)
-		res := result{
+		done <- result{
+			out: strings.TrimSpace(string(outBytes)),
 			err: outErr,
 		}
-		if outErr == nil {
-			res.out = strings.TrimSpace(string(outBytes))
-		}
-		done <- res
 	}()
 
 	select {
 	case res := <-done:
 		if res.err != nil {
-			return "", fmt.Errorf("run command on remote host: %w", res.err)
+			return res.out, fmt.Errorf("run command on remote host: %w: %s", res.err, res.out)
 		}
 		return res.out, nil
 	case <-ctx.Done():
