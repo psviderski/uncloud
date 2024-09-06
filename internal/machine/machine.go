@@ -27,6 +27,7 @@ type Machine struct {
 	state  *State
 
 	networkServer *grpc.Server
+	clusterState  *cluster.State
 	cluster       *cluster.Server
 	// TODO: create localServer for unix socket.
 }
@@ -59,28 +60,25 @@ func NewMachine(config *Config) (*Machine, error) {
 		}
 	}
 
+	m := &Machine{
+		config:        *config,
+		state:         state,
+		networkServer: grpc.NewServer(),
+	}
+
 	clusterStatePath := cluster.StatePath(config.DataDir)
 	clusterState := cluster.NewState(clusterStatePath)
 	if err = clusterState.Load(); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("load cluster state: %w", err)
 		}
-		slog.Info("Cluster state file not found, creating a new one.", "path", clusterStatePath)
-		if err = clusterState.Save(); err != nil {
-			return nil, fmt.Errorf("save cluster state: %w", err)
-		}
+	} else {
+		// Cluster state is successfully loaded, start the cluster server.
+		m.cluster = cluster.NewServer(clusterState)
+		pb.RegisterClusterServer(m.networkServer, m.cluster)
 	}
-	clusterServer := cluster.NewServer(clusterState)
 
-	networkServer := grpc.NewServer()
-	pb.RegisterClusterServer(networkServer, clusterServer)
-
-	return &Machine{
-		config:        *config,
-		state:         state,
-		networkServer: networkServer,
-		cluster:       clusterServer,
-	}, nil
+	return m, nil
 }
 
 func (m *Machine) Run(ctx context.Context) error {
@@ -144,4 +142,101 @@ func (m *Machine) Run(ctx context.Context) error {
 	})
 
 	return errGroup.Wait()
+}
+
+// InitCluster resets the local machine and initialises a new cluster with it.
+// TODO: ideally, this should be an RPC call to the machine API to correctly handle the leave request and reconfiguration.
+func (m *Machine) InitCluster(machineName string, netPrefix netip.Prefix, users []*pb.User) error {
+	var err error
+	if machineName == "" {
+		machineName, err = cluster.NewRandomMachineName()
+		if err != nil {
+			return fmt.Errorf("generate machine name: %w", err)
+		}
+	}
+
+	// TODO: a proper cluster leave mechanism and machine reset should be implemented later.
+	//  For now assume the cluster server is not running.
+	clusterStatePath := cluster.StatePath(m.config.DataDir)
+	clusterState := cluster.NewState(clusterStatePath)
+	if err = clusterState.Save(); err != nil {
+		return fmt.Errorf("save cluster state: %w", err)
+	}
+	clusterServer := cluster.NewServer(clusterState)
+	// TODO: register and start the cluster server when this becomes an RPC call.
+
+	if err = clusterServer.SetNetwork(netPrefix); err != nil {
+		return fmt.Errorf("set cluster network: %w", err)
+	}
+
+	// Use the public and all routable IPs as endpoints.
+	ips, err := network.ListRoutableIPs()
+	if err != nil {
+		return fmt.Errorf("list routable addresses: %w", err)
+	}
+	publicIP, err := network.GetPublicIP()
+	// Ignore the error if failed to get the public IP using API services.
+	if err == nil {
+		ips = append([]netip.Addr{publicIP}, ips...)
+	}
+	endpoints := make([]*pb.IPPort, len(ips))
+	for i, addr := range ips {
+		addrPort := netip.AddrPortFrom(addr, network.WireGuardPort)
+		endpoints[i] = pb.NewIPPort(addrPort)
+	}
+
+	// Register the new machine in the cluster to populate the state and get its ID and subnet.
+	// Public and private keys have already been initialised in the machine state when it was created.
+	req := &pb.AddMachineRequest{
+		Name: machineName,
+		Network: &pb.NetworkConfig{
+			Endpoints: endpoints,
+			PublicKey: m.state.Network.PublicKey,
+		},
+	}
+	resp, err := clusterServer.AddMachine(context.Background(), req)
+	if err != nil {
+		return fmt.Errorf("add machine to cluster: %w", err)
+	}
+
+	subnet, err := resp.Machine.Network.Subnet.ToPrefix()
+	if err != nil {
+		return err
+	}
+	manageIP, err := resp.Machine.Network.ManagementIp.ToAddr()
+	if err != nil {
+		return err
+	}
+	// Add users to the cluster and build peers config from them.
+	peers := make([]network.PeerConfig, len(users))
+	for i, u := range users {
+		if err = clusterServer.AddUser(u); err != nil {
+			return fmt.Errorf("add user to cluster: %w", err)
+		}
+		userManageIP, uErr := u.Network.ManagementIp.ToAddr()
+		if uErr != nil {
+			return uErr
+		}
+		peers[i] = network.PeerConfig{
+			ManagementIP: userManageIP,
+			PublicKey:    u.Network.PublicKey,
+		}
+	}
+
+	// Update the machine state with the new cluster configuration.
+	m.state.ID = resp.Machine.Id
+	m.state.Name = resp.Machine.Name
+	m.state.Network = &network.Config{
+		Subnet:       subnet,
+		ManagementIP: manageIP,
+		PrivateKey:   m.state.Network.PrivateKey,
+		PublicKey:    m.state.Network.PublicKey,
+		Peers:        peers,
+	}
+	if err = m.state.Save(); err != nil {
+		return fmt.Errorf("save machine state: %w", err)
+	}
+
+	fmt.Printf("Cluster initialised with machine %q\n", m.state.Name)
+	return nil
 }

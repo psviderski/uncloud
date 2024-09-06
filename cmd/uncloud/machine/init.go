@@ -6,7 +6,6 @@ import (
 	"net/netip"
 	"uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/daemon"
 	"uncloud/internal/machine/network"
 	"uncloud/internal/secret"
 )
@@ -44,7 +43,13 @@ func NewInitCommand() *cobra.Command {
 				users = append(users, user)
 			}
 
-			if err = daemon.InitCluster(opts.dataDir, opts.name, netPrefix, users); err != nil {
+			// TODO: ideally this should be an RPC call to the machine API via unix socket.
+			config := &machine.Config{DataDir: opts.dataDir}
+			mach, err := machine.NewMachine(config)
+			if err != nil {
+				return fmt.Errorf("init machine: %w", err)
+			}
+			if err = mach.InitCluster(opts.name, netPrefix, users); err != nil {
 				return fmt.Errorf("initialise cluster: %w", err)
 			}
 			return nil

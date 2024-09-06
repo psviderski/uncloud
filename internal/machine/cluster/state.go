@@ -32,6 +32,12 @@ func (s *State) Load() error {
 	if err = proto.Unmarshal(data, s.State); err != nil {
 		return fmt.Errorf("parse state file %q: %w", s.path, err)
 	}
+	if s.State.Machines == nil {
+		s.State.Machines = make(map[string]*pb.Machine)
+	}
+	if s.State.Endpoints == nil {
+		s.State.Endpoints = make(map[string]*pb.MachineEndpoints)
+	}
 	return nil
 }
 

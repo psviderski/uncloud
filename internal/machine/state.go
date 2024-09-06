@@ -39,17 +39,16 @@ func StatePath(dataDir string) string {
 func ParseState(path string) (*State, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read config file: %w", err)
+		return nil, fmt.Errorf("read state file: %w", err)
 	}
-	var config State
-	if err = json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("parse config file %q: %w", path, err)
+	state := State{path: path}
+	if err = json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("parse state file %q: %w", path, err)
 	}
-
-	if config.Network == nil {
-		return nil, fmt.Errorf("missing network configuration in config file %q", path)
+	if state.Network == nil {
+		return nil, fmt.Errorf("missing network configuration in state file %q", path)
 	}
-	return &config, nil
+	return &state, nil
 }
 
 // SetPath sets the file path the state can be saved to.
@@ -69,11 +68,11 @@ func (c *State) Encode() ([]byte, error) {
 // Save writes the state data to the file at the given path.
 func (c *State) Save() error {
 	if c.path == "" {
-		return fmt.Errorf("config path not set")
+		return fmt.Errorf("state path not set")
 	}
 	dir, _ := filepath.Split(c.path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("create config directory %q: %w", dir, err)
+		return fmt.Errorf("create state directory %q: %w", dir, err)
 	}
 
 	data, err := c.Encode()
