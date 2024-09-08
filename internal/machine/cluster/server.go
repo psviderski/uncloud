@@ -75,7 +75,7 @@ func (c *Server) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb
 	if manageIP == nil {
 		manageIP = pb.NewIP(network.ManagementIP(req.Network.PublicKey))
 	}
-	m := &pb.Machine{
+	m := &pb.MachineInfo{
 		Id:   mid,
 		Name: req.Name,
 		Network: &pb.NetworkConfig{
@@ -105,7 +105,7 @@ func (c *Server) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb
 	m.Network.Subnet = pb.NewIPPrefix(subnet)
 
 	// TODO: announce the new machine to the cluster network using Serf and achieve consensus.
-	mState := proto.Clone(m).(*pb.Machine)
+	mState := proto.Clone(m).(*pb.MachineInfo)
 	c.state.State.Machines[mState.Id] = mState
 	// Store machine endpoints in a separate collection to allow modifying them with limited permissions.
 	c.state.State.Endpoints[mState.Id] = &pb.MachineEndpoints{

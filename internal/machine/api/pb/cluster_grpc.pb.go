@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Cluster_AddMachine_FullMethodName           = "/cluster.Cluster/AddMachine"
-	Cluster_ListMachineEndpoints_FullMethodName = "/cluster.Cluster/ListMachineEndpoints"
+	Cluster_AddMachine_FullMethodName           = "/api.Cluster/AddMachine"
+	Cluster_ListMachineEndpoints_FullMethodName = "/api.Cluster/ListMachineEndpoints"
 )
 
 // ClusterClient is the client API for Cluster service.
@@ -142,7 +142,7 @@ func _Cluster_ListMachineEndpoints_Handler(srv interface{}, ctx context.Context,
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Cluster_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cluster.Cluster",
+	ServiceName: "api.Cluster",
 	HandlerType: (*ClusterServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

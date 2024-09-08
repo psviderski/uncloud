@@ -17,7 +17,7 @@ func StatePath(dataDir string) string {
 func NewState(path string) *State {
 	return &State{
 		State: &pb.State{
-			Machines:  make(map[string]*pb.Machine),
+			Machines:  make(map[string]*pb.MachineInfo),
 			Endpoints: make(map[string]*pb.MachineEndpoints),
 		},
 		path: path,
@@ -33,7 +33,7 @@ func (s *State) Load() error {
 		return fmt.Errorf("parse state file %q: %w", s.path, err)
 	}
 	if s.State.Machines == nil {
-		s.State.Machines = make(map[string]*pb.Machine)
+		s.State.Machines = make(map[string]*pb.MachineInfo)
 	}
 	if s.State.Endpoints == nil {
 		s.State.Endpoints = make(map[string]*pb.MachineEndpoints)

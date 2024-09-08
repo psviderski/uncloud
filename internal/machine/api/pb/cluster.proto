@@ -1,15 +1,15 @@
 syntax = "proto3";
 
-package cluster;
+package api;
 
-option go_package = "github.com/psviderski/uncloud/internal/machine/cluster/pb";
+option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachineEndpoints(ListMachineEndpointsRequest) returns (ListMachineEndpointsResponse);
 }
 
-message Machine {
+message MachineInfo {
   string id = 1;
   string name = 2;
   NetworkConfig network = 3;
@@ -43,7 +43,7 @@ message State {
   IPPrefix Network = 1;
   // The machine configuration in the state is the source of truth set by the administrator.
   // The machine itself can't update it.
-  map<string, Machine> machines = 2;
+  map<string, MachineInfo> machines = 2;
   map<string, MachineEndpoints> endpoints = 3;
   repeated User users = 4;
 }
@@ -54,7 +54,7 @@ message AddMachineRequest {
 }
 
 message AddMachineResponse {
-  Machine machine = 1;
+  MachineInfo machine = 1;
 }
 
 message IP {
