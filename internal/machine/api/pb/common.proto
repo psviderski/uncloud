@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
+
+message IP {
+  bytes ip = 1;
+}
+
+message IPPort {
+  IP ip = 1;
+  uint32 port = 2;
+}
+
+message IPPrefix {
+  IP ip = 1;
+  uint32 bits = 2;
+}

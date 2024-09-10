@@ -4,9 +4,28 @@ package api;
 
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
+import "internal/machine/api/pb/common.proto";
+
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachineEndpoints(ListMachineEndpointsRequest) returns (ListMachineEndpointsResponse);
+}
+
+message AddMachineRequest {
+  string name = 1;
+  NetworkConfig network = 2;
+}
+
+message AddMachineResponse {
+  MachineInfo machine = 1;
+}
+
+message ListMachineEndpointsRequest {
+  string id = 1;
+}
+
+message ListMachineEndpointsResponse {
+  MachineEndpoints endpoints = 1;
 }
 
 message MachineInfo {
@@ -27,14 +46,6 @@ message MachineEndpoints {
   repeated IPPort endpoints = 2;
 }
 
-message ListMachineEndpointsRequest {
-  string id = 1;
-}
-
-message ListMachineEndpointsResponse {
-  MachineEndpoints endpoints = 1;
-}
-
 message User {
   NetworkConfig network = 1;
 }
@@ -48,25 +59,3 @@ message State {
   repeated User users = 4;
 }
 
-message AddMachineRequest {
-  string name = 1;
-  NetworkConfig network = 2;
-}
-
-message AddMachineResponse {
-  MachineInfo machine = 1;
-}
-
-message IP {
-  bytes ip = 1;
-}
-
-message IPPort {
-  IP ip = 1;
-  uint32 port = 2;
-}
-
-message IPPrefix {
-  IP ip = 1;
-  uint32 bits = 2;
-}

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
+
+import "internal/machine/api/pb/common.proto";
+import "internal/machine/api/pb/cluster.proto";
+
+service Machine {
+  rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
+}
+
+message InitClusterRequest {
+  string machineName = 1;
+  IPPrefix network = 2;
+  User user = 3;
+}
+
+message InitClusterResponse {
+  MachineInfo machine = 1;
+}
