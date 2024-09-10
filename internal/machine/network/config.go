@@ -35,6 +35,7 @@ type PeerConfig struct {
 	PublicKey    secret.Secret
 }
 
+// IsConfigured returns true if the configuration is complete to establish a WireGuard network.
 func (c Config) IsConfigured() bool {
 	return c.Subnet != (netip.Prefix{}) && c.ManagementIP != (netip.Addr{}) &&
 		c.PrivateKey != nil && c.PublicKey != nil

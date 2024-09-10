@@ -36,11 +36,14 @@ type Machine struct {
 
 	config Config
 	state  *State
+	// initialised is closed when the machine is initialised as a member of a cluster.
+	initialised chan struct{}
 
 	localServer   *grpc.Server
 	networkServer *grpc.Server
-	clusterState  *cluster.State
-	cluster       *cluster.Server
+
+	clusterState *cluster.State
+	cluster      *cluster.Server
 }
 
 func NewMachine(config *Config) (*Machine, error) {
@@ -72,8 +75,10 @@ func NewMachine(config *Config) (*Machine, error) {
 	}
 
 	m := &Machine{
-		config:        *config,
-		state:         state,
+		config:      *config,
+		state:       state,
+		initialised: make(chan struct{}),
+
 		localServer:   grpc.NewServer(),
 		networkServer: grpc.NewServer(),
 	}
@@ -93,43 +98,22 @@ func NewMachine(config *Config) (*Machine, error) {
 		pb.RegisterClusterServer(m.networkServer, m.cluster)
 	}
 
+	if m.IsInitialised() {
+		close(m.initialised)
+	}
+
 	return m, nil
+}
+
+// IsInitialised returns true if the machine has been configured as a member of a cluster,
+// either by initialising a new cluster on it or joining an existing one.
+func (m *Machine) IsInitialised() bool {
+	return m.state.ID != ""
 }
 
 func (m *Machine) Run(ctx context.Context) error {
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple machine components.
 	errGroup, ctx := errgroup.WithContext(ctx)
-
-	// Start the network only if it is configured.
-	if m.state.Network.IsConfigured() {
-		wgnet, err := network.NewWireGuardNetwork()
-		if err != nil {
-			return fmt.Errorf("create WireGuard network: %w", err)
-		}
-		if err = wgnet.Configure(*m.state.Network); err != nil {
-			return fmt.Errorf("configure WireGuard network: %w", err)
-		}
-
-		//ctx, cancel := context.WithCancel(context.Background())
-		//go wgnet.WatchEndpoints(ctx, peerEndpointChangeNotifier)
-
-		//addrs, err := network.ListRoutableIPs()
-		//if err != nil {
-		//	return err
-		//}
-		//fmt.Println("Addresses:", addrs)
-
-		errGroup.Go(
-			func() error {
-				if err = wgnet.Run(ctx); err != nil {
-					return fmt.Errorf("WireGuard network failed: %w", err)
-				}
-				return nil
-			},
-		)
-	} else {
-		slog.Info("Waiting for network configuration to start WireGuard network.")
-	}
 
 	// Start the machine local API server.
 	apiSockPath := DefaultAPISockPath
@@ -143,7 +127,7 @@ func (m *Machine) Run(ctx context.Context) error {
 	errGroup.Go(
 		func() error {
 			slog.Info("Starting local API server.", "path", apiSockPath)
-			if err = m.localServer.Serve(localListener); err != nil {
+			if err := m.localServer.Serve(localListener); err != nil {
 				return fmt.Errorf("local API server failed: %w", err)
 			}
 			return nil
@@ -168,6 +152,45 @@ func (m *Machine) Run(ctx context.Context) error {
 			},
 		)
 	}
+
+	// Start the WireGuard network after the machine is initialised as a member of a cluster.
+	errGroup.Go(
+		func() error {
+			if !m.IsInitialised() {
+				slog.Info(
+					"Waiting for the machine to be initialised as a member of a cluster to start WireGuard network.",
+				)
+			}
+			select {
+			case <-m.initialised:
+			case <-ctx.Done():
+				return nil
+			}
+
+			slog.Info("Starting WireGuard network.")
+			wgnet, err := network.NewWireGuardNetwork()
+			if err != nil {
+				return fmt.Errorf("create WireGuard network: %w", err)
+			}
+			if err = wgnet.Configure(*m.state.Network); err != nil {
+				return fmt.Errorf("configure WireGuard network: %w", err)
+			}
+
+			//ctx, cancel := context.WithCancel(context.Background())
+			//go wgnet.WatchEndpoints(ctx, peerEndpointChangeNotifier)
+
+			//addrs, err := network.ListRoutableIPs()
+			//if err != nil {
+			//	return err
+			//}
+			//fmt.Println("Addresses:", addrs)
+
+			if err = wgnet.Run(ctx); err != nil {
+				return fmt.Errorf("WireGuard network failed: %w", err)
+			}
+			return nil
+		},
+	)
 
 	// Shutdown goroutine.
 	errGroup.Go(
@@ -307,6 +330,8 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
 	}
 	slog.Info("Cluster initialised.", "machine", m.state.Name)
+	// Signal that the machine is initialised as a member of a cluster.
+	close(m.initialised)
 
 	resp := &pb.InitClusterResponse{
 		Machine: addResp.Machine,
