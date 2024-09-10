@@ -39,7 +39,7 @@ func (c *ClusterClient) Name() string {
 
 // HasMachines returns true if the cluster has at least one machine specified in the config.
 func (c *ClusterClient) HasMachines() bool {
-	return len(c.config.Machines) > 0
+	return len(c.config.Connections) > 0
 }
 
 func (c *ClusterClient) User() (*User, error) {
@@ -108,10 +108,13 @@ func (c *ClusterClient) AddMachine(
 			return "", config.MachineConnection{}, uErr
 		}
 
-		_, rErr := exec.Run(ctx, sshexec.QuoteCommand(
-			sudoPrefix, "uncloud", "machine", "init",
-			"--name", name,
-			"--user-pubkey", clusterUser.PublicKey().String()))
+		_, rErr := exec.Run(
+			ctx, sshexec.QuoteCommand(
+				sudoPrefix, "uncloud", "machine", "init",
+				"--name", name,
+				"--user-pubkey", clusterUser.PublicKey().String(),
+			),
+		)
 		if rErr != nil {
 			return "", config.MachineConnection{}, fmt.Errorf("initialise a new cluster on machine: %w", rErr)
 		}
@@ -129,7 +132,9 @@ func (c *ClusterClient) AddMachine(
 
 		_, err = exec.Run(ctx, sshexec.QuoteCommand(sudoPrefix, "mkdir", "-m", "700", "-p", machine.DefaultDataDir))
 		if err != nil {
-			return "", config.MachineConnection{}, fmt.Errorf("create data directory %q: %w", machine.DefaultDataDir, err)
+			return "", config.MachineConnection{}, fmt.Errorf(
+				"create data directory %q: %w", machine.DefaultDataDir, err,
+			)
 		}
 
 		// Write the machine config to /var/lib/uncloud/machine.json by piping the JSON data to the file.
@@ -139,8 +144,12 @@ func (c *ClusterClient) AddMachine(
 		}
 		mcfgPath := sshexec.Quote(machine.StatePath(machine.DefaultDataDir))
 		createFileCmd := fmt.Sprintf("%s touch %s && %s chmod 600 %s", sudoPrefix, mcfgPath, sudoPrefix, mcfgPath)
-		_, err = exec.Run(ctx, fmt.Sprintf("%s && echo %s | %s tee %s > /dev/null",
-			createFileCmd, sshexec.Quote(string(mcfgData)), sudoPrefix, mcfgPath))
+		_, err = exec.Run(
+			ctx, fmt.Sprintf(
+				"%s && echo %s | %s tee %s > /dev/null",
+				createFileCmd, sshexec.Quote(string(mcfgData)), sudoPrefix, mcfgPath,
+			),
+		)
 		if err != nil {
 			return "", config.MachineConnection{}, fmt.Errorf("write machine config to %q: %w", mcfgPath, err)
 		}
@@ -162,8 +171,12 @@ func (c *ClusterClient) AddMachine(
 		return "", config.MachineConnection{}, fmt.Errorf("parse machine token: %w", err)
 	}
 	// TODO: replace command runs with sending gRPC request to the machine API via unix socket.
-	name, err = exec.Run(ctx, fmt.Sprintf("%s cat %s | grep Name | cut -d'\"' -f4",
-		sudoPrefix, machine.StatePath(machine.DefaultDataDir)))
+	name, err = exec.Run(
+		ctx, fmt.Sprintf(
+			"%s cat %s | grep Name | cut -d'\"' -f4",
+			sudoPrefix, machine.StatePath(machine.DefaultDataDir),
+		),
+	)
 	if err != nil {
 		return "", config.MachineConnection{}, fmt.Errorf("get machine name: %w: %s", err, out)
 	}

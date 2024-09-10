@@ -77,7 +77,7 @@ func (cli *CLI) GetCluster(name string) (*client.ClusterClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
 	}
-	wgConnector := connector.NewWireGuardConnector(user, clusterCfg.Machines)
+	wgConnector := connector.NewWireGuardConnector(user, clusterCfg.Connections)
 
 	return client.NewClusterClient(clusterCfg, wgConnector)
 }
@@ -178,7 +178,7 @@ func (cli *CLI) initRemoteMachine(
 	connCfg := config.MachineConnection{
 		SSH: config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
 	}
-	cli.config.Clusters[clusterName].Machines = append(cli.config.Clusters[clusterName].Machines, connCfg)
+	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
@@ -234,7 +234,7 @@ func (cli *CLI) AddMachine(
 	}
 	fmt.Printf("Machine %q added to cluster %q\n", name, cluster.Name())
 
-	cli.config.Clusters[cluster.Name()].Machines = append(cli.config.Clusters[cluster.Name()].Machines, connCfg)
+	cli.config.Clusters[cluster.Name()].Connections = append(cli.config.Clusters[cluster.Name()].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}

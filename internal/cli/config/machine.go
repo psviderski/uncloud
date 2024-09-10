@@ -33,8 +33,9 @@ func NewSSHDestination(user, host string, port int) SSHDestination {
 }
 
 func (d SSHDestination) Parse() (user string, host string, port int, err error) {
-	if strings.Contains(string(d), "@") {
-		user, host, _ = strings.Cut(string(d), "@")
+	host = string(d)
+	if strings.Contains(host, "@") {
+		user, host, _ = strings.Cut(host, "@")
 	}
 	h, p, sErr := net.SplitHostPort(host)
 	if sErr == nil {
