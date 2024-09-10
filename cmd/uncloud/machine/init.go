@@ -4,66 +4,67 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"net/netip"
-	"uncloud/internal/machine"
-	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/cli"
+	"uncloud/internal/cli/config"
 	"uncloud/internal/machine/network"
-	"uncloud/internal/secret"
 )
 
 type initOptions struct {
 	name          string
 	network       string
 	userPublicKey string
-	dataDir       string
+
+	sshKey  string
+	cluster string
 }
 
 func NewInitCommand() *cobra.Command {
 	opts := initOptions{}
 	cmd := &cobra.Command{
-		Use:   "init",
+		Use:  "init [USER@HOST:PORT]",
+		Args: cobra.MaximumNArgs(1),
+		// TODO: include usage examples of initialising a local and remote machine.
 		Short: "Initialise a new cluster that consists of the local or remote machine.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+
+			var remoteMachine *cli.RemoteMachine
+			if len(args) > 0 {
+				user, host, port, err := config.SSHDestination(args[0]).Parse()
+				if err != nil {
+					return fmt.Errorf("parse remote machine: %w", err)
+				}
+				remoteMachine = &cli.RemoteMachine{
+					User:    user,
+					Host:    host,
+					Port:    port,
+					KeyPath: opts.sshKey,
+				}
+			}
 			netPrefix, err := netip.ParsePrefix(opts.network)
 			if err != nil {
 				return fmt.Errorf("parse network CIDR: %w", err)
 			}
 
-			var users []*pb.User
-			if opts.userPublicKey != "" {
-				pubKey, uErr := secret.FromHexString(opts.userPublicKey)
-				if uErr != nil {
-					return fmt.Errorf("parse user's public key: %w", uErr)
-				}
-				user := &pb.User{
-					Network: &pb.NetworkConfig{
-						ManagementIp: pb.NewIP(network.ManagementIP(pubKey)),
-						PublicKey:    pubKey,
-					},
-				}
-				users = append(users, user)
-			}
-
-			// TODO: ideally this should be an RPC call to the machine API via unix socket.
-			config := &machine.Config{DataDir: opts.dataDir}
-			mach, err := machine.NewMachine(config)
-			if err != nil {
-				return fmt.Errorf("init machine: %w", err)
-			}
-			if err = mach.InitCluster(opts.name, netPrefix, users); err != nil {
-				return fmt.Errorf("initialise cluster: %w", err)
-			}
-			return nil
+			return uncli.InitCluster(cmd.Context(), remoteMachine, opts.cluster, opts.name, netPrefix)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Assign a name to the machine")
-	cmd.Flags().StringVar(&opts.network, "network", network.DefaultNetwork.String(),
-		"IPv4 network CIDR to use for machines and services")
-	cmd.Flags().StringVarP(&opts.userPublicKey, "user-pubkey", "u", "",
-		"User's public key which will be able to access the cluster (hex-encoded)")
+	cmd.Flags().StringVar(
+		&opts.network, "network", network.DefaultNetwork.String(),
+		"IPv4 network CIDR to use for machines and services",
+	)
+	//cmd.Flags().StringVar(&opts.userPublicKey, "user-pubkey", "",
+	//	"User's public key which will be able to access the cluster (hex-encoded)")
 
-	cmd.Flags().StringVarP(&opts.dataDir, "data-dir", "d", machine.DefaultDataDir,
-		"Directory for storing persistent machine state")
-	_ = cmd.MarkFlagDirname("data-dir")
+	cmd.Flags().StringVarP(
+		&opts.sshKey, "ssh-key", "i", "",
+		"path to SSH private key for SSH remote login (default ~/.ssh/id_*)",
+	)
+	cmd.Flags().StringVarP(
+		&opts.cluster, "cluster", "c", "",
+		"Name of the cluster in the local config if initialising a remote machine",
+	)
 
 	return cmd
 }

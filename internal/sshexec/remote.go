@@ -1,4 +1,4 @@
-package cmdexec
+package sshexec
 
 import (
 	"context"
@@ -9,6 +9,10 @@ import (
 
 type Remote struct {
 	client *ssh.Client
+}
+
+func NewRemote(client *ssh.Client) *Remote {
+	return &Remote{client: client}
 }
 
 // Run runs the command on the remote host and returns its output with all leading and trailing

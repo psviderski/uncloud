@@ -1,4 +1,4 @@
-package cmdexec
+package sshexec
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func Connect(user, host string, port int, sshKeyPath string) (*Remote, error) {
+func Connect(user, host string, port int, sshKeyPath string) (*ssh.Client, error) {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	// Try to connect using SSH agent only.
 	agentAuth, agentClose, agentErr := sshAgentAuth()
@@ -24,9 +24,7 @@ func Connect(user, host string, port int, sshKeyPath string) (*Remote, error) {
 		}
 		var client *ssh.Client
 		if client, agentErr = ssh.Dial("tcp", addr, config); agentErr == nil {
-			return &Remote{
-				client: client,
-			}, nil
+			return client, nil
 		}
 	}
 	// Fall back to using private key as the connection attempt using SSH agent failed.
@@ -47,9 +45,7 @@ func Connect(user, host string, port int, sshKeyPath string) (*Remote, error) {
 		return nil, fmt.Errorf("connect using private key %q: %w", sshKeyPath, err)
 	}
 
-	return &Remote{
-		client: client,
-	}, nil
+	return client, nil
 }
 
 func sshAgentAuth() (ssh.AuthMethod, func(), error) {
