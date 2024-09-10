@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -16,6 +18,10 @@ import (
 	"uncloud/internal/machine/network"
 )
 
+const (
+	DefaultAPISockPath = "/run/uncloud.sock"
+)
+
 type Config struct {
 	// DataDir is the directory where the machine stores its persistent state.
 	DataDir     string
@@ -23,13 +29,15 @@ type Config struct {
 }
 
 type Machine struct {
+	pb.UnimplementedMachineServer
+
 	config Config
 	state  *State
 
+	localServer   *grpc.Server
 	networkServer *grpc.Server
 	clusterState  *cluster.State
 	cluster       *cluster.Server
-	// TODO: create localServer for unix socket.
 }
 
 func NewMachine(config *Config) (*Machine, error) {
@@ -63,8 +71,11 @@ func NewMachine(config *Config) (*Machine, error) {
 	m := &Machine{
 		config:        *config,
 		state:         state,
+		localServer:   grpc.NewServer(),
 		networkServer: grpc.NewServer(),
 	}
+	pb.RegisterMachineServer(m.localServer, m)
+	pb.RegisterMachineServer(m.networkServer, m)
 
 	clusterStatePath := cluster.StatePath(config.DataDir)
 	clusterState := cluster.NewState(clusterStatePath)
@@ -75,6 +86,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	} else {
 		// Cluster state is successfully loaded, start the cluster server.
 		m.cluster = cluster.NewServer(clusterState)
+		pb.RegisterClusterServer(m.localServer, m.cluster)
 		pb.RegisterClusterServer(m.networkServer, m.cluster)
 	}
 
@@ -104,54 +116,84 @@ func (m *Machine) Run(ctx context.Context) error {
 		//}
 		//fmt.Println("Addresses:", addrs)
 
-		errGroup.Go(func() error {
-			if err = wgnet.Run(ctx); err != nil {
-				return fmt.Errorf("WireGuard network failed: %w", err)
-			}
-			return nil
-		})
+		errGroup.Go(
+			func() error {
+				if err = wgnet.Run(ctx); err != nil {
+					return fmt.Errorf("WireGuard network failed: %w", err)
+				}
+				return nil
+			},
+		)
 	} else {
 		slog.Info("Waiting for network configuration to start WireGuard network.")
 	}
 
-	// Start the machine API server if the management IP is configured for it.
+	// Start the machine local API server.
+	apiSockPath := DefaultAPISockPath
+	if m.config.APISockPath != "" {
+		apiSockPath = m.config.APISockPath
+	}
+	localListener, err := net.Listen("unix", apiSockPath)
+	if err != nil {
+		return fmt.Errorf("listen API socket: %w", err)
+	}
+	errGroup.Go(
+		func() error {
+			slog.Info("Starting local API server.", "path", apiSockPath)
+			if err = m.localServer.Serve(localListener); err != nil {
+				return fmt.Errorf("local API server failed: %w", err)
+			}
+			return nil
+		},
+	)
+
+	// Start the machine network API server if the management IP is configured for it.
 	if m.state.Network.ManagementIP != (netip.Addr{}) {
 		apiAddr := net.JoinHostPort(m.state.Network.ManagementIP.String(), strconv.Itoa(APIPort))
-		listener, err := net.Listen("tcp", apiAddr)
+		networkListener, err := net.Listen("tcp", apiAddr)
 		if err != nil {
 			return fmt.Errorf("listen API port: %w", err)
 		}
 
-		errGroup.Go(func() error {
-			slog.Info("Starting API server.", "addr", apiAddr)
-			if err = m.networkServer.Serve(listener); err != nil {
-				return fmt.Errorf("API server failed: %w", err)
-			}
-			return nil
-		})
+		errGroup.Go(
+			func() error {
+				slog.Info("Starting network API server.", "addr", apiAddr)
+				if err = m.networkServer.Serve(networkListener); err != nil {
+					return fmt.Errorf("network API server failed: %w", err)
+				}
+				return nil
+			},
+		)
 	}
 
 	// Shutdown goroutine.
-	errGroup.Go(func() error {
-		<-ctx.Done()
-		slog.Info("Stopping API server.")
-		// TODO: implement timeout for graceful shutdown.
-		m.networkServer.GracefulStop()
-		slog.Info("API server stopped.")
-		return nil
-	})
+	errGroup.Go(
+		func() error {
+			<-ctx.Done()
+			slog.Info("Stopping network API server.")
+			// TODO: implement timeout for graceful shutdown.
+			m.networkServer.GracefulStop()
+			slog.Info("network API server stopped.")
+
+			slog.Info("Stopping local API server.")
+			// TODO: implement timeout for graceful shutdown.
+			m.localServer.GracefulStop()
+			slog.Info("local API server stopped.")
+			return nil
+		},
+	)
 
 	return errGroup.Wait()
 }
 
 // InitCluster resets the local machine and initialises a new cluster with it.
-// TODO: ideally, this should be an RPC call to the machine API to correctly handle the leave request and reconfiguration.
-func (m *Machine) InitCluster(machineName string, netPrefix netip.Prefix, users []*pb.User) error {
+func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (*pb.InitClusterResponse, error) {
 	var err error
+	machineName := req.MachineName
 	if machineName == "" {
 		machineName, err = cluster.NewRandomMachineName()
 		if err != nil {
-			return fmt.Errorf("generate machine name: %w", err)
+			return nil, status.Errorf(codes.Internal, "generate machine name: %v", err)
 		}
 	}
 
@@ -160,19 +202,19 @@ func (m *Machine) InitCluster(machineName string, netPrefix netip.Prefix, users 
 	clusterStatePath := cluster.StatePath(m.config.DataDir)
 	clusterState := cluster.NewState(clusterStatePath)
 	if err = clusterState.Save(); err != nil {
-		return fmt.Errorf("save cluster state: %w", err)
+		return nil, status.Errorf(codes.Internal, "save cluster state: %v", err)
 	}
 	clusterServer := cluster.NewServer(clusterState)
-	// TODO: register and start the cluster server when this becomes an RPC call.
+	// TODO: register and start the cluster server.
 
-	if err = clusterServer.SetNetwork(netPrefix); err != nil {
-		return fmt.Errorf("set cluster network: %w", err)
+	if err = clusterServer.SetNetwork(req.Network); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "set cluster network: %v", err)
 	}
 
 	// Use the public and all routable IPs as endpoints.
 	ips, err := network.ListRoutableIPs()
 	if err != nil {
-		return fmt.Errorf("list routable addresses: %w", err)
+		return nil, status.Errorf(codes.Internal, "list routable IPs: %v", err)
 	}
 	publicIP, err := network.GetPublicIP()
 	// Ignore the error if failed to get the public IP using API services.
@@ -187,56 +229,60 @@ func (m *Machine) InitCluster(machineName string, netPrefix netip.Prefix, users 
 
 	// Register the new machine in the cluster to populate the state and get its ID and subnet.
 	// Public and private keys have already been initialised in the machine state when it was created.
-	req := &pb.AddMachineRequest{
+	addReq := &pb.AddMachineRequest{
 		Name: machineName,
 		Network: &pb.NetworkConfig{
 			Endpoints: endpoints,
 			PublicKey: m.state.Network.PublicKey,
 		},
 	}
-	resp, err := clusterServer.AddMachine(context.Background(), req)
+	addResp, err := clusterServer.AddMachine(ctx, addReq)
 	if err != nil {
-		return fmt.Errorf("add machine to cluster: %w", err)
+		return nil, status.Errorf(codes.Internal, "add machine to cluster: %v", err)
 	}
 
-	subnet, err := resp.Machine.Network.Subnet.ToPrefix()
+	subnet, err := addResp.Machine.Network.Subnet.ToPrefix()
 	if err != nil {
-		return err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
-	manageIP, err := resp.Machine.Network.ManagementIp.ToAddr()
+	manageIP, err := addResp.Machine.Network.ManagementIp.ToAddr()
 	if err != nil {
-		return err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
-	// Add users to the cluster and build peers config from them.
-	peers := make([]network.PeerConfig, len(users))
-	for i, u := range users {
-		if err = clusterServer.AddUser(u); err != nil {
-			return fmt.Errorf("add user to cluster: %w", err)
-		}
-		userManageIP, uErr := u.Network.ManagementIp.ToAddr()
-		if uErr != nil {
-			return uErr
-		}
-		peers[i] = network.PeerConfig{
-			ManagementIP: userManageIP,
-			PublicKey:    u.Network.PublicKey,
-		}
-	}
-
 	// Update the machine state with the new cluster configuration.
-	m.state.ID = resp.Machine.Id
-	m.state.Name = resp.Machine.Name
+	m.state.ID = addResp.Machine.Id
+	m.state.Name = addResp.Machine.Name
 	m.state.Network = &network.Config{
 		Subnet:       subnet,
 		ManagementIP: manageIP,
 		PrivateKey:   m.state.Network.PrivateKey,
 		PublicKey:    m.state.Network.PublicKey,
-		Peers:        peers,
-	}
-	if err = m.state.Save(); err != nil {
-		return fmt.Errorf("save machine state: %w", err)
 	}
 
-	fmt.Printf("Cluster initialised with machine %q\n", m.state.Name)
-	return nil
+	// Add a user to the cluster and build a peers config from it if provided.
+	if req.User != nil {
+		if err = clusterServer.AddUser(req.User); err != nil {
+			return nil, status.Errorf(codes.Internal, "add user to cluster: %v", err)
+		}
+		userManageIP, uErr := req.User.Network.ManagementIp.ToAddr()
+		if uErr != nil {
+			return nil, status.Error(codes.Internal, uErr.Error())
+		}
+
+		m.state.Network.Peers = make([]network.PeerConfig, 1)
+		m.state.Network.Peers[0] = network.PeerConfig{
+			ManagementIP: userManageIP,
+			PublicKey:    req.User.Network.PublicKey,
+		}
+	}
+
+	if err = m.state.Save(); err != nil {
+		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
+	}
+	slog.Info("Cluster initialised.", "machine", m.state.Name)
+
+	resp := &pb.InitClusterResponse{
+		Machine: addResp.Machine,
+	}
+	return resp, nil
 }

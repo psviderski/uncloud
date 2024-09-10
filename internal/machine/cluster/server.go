@@ -31,11 +31,14 @@ func (c *Server) Network() (netip.Prefix, error) {
 	return c.state.State.Network.ToPrefix()
 }
 
-func (c *Server) SetNetwork(network netip.Prefix) error {
+func (c *Server) SetNetwork(network *pb.IPPrefix) error {
 	if c.state.State.Network != nil {
 		return fmt.Errorf("network already set and cannot be changed")
 	}
-	c.state.State.Network = pb.NewIPPrefix(network)
+	if network == nil {
+		return fmt.Errorf("network not set")
+	}
+	c.state.State.Network = network
 	return nil
 }
 
