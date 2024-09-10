@@ -1,4 +1,4 @@
-package cli
+package client
 
 import (
 	"fmt"
@@ -45,5 +45,5 @@ func (u *User) PublicKey() secret.Secret {
 }
 
 func (u *User) ManagementIP() netip.Addr {
-	return network.PeerIPv6(u.PublicKey())
+	return network.ManagementIP(u.PublicKey())
 }
