@@ -57,7 +57,11 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 				addr = strings.TrimPrefix(addr, "unix://")
 				conn, dErr := c.client.DialContext(ctx, "unix", addr)
 				if dErr != nil {
-					return nil, fmt.Errorf("connect to machine API socket %s through SSH tunnel: %w", addr, dErr)
+					return nil, fmt.Errorf(
+						"connect to machine API socket %s through SSH tunnel (is the Uncloud daemon running "+
+							"on the remote machine and does the SSH user have permissions to access the socket?): %w",
+						addr, dErr,
+					)
 				}
 				return conn, nil
 			},

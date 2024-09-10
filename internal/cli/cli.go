@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -12,6 +11,8 @@ import (
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/secret"
 )
+
+const defaultClusterName = "default"
 
 var (
 	ErrNotFound = errors.New("not found")
@@ -31,18 +32,9 @@ func New(configPath string) (*CLI, error) {
 	}, nil
 }
 
-func (cli *CLI) CreateCluster(
-	name string, privateKey ed25519.PrivateKey, userPrivateKey secret.Secret,
-) (*client.ClusterClient, error) {
+func (cli *CLI) CreateCluster(name string, userPrivateKey secret.Secret) (*client.ClusterClient, error) {
 	if _, ok := cli.config.Clusters[name]; ok {
 		return nil, fmt.Errorf("cluster %q already exists", name)
-	}
-	if privateKey == nil {
-		var err error
-		_, privateKey, err = ed25519.GenerateKey(nil)
-		if err != nil {
-			return nil, fmt.Errorf("generate cluster secret: %w", err)
-		}
 	}
 	if userPrivateKey == nil {
 		user, err := client.NewUser(nil)
@@ -54,7 +46,6 @@ func (cli *CLI) CreateCluster(
 
 	cli.config.Clusters[name] = &config.Cluster{
 		Name:           name,
-		Secret:         privateKey.Seed(),
 		UserPrivateKey: userPrivateKey,
 	}
 	if err := cli.config.Save(); err != nil {
@@ -65,7 +56,7 @@ func (cli *CLI) CreateCluster(
 }
 
 func (cli *CLI) CreateDefaultCluster() (*client.ClusterClient, error) {
-	c, err := cli.CreateCluster("default", nil, nil)
+	c, err := cli.CreateCluster("default", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -142,18 +133,15 @@ func (cli *CLI) initRemoteMachine(
 		_ = c.Close()
 	}()
 
-	var cluster *client.ClusterClient
 	if clusterName == "" {
-		cluster, err = cli.CreateDefaultCluster()
-	} else {
-		cluster, err = cli.CreateCluster(clusterName, nil, nil)
+		clusterName = defaultClusterName
 	}
-	if err != nil {
-		return err
+	if _, ok := cli.config.Clusters[clusterName]; ok {
+		return fmt.Errorf("cluster %q already exists", clusterName)
 	}
-	user, err := cluster.User()
+	user, err := client.NewUser(nil)
 	if err != nil {
-		return fmt.Errorf("get cluster user: %w", err)
+		return fmt.Errorf("generate cluster user: %w", err)
 	}
 
 	// TODO: download and install the latest uncloudd binary by running the install shell script from GitHub.
@@ -174,13 +162,23 @@ func (cli *CLI) initRemoteMachine(
 	if err != nil {
 		return fmt.Errorf("init cluster: %w", err)
 	}
-	fmt.Printf("Cluster %q initialised with machine %q\n", cluster.Name(), resp.Machine.Name)
+	fmt.Printf("Cluster %q initialised with machine %q\n", clusterName, resp.Machine.Name)
 
+	_, err = cli.CreateCluster(clusterName, user.PrivateKey())
+	if err != nil {
+		return fmt.Errorf("save cluster to config: %w", err)
+	}
+	// Set the current cluster to the just created one if it is the only cluster in the config.
+	if len(cli.config.Clusters) == 1 {
+		if err = cli.SetCurrentCluster(clusterName); err != nil {
+			return fmt.Errorf("set current cluster: %w", err)
+		}
+	}
 	// Save the machine's SSH connection details in the cluster config.
 	connCfg := config.MachineConnection{
 		SSH: config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
 	}
-	cli.config.Clusters[cluster.Name()].Machines = append(cli.config.Clusters[cluster.Name()].Machines, connCfg)
+	cli.config.Clusters[clusterName].Machines = append(cli.config.Clusters[clusterName].Machines, connCfg)
 	if err = cli.config.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}

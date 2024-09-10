@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/go-connections/sockets"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -12,6 +13,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"os/user"
 	"strconv"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/cluster"
@@ -19,7 +21,8 @@ import (
 )
 
 const (
-	DefaultAPISockPath = "/run/uncloud.sock"
+	DefaultAPISockPath  = "/run/uncloud.sock"
+	DefaultAPISockGroup = "uncloud"
 )
 
 type Config struct {
@@ -133,9 +136,9 @@ func (m *Machine) Run(ctx context.Context) error {
 	if m.config.APISockPath != "" {
 		apiSockPath = m.config.APISockPath
 	}
-	localListener, err := net.Listen("unix", apiSockPath)
+	localListener, err := listenUnixSocket(apiSockPath)
 	if err != nil {
-		return fmt.Errorf("listen API socket: %w", err)
+		return fmt.Errorf("listen API unix socket %q: %w", apiSockPath, err)
 	}
 	errGroup.Go(
 		func() error {
@@ -184,6 +187,30 @@ func (m *Machine) Run(ctx context.Context) error {
 	)
 
 	return errGroup.Wait()
+}
+
+// listenUnixSocket creates a new Unix socket listener with the specified path. The socket file is created with 0660
+// access mode and uncloud group if the group is found, otherwise it falls back to the root group.
+func listenUnixSocket(path string) (net.Listener, error) {
+	gid := 0 // Fall back to the root group if the uncloud group is not found.
+	group, err := user.LookupGroup(DefaultAPISockGroup)
+	if err != nil {
+		if _, ok := err.(user.UnknownGroupError); ok {
+			slog.Info(
+				"Specified group not found, using root group for the API socket.", "group", DefaultAPISockGroup, "path",
+				path,
+			)
+		} else {
+			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultAPISockGroup, err)
+		}
+	} else {
+		gid, err = strconv.Atoi(group.Gid)
+		if err != nil {
+			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultAPISockGroup, group.Gid, err)
+		}
+	}
+
+	return sockets.NewUnixSocket(path, gid)
 }
 
 // InitCluster resets the local machine and initialises a new cluster with it.

@@ -47,6 +47,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
+	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.17.0 // indirect
