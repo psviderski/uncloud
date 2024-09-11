@@ -28,17 +28,7 @@ type SSHConnector struct {
 }
 
 func NewSSHConnector(cfg *SSHConnectorConfig) *SSHConnector {
-	c := &SSHConnector{config: *cfg}
-	if c.config.User == "" {
-		c.config.User = "root"
-	}
-	if c.config.Port == 0 {
-		c.config.Port = 22
-	}
-	if c.config.APISockPath == "" {
-		c.config.APISockPath = machine.DefaultAPISockPath
-	}
-	return c
+	return &SSHConnector{config: *cfg}
 }
 
 func NewSSHConnectorFromClient(client *ssh.Client) *SSHConnector {
@@ -59,8 +49,12 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 		}
 	}
 
+	apiSockPath := c.config.APISockPath
+	if apiSockPath == "" {
+		apiSockPath = machine.DefaultAPISockPath
+	}
 	conn, err := grpc.NewClient(
-		"unix://"+c.config.APISockPath,
+		"unix://"+apiSockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(
 			func(ctx context.Context, addr string) (net.Conn, error) {
@@ -68,9 +62,10 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 				conn, dErr := c.client.DialContext(ctx, "unix", addr)
 				if dErr != nil {
 					return nil, fmt.Errorf(
-						"connect to machine API socket %s through SSH tunnel (is the Uncloud daemon running "+
-							"on the remote machine and does the SSH user have permissions to access the socket?): %w",
-						addr, dErr,
+						"connect to machine API socket '%s' through SSH tunnel (is the Uncloud daemon running "+
+							"on the remote machine and does the SSH user '%s' have permissions to access the socket?):"+
+							" %w",
+						addr, c.client.User(), dErr,
 					)
 				}
 				return conn, nil

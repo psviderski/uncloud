@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -361,4 +362,33 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		Machine: addResp.Machine,
 	}
 	return resp, nil
+}
+
+// Token returns the local machine's token that can be used for adding the machine to a cluster.
+func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse, error) {
+	if len(m.state.Network.PublicKey) == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "public key is not set in machine state")
+	}
+
+	ips, err := network.ListRoutableIPs()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list routable IPs: %v", err)
+	}
+	publicIP, err := network.GetPublicIP()
+	// Ignore the error if failed to get the public IP using API services.
+	if err == nil {
+		ips = append(ips, publicIP)
+	}
+	endpoints := make([]netip.AddrPort, len(ips))
+	for i, ip := range ips {
+		endpoints[i] = netip.AddrPortFrom(ip, network.WireGuardPort)
+	}
+
+	token := NewToken(m.state.Network.PublicKey, endpoints)
+	tokenStr, err := token.String()
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &pb.TokenResponse{Token: tokenStr}, nil
 }

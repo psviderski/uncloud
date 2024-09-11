@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/client/connector"
@@ -201,6 +202,7 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 		_ = c.Close()
 	}()
 
+	// Create a command executor and a machine API client over the SSH connection to the remote machine.
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
 	if err != nil {
 		return fmt.Errorf(
@@ -210,18 +212,26 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	}
 	machineExec := sshexec.NewRemote(sshClient)
 
+	conn := connector.NewSSHConnectorFromClient(sshClient)
+	machineClient, err := client.New(ctx, conn)
+	if err != nil {
+		return fmt.Errorf("connect to remote machine API: %w", err)
+	}
 	// TODO: Check if the machine is already provisioned using machineClient and ask the user to reset it first.
-	//conn := connector.NewSSHConnectorFromClient(sshClient)
-	//machineClient, err := client.New(ctx, conn)
-	//if err != nil {
-	//	return fmt.Errorf("connect to remote machine API: %w", err)
-	//}
 
 	// TODO: Download and install the latest uncloudd binary by running the install shell script from GitHub.
 	//  For now upload the binary using scp manually.
 	if _, err = machineExec.Run(ctx, "which uncloudd"); err != nil {
 		return fmt.Errorf("uncloudd binary not found on the remote machine: %w", err)
 	}
+
+	resp, err := machineClient.Token(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("get remote machine token: %w", err)
+	}
+	token := resp.Token
+
+	fmt.Println("Token:", token)
 
 	//req := &pb.AddMachineRequest{
 	//	Name: machineName,

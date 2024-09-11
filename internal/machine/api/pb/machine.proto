@@ -4,11 +4,13 @@ package api;
 
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
+import "google/protobuf/empty.proto";
 import "internal/machine/api/pb/common.proto";
 import "internal/machine/api/pb/cluster.proto";
 
 service Machine {
   rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
+  rpc Token(google.protobuf.Empty) returns (TokenResponse);
 }
 
 message InitClusterRequest {
@@ -19,4 +21,8 @@ message InitClusterRequest {
 
 message InitClusterResponse {
   MachineInfo machine = 1;
+}
+
+message TokenResponse {
+  string token = 1;
 }
