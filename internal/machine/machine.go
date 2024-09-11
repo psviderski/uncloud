@@ -36,14 +36,15 @@ type Machine struct {
 
 	config Config
 	state  *State
-	// initialised is closed when the machine is initialised as a member of a cluster.
+	// initialised is signalled when the machine is configured as a member of a cluster.
 	initialised chan struct{}
+	wgNetwork   *network.WireGuardNetwork
 
 	localServer   *grpc.Server
 	networkServer *grpc.Server
 
 	clusterState *cluster.State
-	cluster      *cluster.Server
+	cluster      *cluster.Cluster
 }
 
 func NewMachine(config *Config) (*Machine, error) {
@@ -77,7 +78,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	m := &Machine{
 		config:      *config,
 		state:       state,
-		initialised: make(chan struct{}),
+		initialised: make(chan struct{}, 1),
 
 		localServer:   grpc.NewServer(),
 		networkServer: grpc.NewServer(),
@@ -85,21 +86,23 @@ func NewMachine(config *Config) (*Machine, error) {
 	pb.RegisterMachineServer(m.localServer, m)
 	pb.RegisterMachineServer(m.networkServer, m)
 
-	clusterStatePath := cluster.StatePath(config.DataDir)
-	clusterState := cluster.NewState(clusterStatePath)
+	clusterState := cluster.NewState(cluster.StatePath(config.DataDir))
 	if err = clusterState.Load(); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
+			// Cluster state file does not exist, initialise the cluster without a state to fail cluster requests.
+			m.cluster = cluster.NewCluster(nil)
+		} else {
 			return nil, fmt.Errorf("load cluster state: %w", err)
 		}
 	} else {
-		// Cluster state is successfully loaded, start the cluster server.
-		m.cluster = cluster.NewServer(clusterState)
-		pb.RegisterClusterServer(m.localServer, m.cluster)
-		pb.RegisterClusterServer(m.networkServer, m.cluster)
+		// Cluster state is successfully loaded, initialise the cluster with it.
+		m.cluster = cluster.NewCluster(clusterState)
 	}
+	pb.RegisterClusterServer(m.localServer, m.cluster)
+	pb.RegisterClusterServer(m.networkServer, m.cluster)
 
 	if m.IsInitialised() {
-		close(m.initialised)
+		m.initialised <- struct{}{}
 	}
 
 	return m, nil
@@ -134,26 +137,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		},
 	)
 
-	// Start the machine network API server if the management IP is configured for it.
-	if m.state.Network.ManagementIP != (netip.Addr{}) {
-		apiAddr := net.JoinHostPort(m.state.Network.ManagementIP.String(), strconv.Itoa(APIPort))
-		networkListener, err := net.Listen("tcp", apiAddr)
-		if err != nil {
-			return fmt.Errorf("listen API port: %w", err)
-		}
-
-		errGroup.Go(
-			func() error {
-				slog.Info("Starting network API server.", "addr", apiAddr)
-				if err = m.networkServer.Serve(networkListener); err != nil {
-					return fmt.Errorf("network API server failed: %w", err)
-				}
-				return nil
-			},
-		)
-	}
-
-	// Start the WireGuard network after the machine is initialised as a member of a cluster.
+	// Start the WireGuard network and network server after the machine is initialised as a member of a cluster.
 	errGroup.Go(
 		func() error {
 			if !m.IsInitialised() {
@@ -161,34 +145,56 @@ func (m *Machine) Run(ctx context.Context) error {
 					"Waiting for the machine to be initialised as a member of a cluster to start WireGuard network.",
 				)
 			}
-			select {
-			case <-m.initialised:
-			case <-ctx.Done():
-				return nil
-			}
 
-			slog.Info("Starting WireGuard network.")
-			wgnet, err := network.NewWireGuardNetwork()
-			if err != nil {
-				return fmt.Errorf("create WireGuard network: %w", err)
-			}
-			if err = wgnet.Configure(*m.state.Network); err != nil {
-				return fmt.Errorf("configure WireGuard network: %w", err)
-			}
+			netCancel := func() {}
+			for {
+				select {
+				case <-m.initialised:
+				case <-ctx.Done():
+					return nil
+				}
 
-			//ctx, cancel := context.WithCancel(context.Background())
-			//go wgnet.WatchEndpoints(ctx, peerEndpointChangeNotifier)
+				// Cancel the previously running network goroutine before reconfiguring the network.
+				netCancel()
+				wasConfigured := m.wgNetwork != nil
+				if err := m.configureNetwork(); err != nil {
+					return err
+				}
 
-			//addrs, err := network.ListRoutableIPs()
-			//if err != nil {
-			//	return err
-			//}
-			//fmt.Println("Addresses:", addrs)
+				// Start the machine network API server if it was not already started.
+				// TODO: implement a proper mechanism to restart the network API server if the management IP changes.
+				if !wasConfigured {
+					apiAddr := net.JoinHostPort(m.state.Network.ManagementIP.String(), strconv.Itoa(APIPort))
+					networkListener, err := net.Listen("tcp", apiAddr)
+					if err != nil {
+						return fmt.Errorf("listen API port: %w", err)
+					}
 
-			if err = wgnet.Run(ctx); err != nil {
-				return fmt.Errorf("WireGuard network failed: %w", err)
+					errGroup.Go(
+						func() error {
+							slog.Info("Starting network API server.", "addr", apiAddr)
+							if err = m.networkServer.Serve(networkListener); err != nil {
+								return fmt.Errorf("network API server failed: %w", err)
+							}
+							return nil
+						},
+					)
+				}
+
+				errGroup.Go(
+					func() error {
+						var netCtx context.Context
+						netCtx, netCancel = context.WithCancel(ctx)
+						if err = m.wgNetwork.Run(netCtx); err != nil {
+							return fmt.Errorf("WireGuard network failed: %w", err)
+						}
+						return nil
+					},
+				)
+
+				//ctx, cancel := context.WithCancel(context.Background())
+				//go wgnet.WatchEndpoints(ctx, peerEndpointChangeNotifier)
 			}
-			return nil
 		},
 	)
 
@@ -210,6 +216,23 @@ func (m *Machine) Run(ctx context.Context) error {
 	)
 
 	return errGroup.Wait()
+}
+
+func (m *Machine) configureNetwork() error {
+	if m.wgNetwork == nil {
+		slog.Info("Starting WireGuard network.")
+		var err error
+		m.wgNetwork, err = network.NewWireGuardNetwork()
+		if err != nil {
+			return fmt.Errorf("create WireGuard network: %w", err)
+		}
+	}
+
+	if err := m.wgNetwork.Configure(*m.state.Network); err != nil {
+		return fmt.Errorf("configure WireGuard network: %w", err)
+	}
+	slog.Info("WireGuard network configured.")
+	return nil
 }
 
 // listenUnixSocket creates a new Unix socket listener with the specified path. The socket file is created with 0660
@@ -248,16 +271,15 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	}
 
 	// TODO: a proper cluster leave mechanism and machine reset should be implemented later.
-	//  For now assume the cluster server is not running.
+	//  For now just reset the machine state and cluster state.
 	clusterStatePath := cluster.StatePath(m.config.DataDir)
 	clusterState := cluster.NewState(clusterStatePath)
 	if err = clusterState.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "save cluster state: %v", err)
 	}
-	clusterServer := cluster.NewServer(clusterState)
-	// TODO: register and start the cluster server.
-
-	if err = clusterServer.SetNetwork(req.Network); err != nil {
+	m.cluster.SetState(clusterState)
+	slog.Info("Cluster state initialised.", "path", clusterStatePath)
+	if err = m.cluster.SetNetwork(req.Network); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "set cluster network: %v", err)
 	}
 
@@ -286,7 +308,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 			PublicKey: m.state.Network.PublicKey,
 		},
 	}
-	addResp, err := clusterServer.AddMachine(ctx, addReq)
+	addResp, err := m.cluster.AddMachine(ctx, addReq)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "add machine to cluster: %v", err)
 	}
@@ -311,7 +333,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 
 	// Add a user to the cluster and build a peers config from it if provided.
 	if req.User != nil {
-		if err = clusterServer.AddUser(req.User); err != nil {
+		if err = m.cluster.AddUser(req.User); err != nil {
 			return nil, status.Errorf(codes.Internal, "add user to cluster: %v", err)
 		}
 		userManageIP, uErr := req.User.Network.ManagementIp.ToAddr()
@@ -329,9 +351,9 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	if err = m.state.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
 	}
-	slog.Info("Cluster initialised.", "machine", m.state.Name)
+	slog.Info("Cluster initialised with machine.", "machine", m.state.Name)
 	// Signal that the machine is initialised as a member of a cluster.
-	close(m.initialised)
+	m.initialised <- struct{}{}
 
 	resp := &pb.InitClusterResponse{
 		Machine: addResp.Machine,

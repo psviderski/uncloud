@@ -10,6 +10,11 @@ import (
 
 const StateFile = "cluster.pb"
 
+type State struct {
+	State *pb.State
+	path  string
+}
+
 func StatePath(dataDir string) string {
 	return filepath.Join(dataDir, StateFile)
 }

@@ -12,26 +12,38 @@ import (
 	"uncloud/internal/machine/network"
 )
 
-type Server struct {
+type Cluster struct {
 	pb.UnimplementedClusterServer
 
 	state *State
 }
 
-func NewServer(state *State) *Server {
-	return &Server{
+func NewCluster(state *State) *Cluster {
+	return &Cluster{
 		state: state,
 	}
 }
 
-func (c *Server) Network() (netip.Prefix, error) {
+func (c *Cluster) SetState(state *State) {
+	c.state = state
+}
+
+func (c *Cluster) Network() (netip.Prefix, error) {
+	if c.state == nil {
+		return netip.Prefix{}, status.Error(codes.FailedPrecondition, "cluster is not initialized")
+	}
+
 	if c.state.State.Network == nil {
 		return netip.Prefix{}, fmt.Errorf("network not set")
 	}
 	return c.state.State.Network.ToPrefix()
 }
 
-func (c *Server) SetNetwork(network *pb.IPPrefix) error {
+func (c *Cluster) SetNetwork(network *pb.IPPrefix) error {
+	if c.state == nil {
+		return status.Error(codes.FailedPrecondition, "cluster is not initialized")
+	}
+
 	if c.state.State.Network != nil {
 		return fmt.Errorf("network already set and cannot be changed")
 	}
@@ -43,7 +55,11 @@ func (c *Server) SetNetwork(network *pb.IPPrefix) error {
 }
 
 // AddMachine adds a machine to the cluster.
-func (c *Server) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb.AddMachineResponse, error) {
+func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb.AddMachineResponse, error) {
+	if c.state == nil {
+		return nil, status.Error(codes.FailedPrecondition, "cluster is not initialized")
+	}
+
 	// TODO: replace errors with gRPC status.Error(f), e.g. status.Error(codes.InvalidArgument, "management IP not set")
 	if req.Network.PublicKey == nil {
 		return nil, fmt.Errorf("public key not set")
@@ -126,7 +142,13 @@ func (c *Server) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb
 	return resp, nil
 }
 
-func (c *Server) ListMachineEndpoints(ctx context.Context, req *pb.ListMachineEndpointsRequest) (*pb.ListMachineEndpointsResponse, error) {
+func (c *Cluster) ListMachineEndpoints(
+	ctx context.Context, req *pb.ListMachineEndpointsRequest,
+) (*pb.ListMachineEndpointsResponse, error) {
+	if c.state == nil {
+		return nil, status.Error(codes.FailedPrecondition, "cluster is not initialized")
+	}
+
 	endpoints, ok := c.state.State.Endpoints[req.Id]
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "machine %q not found", req.Id)
@@ -134,16 +156,11 @@ func (c *Server) ListMachineEndpoints(ctx context.Context, req *pb.ListMachineEn
 	return &pb.ListMachineEndpointsResponse{Endpoints: endpoints}, nil
 }
 
-func (c *Server) AddUser(user *pb.User) error {
+func (c *Cluster) AddUser(user *pb.User) error {
 	c.state.State.Users = append(c.state.State.Users, user)
 	return c.state.Save()
 }
 
-func (c *Server) ListUsers() []*pb.User {
+func (c *Cluster) ListUsers() []*pb.User {
 	return c.state.State.Users
-}
-
-type State struct {
-	State *pb.State
-	path  string
 }
