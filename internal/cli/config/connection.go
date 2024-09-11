@@ -18,6 +18,8 @@ type MachineConnection struct {
 	PublicKey secret.Secret  `toml:"public_key,omitempty"`
 }
 
+// SSHDestination represents an SSH destination string in the canonical form of "user@host:port".
+// The default user "root" and port 22 can be omitted.
 type SSHDestination string
 
 func NewSSHDestination(user, host string, port int) SSHDestination {
@@ -37,10 +39,16 @@ func (d SSHDestination) Parse() (user string, host string, port int, err error) 
 	if strings.Contains(host, "@") {
 		user, host, _ = strings.Cut(host, "@")
 	}
+	if user == "" {
+		user = DefaultSSHUser
+	}
 	h, p, sErr := net.SplitHostPort(host)
 	if sErr == nil {
 		host = h
 		port, err = strconv.Atoi(p)
+	}
+	if port == 0 {
+		port = DefaultSSHPort
 	}
 	return
 }

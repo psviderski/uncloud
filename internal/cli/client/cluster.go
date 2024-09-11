@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"google.golang.org/grpc"
@@ -296,12 +295,4 @@ func (c *ClusterClient) registerNewMachine(
 		},
 	}
 	return c.client.AddMachine(ctx, req)
-}
-
-func privateKeyFromSecret(s secret.Secret) (ed25519.PrivateKey, error) {
-	// Cluster secret in the config is a hex-encoded private key seed.
-	if len(s) != ed25519.SeedSize {
-		return nil, fmt.Errorf("invalid cluster secret length")
-	}
-	return ed25519.NewKeyFromSeed(s), nil
 }

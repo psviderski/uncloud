@@ -41,12 +41,22 @@ func NewSSHConnector(cfg *SSHConnectorConfig) *SSHConnector {
 	return c
 }
 
+func NewSSHConnectorFromClient(client *ssh.Client) *SSHConnector {
+	return &SSHConnector{client: client}
+}
+
 // TODO: handle context cancelation.
 func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
-	var err error
-	c.client, err = sshexec.Connect(c.config.User, c.config.Host, c.config.Port, c.config.KeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("SSH login to %s@%s:%d: %w", c.config.User, c.config.Host, c.config.Port, err)
+	if c.client == nil {
+		// Establish an SSH connection if the SSH client is not provided.
+		if c.config == (SSHConnectorConfig{}) {
+			return nil, fmt.Errorf("SSH connector not configured")
+		}
+		var err error
+		c.client, err = sshexec.Connect(c.config.User, c.config.Host, c.config.Port, c.config.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("SSH login to %s@%s:%d: %w", c.config.User, c.config.Host, c.config.Port, err)
+		}
 	}
 
 	conn, err := grpc.NewClient(

@@ -10,6 +10,7 @@ import (
 	"uncloud/internal/cli/config"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/secret"
+	"uncloud/internal/sshexec"
 )
 
 const defaultClusterName = "default"
@@ -196,9 +197,52 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
+	defer func() {
+		_ = c.Close()
+	}()
 
-	fmt.Println("Adding machine to cluster...", c)
-	// TODO
+	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
+	if err != nil {
+		return fmt.Errorf(
+			"SSH login to remote machine %s: %w",
+			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
+		)
+	}
+	machineExec := sshexec.NewRemote(sshClient)
+
+	// TODO: Check if the machine is already provisioned using machineClient and ask the user to reset it first.
+	//conn := connector.NewSSHConnectorFromClient(sshClient)
+	//machineClient, err := client.New(ctx, conn)
+	//if err != nil {
+	//	return fmt.Errorf("connect to remote machine API: %w", err)
+	//}
+
+	// TODO: Download and install the latest uncloudd binary by running the install shell script from GitHub.
+	//  For now upload the binary using scp manually.
+	if _, err = machineExec.Run(ctx, "which uncloudd"); err != nil {
+		return fmt.Errorf("uncloudd binary not found on the remote machine: %w", err)
+	}
+
+	//req := &pb.AddMachineRequest{
+	//	Name: machineName,
+	//	Network: &pb.NetworkConfig{
+	//
+	//	}
+	//}
+	//resp, err := c.AddMachine(ctx, req)
+	//if err != nil {
+	//	return fmt.Errorf("add machine to cluster: %w", err)
+	//}
+
+	// TODO:
+	// --1. Establish a client connection to the remote machine.
+	// --2. Check if the machine is already provisioned and ask the user to reset it first.
+	// --3. Download and install the latest uncloudd binary by running the install shell script from GitHub.
+	// 4. Request token from the remote machine.
+	// 5. Add the machine to the cluster using its token and receive a configuration token.
+	// 6. Request the machine to join the cluster using the configuration token.
+	// 7. Save the machine's SSH connection details in the cluster config.
+
 	//name, connCfg, err := c.AddMachine(ctx, machineName, user, host, port, sshKeyPath)
 	//if err != nil {
 	//	return fmt.Errorf("add machine to cluster %q: %w", cluster.Name(), err)
