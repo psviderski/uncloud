@@ -354,6 +354,8 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	slog.Info("Cluster initialised with machine.", "machine", m.state.Name)
 	// Signal that the machine is initialised as a member of a cluster.
 	m.initialised <- struct{}{}
+	// TODO: consider calling a synchronous method to reconfigure the network to return error if it fails.
+	//  Alternatively a client can call another method to check the network status.
 
 	resp := &pb.InitClusterResponse{
 		Machine: addResp.Machine,
