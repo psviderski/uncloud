@@ -32,14 +32,14 @@ func New(configPath string) (*CLI, error) {
 	}, nil
 }
 
-func (cli *CLI) CreateCluster(name string, userPrivateKey secret.Secret) (*client.ClusterClient, error) {
+func (cli *CLI) CreateCluster(name string, userPrivateKey secret.Secret) error {
 	if _, ok := cli.config.Clusters[name]; ok {
-		return nil, fmt.Errorf("cluster %q already exists", name)
+		return fmt.Errorf("cluster %q already exists", name)
 	}
 	if userPrivateKey == nil {
 		user, err := client.NewUser(nil)
 		if err != nil {
-			return nil, fmt.Errorf("generate user: %w", err)
+			return fmt.Errorf("generate user: %w", err)
 		}
 		userPrivateKey = user.PrivateKey()
 	}
@@ -48,42 +48,14 @@ func (cli *CLI) CreateCluster(name string, userPrivateKey secret.Secret) (*clien
 		Name:           name,
 		UserPrivateKey: userPrivateKey,
 	}
-	if err := cli.config.Save(); err != nil {
-		return nil, err
-	}
-
-	return cli.GetCluster(name)
+	return cli.config.Save()
 }
 
-func (cli *CLI) CreateDefaultCluster() (*client.ClusterClient, error) {
-	c, err := cli.CreateCluster("default", nil)
-	if err != nil {
-		return nil, err
+func (cli *CLI) CreateDefaultCluster() error {
+	if err := cli.CreateCluster(defaultClusterName, nil); err != nil {
+		return err
 	}
-	if err = cli.SetCurrentCluster(c.Name()); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
-func (cli *CLI) GetCluster(name string) (*client.ClusterClient, error) {
-	clusterCfg, ok := cli.config.Clusters[name]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	clusterCfg.Name = name
-
-	user, err := client.NewUser(clusterCfg.UserPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("create user: %w", err)
-	}
-	wgConnector := connector.NewWireGuardConnector(user, clusterCfg.Connections)
-
-	return client.NewClusterClient(clusterCfg, wgConnector)
-}
-
-func (cli *CLI) GetCurrentCluster() (*client.ClusterClient, error) {
-	return cli.GetCluster(cli.config.CurrentCluster)
+	return cli.SetCurrentCluster(defaultClusterName)
 }
 
 func (cli *CLI) SetCurrentCluster(name string) error {
@@ -92,18 +64,6 @@ func (cli *CLI) SetCurrentCluster(name string) error {
 	}
 	cli.config.CurrentCluster = name
 	return cli.config.Save()
-}
-
-func (cli *CLI) ListClusters() ([]*client.ClusterClient, error) {
-	var clusters []*client.ClusterClient
-	for name := range cli.config.Clusters {
-		c, err := cli.GetCluster(name)
-		if err != nil {
-			return nil, fmt.Errorf("get cluster %q: %w", name, err)
-		}
-		clusters = append(clusters, c)
-	}
-	return clusters, nil
 }
 
 func (cli *CLI) InitCluster(
@@ -164,8 +124,7 @@ func (cli *CLI) initRemoteMachine(
 	}
 	fmt.Printf("Cluster %q initialised with machine %q\n", clusterName, resp.Machine.Name)
 
-	_, err = cli.CreateCluster(clusterName, user.PrivateKey())
-	if err != nil {
+	if err = cli.CreateCluster(clusterName, user.PrivateKey()); err != nil {
 		return fmt.Errorf("save cluster to config: %w", err)
 	}
 	// Set the current cluster to the just created one if it is the only cluster in the config.
@@ -185,59 +144,71 @@ func (cli *CLI) initRemoteMachine(
 	return nil
 }
 
-func (cli *CLI) AddMachine(
-	ctx context.Context, clusterName, machineName, user, host string, port int, sshKeyPath string,
-) error {
-	var (
-		cluster *client.ClusterClient
-		err     error
-	)
+func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client.Client, error) {
+	if len(cli.config.Clusters) == 0 {
+		return nil, errors.New(
+			"no clusters found in the Uncloud config. " +
+				"Please initialise a cluster with `uncloud machine init` first",
+		)
+	}
 	if clusterName == "" {
-		// If the cluster is not specified, use the current cluster. If there are no clusters, create a default one.
-		cluster, err = cli.GetCurrentCluster()
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				// Do not create a default cluster if there are already clusters but the current cluster is not set.
-				clusters, cErr := cli.ListClusters()
-				if cErr != nil {
-					return fmt.Errorf("list clusters: %w", cErr)
-				}
-				if len(clusters) > 0 {
-					return errors.New(
-						"the current cluster is not set in the Uncloud config. " +
-							"Please specify a cluster with the --cluster flag or set current_cluster in the config",
-					)
-				}
-
-				cluster, err = cli.CreateDefaultCluster()
-				if err != nil {
-					return fmt.Errorf("create default cluster: %w", err)
-				}
-				fmt.Printf("Created %q cluster\n", cluster.Name())
-			} else {
-				return fmt.Errorf("get current cluster: %w", err)
-			}
+		// If the cluster is not specified, use the current cluster if set.
+		if cli.config.CurrentCluster == "" {
+			return nil, errors.New(
+				"the current cluster is not set in the Uncloud config. " +
+					"Please specify a cluster with the --cluster flag or set current_cluster in the config",
+			)
 		}
-	} else {
-		cluster, err = cli.GetCluster(clusterName)
-		if err != nil {
-			return fmt.Errorf("get cluster %q: %w", clusterName, err)
+		if _, ok := cli.config.Clusters[cli.config.CurrentCluster]; !ok {
+			return nil, fmt.Errorf(
+				"current cluster %q not found in the config. "+
+					"Please specify a cluster with the --cluster flag or update current_cluster in the config",
+				cli.config.CurrentCluster,
+			)
 		}
+		clusterName = cli.config.CurrentCluster
 	}
-	defer func() {
-		_ = cluster.Close()
-	}()
 
-	name, connCfg, err := cluster.AddMachine(ctx, machineName, user, host, port, sshKeyPath)
+	cfg, ok := cli.config.Clusters[clusterName]
+	if !ok {
+		return nil, fmt.Errorf("cluster %q not found in the config", clusterName)
+	}
+	if len(cfg.Connections) == 0 {
+		return nil, fmt.Errorf("no connection configurations found for cluster %q in the config", clusterName)
+	}
+
+	// TODO: iterate over all connections and try to connect to the cluster using the first successful connection.
+	conn := cfg.Connections[0]
+	user, host, port, err := conn.SSH.Parse()
 	if err != nil {
-		return fmt.Errorf("add machine to cluster %q: %w", cluster.Name(), err)
+		return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
 	}
-	fmt.Printf("Machine %q added to cluster %q\n", name, cluster.Name())
+	sshConfig := &connector.SSHConnectorConfig{
+		User: user,
+		Host: host,
+		Port: port,
+	}
+	return client.New(ctx, connector.NewSSHConnector(sshConfig))
+}
 
-	cli.config.Clusters[cluster.Name()].Connections = append(cli.config.Clusters[cluster.Name()].Connections, connCfg)
-	if err = cli.config.Save(); err != nil {
-		return fmt.Errorf("save config: %w", err)
+func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string) error {
+	c, err := cli.ConnectCluster(ctx, clusterName)
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
 	}
+
+	fmt.Println("Adding machine to cluster...", c)
+	// TODO
+	//name, connCfg, err := c.AddMachine(ctx, machineName, user, host, port, sshKeyPath)
+	//if err != nil {
+	//	return fmt.Errorf("add machine to cluster %q: %w", cluster.Name(), err)
+	//}
+	//fmt.Printf("Machine %q added to cluster %q\n", name, cluster.Name())
+	//
+	//cli.config.Clusters[cluster.Name()].Connections = append(cli.config.Clusters[cluster.Name()].Connections, connCfg)
+	//if err = cli.config.Save(); err != nil {
+	//	return fmt.Errorf("save config: %w", err)
+	//}
 
 	return nil
 }
