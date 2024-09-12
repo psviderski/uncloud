@@ -310,6 +310,7 @@ func (cli *CLI) ListMachines(ctx context.Context, clusterName string) error {
 	// Print the list of machines in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	// Print header.
+	// TODO: print ADDRESS instead of SUBNET which is a machine IP with prefix.
 	if _, err = fmt.Fprintln(tw, "NAME\tSUBNET\tPUBLIC KEY\tENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
