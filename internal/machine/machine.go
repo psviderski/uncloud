@@ -411,6 +411,78 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	return resp, nil
 }
 
+// JoinCluster resets the local machine and configures it to join an existing cluster.
+func (m *Machine) JoinCluster(ctx context.Context, req *pb.JoinClusterRequest) (*emptypb.Empty, error) {
+	// TODO: a proper cluster leave mechanism and machine reset should be implemented later.
+	//  For now assume the machine wasn't part of a cluster.
+
+	if req.Machine.Id == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine ID not set")
+	}
+	if req.Machine.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine name not set")
+	}
+	if req.Machine.Network == nil {
+		return nil, status.Error(codes.InvalidArgument, "network not set")
+	}
+	if err := req.Machine.Network.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid network config: %v", err)
+	}
+	if !m.state.Network.PublicKey.Equal(req.Machine.Network.PublicKey) {
+		return nil, status.Error(
+			codes.InvalidArgument, "public key in the request does not match the public key on the machine",
+		)
+	}
+
+	// Update the machine state with the provided cluster configuration.
+	subnet, _ := req.Machine.Network.Subnet.ToPrefix()
+	manageIP, _ := req.Machine.Network.ManagementIp.ToAddr()
+	m.state.ID = req.Machine.Id
+	m.state.Name = req.Machine.Name
+	m.state.Network = &network.Config{
+		Subnet:       subnet,
+		ManagementIP: manageIP,
+		PrivateKey:   m.state.Network.PrivateKey,
+		PublicKey:    m.state.Network.PublicKey,
+	}
+
+	// Build a peers config from other cluster machines.
+	m.state.Network.Peers = make([]network.PeerConfig, 0, len(req.OtherMachines))
+	for _, om := range req.OtherMachines {
+		if err := om.Network.Validate(); err != nil {
+			continue
+		}
+		omSubnet, _ := om.Network.Subnet.ToPrefix()
+		omManageIP, _ := om.Network.ManagementIp.ToAddr()
+		omEndpoints := make([]netip.AddrPort, len(om.Network.Endpoints))
+		for i, ep := range om.Network.Endpoints {
+			addrPort, _ := ep.ToAddrPort()
+			omEndpoints[i] = addrPort
+		}
+		peer := network.PeerConfig{
+			Subnet:       &omSubnet,
+			ManagementIP: omManageIP,
+			AllEndpoints: omEndpoints,
+			PublicKey:    om.Network.PublicKey,
+		}
+		if len(omEndpoints) > 0 {
+			peer.Endpoint = &omEndpoints[0]
+		}
+		m.state.Network.Peers = append(m.state.Network.Peers, peer)
+	}
+
+	if err := m.state.Save(); err != nil {
+		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
+	}
+	slog.Info("Machine configured to join the cluster.", "id", m.state.ID, "name", m.state.Name)
+	// Signal that the machine is initialised as a member of a cluster.
+	m.initialised <- struct{}{}
+	// TODO: consider calling a synchronous method to reconfigure the network to return error if it fails.
+	//  Alternatively a client can call another method to check the network status.
+
+	return &emptypb.Empty{}, nil
+}
+
 // Token returns the local machine's token that can be used for adding the machine to a cluster.
 func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse, error) {
 	if len(m.state.Network.PublicKey) == 0 {

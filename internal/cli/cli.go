@@ -72,6 +72,53 @@ func (cli *CLI) SetCurrentCluster(name string) error {
 	return cli.config.Save()
 }
 
+func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client.Client, error) {
+	if len(cli.config.Clusters) == 0 {
+		return nil, errors.New(
+			"no clusters found in the Uncloud config. " +
+				"Please initialise a cluster with `uncloud machine init` first",
+		)
+	}
+	if clusterName == "" {
+		// If the cluster is not specified, use the current cluster if set.
+		if cli.config.CurrentCluster == "" {
+			return nil, errors.New(
+				"the current cluster is not set in the Uncloud config. " +
+					"Please specify a cluster with the --cluster flag or set current_cluster in the config",
+			)
+		}
+		if _, ok := cli.config.Clusters[cli.config.CurrentCluster]; !ok {
+			return nil, fmt.Errorf(
+				"current cluster %q not found in the config. "+
+					"Please specify a cluster with the --cluster flag or update current_cluster in the config",
+				cli.config.CurrentCluster,
+			)
+		}
+		clusterName = cli.config.CurrentCluster
+	}
+
+	cfg, ok := cli.config.Clusters[clusterName]
+	if !ok {
+		return nil, fmt.Errorf("cluster %q not found in the config", clusterName)
+	}
+	if len(cfg.Connections) == 0 {
+		return nil, fmt.Errorf("no connection configurations found for cluster %q in the config", clusterName)
+	}
+
+	// TODO: iterate over all connections and try to connect to the cluster using the first successful connection.
+	conn := cfg.Connections[0]
+	user, host, port, err := conn.SSH.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
+	}
+	sshConfig := &connector.SSHConnectorConfig{
+		User: user,
+		Host: host,
+		Port: port,
+	}
+	return client.New(ctx, connector.NewSSHConnector(sshConfig))
+}
+
 func (cli *CLI) InitCluster(
 	ctx context.Context, remoteMachine *RemoteMachine, clusterName, machineName string, netPrefix netip.Prefix,
 ) error {
@@ -150,53 +197,6 @@ func (cli *CLI) initRemoteMachine(
 	return nil
 }
 
-func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client.Client, error) {
-	if len(cli.config.Clusters) == 0 {
-		return nil, errors.New(
-			"no clusters found in the Uncloud config. " +
-				"Please initialise a cluster with `uncloud machine init` first",
-		)
-	}
-	if clusterName == "" {
-		// If the cluster is not specified, use the current cluster if set.
-		if cli.config.CurrentCluster == "" {
-			return nil, errors.New(
-				"the current cluster is not set in the Uncloud config. " +
-					"Please specify a cluster with the --cluster flag or set current_cluster in the config",
-			)
-		}
-		if _, ok := cli.config.Clusters[cli.config.CurrentCluster]; !ok {
-			return nil, fmt.Errorf(
-				"current cluster %q not found in the config. "+
-					"Please specify a cluster with the --cluster flag or update current_cluster in the config",
-				cli.config.CurrentCluster,
-			)
-		}
-		clusterName = cli.config.CurrentCluster
-	}
-
-	cfg, ok := cli.config.Clusters[clusterName]
-	if !ok {
-		return nil, fmt.Errorf("cluster %q not found in the config", clusterName)
-	}
-	if len(cfg.Connections) == 0 {
-		return nil, fmt.Errorf("no connection configurations found for cluster %q in the config", clusterName)
-	}
-
-	// TODO: iterate over all connections and try to connect to the cluster using the first successful connection.
-	conn := cfg.Connections[0]
-	user, host, port, err := conn.SSH.Parse()
-	if err != nil {
-		return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
-	}
-	sshConfig := &connector.SSHConnectorConfig{
-		User: user,
-		Host: host,
-		Port: port,
-	}
-	return client.New(ctx, connector.NewSSHConnector(sshConfig))
-}
-
 func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string) error {
 	c, err := cli.ConnectCluster(ctx, clusterName)
 	if err != nil {
@@ -238,6 +238,7 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 		return fmt.Errorf("parse remote machine token: %w", err)
 	}
 
+	// Register the machine in the cluster using its public key and endpoints from the token.
 	endpoints := make([]*pb.IPPort, len(token.Endpoints))
 	for i, addrPort := range token.Endpoints {
 		endpoints[i] = pb.NewIPPort(addrPort)
@@ -253,31 +254,41 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	if err != nil {
 		return fmt.Errorf("add machine to cluster: %w", err)
 	}
-	fmt.Println("Machine added to cluster", addResp.Machine)
 
-	//joinReq := &pb.JoinClusterRequest{
-	//	Machine: addResp.Machine,
-	//}
+	// List other machines in the cluster to include them in the join request.
+	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("list cluster machines: %w", err)
+	}
+	otherMachines := make([]*pb.MachineInfo, 0, len(listResp.Machines)-1)
+	for _, m := range listResp.Machines {
+		if m.Id != addResp.Machine.Id {
+			otherMachines = append(otherMachines, m)
+		}
+	}
 
-	// TODO:
-	// --1. Establish a client connection to the remote machine.
-	// --2. Check if the machine is already provisioned and ask the user to reset it first.
-	// --3. Download and install the latest uncloudd binary by running the install shell script from GitHub.
-	// --4. Request token from the remote machine.
-	// --5. Add the machine to the cluster using its token and receive the added machine info.
-	// 6. Request the machine to join the cluster using the configuration token.
-	// 7. Save the machine's SSH connection details in the cluster config.
+	// Configure the remote machine to join the cluster.
+	joinReq := &pb.JoinClusterRequest{
+		Machine:       addResp.Machine,
+		OtherMachines: otherMachines,
+	}
+	if _, err = machineClient.JoinCluster(ctx, joinReq); err != nil {
+		return fmt.Errorf("join cluster: %w", err)
+	}
 
-	//name, connCfg, err := c.AddMachine(ctx, machineName, user, host, port, sshKeyPath)
-	//if err != nil {
-	//	return fmt.Errorf("add machine to cluster %q: %w", cluster.Name(), err)
-	//}
-	//fmt.Printf("Machine %q added to cluster %q\n", name, cluster.Name())
-	//
-	//cli.config.Clusters[cluster.Name()].Connections = append(cli.config.Clusters[cluster.Name()].Connections, connCfg)
-	//if err = cli.config.Save(); err != nil {
-	//	return fmt.Errorf("save config: %w", err)
-	//}
+	fmt.Printf("Machine %q added to cluster\n", addResp.Machine.Name)
+
+	// Save the machine's SSH connection details in the cluster config.
+	connCfg := config.MachineConnection{
+		SSH: config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+	}
+	if clusterName == "" {
+		clusterName = cli.config.CurrentCluster
+	}
+	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
+	if err = cli.config.Save(); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
 
 	return nil
 }
@@ -303,7 +314,6 @@ func (cli *CLI) ListMachines(ctx context.Context, clusterName string) error {
 		return fmt.Errorf("write header: %w", err)
 	}
 	// Print rows.
-	fmt.Println("listResp", len(listResp.Machines))
 	for _, m := range listResp.Machines {
 		subnet, _ := m.Network.Subnet.ToPrefix()
 		endpoints := make([]string, len(m.Network.Endpoints))
