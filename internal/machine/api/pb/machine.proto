@@ -10,6 +10,7 @@ import "internal/machine/api/pb/cluster.proto";
 
 service Machine {
   rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
+  rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
 }
 
@@ -21,6 +22,11 @@ message InitClusterRequest {
 
 message InitClusterResponse {
   MachineInfo machine = 1;
+}
+
+message JoinClusterRequest {
+  MachineInfo machine = 1;
+  repeated MachineInfo other_machines = 3;
 }
 
 message TokenResponse {

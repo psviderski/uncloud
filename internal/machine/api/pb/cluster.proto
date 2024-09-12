@@ -4,10 +4,12 @@ package api;
 
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
+import "google/protobuf/empty.proto";
 import "internal/machine/api/pb/common.proto";
 
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
+  rpc ListMachines(google.protobuf.Empty) returns (ListMachinesResponse);
   rpc ListMachineEndpoints(ListMachineEndpointsRequest) returns (ListMachineEndpointsResponse);
 }
 
@@ -18,6 +20,10 @@ message AddMachineRequest {
 
 message AddMachineResponse {
   MachineInfo machine = 1;
+}
+
+message ListMachinesResponse {
+  repeated MachineInfo machines = 1;
 }
 
 message ListMachineEndpointsRequest {

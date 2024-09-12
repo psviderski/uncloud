@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
+	"os"
+	"strings"
+	"text/tabwriter"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/client/connector"
 	"uncloud/internal/cli/config"
@@ -250,15 +253,18 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	if err != nil {
 		return fmt.Errorf("add machine to cluster: %w", err)
 	}
-
 	fmt.Println("Machine added to cluster", addResp.Machine)
+
+	//joinReq := &pb.JoinClusterRequest{
+	//	Machine: addResp.Machine,
+	//}
 
 	// TODO:
 	// --1. Establish a client connection to the remote machine.
 	// --2. Check if the machine is already provisioned and ask the user to reset it first.
 	// --3. Download and install the latest uncloudd binary by running the install shell script from GitHub.
 	// --4. Request token from the remote machine.
-	// 5. Add the machine to the cluster using its token and receive the added machine info.
+	// --5. Add the machine to the cluster using its token and receive the added machine info.
 	// 6. Request the machine to join the cluster using the configuration token.
 	// 7. Save the machine's SSH connection details in the cluster config.
 
@@ -274,4 +280,43 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	//}
 
 	return nil
+}
+
+func (cli *CLI) ListMachines(ctx context.Context, clusterName string) error {
+	c, err := cli.ConnectCluster(ctx, clusterName)
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
+	}
+	defer func() {
+		_ = c.Close()
+	}()
+
+	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("list machines: %w", err)
+	}
+
+	// Print the list of machines in a table format.
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	// Print header.
+	if _, err = fmt.Fprintln(tw, "NAME\tSUBNET\tPUBLIC KEY\tENDPOINTS"); err != nil {
+		return fmt.Errorf("write header: %w", err)
+	}
+	// Print rows.
+	fmt.Println("listResp", len(listResp.Machines))
+	for _, m := range listResp.Machines {
+		subnet, _ := m.Network.Subnet.ToPrefix()
+		endpoints := make([]string, len(m.Network.Endpoints))
+		for i, ep := range m.Network.Endpoints {
+			addrPort, _ := ep.ToAddrPort()
+			endpoints[i] = addrPort.String()
+		}
+		publicKey := secret.Secret(m.Network.PublicKey)
+		if _, err = fmt.Fprintf(
+			tw, "%s\t%s\t%s\t%s\n", m.Name, subnet, publicKey, strings.Join(endpoints, ", "),
+		); err != nil {
+			return fmt.Errorf("write row: %w", err)
+		}
+	}
+	return tw.Flush()
 }

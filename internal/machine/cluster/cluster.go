@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"log/slog"
 	"net/netip"
 	"uncloud/internal/machine/api/pb"
@@ -161,6 +162,21 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 
 	resp := &pb.AddMachineResponse{Machine: m}
 	return resp, nil
+}
+
+func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListMachinesResponse, error) {
+	if c.state == nil {
+		return nil, status.Error(codes.FailedPrecondition, "cluster is not initialized")
+	}
+	// TODO: consider creating MachineInfo type that pb.MachineInfo is mapped to always carry valid data to reduce
+	//  error handling caused by conversions and nil pointers.
+	machines := make([]*pb.MachineInfo, 0, len(c.state.State.Machines))
+	for _, sm := range c.state.State.Machines {
+		m := proto.Clone(sm).(*pb.MachineInfo)
+		m.Network.Endpoints = c.state.State.Endpoints[m.Id].Endpoints
+		machines = append(machines, m)
+	}
+	return &pb.ListMachinesResponse{Machines: machines}, nil
 }
 
 func (c *Cluster) ListMachineEndpoints(

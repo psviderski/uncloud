@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Machine_InitCluster_FullMethodName = "/api.Machine/InitCluster"
+	Machine_JoinCluster_FullMethodName = "/api.Machine/JoinCluster"
 	Machine_Token_FullMethodName       = "/api.Machine/Token"
 )
 
@@ -29,6 +30,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MachineClient interface {
 	InitCluster(ctx context.Context, in *InitClusterRequest, opts ...grpc.CallOption) (*InitClusterResponse, error)
+	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error)
 }
 
@@ -50,6 +52,16 @@ func (c *machineClient) InitCluster(ctx context.Context, in *InitClusterRequest,
 	return out, nil
 }
 
+func (c *machineClient) JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Machine_JoinCluster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *machineClient) Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TokenResponse)
@@ -65,6 +77,7 @@ func (c *machineClient) Token(ctx context.Context, in *emptypb.Empty, opts ...gr
 // for forward compatibility.
 type MachineServer interface {
 	InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error)
+	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
 	Token(context.Context, *emptypb.Empty) (*TokenResponse, error)
 	mustEmbedUnimplementedMachineServer()
 }
@@ -78,6 +91,9 @@ type UnimplementedMachineServer struct{}
 
 func (UnimplementedMachineServer) InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitCluster not implemented")
+}
+func (UnimplementedMachineServer) JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method JoinCluster not implemented")
 }
 func (UnimplementedMachineServer) Token(context.Context, *emptypb.Empty) (*TokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Token not implemented")
@@ -121,6 +137,24 @@ func _Machine_InitCluster_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_JoinCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).JoinCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_JoinCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).JoinCluster(ctx, req.(*JoinClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Machine_Token_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -149,6 +183,10 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InitCluster",
 			Handler:    _Machine_InitCluster_Handler,
+		},
+		{
+			MethodName: "JoinCluster",
+			Handler:    _Machine_JoinCluster_Handler,
 		},
 		{
 			MethodName: "Token",

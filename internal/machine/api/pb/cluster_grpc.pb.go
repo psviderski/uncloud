@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -20,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Cluster_AddMachine_FullMethodName           = "/api.Cluster/AddMachine"
+	Cluster_ListMachines_FullMethodName         = "/api.Cluster/ListMachines"
 	Cluster_ListMachineEndpoints_FullMethodName = "/api.Cluster/ListMachineEndpoints"
 )
 
@@ -28,6 +30,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ClusterClient interface {
 	AddMachine(ctx context.Context, in *AddMachineRequest, opts ...grpc.CallOption) (*AddMachineResponse, error)
+	ListMachines(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListMachinesResponse, error)
 	ListMachineEndpoints(ctx context.Context, in *ListMachineEndpointsRequest, opts ...grpc.CallOption) (*ListMachineEndpointsResponse, error)
 }
 
@@ -49,6 +52,16 @@ func (c *clusterClient) AddMachine(ctx context.Context, in *AddMachineRequest, o
 	return out, nil
 }
 
+func (c *clusterClient) ListMachines(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListMachinesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMachinesResponse)
+	err := c.cc.Invoke(ctx, Cluster_ListMachines_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterClient) ListMachineEndpoints(ctx context.Context, in *ListMachineEndpointsRequest, opts ...grpc.CallOption) (*ListMachineEndpointsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListMachineEndpointsResponse)
@@ -64,6 +77,7 @@ func (c *clusterClient) ListMachineEndpoints(ctx context.Context, in *ListMachin
 // for forward compatibility.
 type ClusterServer interface {
 	AddMachine(context.Context, *AddMachineRequest) (*AddMachineResponse, error)
+	ListMachines(context.Context, *emptypb.Empty) (*ListMachinesResponse, error)
 	ListMachineEndpoints(context.Context, *ListMachineEndpointsRequest) (*ListMachineEndpointsResponse, error)
 	mustEmbedUnimplementedClusterServer()
 }
@@ -77,6 +91,9 @@ type UnimplementedClusterServer struct{}
 
 func (UnimplementedClusterServer) AddMachine(context.Context, *AddMachineRequest) (*AddMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddMachine not implemented")
+}
+func (UnimplementedClusterServer) ListMachines(context.Context, *emptypb.Empty) (*ListMachinesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMachines not implemented")
 }
 func (UnimplementedClusterServer) ListMachineEndpoints(context.Context, *ListMachineEndpointsRequest) (*ListMachineEndpointsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListMachineEndpoints not implemented")
@@ -120,6 +137,24 @@ func _Cluster_AddMachine_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cluster_ListMachines_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).ListMachines(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_ListMachines_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).ListMachines(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Cluster_ListMachineEndpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListMachineEndpointsRequest)
 	if err := dec(in); err != nil {
@@ -148,6 +183,10 @@ var Cluster_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddMachine",
 			Handler:    _Cluster_AddMachine_Handler,
+		},
+		{
+			MethodName: "ListMachines",
+			Handler:    _Cluster_ListMachines_Handler,
 		},
 		{
 			MethodName: "ListMachineEndpoints",
