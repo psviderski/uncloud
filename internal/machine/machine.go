@@ -44,8 +44,9 @@ type Machine struct {
 	localServer   *grpc.Server
 	networkServer *grpc.Server
 
-	clusterState *cluster.State
-	cluster      *cluster.Cluster
+	clusterState  *cluster.State
+	cluster       *cluster.Cluster
+	newMachinesCh <-chan *pb.MachineInfo
 }
 
 func NewMachine(config *Config) (*Machine, error) {
@@ -101,6 +102,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	}
 	pb.RegisterClusterServer(m.localServer, m.cluster)
 	pb.RegisterClusterServer(m.networkServer, m.cluster)
+	m.newMachinesCh = m.cluster.WatchNewMachines()
 
 	if m.IsInitialised() {
 		m.initialised <- struct{}{}
@@ -195,6 +197,51 @@ func (m *Machine) Run(ctx context.Context) error {
 
 				//ctx, cancel := context.WithCancel(context.Background())
 				//go wgnet.WatchEndpoints(ctx, peerEndpointChangeNotifier)
+			}
+		},
+	)
+
+	// Handle new machines added to the cluster.
+	errGroup.Go(
+		func() error {
+			for {
+				select {
+				case machineInfo := <-m.newMachinesCh:
+					slog.Info("Handling new machine added to the cluster.", "name", machineInfo.Name)
+					if err := machineInfo.Network.Validate(); err != nil {
+						slog.Error("Invalid machine network configuration.", "err", err)
+						continue
+					}
+					// Ignore errors as they are already validated.
+					subnet, _ := machineInfo.Network.Subnet.ToPrefix()
+					manageIP, _ := machineInfo.Network.ManagementIp.ToAddr()
+					endpoints := make([]netip.AddrPort, len(machineInfo.Network.Endpoints))
+					for i, ep := range machineInfo.Network.Endpoints {
+						addrPort, _ := ep.ToAddrPort()
+						endpoints[i] = addrPort
+					}
+
+					peer := network.PeerConfig{
+						Subnet:       &subnet,
+						ManagementIP: manageIP,
+						AllEndpoints: endpoints,
+						PublicKey:    machineInfo.Network.PublicKey,
+					}
+					if len(endpoints) > 0 {
+						peer.Endpoint = &endpoints[0]
+					}
+
+					m.state.Network.Peers = append(m.state.Network.Peers, peer)
+					if err := m.state.Save(); err != nil {
+						return fmt.Errorf("save machine state: %w", err)
+					}
+
+					if err := m.configureNetwork(); err != nil {
+						return fmt.Errorf("configure network with new peer: %w", err)
+					}
+				case <-ctx.Done():
+					return nil
+				}
 			}
 		},
 	)

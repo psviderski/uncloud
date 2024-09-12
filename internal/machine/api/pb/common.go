@@ -17,6 +17,9 @@ func (ip *IP) ToAddr() (netip.Addr, error) {
 	if err := addr.UnmarshalBinary(ip.Ip); err != nil {
 		return netip.Addr{}, fmt.Errorf("unmarshal IP: %w", err)
 	}
+	if !addr.IsValid() {
+		return netip.Addr{}, fmt.Errorf("invalid IP")
+	}
 	return addr, nil
 }
 
@@ -45,5 +48,9 @@ func (p *IPPrefix) ToPrefix() (netip.Prefix, error) {
 	if err != nil {
 		return netip.Prefix{}, err
 	}
-	return netip.PrefixFrom(addr, int(p.Bits)), nil
+	prefix := netip.PrefixFrom(addr, int(p.Bits))
+	if !prefix.IsValid() {
+		return netip.Prefix{}, fmt.Errorf("invalid prefix")
+	}
+	return prefix, nil
 }

@@ -9,6 +9,7 @@ import (
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/client/connector"
 	"uncloud/internal/cli/config"
+	"uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/secret"
 	"uncloud/internal/sshexec"
@@ -225,31 +226,39 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 		return fmt.Errorf("uncloudd binary not found on the remote machine: %w", err)
 	}
 
-	resp, err := machineClient.Token(ctx, &emptypb.Empty{})
+	tokenResp, err := machineClient.Token(ctx, &emptypb.Empty{})
 	if err != nil {
 		return fmt.Errorf("get remote machine token: %w", err)
 	}
-	token := resp.Token
+	token, err := machine.ParseToken(tokenResp.Token)
+	if err != nil {
+		return fmt.Errorf("parse remote machine token: %w", err)
+	}
 
-	fmt.Println("Token:", token)
+	endpoints := make([]*pb.IPPort, len(token.Endpoints))
+	for i, addrPort := range token.Endpoints {
+		endpoints[i] = pb.NewIPPort(addrPort)
+	}
+	addReq := &pb.AddMachineRequest{
+		Name: machineName,
+		Network: &pb.NetworkConfig{
+			Endpoints: endpoints,
+			PublicKey: token.PublicKey,
+		},
+	}
+	addResp, err := c.AddMachine(ctx, addReq)
+	if err != nil {
+		return fmt.Errorf("add machine to cluster: %w", err)
+	}
 
-	//req := &pb.AddMachineRequest{
-	//	Name: machineName,
-	//	Network: &pb.NetworkConfig{
-	//
-	//	}
-	//}
-	//resp, err := c.AddMachine(ctx, req)
-	//if err != nil {
-	//	return fmt.Errorf("add machine to cluster: %w", err)
-	//}
+	fmt.Println("Machine added to cluster", addResp.Machine)
 
 	// TODO:
 	// --1. Establish a client connection to the remote machine.
 	// --2. Check if the machine is already provisioned and ask the user to reset it first.
 	// --3. Download and install the latest uncloudd binary by running the install shell script from GitHub.
-	// 4. Request token from the remote machine.
-	// 5. Add the machine to the cluster using its token and receive a configuration token.
+	// --4. Request token from the remote machine.
+	// 5. Add the machine to the cluster using its token and receive the added machine info.
 	// 6. Request the machine to join the cluster using the configuration token.
 	// 7. Save the machine's SSH connection details in the cluster config.
 
