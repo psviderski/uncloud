@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"sync"
 	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/network"
 )
@@ -13,7 +14,6 @@ import (
 const (
 	DefaultDataDir = "/var/lib/uncloud"
 	StateFileName  = "machine.json"
-	APIPort        = 51000
 )
 
 // State defines the machine-specific configuration within a cluster. It encapsulates essential identifiers
@@ -28,6 +28,8 @@ type State struct {
 
 	// path is the file path config is read from and saved to.
 	path string
+	// mu protects the state from concurrent reads and writes.
+	mu sync.RWMutex
 }
 
 // StatePath returns the path to the machine state file within the given data directory.

@@ -13,12 +13,15 @@ import (
 	"log/slog"
 	"net/netip"
 	"slices"
+	"sync"
 	"time"
 )
 
 type WireGuardNetwork struct {
 	link  netlink.Link
 	peers []peer
+	// mu synchronises concurrent network configuration changes.
+	mu sync.Mutex
 }
 
 type peer struct {
@@ -68,6 +71,9 @@ func createOrGetLink(name string) (netlink.Link, error) {
 // Configure applies the given configuration to the WireGuard network interface.
 // It updates device and peers settings, subnet, and peer routes.
 func (n *WireGuardNetwork) Configure(config Config) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	// Reconstruct the list of peers, ensuring that the last endpoint change time is preserved for any existing peers.
 	existingPeersByPublicKey := map[string]peer{}
 	for _, p := range n.peers {
@@ -112,8 +118,10 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	if err = n.updateAddresses(addrs); err != nil {
 		return err
 	}
-	slog.Info("Updated addresses of the WireGuard interface.",
-		"name", n.link.Attrs().Name, "addrs", addrs)
+	slog.Info(
+		"Updated addresses of the WireGuard interface.",
+		"name", n.link.Attrs().Name, "addrs", addrs,
+	)
 
 	// Bring the WireGuard interface up if it's not already up.
 	if n.link.Attrs().Flags&unix.IFF_UP != unix.IFF_UP {
@@ -125,8 +133,10 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	if err = n.updatePeerRoutes(); err != nil {
 		return err
 	}
-	slog.Info("Updated routes to peers via the WireGuard interface.",
-		"name", n.link.Attrs().Name, "peers", len(n.peers))
+	slog.Info(
+		"Updated routes to peers via the WireGuard interface.",
+		"name", n.link.Attrs().Name, "peers", len(n.peers),
+	)
 
 	return nil
 }
@@ -148,9 +158,11 @@ func (n *WireGuardNetwork) updateAddresses(addrs []netip.Prefix) error {
 		return fmt.Errorf("list addresses on WireGuard link %q: %w", n.link.Attrs().Name, err)
 	}
 	for _, linkAddr := range linkAddrs {
-		if slices.ContainsFunc(addrs, func(a netip.Prefix) bool {
-			return linkAddr.IPNet.String() == a.String()
-		}) {
+		if slices.ContainsFunc(
+			addrs, func(a netip.Prefix) bool {
+				return linkAddr.IPNet.String() == a.String()
+			},
+		) {
 			continue
 		}
 		if err = netlink.AddrDel(n.link, &linkAddr); err != nil {
@@ -182,15 +194,19 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 	// Add routes to the computed IP ranges via the WireGuard link.
 	for _, prefix := range ipset.Prefixes() {
 		dst := prefixToIPNet(prefix)
-		if err = netlink.RouteAdd(&netlink.Route{
-			LinkIndex: n.link.Attrs().Index,
-			Scope:     netlink.SCOPE_LINK,
-			Dst:       &dst,
-		}); err != nil && !errors.Is(err, unix.EEXIST) {
+		if err = netlink.RouteAdd(
+			&netlink.Route{
+				LinkIndex: n.link.Attrs().Index,
+				Scope:     netlink.SCOPE_LINK,
+				Dst:       &dst,
+			},
+		); err != nil && !errors.Is(err, unix.EEXIST) {
 			return fmt.Errorf("add route to WireGuard link %q: %w", n.link.Attrs().Name, err)
 		}
-		slog.Debug("Added route to peer(s) via WireGuard interface.",
-			"name", n.link.Attrs().Name, "dst", prefix)
+		slog.Debug(
+			"Added route to peer(s) via WireGuard interface.",
+			"name", n.link.Attrs().Name, "dst", prefix,
+		)
 	}
 
 	// Remove old routes to IP ranges that are no longer in the configuration.
@@ -210,8 +226,10 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 		if err = netlink.RouteDel(&route); err != nil {
 			return fmt.Errorf("remove route %q from WireGuard link %q: %w", route.Dst, n.link.Attrs().Name, err)
 		}
-		slog.Debug("Removed route to peer(s) via WireGuard interface.",
-			"name", n.link.Attrs().Name, "dst", routePrefix)
+		slog.Debug(
+			"Removed route to peer(s) via WireGuard interface.",
+			"name", n.link.Attrs().Name, "dst", routePrefix,
+		)
 	}
 	return nil
 }

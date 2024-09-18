@@ -27,7 +27,7 @@ type Cluster struct {
 func NewCluster(state *State) *Cluster {
 	return &Cluster{
 		state:         state,
-		newMachinesCh: make(chan *pb.MachineInfo),
+		newMachinesCh: make(chan *pb.MachineInfo, 1),
 	}
 }
 
@@ -158,7 +158,6 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 
 	// TODO: notify all cluster machines about the new machine so they can update their peers config.
 	//  In PoC we just notify the local machine.
-	// TODO: there is a race condition with network configuration if a new cluster is initialized on the machine.
 	c.newMachinesCh <- m
 
 	resp := &pb.AddMachineResponse{Machine: m}
