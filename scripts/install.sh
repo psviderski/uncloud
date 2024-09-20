@@ -155,4 +155,4 @@ install_docker
 install_uncloud_binaries
 install_uncloud_systemd
 
-log "✓ Uncloud installed successfully! 🎉"
+log "✓ Uncloud installed on the machine successfully! 🎉"
