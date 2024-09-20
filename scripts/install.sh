@@ -7,6 +7,7 @@ INSTALL_SYSTEMD_DIR=${INSTALL_SYSTEMD_DIR:-/etc/systemd/system}
 UNCLOUD_GITHUB_URL="https://github.com/psviderski/uncloud"
 UNCLOUD_VERSION=${UNCLOUD_VERSION:-latest}
 UNCLOUD_GROUP="uncloud"
+# Add the specified user to the 'uncloud' group.
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 
 log() {
