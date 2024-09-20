@@ -6,6 +6,8 @@ INSTALL_BIN_DIR=${INSTALL_BIN_DIR:-/usr/local/bin}
 INSTALL_SYSTEMD_DIR=${INSTALL_SYSTEMD_DIR:-/etc/systemd/system}
 UNCLOUD_GITHUB_URL="https://github.com/psviderski/uncloud"
 UNCLOUD_VERSION=${UNCLOUD_VERSION:-latest}
+UNCLOUD_GROUP="uncloud"
+UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 
 log() {
     echo -e "\033[1;32m$1\033[0m" >&2
@@ -48,6 +50,24 @@ install_docker() {
     log "⏳ Installing Docker..."
     curl -fsSL https://get.docker.com | sh
     log "✓ Docker installed successfully."
+}
+
+create_uncloud_group() {
+    if getent group "${UNCLOUD_GROUP}" > /dev/null; then
+      log "✓ Linux group 'uncloud' already exists."
+    else
+      if ! groupadd --system "${UNCLOUD_GROUP}"; then
+        error "Failed to create Linux group 'uncloud'."
+      fi
+      log "✓ Linux group 'uncloud' created."
+    fi
+
+    if [ -n "${UNCLOUD_GROUP_ADD_USER}" ]; then
+        if ! gpasswd --add "${UNCLOUD_GROUP_ADD_USER}" "${UNCLOUD_GROUP}" > /dev/null; then
+            error "Failed to add user '${UNCLOUD_GROUP_ADD_USER}' to group '${UNCLOUD_GROUP}'."
+        fi
+        log "✓ Linux user '${UNCLOUD_GROUP_ADD_USER}' added to group '${UNCLOUD_GROUP}'."
+    fi
 }
 
 install_uncloud_binaries() {
@@ -152,6 +172,7 @@ fi
 
 verify_system
 install_docker
+create_uncloud_group
 install_uncloud_binaries
 install_uncloud_systemd
 
