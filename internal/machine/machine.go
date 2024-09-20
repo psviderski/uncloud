@@ -37,6 +37,8 @@ type Machine struct {
 
 	config Config
 	state  *State
+	// started is closed when the machine is ready to serve requests on the local API server.
+	started chan struct{}
 	// initialised is signalled when the machine is configured as a member of a cluster.
 	initialised chan struct{}
 
@@ -90,6 +92,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	m := &Machine{
 		config:        *config,
 		state:         state,
+		started:       make(chan struct{}),
 		initialised:   make(chan struct{}, 1),
 		cluster:       c,
 		newMachinesCh: c.WatchNewMachines(),
@@ -108,6 +111,11 @@ func newGRPCServer(m pb.MachineServer, c pb.ClusterServer) *grpc.Server {
 	pb.RegisterMachineServer(s, m)
 	pb.RegisterClusterServer(s, c)
 	return s
+}
+
+// Started returns a channel that is closed when the machine is ready to serve requests on the local API server.
+func (m *Machine) Started() <-chan struct{} {
+	return m.started
 }
 
 // IsInitialised returns true if the machine has been configured as a member of a cluster,
@@ -141,6 +149,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			return nil
 		},
 	)
+	close(m.started)
 
 	// Control loop for managing the network controller.
 	errGroup.Go(

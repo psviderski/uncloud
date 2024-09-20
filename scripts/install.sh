@@ -7,7 +7,7 @@ INSTALL_SYSTEMD_DIR=${INSTALL_SYSTEMD_DIR:-/etc/systemd/system}
 UNCLOUD_GITHUB_URL="https://github.com/psviderski/uncloud"
 UNCLOUD_VERSION=${UNCLOUD_VERSION:-latest}
 UNCLOUD_GROUP="uncloud"
-# Add the specified Linux user to group $UNCLOUD_GROUP.
+# Add the specified Linux user to group $UNCLOUD_GROUP to allow the user to run uncloud commands without sudo.
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 
 log() {
@@ -137,8 +137,9 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=notify
 ExecStart=${INSTALL_BIN_DIR}/uncloudd
+TimeoutStartSec=15
 Restart=always
 RestartSec=2
 
@@ -160,7 +161,9 @@ EOF
     # Reload systemd to recognize the new or updated unit file.
     systemctl daemon-reload
     systemctl enable uncloud.service
-    systemctl start uncloud.service
+
+    log "⏳ Starting Uncloud machine daemon (uncloud.service)..."
+    systemctl restart uncloud.service
     log "✓ Uncloud machine daemon started."
 }
 
