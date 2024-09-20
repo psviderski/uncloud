@@ -7,7 +7,7 @@ INSTALL_SYSTEMD_DIR=${INSTALL_SYSTEMD_DIR:-/etc/systemd/system}
 UNCLOUD_GITHUB_URL="https://github.com/psviderski/uncloud"
 UNCLOUD_VERSION=${UNCLOUD_VERSION:-latest}
 UNCLOUD_GROUP="uncloud"
-# Add the specified user to the 'uncloud' group.
+# Add the specified Linux user to group $UNCLOUD_GROUP.
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 
 log() {
@@ -135,11 +135,10 @@ install_uncloud_systemd() {
 Description=Uncloud machine daemon
 After=network-online.target
 Wants=network-online.target
-Requires=uncloud.socket
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/uncloudd
+ExecStart=${INSTALL_BIN_DIR}/uncloudd
 Restart=always
 RestartSec=2
 
