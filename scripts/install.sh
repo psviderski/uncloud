@@ -11,7 +11,8 @@ UNCLOUD_GROUP="uncloud"
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 
 log() {
-    echo -e "\033[1;32m$1\033[0m" >&2
+    echo $1
+    #echo -e "\033[1;32m$1\033[0m" >&2
 }
 
 error() {
@@ -55,12 +56,12 @@ install_docker() {
 
 create_uncloud_group() {
     if getent group "${UNCLOUD_GROUP}" > /dev/null; then
-      log "✓ Linux group 'uncloud' already exists."
+        log "✓ Linux group 'uncloud' already exists."
     else
-      if ! groupadd --system "${UNCLOUD_GROUP}"; then
-        error "Failed to create Linux group 'uncloud'."
-      fi
-      log "✓ Linux group 'uncloud' created."
+        if ! groupadd --system "${UNCLOUD_GROUP}"; then
+            error "Failed to create Linux group 'uncloud'."
+        fi
+        log "✓ Linux group 'uncloud' created."
     fi
 
     if [ -n "${UNCLOUD_GROUP_ADD_USER}" ]; then
@@ -77,15 +78,15 @@ install_uncloud_binaries() {
 
     arch=$(uname -m)
     case $arch in
-      x86_64)
-        file_arch="amd64"
-        ;;
-      aarch64)
-        file_arch="arm64"
-        ;;
-      *)
-        error "Unsupported architecture: ${arch}"
-        ;;
+        x86_64)
+            file_arch="amd64"
+            ;;
+        aarch64)
+            file_arch="arm64"
+            ;;
+        *)
+            error "Unsupported architecture: ${arch}"
+            ;;
     esac
 
     local uncloudd_install_path="${INSTALL_BIN_DIR}/uncloudd"
