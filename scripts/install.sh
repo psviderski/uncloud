@@ -124,13 +124,7 @@ install_uncloud_binaries() {
 
 install_uncloud_systemd() {
     local uncloud_service_path="${INSTALL_SYSTEMD_DIR}/uncloud.service"
-    if [ -f "${uncloud_service_path}" ]; then
-      log "⏳ Updating systemd unit for Uncloud machine daemon..."
-    else
-      log "⏳ Installing systemd unit for Uncloud machine daemon..."
-    fi
-
-    cat << EOF | sudo tee "${INSTALL_SYSTEMD_DIR}/uncloud.service" > /dev/null
+    cat << EOF | tee "${uncloud_service_path}" > /dev/null
 [Unit]
 Description=Uncloud machine daemon
 After=network-online.target
