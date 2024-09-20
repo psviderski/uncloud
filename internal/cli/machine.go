@@ -37,10 +37,6 @@ func provisionMachine(ctx context.Context, exec sshexec.Executor) error {
 		"curl -fsSL %s | %s %s bash", sshexec.Quote(installScriptURL), sudoPrefix, sshexec.Quote(env),
 	)
 	cmd := sshexec.QuoteCommand("bash", "-c", "set -o pipefail; "+curlBashCmd)
-	// TODO: figure out why sometimes the output of `docker version` within the script is intermixed with other
-	//  script output. Note, that the same behavior is observed when using exec.Run but not when running the script
-	//  using ssh CLI. Requesting a pseudo-terminal may help fix this issue:
-	//		session.RequestPty("xterm", 40, 80, ssh.TerminalModes{})
 	if err = exec.Stream(ctx, cmd, os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("download and run install script: %w", err)
 	}

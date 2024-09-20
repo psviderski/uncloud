@@ -11,8 +11,7 @@ UNCLOUD_GROUP="uncloud"
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 
 log() {
-    echo $1
-    #echo -e "\033[1;32m$1\033[0m" >&2
+    echo -e "\033[1;32m$1\033[0m"
 }
 
 error() {
