@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"golang.org/x/crypto/ssh"
+	"io"
 	"strings"
 )
 
@@ -51,6 +52,37 @@ func (r *Remote) Run(ctx context.Context, cmd string) (string, error) {
 			return "", fmt.Errorf("send interrupt signal to remote process: %w", err)
 		}
 		return "", fmt.Errorf("canceled: %w", ctx.Err())
+	}
+}
+
+// Stream runs the command on the remote host and streams its output to the provided writers.
+func (r *Remote) Stream(ctx context.Context, cmd string, stdout, stderr io.Writer) error {
+	session, err := r.client.NewSession()
+	if err != nil {
+		return fmt.Errorf("create session: %w", err)
+	}
+	defer func() {
+		_ = session.Close()
+	}()
+
+	session.Stdout, session.Stderr = stdout, stderr
+	// Run the command in a goroutine to be able to cancel it.
+	done := make(chan error)
+	go func() {
+		done <- session.Run(cmd)
+	}()
+
+	select {
+	case err = <-done:
+		if err != nil {
+			return fmt.Errorf("run command on remote host: %w", err)
+		}
+		return nil
+	case <-ctx.Done():
+		if err = session.Signal(ssh.SIGINT); err != nil {
+			return fmt.Errorf("send interrupt signal to remote process: %w", err)
+		}
+		return fmt.Errorf("canceled: %w", ctx.Err())
 	}
 }
 

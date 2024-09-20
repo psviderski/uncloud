@@ -2,12 +2,14 @@ package sshexec
 
 import (
 	"context"
+	"io"
 	"regexp"
 	"strings"
 )
 
 type Executor interface {
 	Run(ctx context.Context, cmd string) (string, error)
+	Stream(ctx context.Context, cmd string, stdout, stderr io.Writer) error
 	Close() error
 }
 

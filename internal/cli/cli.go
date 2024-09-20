@@ -132,13 +132,17 @@ func (cli *CLI) InitCluster(
 func (cli *CLI) initRemoteMachine(
 	ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string, netPrefix netip.Prefix,
 ) error {
-	sshConfig := &connector.SSHConnectorConfig{
-		User:    remoteMachine.User,
-		Host:    remoteMachine.Host,
-		Port:    remoteMachine.Port,
-		KeyPath: remoteMachine.KeyPath,
+	// Create a command executor and a machine API client over the SSH connection to the remote machine.
+	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
+	if err != nil {
+		return fmt.Errorf(
+			"SSH login to remote machine %s: %w",
+			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
+		)
 	}
-	c, err := client.New(ctx, connector.NewSSHConnector(sshConfig))
+	exec := sshexec.NewRemote(sshClient)
+
+	c, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
 	if err != nil {
 		return fmt.Errorf("connect to remote machine: %w", err)
 	}
@@ -157,9 +161,10 @@ func (cli *CLI) initRemoteMachine(
 		return fmt.Errorf("generate cluster user: %w", err)
 	}
 
-	// TODO: download and install the latest uncloudd binary by running the install shell script from GitHub.
-	//  For now upload the binary using scp manually.
-	// TODO: Check if the machine is already provisioned and ask the user to reset it first.
+	// Install and run the Uncloud daemon and dependencies on the remote machine.
+	if err = provisionMachine(ctx, exec); err != nil {
+		return fmt.Errorf("provision machine: %w", err)
+	}
 
 	req := &pb.InitClusterRequest{
 		MachineName: machineName,
