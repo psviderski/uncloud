@@ -1,2 +1,5 @@
 [tools]
 go = "1.22"
+
+[env]
+_.file = ".env"
