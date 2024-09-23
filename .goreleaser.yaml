@@ -9,28 +9,60 @@ before:
   hooks:
     - go mod tidy
 
+report_sizes: true
+
 builds:
-  - env:
+  - id: uncloud
+    main: ./cmd/uncloud
+    binary: uncloud
+    env:
       - CGO_ENABLED=0
     goos:
       - darwin
       - linux
       #- windows
+    goarch:
+      - amd64
+      - arm64
 
-#archives:
-#  - format: tar.gz
-#    # this name template makes the OS and Arch compatible with the results of `uname`.
-#    name_template: >-
-#      {{ .ProjectName }}_
-#      {{- title .Os }}_
-#      {{- if eq .Arch "amd64" }}x86_64
-#      {{- else if eq .Arch "386" }}i386
-#      {{- else }}{{ .Arch }}{{ end }}
-#      {{- if .Arm }}v{{ .Arm }}{{ end }}
-#    # use zip for windows archives
-#    format_overrides:
-#      - goos: windows
-#        format: zip
+  - id: uncloudd
+    main: ./cmd/uncloudd
+    binary: uncloudd
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: uncloud
+    builds:
+      - uncloud
+    format: gz
+    name_template: >-
+      {{ .Binary }}_
+      {{- if eq .Os "darwin"}}macos
+      {{- else}}{{.Os}}{{end}}_
+      {{- .Arch }}"
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*
+
+  - id: uncloudd
+    builds:
+      - uncloudd
+    format: gz
+    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+
+checksum:
+  name_template: "checksums.txt"
 
 changelog:
   sort: asc
