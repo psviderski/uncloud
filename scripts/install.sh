@@ -90,6 +90,7 @@ install_uncloud_binaries() {
 
     local uncloudd_install_path="${INSTALL_BIN_DIR}/uncloudd"
     if [ -f "${uncloudd_install_path}" ]; then
+        # TODO: Check the version of the installed uncloudd binary and update if there is a newer stable version.
         log "✓ uncloudd binary is already installed."
         return
     fi
@@ -105,19 +106,21 @@ install_uncloud_binaries() {
 
     local uncloudd_url
     if [ "${UNCLOUD_VERSION}" == "latest" ]; then
-        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd-${file_arch}"
+        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.gz"
     else
-        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/${UNCLOUD_VERSION}/uncloudd-${file_arch}"
+        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.gz"
     fi
-    local uncloudd_download_path="${tmp_dir}/uncloudd"
+    local uncloudd_download_path="${tmp_dir}/uncloudd.gz"
 
+    log "⏳ Downloading uncloudd binary: ${uncloudd_url}"
     if ! curl -fsSL -o "${uncloudd_download_path}" "${uncloudd_url}"; then
-        error "Failed to download uncloudd binary: ${uncloudd_url}"
+        error "Failed to download uncloudd binary."
     fi
-    if ! install "${uncloudd_download_path}" "${uncloudd_install_path}"; then
+    gzip -d "${uncloudd_download_path}"
+    if ! install "${uncloudd_download_path%.gz}" "${uncloudd_install_path}"; then
         error "Failed to install uncloud binary to ${uncloudd_install_path}"
     fi
-    log "✓ uncloudd binary installed to ${uncloudd_install_path}"
+    log "✓ uncloudd binary installed: ${uncloudd_install_path}"
 
     # TODO: install uncloud CLI binary and create a uc alias.
 }
