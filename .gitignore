@@ -23,4 +23,5 @@ go.work.sum
 
 .idea/
 
+data
 dist/
