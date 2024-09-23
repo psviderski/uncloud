@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/charmbracelet/huh"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"os"
@@ -132,24 +133,6 @@ func (cli *CLI) InitCluster(
 func (cli *CLI) initRemoteMachine(
 	ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string, netPrefix netip.Prefix,
 ) error {
-	// Create a command executor and a machine API client over the SSH connection to the remote machine.
-	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
-	if err != nil {
-		return fmt.Errorf(
-			"SSH login to remote machine %s: %w",
-			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
-		)
-	}
-	exec := sshexec.NewRemote(sshClient)
-
-	c, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
-	if err != nil {
-		return fmt.Errorf("connect to remote machine: %w", err)
-	}
-	defer func() {
-		_ = c.Close()
-	}()
-
 	if clusterName == "" {
 		clusterName = defaultClusterName
 	}
@@ -161,9 +144,56 @@ func (cli *CLI) initRemoteMachine(
 		return fmt.Errorf("generate cluster user: %w", err)
 	}
 
+	// Create a command executor and a machine API client over the SSH connection to the remote machine.
+	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
+	if err != nil {
+		return fmt.Errorf(
+			"SSH login to remote machine %s: %w",
+			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
+		)
+	}
+	exec := sshexec.NewRemote(sshClient)
+
 	// Install and run the Uncloud daemon and dependencies on the remote machine.
 	if err = provisionMachine(ctx, exec); err != nil {
 		return fmt.Errorf("provision machine: %w", err)
+	}
+	// TODO: Check if the machine is already provisioned using machineClient and ask the user to reset it first.
+
+	machineClient, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
+	if err != nil {
+		return fmt.Errorf("connect to remote machine: %w", err)
+	}
+	defer func() {
+		_ = machineClient.Close()
+	}()
+
+	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("inspect machine: %w", err)
+	}
+	if minfo.Id != "" {
+		var confirm bool
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title(
+						"The remote machine is already initialised as a cluster member. Do you want to reset it first?",
+					).
+					Affirmative("Yes!").
+					Negative("No").
+					Value(&confirm),
+			),
+		)
+		if err = form.Run(); err != nil {
+			return fmt.Errorf("prompt user to confirm: %w", err)
+		}
+
+		if !confirm {
+			return fmt.Errorf("remote machine is already initialised as a cluster member")
+		}
+		// TODO: implement resetting the remote machine.
+		return fmt.Errorf("resetting the remote machine is not implemented yet")
 	}
 
 	req := &pb.InitClusterRequest{
@@ -176,7 +206,7 @@ func (cli *CLI) initRemoteMachine(
 			},
 		},
 	}
-	resp, err := c.InitCluster(ctx, req)
+	resp, err := machineClient.InitCluster(ctx, req)
 	if err != nil {
 		return fmt.Errorf("init cluster: %w", err)
 	}
@@ -221,8 +251,7 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	}
 	machineExec := sshexec.NewRemote(sshClient)
 
-	conn := connector.NewSSHConnectorFromClient(sshClient)
-	machineClient, err := client.New(ctx, conn)
+	machineClient, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
 	if err != nil {
 		return fmt.Errorf("connect to remote machine API: %w", err)
 	}

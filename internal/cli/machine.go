@@ -19,8 +19,6 @@ type RemoteMachine struct {
 
 // provisionMachine provisions the remote machine by downloading the Uncloud install script from GitHub and running it.
 func provisionMachine(ctx context.Context, exec sshexec.Executor) error {
-	// TODO: Check if the machine is already provisioned and ask the user to reset it first.
-
 	user, err := exec.Run(ctx, "whoami")
 	if err != nil {
 		return fmt.Errorf("run whoami: %w", err)

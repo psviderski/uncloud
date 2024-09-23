@@ -443,3 +443,15 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 
 	return &pb.TokenResponse{Token: tokenStr}, nil
 }
+
+func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
+	return &pb.MachineInfo{
+		Id:   m.state.ID,
+		Name: m.state.Name,
+		Network: &pb.NetworkConfig{
+			Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
+			ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
+			PublicKey:    m.state.Network.PublicKey,
+		},
+	}, nil
+}

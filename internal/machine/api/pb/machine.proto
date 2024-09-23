@@ -12,6 +12,7 @@ service Machine {
   rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
   rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
+  rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
 }
 
 message InitClusterRequest {
