@@ -144,7 +144,7 @@ func (cli *CLI) initRemoteMachine(
 		return fmt.Errorf("generate cluster user: %w", err)
 	}
 
-	// Create a command executor and a machine API client over the SSH connection to the remote machine.
+	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
 	if err != nil {
 		return fmt.Errorf(
@@ -153,47 +153,27 @@ func (cli *CLI) initRemoteMachine(
 		)
 	}
 	exec := sshexec.NewRemote(sshClient)
-
 	// Install and run the Uncloud daemon and dependencies on the remote machine.
 	if err = provisionMachine(ctx, exec); err != nil {
 		return fmt.Errorf("provision machine: %w", err)
 	}
-	// TODO: Check if the machine is already provisioned using machineClient and ask the user to reset it first.
 
+	// Create a machine API client over the SSH connection to the remote machine.
 	machineClient, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
 	if err != nil {
 		return fmt.Errorf("connect to remote machine: %w", err)
 	}
-	defer func() {
-		_ = machineClient.Close()
-	}()
+	defer machineClient.Close()
 
+	// Check if the machine is already initialised as a cluster member and prompt the user to reset it first.
 	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
 	if err != nil {
 		return fmt.Errorf("inspect machine: %w", err)
 	}
 	if minfo.Id != "" {
-		var confirm bool
-		form := huh.NewForm(
-			huh.NewGroup(
-				huh.NewConfirm().
-					Title(
-						"The remote machine is already initialised as a cluster member. Do you want to reset it first?",
-					).
-					Affirmative("Yes!").
-					Negative("No").
-					Value(&confirm),
-			),
-		)
-		if err = form.Run(); err != nil {
-			return fmt.Errorf("prompt user to confirm: %w", err)
+		if err = cli.promptResetMachine(); err != nil {
+			return err
 		}
-
-		if !confirm {
-			return fmt.Errorf("remote machine is already initialised as a cluster member")
-		}
-		// TODO: implement resetting the remote machine.
-		return fmt.Errorf("resetting the remote machine is not implemented yet")
 	}
 
 	req := &pb.InitClusterRequest{
@@ -241,7 +221,7 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 		_ = c.Close()
 	}()
 
-	// Create a command executor and a machine API client over the SSH connection to the remote machine.
+	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
 	if err != nil {
 		return fmt.Errorf(
@@ -249,18 +229,28 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
 		)
 	}
-	machineExec := sshexec.NewRemote(sshClient)
+	exec := sshexec.NewRemote(sshClient)
+	// Install and run the Uncloud daemon and dependencies on the remote machine.
+	if err = provisionMachine(ctx, exec); err != nil {
+		return fmt.Errorf("provision machine: %w", err)
+	}
 
+	// Create a machine API client over the SSH connection to the remote machine.
 	machineClient, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
 	if err != nil {
-		return fmt.Errorf("connect to remote machine API: %w", err)
+		return fmt.Errorf("connect to remote machine: %w", err)
 	}
-	// TODO: Check if the machine is already provisioned using machineClient and ask the user to reset it first.
+	defer machineClient.Close()
 
-	// TODO: Download and install the latest uncloudd binary by running the install shell script from GitHub.
-	//  For now upload the binary using scp manually.
-	if _, err = machineExec.Run(ctx, "which uncloudd"); err != nil {
-		return fmt.Errorf("uncloudd binary not found on the remote machine: %w", err)
+	// Check if the machine is already initialised as a cluster member and prompt the user to reset it first.
+	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("inspect machine: %w", err)
+	}
+	if minfo.Id != "" {
+		if err = cli.promptResetMachine(); err != nil {
+			return err
+		}
 	}
 
 	tokenResp, err := machineClient.Token(ctx, &emptypb.Empty{})
@@ -325,6 +315,30 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	}
 
 	return nil
+}
+
+func (cli *CLI) promptResetMachine() error {
+	var confirm bool
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(
+					"The remote machine is already initialised as a cluster member. Do you want to reset it first?",
+				).
+				Affirmative("Yes!").
+				Negative("No").
+				Value(&confirm),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return fmt.Errorf("prompt user to confirm: %w", err)
+	}
+
+	if !confirm {
+		return fmt.Errorf("remote machine is already initialised as a cluster member")
+	}
+	// TODO: implement resetting the remote machine.
+	return fmt.Errorf("resetting the remote machine is not implemented yet")
 }
 
 func (cli *CLI) ListMachines(ctx context.Context, clusterName string) error {
