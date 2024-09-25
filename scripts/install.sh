@@ -6,9 +6,10 @@ INSTALL_BIN_DIR=${INSTALL_BIN_DIR:-/usr/local/bin}
 INSTALL_SYSTEMD_DIR=${INSTALL_SYSTEMD_DIR:-/etc/systemd/system}
 UNCLOUD_GITHUB_URL="https://github.com/psviderski/uncloud"
 UNCLOUD_VERSION=${UNCLOUD_VERSION:-latest}
-UNCLOUD_GROUP="uncloud"
-# Add the specified Linux user to group $UNCLOUD_GROUP to allow the user to run uncloud commands without sudo.
+UNCLOUD_USER="uncloud"
+# Add the specified Linux user to group $UNCLOUD_USER to allow the user to run uncloud commands without sudo.
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
+UNCLOUD_DATA_DIR=${UNCLOUD_DATA_DIR:-/var/lib/uncloud}
 
 log() {
     echo -e "\033[1;32m$1\033[0m"
@@ -53,21 +54,22 @@ install_docker() {
     log "✓ Docker installed successfully."
 }
 
-create_uncloud_group() {
-    if getent group "${UNCLOUD_GROUP}" > /dev/null; then
-        log "✓ Linux group 'uncloud' already exists."
+create_uncloud_user_and_group() {
+    if id "${UNCLOUD_USER}" &> /dev/null; then
+        log "✓ Linux user '${UNCLOUD_USER}' already exists."
     else
-        if ! groupadd --system "${UNCLOUD_GROUP}"; then
-            error "Failed to create Linux group 'uncloud'."
+        # In addition to creating the user, create a group with the same name as the user.
+        if ! useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin --user-group "${UNCLOUD_USER}"; then
+            error "Failed to create Linux user '${UNCLOUD_USER}'."
         fi
-        log "✓ Linux group 'uncloud' created."
+        log "✓ Linux user and group '${UNCLOUD_USER}' created."
     fi
 
     if [ -n "${UNCLOUD_GROUP_ADD_USER}" ]; then
-        if ! gpasswd --add "${UNCLOUD_GROUP_ADD_USER}" "${UNCLOUD_GROUP}" > /dev/null; then
-            error "Failed to add user '${UNCLOUD_GROUP_ADD_USER}' to group '${UNCLOUD_GROUP}'."
+        if ! gpasswd --add "${UNCLOUD_GROUP_ADD_USER}" "${UNCLOUD_USER}" > /dev/null; then
+            error "Failed to add user '${UNCLOUD_GROUP_ADD_USER}' to group '${UNCLOUD_USER}'."
         fi
-        log "✓ Linux user '${UNCLOUD_GROUP_ADD_USER}' added to group '${UNCLOUD_GROUP}'."
+        log "✓ Linux user '${UNCLOUD_GROUP_ADD_USER}' added to group '${UNCLOUD_USER}'."
     fi
 }
 
@@ -127,7 +129,7 @@ install_uncloud_binaries() {
 
 install_uncloud_systemd() {
     local uncloud_service_path="${INSTALL_SYSTEMD_DIR}/uncloud.service"
-    cat << EOF | tee "${uncloud_service_path}" > /dev/null
+    cat > "${uncloud_service_path}" << EOF
 [Unit]
 Description=Uncloud machine daemon
 After=network-online.target
@@ -141,12 +143,12 @@ Restart=always
 RestartSec=2
 
 # Hardening options.
-ProtectSystem=full
-PrivateTmp=true
 NoNewPrivileges=true
-ProtectHome=true
+ProtectSystem=full
 ProtectControlGroups=true
+ProtectHome=true
 ProtectKernelTunables=true
+PrivateTmp=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 RestrictNamespaces=true
 
@@ -164,6 +166,48 @@ EOF
     log "✓ Uncloud machine daemon started."
 }
 
+install_corrosion() {
+    # TODO: build corrosion binaries and release them on GitHub.
+    #  For now, assume /usr/local/bin/uncloud-corrosion exists.
+
+    local corrosion_data_dir="${UNCLOUD_DATA_DIR}/corrosion"
+    mkdir -p "${corrosion_data_dir}"
+    chown "${UNCLOUD_USER}:${UNCLOUD_USER}" "${corrosion_data_dir}"
+    chmod 750 "${corrosion_data_dir}"
+    log "✓ Data directory created: ${UNCLOUD_DATA_DIR}"
+}
+
+install_corrosion_systemd() {
+    local corrosion_service_path="${INSTALL_SYSTEMD_DIR}/uncloud-corrosion.service"
+    cat > "${corrosion_service_path}" << EOF
+[Unit]
+Description=Uncloud gossip-based distributed store
+After=uncloud.service
+Requires=uncloud.service
+
+[Service]
+Type=simple
+ExecStart=${INSTALL_BIN_DIR}/uncloud-corrosion agent -c ${UNCLOUD_DATA_DIR}/corrosion/config.toml
+Restart=always
+RestartSec=2
+User=${UNCLOUD_USER}
+Group=${UNCLOUD_USER}
+
+# Hardening options.
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+EOF
+    log "✓ Systemd unit file created: ${corrosion_service_path}"
+
+    # Reload systemd to recognize the new unit file
+    systemctl daemon-reload
+}
+
 log "⏳ Running Uncloud install script..."
 
 if [ "$EUID" -ne 0 ]; then
@@ -172,8 +216,10 @@ fi
 
 verify_system
 install_docker
-create_uncloud_group
+create_uncloud_user_and_group
 install_uncloud_binaries
 install_uncloud_systemd
+install_corrosion
+install_corrosion_systemd
 
 log "✓ Uncloud installed on the machine successfully! 🎉"
