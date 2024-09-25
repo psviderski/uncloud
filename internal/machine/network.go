@@ -23,12 +23,15 @@ type networkController struct {
 	state         *State
 	wgnet         *network.WireGuardNetwork
 	server        *grpc.Server
+	corrosion     CorrosionService
 	newMachinesCh <-chan *pb.MachineInfo
 	// TODO: DNS server/resolver listening on the machine IP, e.g. 10.210.0.1:53. It can't listen on 127.0.X.X
 	//  like resolved does because it needs to be reachable from both the host and the containers.
 }
 
-func newNetworkController(state *State, server *grpc.Server, newMachCh <-chan *pb.MachineInfo) (
+func newNetworkController(
+	state *State, server *grpc.Server, corrosion CorrosionService, newMachCh <-chan *pb.MachineInfo,
+) (
 	*networkController, error,
 ) {
 	slog.Info("Starting WireGuard network.")
@@ -41,6 +44,7 @@ func newNetworkController(state *State, server *grpc.Server, newMachCh <-chan *p
 		state:         state,
 		wgnet:         wgnet,
 		server:        server,
+		corrosion:     corrosion,
 		newMachinesCh: newMachCh,
 	}, nil
 }
@@ -50,6 +54,13 @@ func (nc *networkController) Run(ctx context.Context) error {
 		return fmt.Errorf("configure WireGuard network: %w", err)
 	}
 	slog.Info("WireGuard network configured.")
+
+	if err := nc.corrosion.Configure(); err != nil {
+		return err
+	}
+	if err := nc.corrosion.Start(); err != nil {
+		return err
+	}
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 

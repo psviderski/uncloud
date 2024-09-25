@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/cluster"
@@ -173,7 +174,8 @@ func (m *Machine) Run(ctx context.Context) error {
 					var err error
 					slog.Info("Starting network controller.")
 					networkServer := newGRPCServer(m, m.cluster)
-					ctrl, err = newNetworkController(m.state, networkServer, m.newMachinesCh)
+					corrosion := &CorrosionSystemdService{DataDir: filepath.Join(m.config.DataDir, "corrosion")}
+					ctrl, err = newNetworkController(m.state, networkServer, corrosion, m.newMachinesCh)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
 					}
