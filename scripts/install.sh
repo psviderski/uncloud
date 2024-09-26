@@ -169,12 +169,7 @@ EOF
 install_corrosion() {
     # TODO: build corrosion binaries and release them on GitHub.
     #  For now, assume /usr/local/bin/uncloud-corrosion exists.
-
-    local corrosion_data_dir="${UNCLOUD_DATA_DIR}/corrosion"
-    mkdir -p "${corrosion_data_dir}"
-    chown "${UNCLOUD_USER}:${UNCLOUD_USER}" "${corrosion_data_dir}"
-    chmod 750 "${corrosion_data_dir}"
-    log "✓ Data directory created: ${UNCLOUD_DATA_DIR}"
+    return
 }
 
 install_corrosion_systemd() {
