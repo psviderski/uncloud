@@ -32,6 +32,7 @@ type DBConfig struct {
 
 type GossipConfig struct {
 	Addr      netip.AddrPort `toml:"addr"`
+	Bootstrap []string       `toml:"bootstrap"`
 	Plaintext bool           `toml:"plaintext"`
 }
 

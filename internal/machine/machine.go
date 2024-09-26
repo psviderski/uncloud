@@ -258,6 +258,15 @@ func (m *Machine) configureCorrosion(dataDir string) error {
 	}
 	corroConfigPath := filepath.Join(dataDir, "config.toml")
 
+	// TODO: use a partial list of machine peers for bootstrapping if the cluster is large.
+	var bootstrap []string
+	for _, peer := range m.state.Network.Peers {
+		if peer.Subnet == nil {
+			// Skip non-machine peers.
+			continue
+		}
+		bootstrap = append(bootstrap, netip.AddrPortFrom(peer.ManagementIP, corrosion.DefaultGossipPort).String())
+	}
 	cfg := corrosion.Config{
 		DB: corrosion.DBConfig{
 			Path:        filepath.Join(dataDir, "store.db"),
@@ -265,6 +274,7 @@ func (m *Machine) configureCorrosion(dataDir string) error {
 		},
 		Gossip: corrosion.GossipConfig{
 			Addr:      netip.AddrPortFrom(m.state.Network.ManagementIP, corrosion.DefaultGossipPort),
+			Bootstrap: bootstrap,
 			Plaintext: true,
 		},
 		API: corrosion.APIConfig{
