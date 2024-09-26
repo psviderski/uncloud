@@ -1,6 +1,7 @@
 package corrosion
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"net/netip"
@@ -43,14 +44,16 @@ type AdminConfig struct {
 }
 
 func (c *Config) Write(path, owner string) error {
-	data, err := toml.Marshal(c)
-	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
+	var data bytes.Buffer
+	encoder := toml.NewEncoder(&data)
+	encoder.Indent = "" // Disable indentation.
+	if err := encoder.Encode(c); err != nil {
+		return fmt.Errorf("encode config: %w", err)
 	}
-
-	if err := os.WriteFile(path, data, 0600); err != nil {
+	if err := os.WriteFile(path, data.Bytes(), 0600); err != nil {
 		return err
 	}
+
 	if owner != "" {
 		usr, err := user.Lookup(owner)
 		if err != nil {
