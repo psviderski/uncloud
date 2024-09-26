@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"strconv"
 	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/machine/corrosion"
 	"uncloud/internal/machine/network"
 )
 
@@ -23,14 +24,14 @@ type networkController struct {
 	state         *State
 	wgnet         *network.WireGuardNetwork
 	server        *grpc.Server
-	corrosion     CorrosionService
+	corroService  corrosion.Service
 	newMachinesCh <-chan *pb.MachineInfo
 	// TODO: DNS server/resolver listening on the machine IP, e.g. 10.210.0.1:53. It can't listen on 127.0.X.X
 	//  like resolved does because it needs to be reachable from both the host and the containers.
 }
 
 func newNetworkController(
-	state *State, server *grpc.Server, corrosion CorrosionService, newMachCh <-chan *pb.MachineInfo,
+	state *State, server *grpc.Server, corroService corrosion.Service, newMachCh <-chan *pb.MachineInfo,
 ) (
 	*networkController, error,
 ) {
@@ -44,7 +45,7 @@ func newNetworkController(
 		state:         state,
 		wgnet:         wgnet,
 		server:        server,
-		corrosion:     corrosion,
+		corroService:  corroService,
 		newMachinesCh: newMachCh,
 	}, nil
 }
@@ -55,12 +56,11 @@ func (nc *networkController) Run(ctx context.Context) error {
 	}
 	slog.Info("WireGuard network configured.")
 
-	if err := nc.corrosion.Configure(); err != nil {
+	if err := nc.corroService.Start(); err != nil {
 		return err
 	}
-	if err := nc.corrosion.Start(); err != nil {
-		return err
-	}
+	// TODO: Figure out if we need to manually stop the corrosion service when the context is done or just
+	//  rely on systemd to handle service dependencies on its own .
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 

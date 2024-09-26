@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/cluster"
+	"uncloud/internal/machine/corrosion"
 	"uncloud/internal/machine/network"
 )
 
@@ -174,8 +175,14 @@ func (m *Machine) Run(ctx context.Context) error {
 					var err error
 					slog.Info("Starting network controller.")
 					networkServer := newGRPCServer(m, m.cluster)
-					corrosion := &CorrosionSystemdService{DataDir: filepath.Join(m.config.DataDir, "corrosion")}
-					ctrl, err = newNetworkController(m.state, networkServer, corrosion, m.newMachinesCh)
+
+					corroDir := filepath.Join(m.config.DataDir, "corrosion")
+					if err = m.configureCorrosion(corroDir); err != nil {
+						return fmt.Errorf("configure corrosion service: %w", err)
+					}
+					corroService := corrosion.DefaultSystemdService(corroDir)
+
+					ctrl, err = newNetworkController(m.state, networkServer, corroService, m.newMachinesCh)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
 					}
@@ -243,6 +250,34 @@ func listenUnixSocket(path string) (net.Listener, error) {
 	}
 
 	return sockets.NewUnixSocket(path, gid)
+}
+
+func (m *Machine) configureCorrosion(dataDir string) error {
+	if err := corrosion.MkDataDir(dataDir, corrosion.DefaultUser); err != nil {
+		return fmt.Errorf("create corrosion data directory: %w", err)
+	}
+	corroConfigPath := filepath.Join(dataDir, "config.toml")
+
+	cfg := corrosion.Config{
+		DB: corrosion.DBConfig{
+			Path:        filepath.Join(dataDir, "store.db"),
+			SchemaPaths: []string{filepath.Join(dataDir, "schema")},
+		},
+		Gossip: corrosion.GossipConfig{
+			Addr:      netip.AddrPortFrom(m.state.Network.ManagementIP, corrosion.DefaultGossipPort),
+			Plaintext: true,
+		},
+		API: corrosion.APIConfig{
+			Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), corrosion.DefaultAPIPort),
+		},
+		Admin: corrosion.AdminConfig{
+			Path: filepath.Join(dataDir, "admin.sock"),
+		},
+	}
+	if err := cfg.Write(corroConfigPath, corrosion.DefaultUser); err != nil {
+		return fmt.Errorf("write corrosion config: %w", err)
+	}
+	return nil
 }
 
 // InitCluster resets the local machine and initialises a new cluster with it.

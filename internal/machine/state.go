@@ -73,7 +73,7 @@ func (c *State) Save() error {
 		return fmt.Errorf("state path not set")
 	}
 	dir, _ := filepath.Split(c.path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(dir, 0711); err != nil {
 		return fmt.Errorf("create state directory %q: %w", dir, err)
 	}
 
