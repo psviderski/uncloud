@@ -21,6 +21,7 @@ import (
 	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/corrosion"
 	"uncloud/internal/machine/network"
+	"uncloud/internal/machine/store"
 )
 
 const (
@@ -256,7 +257,8 @@ func (m *Machine) configureCorrosion(dataDir string) error {
 	if err := corrosion.MkDataDir(dataDir, corrosion.DefaultUser); err != nil {
 		return fmt.Errorf("create corrosion data directory: %w", err)
 	}
-	corroConfigPath := filepath.Join(dataDir, "config.toml")
+	configPath := filepath.Join(dataDir, "config.toml")
+	schemaPath := filepath.Join(dataDir, "schema.sql")
 
 	// TODO: use a partial list of machine peers for bootstrapping if the cluster is large.
 	var bootstrap []string
@@ -270,7 +272,7 @@ func (m *Machine) configureCorrosion(dataDir string) error {
 	cfg := corrosion.Config{
 		DB: corrosion.DBConfig{
 			Path:        filepath.Join(dataDir, "store.db"),
-			SchemaPaths: []string{filepath.Join(dataDir, "schema")},
+			SchemaPaths: []string{schemaPath},
 		},
 		Gossip: corrosion.GossipConfig{
 			Addr:      netip.AddrPortFrom(m.state.Network.ManagementIP, corrosion.DefaultGossipPort),
@@ -284,9 +286,17 @@ func (m *Machine) configureCorrosion(dataDir string) error {
 			Path: filepath.Join(dataDir, "admin.sock"),
 		},
 	}
-	if err := cfg.Write(corroConfigPath, corrosion.DefaultUser); err != nil {
+	if err := cfg.Write(configPath, corrosion.DefaultUser); err != nil {
 		return fmt.Errorf("write corrosion config: %w", err)
 	}
+
+	if err := os.WriteFile(schemaPath, []byte(store.Schema), 0644); err != nil {
+		return fmt.Errorf("write corrosion schema: %w", err)
+	}
+	if err := corrosion.Chown(schemaPath, corrosion.DefaultUser); err != nil {
+		return fmt.Errorf("chown corrosion schema: %w", err)
+	}
+
 	return nil
 }
 

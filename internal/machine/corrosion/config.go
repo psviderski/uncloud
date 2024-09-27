@@ -54,23 +54,8 @@ func (c *Config) Write(path, owner string) error {
 	if err := os.WriteFile(path, data.Bytes(), 0600); err != nil {
 		return err
 	}
-
-	if owner != "" {
-		usr, err := user.Lookup(owner)
-		if err != nil {
-			return fmt.Errorf("lookup user %q: %w", owner, err)
-		}
-		uid, err := strconv.Atoi(usr.Uid)
-		if err != nil {
-			return fmt.Errorf("parse %q user ID (UID) %q: %w", owner, usr.Uid, err)
-		}
-		gid, err := strconv.Atoi(usr.Gid)
-		if err != nil {
-			return fmt.Errorf("parse %q user group ID (GID) %q: %w", owner, usr.Gid, err)
-		}
-		if err = os.Chown(path, uid, gid); err != nil {
-			return fmt.Errorf("chown %q: %w", path, err)
-		}
+	if err := Chown(path, owner); err != nil {
+		return err
 	}
 	return nil
 }
@@ -86,7 +71,13 @@ func MkDataDir(dir, owner string) error {
 			return fmt.Errorf("create directory %q: %w", dir, err)
 		}
 	}
+	if err := Chown(dir, owner); err != nil {
+		return err
+	}
+	return nil
+}
 
+func Chown(path, owner string) error {
 	if owner != "" {
 		usr, err := user.Lookup(owner)
 		if err != nil {
@@ -100,8 +91,8 @@ func MkDataDir(dir, owner string) error {
 		if err != nil {
 			return fmt.Errorf("parse %q user group ID (GID) %q: %w", owner, usr.Gid, err)
 		}
-		if err = os.Chown(dir, uid, gid); err != nil {
-			return fmt.Errorf("chown %q: %w", dir, err)
+		if err = os.Chown(path, uid, gid); err != nil {
+			return fmt.Errorf("chown %q: %w", path, err)
 		}
 	}
 	return nil
