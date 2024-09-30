@@ -33,6 +33,29 @@ type Config struct {
 	// DataDir is the directory where the machine stores its persistent state.
 	DataDir     string
 	APISockPath string
+
+	CorrosionDir     string
+	CorrosionService corrosion.Service
+}
+
+// SetDefaults returns a new Config with default values set where not provided.
+func (c *Config) SetDefaults() *Config {
+	// Copy c into a new Config to avoid modifying the original.
+	cfg := *c
+
+	if cfg.DataDir == "" {
+		cfg.DataDir = "/var/lib/uncloud"
+	}
+	if cfg.APISockPath == "" {
+		cfg.APISockPath = DefaultAPISockPath
+	}
+	if cfg.CorrosionDir == "" {
+		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
+	}
+	if cfg.CorrosionService == nil {
+		cfg.CorrosionService = corrosion.DefaultSystemdService(cfg.CorrosionDir)
+	}
+	return &cfg
 }
 
 type Machine struct {
@@ -51,6 +74,8 @@ type Machine struct {
 }
 
 func NewMachine(config *Config) (*Machine, error) {
+	config = config.SetDefaults()
+
 	// Load the existing machine state or create a new one.
 	statePath := StatePath(config.DataDir)
 	state, err := ParseState(statePath)
@@ -135,17 +160,13 @@ func (m *Machine) Run(ctx context.Context) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Start the machine local API server.
-	apiSockPath := DefaultAPISockPath
-	if m.config.APISockPath != "" {
-		apiSockPath = m.config.APISockPath
-	}
-	localListener, err := listenUnixSocket(apiSockPath)
+	localListener, err := listenUnixSocket(m.config.APISockPath)
 	if err != nil {
-		return fmt.Errorf("listen API unix socket %q: %w", apiSockPath, err)
+		return fmt.Errorf("listen API unix socket %q: %w", m.config.APISockPath, err)
 	}
 	errGroup.Go(
 		func() error {
-			slog.Info("Starting local API server.", "path", apiSockPath)
+			slog.Info("Starting local API server.", "path", m.config.APISockPath)
 			if err := m.localServer.Serve(localListener); err != nil {
 				return fmt.Errorf("local API server failed: %w", err)
 			}
@@ -177,13 +198,11 @@ func (m *Machine) Run(ctx context.Context) error {
 					slog.Info("Starting network controller.")
 					networkServer := newGRPCServer(m, m.cluster)
 
-					corroDir := filepath.Join(m.config.DataDir, "corrosion")
-					if err = m.configureCorrosion(corroDir); err != nil {
+					if err = m.configureCorrosion(m.config.CorrosionDir); err != nil {
 						return fmt.Errorf("configure corrosion service: %w", err)
 					}
-					corroService := corrosion.DefaultSystemdService(corroDir)
 
-					ctrl, err = newNetworkController(m.state, networkServer, corroService, m.newMachinesCh)
+					ctrl, err = newNetworkController(m.state, networkServer, m.config.CorrosionService, m.newMachinesCh)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
 					}
