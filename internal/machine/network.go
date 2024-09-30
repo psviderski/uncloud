@@ -10,7 +10,7 @@ import (
 	"net/netip"
 	"strconv"
 	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/corrosion"
+	"uncloud/internal/machine/corroservice"
 	"uncloud/internal/machine/network"
 )
 
@@ -24,14 +24,14 @@ type networkController struct {
 	state         *State
 	wgnet         *network.WireGuardNetwork
 	server        *grpc.Server
-	corroService  corrosion.Service
+	corroService  corroservice.Service
 	newMachinesCh <-chan *pb.MachineInfo
 	// TODO: DNS server/resolver listening on the machine IP, e.g. 10.210.0.1:53. It can't listen on 127.0.X.X
 	//  like resolved does because it needs to be reachable from both the host and the containers.
 }
 
 func newNetworkController(
-	state *State, server *grpc.Server, corroService corrosion.Service, newMachCh <-chan *pb.MachineInfo,
+	state *State, server *grpc.Server, corroService corroservice.Service, newMachCh <-chan *pb.MachineInfo,
 ) (
 	*networkController, error,
 ) {

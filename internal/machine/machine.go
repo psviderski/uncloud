@@ -17,9 +17,10 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"uncloud/internal/corrosion"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/cluster"
-	"uncloud/internal/machine/corrosion"
+	"uncloud/internal/machine/corroservice"
 	"uncloud/internal/machine/network"
 	"uncloud/internal/machine/store"
 )
@@ -34,8 +35,10 @@ type Config struct {
 	DataDir     string
 	APISockPath string
 
-	CorrosionDir     string
-	CorrosionService corrosion.Service
+	CorrosionDir           string
+	CorrosionAPIListenAddr netip.AddrPort
+	CorrosionAPIAddr       netip.AddrPort
+	CorrosionService       corroservice.Service
 }
 
 // SetDefaults returns a new Config with default values set where not provided.
@@ -50,10 +53,18 @@ func (c *Config) SetDefaults() *Config {
 		cfg.APISockPath = DefaultAPISockPath
 	}
 	if cfg.CorrosionDir == "" {
-		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
+		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corroservice")
+	}
+	if !cfg.CorrosionAPIListenAddr.IsValid() {
+		cfg.CorrosionAPIListenAddr = netip.AddrPortFrom(
+			netip.AddrFrom4([4]byte{127, 0, 0, 1}), corroservice.DefaultAPIPort)
+	}
+	if !cfg.CorrosionAPIAddr.IsValid() {
+		cfg.CorrosionAPIAddr = netip.AddrPortFrom(
+			netip.AddrFrom4([4]byte{127, 0, 0, 1}), corroservice.DefaultAPIPort)
 	}
 	if cfg.CorrosionService == nil {
-		cfg.CorrosionService = corrosion.DefaultSystemdService(cfg.CorrosionDir)
+		cfg.CorrosionService = corroservice.DefaultSystemdService(cfg.CorrosionDir)
 	}
 	return &cfg
 }
@@ -103,18 +114,24 @@ func NewMachine(config *Config) (*Machine, error) {
 		}
 	}
 
+	corro, err := corrosion.NewAPIClient(config.CorrosionAPIAddr)
+	if err != nil {
+		return nil, fmt.Errorf("create corrosion API client: %w", err)
+	}
+	corroStore := store.New(corro)
+
 	var c *cluster.Cluster
 	clusterState := cluster.NewState(cluster.StatePath(config.DataDir))
 	if err = clusterState.Load(); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// Cluster state file does not exist, initialise the cluster without a state to fail cluster requests.
-			c = cluster.NewCluster(nil)
+			c = cluster.NewCluster(nil, corroStore)
 		} else {
 			return nil, fmt.Errorf("load cluster state: %w", err)
 		}
 	} else {
 		// Cluster state is successfully loaded, initialise the cluster with it.
-		c = cluster.NewCluster(clusterState)
+		c = cluster.NewCluster(clusterState, corroStore)
 	}
 
 	m := &Machine{
@@ -198,7 +215,7 @@ func (m *Machine) Run(ctx context.Context) error {
 					slog.Info("Starting network controller.")
 					networkServer := newGRPCServer(m, m.cluster)
 
-					if err = m.configureCorrosion(m.config.CorrosionDir); err != nil {
+					if err = m.configureCorrosion(); err != nil {
 						return fmt.Errorf("configure corrosion service: %w", err)
 					}
 
@@ -272,12 +289,12 @@ func listenUnixSocket(path string) (net.Listener, error) {
 	return sockets.NewUnixSocket(path, gid)
 }
 
-func (m *Machine) configureCorrosion(dataDir string) error {
-	if err := corrosion.MkDataDir(dataDir, corrosion.DefaultUser); err != nil {
+func (m *Machine) configureCorrosion() error {
+	if err := corroservice.MkDataDir(m.config.CorrosionDir, corroservice.DefaultUser); err != nil {
 		return fmt.Errorf("create corrosion data directory: %w", err)
 	}
-	configPath := filepath.Join(dataDir, "config.toml")
-	schemaPath := filepath.Join(dataDir, "schema.sql")
+	configPath := filepath.Join(m.config.CorrosionDir, "config.toml")
+	schemaPath := filepath.Join(m.config.CorrosionDir, "schema.sql")
 
 	// TODO: use a partial list of machine peers for bootstrapping if the cluster is large.
 	var bootstrap []string
@@ -286,33 +303,33 @@ func (m *Machine) configureCorrosion(dataDir string) error {
 			// Skip non-machine peers.
 			continue
 		}
-		bootstrap = append(bootstrap, netip.AddrPortFrom(peer.ManagementIP, corrosion.DefaultGossipPort).String())
+		bootstrap = append(bootstrap, netip.AddrPortFrom(peer.ManagementIP, corroservice.DefaultGossipPort).String())
 	}
-	cfg := corrosion.Config{
-		DB: corrosion.DBConfig{
-			Path:        filepath.Join(dataDir, "store.db"),
+	cfg := corroservice.Config{
+		DB: corroservice.DBConfig{
+			Path:        filepath.Join(m.config.CorrosionDir, "store.db"),
 			SchemaPaths: []string{schemaPath},
 		},
-		Gossip: corrosion.GossipConfig{
-			Addr:      netip.AddrPortFrom(m.state.Network.ManagementIP, corrosion.DefaultGossipPort),
+		Gossip: corroservice.GossipConfig{
+			Addr:      netip.AddrPortFrom(m.state.Network.ManagementIP, corroservice.DefaultGossipPort),
 			Bootstrap: bootstrap,
 			Plaintext: true,
 		},
-		API: corrosion.APIConfig{
-			Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), corrosion.DefaultAPIPort),
+		API: corroservice.APIConfig{
+			Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), corroservice.DefaultAPIPort),
 		},
-		Admin: corrosion.AdminConfig{
-			Path: filepath.Join(dataDir, "admin.sock"),
+		Admin: corroservice.AdminConfig{
+			Path: filepath.Join(m.config.CorrosionDir, "admin.sock"),
 		},
 	}
-	if err := cfg.Write(configPath, corrosion.DefaultUser); err != nil {
+	if err := cfg.Write(configPath, corroservice.DefaultUser); err != nil {
 		return fmt.Errorf("write corrosion config: %w", err)
 	}
 
 	if err := os.WriteFile(schemaPath, []byte(store.Schema), 0644); err != nil {
 		return fmt.Errorf("write corrosion schema: %w", err)
 	}
-	if err := corrosion.Chown(schemaPath, corrosion.DefaultUser); err != nil {
+	if err := corroservice.Chown(schemaPath, corroservice.DefaultUser); err != nil {
 		return fmt.Errorf("chown corrosion schema: %w", err)
 	}
 

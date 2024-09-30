@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/network"
+	"uncloud/internal/machine/store"
 	"uncloud/internal/secret"
 )
 
@@ -19,14 +20,16 @@ type Cluster struct {
 	pb.UnimplementedClusterServer
 
 	state *State
+	store *store.Store
 
 	// TODO: temporary channel until the state is replaced with networkDB.
 	newMachinesCh chan *pb.MachineInfo
 }
 
-func NewCluster(state *State) *Cluster {
+func NewCluster(state *State, store *store.Store) *Cluster {
 	return &Cluster{
 		state:         state,
+		store:         store,
 		newMachinesCh: make(chan *pb.MachineInfo, 1),
 	}
 }
