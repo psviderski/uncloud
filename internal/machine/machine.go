@@ -53,7 +53,7 @@ func (c *Config) SetDefaults() *Config {
 		cfg.APISockPath = DefaultAPISockPath
 	}
 	if cfg.CorrosionDir == "" {
-		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corroservice")
+		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
 	}
 	if !cfg.CorrosionAPIListenAddr.IsValid() {
 		cfg.CorrosionAPIListenAddr = netip.AddrPortFrom(

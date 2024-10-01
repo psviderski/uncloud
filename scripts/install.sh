@@ -183,6 +183,7 @@ Requires=uncloud.service
 [Service]
 Type=simple
 ExecStart=${INSTALL_BIN_DIR}/uncloud-corrosion agent -c ${UNCLOUD_DATA_DIR}/corrosion/config.toml
+ExecReload=${INSTALL_BIN_DIR}/uncloud-corrosion reload -c ${UNCLOUD_DATA_DIR}/corrosion/config.toml
 Restart=always
 RestartSec=2
 User=${UNCLOUD_USER}
