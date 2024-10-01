@@ -174,7 +174,8 @@ func (m *Machine) Initialised() bool {
 
 func (m *Machine) Run(ctx context.Context) error {
 	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
-	// member. This provides the store required for the machine to initialise a new cluster on it.
+	// member. This provides the store required for the machine to initialise a new cluster on it. Once the machine
+	// is initialised, the corrosion service is managed by the networkController.
 	if !m.Initialised() {
 		if err := m.configureCorrosion(); err != nil {
 			return fmt.Errorf("configure corrosion service: %w", err)
@@ -203,6 +204,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			return nil
 		},
 	)
+	// Signal that the machine is ready.
 	close(m.started)
 
 	// Control loop for managing the network controller.
