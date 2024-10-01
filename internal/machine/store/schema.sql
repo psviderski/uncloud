@@ -1,3 +1,10 @@
+-- cluster table stores the key-value pairs of the cluster configuration.
+CREATE TABLE cluster
+(
+    key   TEXT NOT NULL PRIMARY KEY,
+    value ANY
+);
+
 CREATE TABLE machines
 (
     id   TEXT NOT NULL PRIMARY KEY,

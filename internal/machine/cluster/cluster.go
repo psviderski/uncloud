@@ -3,6 +3,7 @@ package cluster
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -10,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"log/slog"
 	"net/netip"
+	"time"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/network"
 	"uncloud/internal/machine/store"
@@ -32,6 +34,35 @@ func NewCluster(state *State, store *store.Store) *Cluster {
 		store:         store,
 		newMachinesCh: make(chan *pb.MachineInfo, 1),
 	}
+}
+
+func (c *Cluster) Init(ctx context.Context, network netip.Prefix) error {
+	initialised, err := c.Initialised(ctx)
+	if err != nil {
+		return err
+	}
+	if initialised {
+		return fmt.Errorf("cluster already initialized")
+	}
+
+	if err = c.store.Put(ctx, "network", network.String()); err != nil {
+		return fmt.Errorf("put network to store: %w", err)
+	}
+	if err = c.store.Put(ctx, "created_at", time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("put created_at to store: %w", err)
+	}
+	return nil
+}
+
+func (c *Cluster) Initialised(ctx context.Context) (bool, error) {
+	var createdAt string
+	if err := c.store.Get(ctx, "created_at", &createdAt); err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("get created_at from store: %w", err)
+	}
+	return true, nil
 }
 
 func (c *Cluster) SetState(state *State) {

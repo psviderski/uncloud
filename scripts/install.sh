@@ -177,8 +177,7 @@ install_corrosion_systemd() {
     cat > "${corrosion_service_path}" << EOF
 [Unit]
 Description=Uncloud gossip-based distributed store
-After=uncloud.service
-Requires=uncloud.service
+PartOf=uncloud.service
 
 [Service]
 Type=simple

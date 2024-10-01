@@ -144,7 +144,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	}
 	m.localServer = newGRPCServer(m, c)
 
-	if m.IsInitialised() {
+	if m.Initialised() {
 		m.initialised <- struct{}{}
 	}
 
@@ -163,9 +163,9 @@ func (m *Machine) Started() <-chan struct{} {
 	return m.started
 }
 
-// IsInitialised returns true if the machine has been configured as a member of a cluster,
+// Initialised returns true if the machine has been configured as a member of a cluster,
 // either by initialising a new cluster on it or joining an existing one.
-func (m *Machine) IsInitialised() bool {
+func (m *Machine) Initialised() bool {
 	m.state.mu.RLock()
 	defer m.state.mu.RUnlock()
 
@@ -173,6 +173,19 @@ func (m *Machine) IsInitialised() bool {
 }
 
 func (m *Machine) Run(ctx context.Context) error {
+	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
+	// member. This provides the store required for the machine to initialise a new cluster on it.
+	if !m.Initialised() {
+		if err := m.configureCorrosion(); err != nil {
+			return fmt.Errorf("configure corrosion service: %w", err)
+		}
+		slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
+
+		if err := m.config.CorrosionService.Start(); err != nil {
+			return fmt.Errorf("start corrosion service: %w", err)
+		}
+	}
+
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple machine components.
 	errGroup, ctx := errgroup.WithContext(ctx)
 
@@ -192,28 +205,10 @@ func (m *Machine) Run(ctx context.Context) error {
 	)
 	close(m.started)
 
-	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
-	// member. This provides the store required for the machine to initialise a new cluster on it.
-	if !m.IsInitialised() {
-		// Needs to run in a goroutine because the corrosion systemd service depends on the readiness of the daemon
-		// indicated by closing the started channel.
-		errGroup.Go(func() error {
-			if err := m.configureCorrosion(); err != nil {
-				return fmt.Errorf("configure corrosion service: %w", err)
-			}
-			slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
-
-			if err := m.config.CorrosionService.Start(); err != nil {
-				return fmt.Errorf("start corrosion service: %w", err)
-			}
-			return nil
-		})
-	}
-
 	// Control loop for managing the network controller.
 	errGroup.Go(
 		func() error {
-			if !m.IsInitialised() {
+			if !m.Initialised() {
 				slog.Info(
 					"Waiting for the machine to be initialised as a member of a cluster " +
 						"to start the network controller.",
@@ -385,6 +380,15 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	if err = m.cluster.SetNetwork(req.Network); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "set cluster network: %v", err)
 	}
+
+	clusterNetwork, err := req.Network.ToPrefix()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid network: %v", err)
+	}
+	if err = m.cluster.Init(ctx, clusterNetwork); err != nil {
+		return nil, status.Errorf(codes.Internal, "init cluster: %v", err)
+	}
+	slog.Info("Cluster initialised.", "network", clusterNetwork.String())
 
 	// Use the public and all routable IPs as endpoints.
 	ips, err := network.ListRoutableIPs()
