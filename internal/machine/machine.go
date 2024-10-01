@@ -192,6 +192,24 @@ func (m *Machine) Run(ctx context.Context) error {
 	)
 	close(m.started)
 
+	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
+	// member. This provides the store required for the machine to initialise a new cluster on it.
+	if !m.IsInitialised() {
+		// Needs to run in a goroutine because the corrosion systemd service depends on the readiness of the daemon
+		// indicated by closing the started channel.
+		errGroup.Go(func() error {
+			if err := m.configureCorrosion(); err != nil {
+				return fmt.Errorf("configure corrosion service: %w", err)
+			}
+			slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
+
+			if err := m.config.CorrosionService.Start(); err != nil {
+				return fmt.Errorf("start corrosion service: %w", err)
+			}
+			return nil
+		})
+	}
+
 	// Control loop for managing the network controller.
 	errGroup.Go(
 		func() error {
@@ -212,13 +230,15 @@ func (m *Machine) Run(ctx context.Context) error {
 				// It can be reset when leaving the cluster and then re-initialised again with a new configuration.
 				case <-m.initialised:
 					var err error
-					slog.Info("Starting network controller.")
-					networkServer := newGRPCServer(m, m.cluster)
-
+					// Ensure the corrosion config is up to date, including a new gossip address if the machine
+					// has just joined a cluster.
 					if err = m.configureCorrosion(); err != nil {
 						return fmt.Errorf("configure corrosion service: %w", err)
 					}
+					slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
 
+					slog.Info("Starting network controller.")
+					networkServer := newGRPCServer(m, m.cluster)
 					ctrl, err = newNetworkController(m.state, networkServer, m.config.CorrosionService, m.newMachinesCh)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
@@ -296,6 +316,12 @@ func (m *Machine) configureCorrosion() error {
 	configPath := filepath.Join(m.config.CorrosionDir, "config.toml")
 	schemaPath := filepath.Join(m.config.CorrosionDir, "schema.sql")
 
+	// Use a loopback address as the gossip address (required) unless the machine has joined a cluster
+	// and has a management IP.
+	gossipAddr := netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), corroservice.DefaultGossipPort)
+	if m.state.Network.ManagementIP.IsValid() {
+		gossipAddr = netip.AddrPortFrom(m.state.Network.ManagementIP, corroservice.DefaultGossipPort)
+	}
 	// TODO: use a partial list of machine peers for bootstrapping if the cluster is large.
 	var bootstrap []string
 	for _, peer := range m.state.Network.Peers {
@@ -311,7 +337,7 @@ func (m *Machine) configureCorrosion() error {
 			SchemaPaths: []string{schemaPath},
 		},
 		Gossip: corroservice.GossipConfig{
-			Addr:      netip.AddrPortFrom(m.state.Network.ManagementIP, corroservice.DefaultGossipPort),
+			Addr:      gossipAddr,
 			Bootstrap: bootstrap,
 			Plaintext: true,
 		},

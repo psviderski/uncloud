@@ -56,8 +56,15 @@ func (nc *networkController) Run(ctx context.Context) error {
 	}
 	slog.Info("WireGuard network configured.")
 
-	if err := nc.corroService.Start(); err != nil {
-		return err
+	if nc.corroService.Running() {
+		// Corrosion service was running before the WireGuard network was configured so we need to restart it.
+		if err := nc.corroService.Restart(); err != nil {
+			return fmt.Errorf("restart corrosion service: %w", err)
+		}
+	} else {
+		if err := nc.corroService.Start(); err != nil {
+			return fmt.Errorf("start corrosion service: %w", err)
+		}
 	}
 	// TODO: Figure out if we need to manually stop the corrosion service when the context is done or just
 	//  rely on systemd to handle service dependencies on its own .
