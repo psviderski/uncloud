@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/net/http2"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -20,7 +22,7 @@ const (
 	// HTTP2ConnectTimeout is the maximum amount of time a client will wait for a connection to be established.
 	http2ConnectTimeout = 3 * time.Second
 	// HTTP2Timeout is the maximum amount of time a client will wait for a response.
-	http2Timeout = 30 * time.Second
+	http2Timeout = 20 * time.Second
 )
 
 // APIClient is a client for the Corrosion API.
@@ -38,17 +40,49 @@ func NewAPIClient(addr netip.AddrPort) (*APIClient, error) {
 		baseURL: baseURL,
 		client: &http.Client{
 			Timeout: http2Timeout,
-			Transport: &http2.Transport{
-				AllowHTTP: true,
-				DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-					dialer := &net.Dialer{
-						Timeout: http2ConnectTimeout,
-					}
-					return dialer.DialContext(ctx, network, addr)
+			Transport: &RetryRoundTripper{
+				Base: &http2.Transport{
+					AllowHTTP: true,
+					DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+						dialer := &net.Dialer{
+							Timeout: http2ConnectTimeout,
+						}
+						return dialer.DialContext(ctx, network, addr)
+					},
 				},
+				Backoff: backoff.NewExponentialBackOff(
+					backoff.WithInitialInterval(100*time.Millisecond),
+					backoff.WithMaxInterval(1*time.Second),
+					backoff.WithMaxElapsedTime(10*time.Second),
+				),
 			},
 		},
 	}, nil
+}
+
+type RetryRoundTripper struct {
+	Base    http.RoundTripper
+	Backoff backoff.BackOff
+}
+
+func (rt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	roundTrip := func() (*http.Response, error) {
+		resp, err := rt.Base.RoundTrip(req)
+		if err != nil {
+			var opErr *net.OpError
+			if errors.As(err, &opErr) {
+				// Not certain, but I expect operational errors should generally be retryable.
+				slog.Debug("Retrying corrosion API request due to network error", "error", err)
+				return nil, err
+			}
+			// Don't retry on other errors.
+			return nil, backoff.Permanent(err)
+		}
+		// Success, don't retry.
+		return resp, err
+	}
+	boff := backoff.WithContext(rt.Backoff, req.Context())
+	return backoff.RetryWithData(roundTrip, boff)
 }
 
 type Statement struct {

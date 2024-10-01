@@ -6,6 +6,7 @@ toolchain go1.22.5
 
 require (
 	github.com/BurntSushi/toml v1.4.0
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/charmbracelet/huh v0.6.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/dgraph-io/badger/v3 v3.2103.5
@@ -28,6 +29,7 @@ require (
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/crypto v0.27.0
+	golang.org/x/net v0.29.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/sys v0.25.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
@@ -48,7 +50,6 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/bubbles v0.20.0 // indirect
@@ -163,7 +164,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	golang.org/x/tools v0.25.0 // indirect
