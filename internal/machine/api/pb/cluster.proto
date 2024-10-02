@@ -5,12 +5,11 @@ package api;
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 import "google/protobuf/empty.proto";
-import "internal/machine/api/pb/common.proto";
+import "internal/machine/api/pb/machine.proto";
 
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachines(google.protobuf.Empty) returns (ListMachinesResponse);
-  rpc ListMachineEndpoints(ListMachineEndpointsRequest) returns (ListMachineEndpointsResponse);
 }
 
 message AddMachineRequest {
@@ -25,43 +24,3 @@ message AddMachineResponse {
 message ListMachinesResponse {
   repeated MachineInfo machines = 1;
 }
-
-message ListMachineEndpointsRequest {
-  string id = 1;
-}
-
-message ListMachineEndpointsResponse {
-  MachineEndpoints endpoints = 1;
-}
-
-message MachineInfo {
-  string id = 1;
-  string name = 2;
-  NetworkConfig network = 3;
-}
-
-message NetworkConfig {
-  IPPrefix subnet = 1;
-  IP management_ip = 2;
-  repeated IPPort endpoints = 3;
-  bytes publicKey = 4;
-}
-
-message MachineEndpoints {
-  string id = 1;
-  repeated IPPort endpoints = 2;
-}
-
-message User {
-  NetworkConfig network = 1;
-}
-
-message State {
-  IPPrefix Network = 1;
-  // The machine configuration in the state is the source of truth set by the administrator.
-  // The machine itself can't update it.
-  map<string, MachineInfo> machines = 2;
-  map<string, MachineEndpoints> endpoints = 3;
-  repeated User users = 4;
-}
-

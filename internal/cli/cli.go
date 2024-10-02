@@ -15,6 +15,7 @@ import (
 	"uncloud/internal/cli/config"
 	"uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/machine/network"
 	"uncloud/internal/secret"
 	"uncloud/internal/sshexec"
 )
@@ -332,13 +333,13 @@ func (cli *CLI) ListMachines(ctx context.Context, clusterName string) error {
 	// Print the list of machines in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	// Print header.
-	// TODO: print ADDRESS instead of SUBNET which is a machine IP with prefix.
-	if _, err = fmt.Fprintln(tw, "NAME\tSUBNET\tPUBLIC KEY\tENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tADDRESS\tPUBLIC KEY\tENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	// Print rows.
 	for _, m := range listResp.Machines {
 		subnet, _ := m.Network.Subnet.ToPrefix()
+		subnet = netip.PrefixFrom(network.MachineIP(subnet), subnet.Bits())
 		endpoints := make([]string, len(m.Network.Endpoints))
 		for i, ep := range m.Network.Endpoints {
 			addrPort, _ := ep.ToAddrPort()

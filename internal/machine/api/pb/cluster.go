@@ -1,7 +1,6 @@
 package pb
 
 import (
-	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -39,11 +38,4 @@ func (c *NetworkConfig) Validate() error {
 	}
 
 	return nil
-}
-
-func (r *AddMachineRequest) Validate() error {
-	if r.Network == nil {
-		return fmt.Errorf("network not set")
-	}
-	return r.Network.Validate()
 }

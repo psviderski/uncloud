@@ -11,6 +11,10 @@ uncloud-dev:
 		scp uncloud-linux-amd64 spy@192.168.40.176:~/ && \
 		ssh spy@192.168.40.176 sudo install ./uncloud-linux-amd64 /usr/local/bin/uncloud
 
+reset-dev:
+	ssh spy@192.168.40.243 "sudo systemctl stop uncloud && sudo rm -rf /var/lib/uncloud"
+	ssh spy@192.168.40.176 "sudo systemctl stop uncloud && sudo rm -rf /var/lib/uncloud"
+
 .PHONY: proto
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/machine/api/pb/*.proto

@@ -6,13 +6,25 @@ option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 import "google/protobuf/empty.proto";
 import "internal/machine/api/pb/common.proto";
-import "internal/machine/api/pb/cluster.proto";
 
 service Machine {
   rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
   rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
   rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
+}
+
+message MachineInfo {
+  string id = 1;
+  string name = 2;
+  NetworkConfig network = 3;
+}
+
+message NetworkConfig {
+  IPPrefix subnet = 1;
+  IP management_ip = 2;
+  repeated IPPort endpoints = 3;
+  bytes publicKey = 4;
 }
 
 message InitClusterRequest {

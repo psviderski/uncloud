@@ -20,16 +20,13 @@ import (
 type Cluster struct {
 	pb.UnimplementedClusterServer
 
-	state *State
 	store *store.Store
-
 	// TODO: temporary channel until the state is replaced with networkDB.
 	newMachinesCh chan *pb.MachineInfo
 }
 
-func NewCluster(state *State, store *store.Store) *Cluster {
+func NewCluster(store *store.Store) *Cluster {
 	return &Cluster{
-		state:         state,
 		store:         store,
 		newMachinesCh: make(chan *pb.MachineInfo, 1),
 	}
@@ -41,7 +38,7 @@ func (c *Cluster) Init(ctx context.Context, network netip.Prefix) error {
 		return err
 	}
 	if initialised {
-		return fmt.Errorf("cluster already initialized")
+		return fmt.Errorf("cluster is already initialised")
 	}
 
 	if err = c.store.Put(ctx, "network", network.String()); err != nil {
@@ -70,13 +67,9 @@ func (c *Cluster) checkInitialised(ctx context.Context) error {
 		return err
 	}
 	if !initialised {
-		return status.Error(codes.FailedPrecondition, "cluster is not initialized")
+		return status.Error(codes.FailedPrecondition, "cluster is not initialised")
 	}
 	return nil
-}
-
-func (c *Cluster) SetState(state *State) {
-	c.state = state
 }
 
 func (c *Cluster) Network(ctx context.Context) (netip.Prefix, error) {
@@ -95,21 +88,6 @@ func (c *Cluster) Network(ctx context.Context) (netip.Prefix, error) {
 	return prefix, nil
 }
 
-func (c *Cluster) SetNetwork(network *pb.IPPrefix) error {
-	if c.state == nil {
-		return status.Error(codes.FailedPrecondition, "cluster is not initialized")
-	}
-
-	if c.state.State.Network != nil {
-		return fmt.Errorf("network already set and cannot be changed")
-	}
-	if network == nil {
-		return fmt.Errorf("network not set")
-	}
-	c.state.State.Network = network
-	return nil
-}
-
 // TODO: this is a temporary watcher for PoC until the state is state is replaced with networkDB.
 func (c *Cluster) WatchNewMachines() <-chan *pb.MachineInfo {
 	return c.newMachinesCh
@@ -121,7 +99,10 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 		return nil, err
 	}
 
-	if err := req.Validate(); err != nil {
+	if req.Network == nil {
+		return nil, status.Error(codes.InvalidArgument, "network not set")
+	}
+	if err := req.Network.Validate(); err != nil {
 		return nil, err
 	}
 	if len(req.Network.Endpoints) == 0 {
@@ -182,10 +163,10 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 		Network: &pb.NetworkConfig{
 			Subnet:       pb.NewIPPrefix(subnet),
 			ManagementIp: manageIP,
+			Endpoints:    req.Network.Endpoints,
 			PublicKey:    req.Network.PublicKey,
 		},
 	}
-
 	// TODO: announce the new machine to the cluster members and achieve consensus.
 	//  We should perhaps not proceed if this machine is in a minority partition.
 	if err = c.store.CreateMachine(ctx, m); err != nil {
@@ -212,13 +193,4 @@ func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListM
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.ListMachinesResponse{Machines: machines}, nil
-}
-
-func (c *Cluster) AddUser(user *pb.User) error {
-	c.state.State.Users = append(c.state.State.Users, user)
-	return c.state.Save()
-}
-
-func (c *Cluster) ListUsers() []*pb.User {
-	return c.state.State.Users
 }

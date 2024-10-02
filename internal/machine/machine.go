@@ -119,20 +119,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		return nil, fmt.Errorf("create corrosion API client: %w", err)
 	}
 	corroStore := store.New(corro)
-
-	var c *cluster.Cluster
-	clusterState := cluster.NewState(cluster.StatePath(config.DataDir))
-	if err = clusterState.Load(); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// Cluster state file does not exist, initialise the cluster without a state to fail cluster requests.
-			c = cluster.NewCluster(nil, corroStore)
-		} else {
-			return nil, fmt.Errorf("load cluster state: %w", err)
-		}
-	} else {
-		// Cluster state is successfully loaded, initialise the cluster with it.
-		c = cluster.NewCluster(clusterState, corroStore)
-	}
+	c := cluster.NewCluster(corroStore)
 
 	m := &Machine{
 		config:        *config,
@@ -288,10 +275,11 @@ func listenUnixSocket(path string) (net.Listener, error) {
 	gid := 0 // Fall back to the root group if the uncloud group is not found.
 	group, err := user.LookupGroup(DefaultAPISockGroup)
 	if err != nil {
+		//goland:noinspection GoTypeAssertionOnErrors
 		if _, ok := err.(user.UnknownGroupError); ok {
 			slog.Info(
-				"Specified group not found, using root group for the API socket.", "group", DefaultAPISockGroup, "path",
-				path,
+				"Specified group not found, using root group for the API socket.",
+				"group", DefaultAPISockGroup, "path", path,
 			)
 		} else {
 			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultAPISockGroup, err)
@@ -359,39 +347,28 @@ func (m *Machine) configureCorrosion() error {
 	return nil
 }
 
-// InitCluster resets the local machine and initialises a new cluster with it.
+// InitCluster initialises a new cluster on the local machine with the provided network configuration.
 func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (*pb.InitClusterResponse, error) {
-	var err error
-	machineName := req.MachineName
-	if machineName == "" {
-		machineName, err = cluster.NewRandomMachineName()
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "generate machine name: %v", err)
-		}
-	}
-
-	// TODO: a proper cluster leave mechanism and machine reset should be implemented later.
-	//  For now just reset the machine state and cluster state.
-	clusterStatePath := cluster.StatePath(m.config.DataDir)
-	clusterState := cluster.NewState(clusterStatePath)
-	if err = clusterState.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, "save cluster state: %v", err)
-	}
-	m.cluster.SetState(clusterState)
-	slog.Info("Cluster state initialised.", "path", clusterStatePath)
-	if err = m.cluster.SetNetwork(req.Network); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "set cluster network: %v", err)
+	if m.Initialised() {
+		return nil, status.Error(codes.FailedPrecondition, "machine is already configured as a cluster member")
 	}
 
 	clusterNetwork, err := req.Network.ToPrefix()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid network: %v", err)
 	}
+
 	if err = m.cluster.Init(ctx, clusterNetwork); err != nil {
 		return nil, status.Errorf(codes.Internal, "init cluster: %v", err)
 	}
 	slog.Info("Cluster state initialised.", "network", clusterNetwork.String())
 
+	machineName := req.MachineName
+	if machineName == "" {
+		if machineName, err = cluster.NewRandomMachineName(); err != nil {
+			return nil, status.Errorf(codes.Internal, "generate machine name: %v", err)
+		}
+	}
 	// Use the public and all routable IPs as endpoints.
 	ips, err := network.ListRoutableIPs()
 	if err != nil {
@@ -442,7 +419,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	if err = m.state.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
 	}
-	slog.Info("Cluster initialised with machine.", "machine", m.state.Name)
+	slog.Info("Cluster initialised with machine.", "id", m.state.ID, "machine", m.state.Name)
 	// Signal that the machine is initialised as a member of a cluster.
 	m.initialised <- struct{}{}
 
@@ -452,10 +429,11 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	return resp, nil
 }
 
-// JoinCluster resets the local machine and configures it to join an existing cluster.
+// JoinCluster configures the local machine to join an existing cluster.
 func (m *Machine) JoinCluster(ctx context.Context, req *pb.JoinClusterRequest) (*emptypb.Empty, error) {
-	// TODO: a proper cluster leave mechanism and machine reset should be implemented later.
-	//  For now assume the machine wasn't part of a cluster.
+	if m.Initialised() {
+		return nil, status.Error(codes.FailedPrecondition, "machine is already configured as a cluster member")
+	}
 
 	if req.Machine.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "machine ID not set")
