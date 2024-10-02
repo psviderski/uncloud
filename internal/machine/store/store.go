@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 	"uncloud/internal/corrosion"
 	"uncloud/internal/machine/api/pb"
 )
@@ -47,10 +48,36 @@ func (s *Store) Put(ctx context.Context, key string, value any) error {
 	return err
 }
 
-func (s *Store) CreateMachine(machine *pb.MachineInfo) error {
-	return fmt.Errorf("not implemented")
+func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {
+	mJSON, err := protojson.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("marshal machine info: %w", err)
+	}
+	_, err = s.corro.ExecContext(ctx, "INSERT INTO machines (id, info) VALUES (?, ?)", m.Id, string(mJSON))
+	if err != nil {
+		return fmt.Errorf("insert query: %w", err)
+	}
+	return nil
 }
 
-func (s *Store) ListMachines() ([]*pb.MachineInfo, error) {
-	return nil, fmt.Errorf("not implemented")
+func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
+	rows, err := s.corro.QueryContext(ctx, "SELECT info FROM machines ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var machines []*pb.MachineInfo
+	for rows.Next() {
+		var mJSON string
+		if err = rows.Scan(&mJSON); err != nil {
+			return nil, err
+		}
+		var m pb.MachineInfo
+		if err = protojson.Unmarshal([]byte(mJSON), &m); err != nil {
+			return nil, fmt.Errorf("unmarshal machine info: %w", err)
+		}
+		machines = append(machines, &m)
+	}
+	return machines, nil
 }

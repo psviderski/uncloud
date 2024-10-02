@@ -390,7 +390,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	if err = m.cluster.Init(ctx, clusterNetwork); err != nil {
 		return nil, status.Errorf(codes.Internal, "init cluster: %v", err)
 	}
-	slog.Info("Cluster initialised.", "network", clusterNetwork.String())
+	slog.Info("Cluster state initialised.", "network", clusterNetwork.String())
 
 	// Use the public and all routable IPs as endpoints.
 	ips, err := network.ListRoutableIPs()
@@ -439,24 +439,6 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		PrivateKey:   m.state.Network.PrivateKey,
 		PublicKey:    m.state.Network.PublicKey,
 	}
-
-	// Add a user to the cluster and build a peers config from it if provided.
-	if req.User != nil {
-		if err = m.cluster.AddUser(req.User); err != nil {
-			return nil, status.Errorf(codes.Internal, "add user to cluster: %v", err)
-		}
-		userManageIP, uErr := req.User.Network.ManagementIp.ToAddr()
-		if uErr != nil {
-			return nil, status.Error(codes.Internal, uErr.Error())
-		}
-
-		m.state.Network.Peers = make([]network.PeerConfig, 1)
-		m.state.Network.Peers[0] = network.PeerConfig{
-			ManagementIP: userManageIP,
-			PublicKey:    req.User.Network.PublicKey,
-		}
-	}
-
 	if err = m.state.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
 	}
