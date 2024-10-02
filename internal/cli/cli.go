@@ -39,30 +39,14 @@ func New(configPath string) (*CLI, error) {
 	}, nil
 }
 
-func (cli *CLI) CreateCluster(name string, userPrivateKey secret.Secret) error {
+func (cli *CLI) CreateCluster(name string) error {
 	if _, ok := cli.config.Clusters[name]; ok {
 		return fmt.Errorf("cluster %q already exists", name)
 	}
-	if userPrivateKey == nil {
-		user, err := client.NewUser(nil)
-		if err != nil {
-			return fmt.Errorf("generate user: %w", err)
-		}
-		userPrivateKey = user.PrivateKey()
-	}
-
 	cli.config.Clusters[name] = &config.Cluster{
-		Name:           name,
-		UserPrivateKey: userPrivateKey,
+		Name: name,
 	}
 	return cli.config.Save()
-}
-
-func (cli *CLI) CreateDefaultCluster() error {
-	if err := cli.CreateCluster(defaultClusterName, nil); err != nil {
-		return err
-	}
-	return cli.SetCurrentCluster(defaultClusterName)
 }
 
 func (cli *CLI) SetCurrentCluster(name string) error {
@@ -139,10 +123,6 @@ func (cli *CLI) initRemoteMachine(
 	if _, ok := cli.config.Clusters[clusterName]; ok {
 		return fmt.Errorf("cluster %q already exists", clusterName)
 	}
-	user, err := client.NewUser(nil)
-	if err != nil {
-		return fmt.Errorf("generate cluster user: %w", err)
-	}
 
 	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
@@ -179,12 +159,6 @@ func (cli *CLI) initRemoteMachine(
 	req := &pb.InitClusterRequest{
 		MachineName: machineName,
 		Network:     pb.NewIPPrefix(netPrefix),
-		User: &pb.User{
-			Network: &pb.NetworkConfig{
-				ManagementIp: pb.NewIP(user.ManagementIP()),
-				PublicKey:    user.PublicKey(),
-			},
-		},
 	}
 	resp, err := machineClient.InitCluster(ctx, req)
 	if err != nil {
@@ -192,7 +166,7 @@ func (cli *CLI) initRemoteMachine(
 	}
 	fmt.Printf("Cluster %q initialised with machine %q\n", clusterName, resp.Machine.Name)
 
-	if err = cli.CreateCluster(clusterName, user.PrivateKey()); err != nil {
+	if err = cli.CreateCluster(clusterName); err != nil {
 		return fmt.Errorf("save cluster to config: %w", err)
 	}
 	// Set the current cluster to the just created one if it is the only cluster in the config.

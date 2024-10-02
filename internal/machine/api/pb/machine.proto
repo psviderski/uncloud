@@ -18,7 +18,6 @@ service Machine {
 message InitClusterRequest {
   string machineName = 1;
   IPPrefix network = 2;
-  User user = 3;
 }
 
 message InitClusterResponse {

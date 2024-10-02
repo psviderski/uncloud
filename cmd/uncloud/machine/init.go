@@ -10,10 +10,8 @@ import (
 )
 
 type initOptions struct {
-	name          string
-	network       string
-	userPublicKey string
-
+	name    string
+	network string
 	sshKey  string
 	cluster string
 }
@@ -54,9 +52,6 @@ func NewInitCommand() *cobra.Command {
 		&opts.network, "network", network.DefaultNetwork.String(),
 		"IPv4 network CIDR to use for machines and services",
 	)
-	//cmd.Flags().StringVar(&opts.userPublicKey, "user-pubkey", "",
-	//	"User's public key which will be able to access the cluster (hex-encoded)")
-
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "",
 		"path to SSH private key for SSH remote login (default ~/.ssh/id_*)",
