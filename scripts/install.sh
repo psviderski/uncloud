@@ -160,14 +160,10 @@ EOF
     # Reload systemd to recognize the new or updated unit file.
     systemctl daemon-reload
     systemctl enable uncloud.service
-
-    log "⏳ Starting Uncloud machine daemon (uncloud.service)..."
-    systemctl restart uncloud.service
-    log "✓ Uncloud machine daemon started."
 }
 
 install_corrosion() {
-    # TODO: build corrosion binaries and release them on GitHub.
+    # TODO: build corrosion binaries and release them on GitHub fork of corrosion repo.
     #  For now, assume /usr/local/bin/uncloud-corrosion exists.
     return
 }
@@ -203,6 +199,12 @@ EOF
     systemctl daemon-reload
 }
 
+start_uncloud() {
+    log "⏳ Starting Uncloud machine daemon (uncloud.service)..."
+    systemctl restart uncloud.service
+    log "✓ Uncloud machine daemon started."
+}
+
 log "⏳ Running Uncloud install script..."
 
 if [ "$EUID" -ne 0 ]; then
@@ -216,5 +218,6 @@ install_uncloud_binaries
 install_uncloud_systemd
 install_corrosion
 install_corrosion_systemd
+start_uncloud
 
 log "✓ Uncloud installed on the machine successfully! 🎉"
