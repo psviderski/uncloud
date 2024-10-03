@@ -15,32 +15,41 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"time"
 )
 
 const (
-	// HTTP2ConnectTimeout is the maximum amount of time a client will wait for a connection to be established.
+	// http2ConnectTimeout is the maximum amount of time an HTTP2 client will wait for a connection to be established.
 	http2ConnectTimeout = 3 * time.Second
-	// HTTP2Timeout is the maximum amount of time a client will wait for a response.
-	http2Timeout = 20 * time.Second
+	// http2MaxRetryTime is the maximum amount of time an HTTP2 client will retry a request.
+	http2MaxRetryTime = 10 * time.Second
+	// resubscribeMaxRetryTime is the maximum amount of time an API client will retry resubscribing to a query after
+	// an error occurs.
+	resubscribeMaxRetryTime = 60 * time.Second
 )
 
 // APIClient is a client for the Corrosion API.
 type APIClient struct {
-	baseURL *url.URL
-	client  *http.Client
+	baseURL              *url.URL
+	client               *http.Client
+	newResubsribeBackoff func() backoff.BackOff
 }
 
-func NewAPIClient(addr netip.AddrPort) (*APIClient, error) {
+// NewAPIClient creates a new Corrosion API client. The client retries on network errors using an exponential backoff
+// policy with a maximum interval of 1 second and a maximum elapsed time of 10 seconds.
+// It automatically resubscribes to active subscriptions if an error occurs using an exponential backoff policy with a
+// maximum interval of 1 second and a maximum elapsed time of 60 seconds.
+// Use the WithHTTP2Client option to provide a custom HTTP client and the WithResubscribeBackoff option to change the
+// backoff policy for resubscribing to a query.
+func NewAPIClient(addr netip.AddrPort, opts ...APIClientOption) (*APIClient, error) {
 	baseURL, err := url.Parse(fmt.Sprintf("http://%s", addr))
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
-	return &APIClient{
+	c := &APIClient{
 		baseURL: baseURL,
 		client: &http.Client{
-			// TODO: use timeout for non-subscription requests?
-			//Timeout: http2Timeout,
 			Transport: &RetryRoundTripper{
 				Base: &http2.Transport{
 					AllowHTTP: true,
@@ -51,19 +60,49 @@ func NewAPIClient(addr netip.AddrPort) (*APIClient, error) {
 						return dialer.DialContext(ctx, network, addr)
 					},
 				},
-				Backoff: backoff.NewExponentialBackOff(
-					backoff.WithInitialInterval(100*time.Millisecond),
-					backoff.WithMaxInterval(1*time.Second),
-					backoff.WithMaxElapsedTime(10*time.Second),
-				),
+				NewBackoff: func() backoff.BackOff {
+					return backoff.NewExponentialBackOff(
+						backoff.WithInitialInterval(100*time.Millisecond),
+						backoff.WithMaxInterval(1*time.Second),
+						backoff.WithMaxElapsedTime(http2MaxRetryTime),
+					)
+				},
 			},
 		},
-	}, nil
+		newResubsribeBackoff: func() backoff.BackOff {
+			return backoff.NewExponentialBackOff(
+				backoff.WithInitialInterval(100*time.Millisecond),
+				backoff.WithMaxInterval(1*time.Second),
+				backoff.WithMaxElapsedTime(resubscribeMaxRetryTime),
+			)
+		},
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
+}
+
+type APIClientOption func(*APIClient)
+
+func WithHTTP2Client(client *http.Client) APIClientOption {
+	return func(c *APIClient) {
+		c.client = client
+	}
+}
+
+// WithResubscribeBackoff sets the backoff policy for resubscribing to a query.
+func WithResubscribeBackoff(newBackoff func() backoff.BackOff) APIClientOption {
+	return func(c *APIClient) {
+		c.newResubsribeBackoff = newBackoff
+	}
 }
 
 type RetryRoundTripper struct {
-	Base    http.RoundTripper
-	Backoff backoff.BackOff
+	Base http.RoundTripper
+	// NewBackoff creates a new backoff policy for each request.
+	NewBackoff func() backoff.BackOff
 }
 
 func (rt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -82,7 +121,7 @@ func (rt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		// Success, don't retry.
 		return resp, err
 	}
-	boff := backoff.WithContext(rt.Backoff, req.Context())
+	boff := backoff.WithContext(rt.NewBackoff(), req.Context())
 	return backoff.RetryWithData(roundTrip, boff)
 }
 
