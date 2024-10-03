@@ -27,9 +27,9 @@ const (
 
 // APIClient is a client for the Corrosion API.
 type APIClient struct {
-	baseURL              *url.URL
-	client               *http.Client
-	newResubsribeBackoff func() backoff.BackOff
+	baseURL         *url.URL
+	client          *http.Client
+	newResubBackoff func() backoff.BackOff
 }
 
 // NewAPIClient creates a new Corrosion API client. The client retries on network errors using an exponential backoff
@@ -65,7 +65,7 @@ func NewAPIClient(addr netip.AddrPort, opts ...APIClientOption) (*APIClient, err
 				},
 			},
 		},
-		newResubsribeBackoff: func() backoff.BackOff {
+		newResubBackoff: func() backoff.BackOff {
 			return backoff.NewExponentialBackOff(
 				backoff.WithInitialInterval(100*time.Millisecond),
 				backoff.WithMaxInterval(1*time.Second),
@@ -88,10 +88,11 @@ func WithHTTP2Client(client *http.Client) APIClientOption {
 	}
 }
 
-// WithResubscribeBackoff sets the backoff policy for resubscribing to a query.
+// WithResubscribeBackoff sets the backoff policy for resubscribing to a query if an error occurs.
+// Pass nil to disable resubscribing.
 func WithResubscribeBackoff(newBackoff func() backoff.BackOff) APIClientOption {
 	return func(c *APIClient) {
-		c.newResubsribeBackoff = newBackoff
+		c.newResubBackoff = newBackoff
 	}
 }
 
@@ -108,7 +109,7 @@ func (rt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
 				// Not certain, but I expect operational errors should generally be retryable.
-				slog.Debug("Retrying corrosion API request due to network error", "error", err)
+				slog.Debug("Retrying corrosion API request due to network error.", "error", err)
 				return nil, err
 			}
 			// Don't retry on other errors.
@@ -119,4 +120,114 @@ func (rt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	}
 	boff := backoff.WithContext(rt.NewBackoff(), req.Context())
 	return backoff.RetryWithData(roundTrip, boff)
+}
+
+type RetrySubscription struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	client       *APIClient
+	sub          *Subscription
+	changes      chan *ChangeEvent
+	lastChangeID uint64
+	err          error
+	backoff      backoff.BackOff
+}
+
+func NewRetrySubscription(ctx context.Context, client *APIClient, sub *Subscription, boff backoff.BackOff) *RetrySubscription {
+	ctx, cancel := context.WithCancel(ctx)
+	if boff == nil {
+		boff = backoff.NewExponentialBackOff(
+			backoff.WithInitialInterval(100*time.Millisecond),
+			backoff.WithMaxInterval(1*time.Second),
+			backoff.WithMaxElapsedTime(60*time.Second),
+		)
+	}
+	return &RetrySubscription{
+		ctx:     ctx,
+		cancel:  cancel,
+		client:  client,
+		sub:     sub,
+		backoff: backoff.WithContext(boff, ctx),
+	}
+}
+
+func (rs *RetrySubscription) ID() string {
+	return rs.sub.ID()
+}
+
+func (rs *RetrySubscription) Changes() (<-chan *ChangeEvent, error) {
+	if rs.changes != nil {
+		return rs.changes, nil
+	}
+
+	// Ensure the rows are consumed if they have been requested.
+	changes, err := rs.sub.Changes()
+	if err != nil {
+		return nil, err
+	}
+	rs.lastChangeID = rs.sub.lastChangeID
+
+	go func() {
+		defer close(rs.changes)
+
+		var change *ChangeEvent
+		for {
+			select {
+			case change = <-changes:
+			case <-rs.ctx.Done():
+				return
+			}
+
+			if change != nil {
+				select {
+				case rs.changes <- change:
+				case <-rs.ctx.Done():
+					return
+				}
+				rs.lastChangeID = change.ChangeID
+				continue
+			}
+
+			// The underlying subscription has been closed due to an error or context cancellation.
+			// Return if the context is done or try to resubscribe otherwise.
+			if rs.ctx.Err() != nil {
+				return
+			}
+
+			if err = rs.resubscribe(); err != nil {
+				// resubscribe returns a permanent error after unsuccessful retries.
+				rs.err = fmt.Errorf("resubscribe to query: %w", err)
+				return
+			}
+			changes, err = rs.sub.Changes()
+			if err != nil {
+				// Unexpected error but report it anyway.
+				rs.err = err
+				return
+			}
+		}
+	}()
+
+	return rs.changes, nil
+}
+
+func (rs *RetrySubscription) resubscribe() error {
+	return backoff.Retry(func() error {
+		slog.Debug("Resubscribing to Corrosion query.", "id", rs.ID(), "from_change", rs.lastChangeID)
+		sub, err := rs.client.ResubscribeContext(rs.ctx, rs.ID(), rs.lastChangeID)
+		if err != nil {
+			return err
+		}
+		rs.sub = sub
+		return nil
+	}, rs.backoff)
+}
+
+func (rs *RetrySubscription) Err() error {
+	return rs.err
+}
+
+func (rs *RetrySubscription) Close() {
+	rs.cancel()
 }

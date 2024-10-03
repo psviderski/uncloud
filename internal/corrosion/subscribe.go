@@ -6,70 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"io"
+	"log/slog"
 	"net/http"
+	"strconv"
 )
-
-// SubscribeContext creates a subscription to receive updates for a desired SQL query. If skipRows is false,
-// Subscription.Rows must be consumed before Subscription.Changes can be called. If skipRows is true, Subscription.Rows
-// will be nil.
-func (c *APIClient) SubscribeContext(
-	ctx context.Context, query string, args []any, skipRows bool,
-) (*Subscription, error) {
-	statement := Statement{
-		Query:  query,
-		Params: args,
-	}
-	body, err := json.Marshal(statement)
-	if err != nil {
-		return nil, fmt.Errorf("marshal query: %w", err)
-	}
-
-	subURL := c.baseURL.JoinPath("/v1/subscriptions")
-	if skipRows {
-		q := subURL.Query()
-		q.Set("skip_rows", "true")
-		subURL.RawQuery = q.Encode()
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", subURL.String(), bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("read response body: %w", err)
-		}
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, respBody)
-	}
-
-	id := resp.Header.Get("corro-query-id")
-	if id == "" {
-		resp.Body.Close()
-		return nil, errors.New("missing corro-query-id header in response")
-	}
-
-	if skipRows {
-		return newSubscription(ctx, id, nil, resp.Body, nil), nil
-	}
-
-	rows, err := newRows(ctx, resp.Body, false)
-	if err != nil {
-		resp.Body.Close()
-		return nil, fmt.Errorf("parse query response: %w", err)
-	}
-	return newSubscription(ctx, id, rows, rows.body, rows.decoder), nil
-}
 
 type ChangeType string
 
@@ -138,25 +80,32 @@ type Subscription struct {
 	rows         *Rows
 	body         io.ReadCloser
 	decoder      *json.Decoder
+	resubscribe  func(ctx context.Context, fromChange uint64) (*Subscription, error)
 	changes      chan *ChangeEvent
 	lastChangeID uint64
 	err          error
 }
 
 func newSubscription(
-	ctx context.Context, id string, rows *Rows, body io.ReadCloser, decoder *json.Decoder,
+	ctx context.Context,
+	id string,
+	rows *Rows,
+	body io.ReadCloser,
+	decoder *json.Decoder,
+	resubscribe func(ctx context.Context, fromChange uint64) (*Subscription, error),
 ) *Subscription {
 	ctx, cancel := context.WithCancel(ctx)
 	if decoder == nil {
 		decoder = json.NewDecoder(body)
 	}
 	return &Subscription{
-		id:      id,
-		rows:    rows,
-		ctx:     ctx,
-		cancel:  cancel,
-		body:    body,
-		decoder: decoder,
+		ctx:         ctx,
+		cancel:      cancel,
+		id:          id,
+		rows:        rows,
+		body:        body,
+		decoder:     decoder,
+		resubscribe: resubscribe,
 	}
 }
 
@@ -193,52 +142,70 @@ func (s *Subscription) Changes() (<-chan *ChangeEvent, error) {
 		<-s.ctx.Done()
 		s.body.Close()
 	}()
+	go s.handleChangeEvents()
 
-	go func() {
-		defer s.cancel()
-		defer close(s.changes)
+	return s.changes, nil
+}
 
-		for {
-			select {
-			case <-s.ctx.Done():
-				return
-			default:
-			}
+func (s *Subscription) handleChangeEvents() {
+	defer s.cancel()
+	defer close(s.changes)
 
-			var e QueryEvent
-			if err := s.decoder.Decode(&e); err != nil {
-				// Do not report an error that occurred due to context cancellation.
-				if s.ctx.Err() == nil {
-					s.err = fmt.Errorf("decode query event: %w", err)
-				}
-				return
-			}
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
 
-			if e.Error != nil {
-				s.err = fmt.Errorf("query error: %s", *e.Error)
+		var e QueryEvent
+		var err error
+		if err = s.decoder.Decode(&e); err != nil {
+			// Do not report an error that occurred due to context cancellation, just return.
+			if s.ctx.Err() != nil {
 				return
 			}
-			if e.Change == nil {
-				s.err = fmt.Errorf("expected change event, got: %+v", e)
-				return
-			}
+			err = fmt.Errorf("decode query event: %w", err)
+		} else if e.Error != nil {
+			err = fmt.Errorf("query error: %s", *e.Error)
+		} else if e.Change == nil {
+			err = fmt.Errorf("expected change event, got: %+v", e)
+		} else if s.lastChangeID != 0 && e.Change.ChangeID != s.lastChangeID+1 {
 			// If skipRows is true, the last change ID is unknown.
-			if s.lastChangeID != 0 && e.Change.ChangeID != s.lastChangeID+1 {
-				s.err = fmt.Errorf("missed a change: expected change ID %d, got %d",
-					s.lastChangeID+1, e.Change.ChangeID)
-				return
-			}
+			err = fmt.Errorf("missed a change: expected change ID %d, got %d",
+				s.lastChangeID+1, e.Change.ChangeID)
+		}
 
+		if err == nil {
 			s.lastChangeID = e.Change.ChangeID
 			select {
 			case s.changes <- e.Change:
 			case <-s.ctx.Done():
 				return
 			}
-		}
-	}()
+		} else {
+			// Report the error if resubscribing is disabled.
+			if s.resubscribe == nil {
+				s.err = err
+				return
+			}
 
-	return s.changes, nil
+			slog.Info("Resubscribing to Corrosion query due to an error.",
+				"error", err, "id", s.id, "from_change", s.lastChangeID)
+			sub, sErr := s.resubscribe(s.ctx, s.lastChangeID)
+			if sErr != nil {
+				// resubscribe returns a permanent error after unsuccessful retries.
+				s.err = fmt.Errorf("resubscribe to query with backoff: %w", sErr)
+				return
+			}
+			// Reset the subscription to the new one.
+			s.rows = nil
+			s.body = sub.body
+			s.decoder = sub.decoder
+			// Do not close the sub to not close the body.
+			sub.cancel()
+		}
+	}
 }
 
 // Err returns the error, if any, that was encountered during fetching changes.
@@ -250,4 +217,107 @@ func (s *Subscription) Err() error {
 func (s *Subscription) Close() error {
 	s.cancel()
 	return s.body.Close()
+}
+
+// SubscribeContext creates a subscription to receive updates for a desired SQL query. If skipRows is false,
+// Subscription.Rows must be consumed before Subscription.Changes can be called. If skipRows is true, Subscription.Rows
+// will return nil.
+func (c *APIClient) SubscribeContext(
+	ctx context.Context, query string, args []any, skipRows bool,
+) (*Subscription, error) {
+	statement := Statement{
+		Query:  query,
+		Params: args,
+	}
+	body, err := json.Marshal(statement)
+	if err != nil {
+		return nil, fmt.Errorf("marshal query: %w", err)
+	}
+
+	subURL := c.baseURL.JoinPath("/v1/subscriptions")
+	if skipRows {
+		q := subURL.Query()
+		q.Set("skip_rows", "true")
+		subURL.RawQuery = q.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", subURL.String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read response body: %w", err)
+		}
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, respBody)
+	}
+
+	id := resp.Header.Get("corro-query-id")
+	if id == "" {
+		resp.Body.Close()
+		return nil, errors.New("missing corro-query-id header in response")
+	}
+
+	if skipRows {
+		return newSubscription(ctx, id, nil, resp.Body, nil, c.resubscribeWithBackoffFn(id)), nil
+	}
+
+	rows, err := newRows(ctx, resp.Body, false)
+	if err != nil {
+		resp.Body.Close()
+		return nil, fmt.Errorf("parse query response: %w", err)
+	}
+	return newSubscription(ctx, id, rows, rows.body, rows.decoder, c.resubscribeWithBackoffFn(id)), nil
+}
+
+func (c *APIClient) resubscribeWithBackoffFn(id string) func(context.Context, uint64) (*Subscription, error) {
+	if c.newResubBackoff == nil {
+		return nil
+	}
+	return func(ctx context.Context, fromChange uint64) (*Subscription, error) {
+		return backoff.RetryWithData(func() (*Subscription, error) {
+			slog.Debug("Retrying to resubscribe to Corrosion query.", "id", id, "from_change", fromChange)
+			return c.ResubscribeContext(ctx, id, fromChange)
+		}, c.newResubBackoff())
+	}
+}
+
+func (c *APIClient) ResubscribeContext(ctx context.Context, id string, fromChange uint64) (*Subscription, error) {
+	subURL := c.baseURL.JoinPath("/v1/subscriptions", id)
+	q := subURL.Query()
+	q.Set("from", strconv.FormatUint(fromChange, 10))
+	subURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", subURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read response body: %w", err)
+		}
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, respBody)
+	}
+
+	return newSubscription(ctx, id, nil, resp.Body, nil, c.resubscribeWithBackoffFn(id)), nil
 }
