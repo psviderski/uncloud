@@ -172,6 +172,7 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 		}
 		slog.Info("Subscribed to machine changes in the cluster to reconfigure network peers.")
 
+		slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
 		if err = nc.configurePeers(machines); err != nil {
 			slog.Error("Failed to configure peers.", "err", err)
 		}
