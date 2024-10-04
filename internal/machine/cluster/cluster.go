@@ -21,15 +21,10 @@ type Cluster struct {
 	pb.UnimplementedClusterServer
 
 	store *store.Store
-	// TODO: temporary channel until the state is replaced with networkDB.
-	newMachinesCh chan *pb.MachineInfo
 }
 
 func NewCluster(store *store.Store) *Cluster {
-	return &Cluster{
-		store:         store,
-		newMachinesCh: make(chan *pb.MachineInfo, 1),
-	}
+	return &Cluster{store: store}
 }
 
 func (c *Cluster) Init(ctx context.Context, network netip.Prefix) error {
@@ -86,11 +81,6 @@ func (c *Cluster) Network(ctx context.Context) (netip.Prefix, error) {
 		return netip.Prefix{}, status.Errorf(codes.Internal, "parse network prefix: %v", err)
 	}
 	return prefix, nil
-}
-
-// TODO: this is a temporary watcher for PoC until the state is state is replaced with networkDB.
-func (c *Cluster) WatchNewMachines() <-chan *pb.MachineInfo {
-	return c.newMachinesCh
 }
 
 // AddMachine adds a machine to the cluster.
@@ -174,10 +164,6 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	}
 	slog.Info("Machine added to the cluster.",
 		"id", m.Id, "name", m.Name, "subnet", subnet, "public_key", secret.Secret(m.Network.PublicKey))
-
-	// TODO: Subscribe all cluster members to updates about the new machine so they can update their peers config.
-	//  In PoC we just notify the local machine.
-	c.newMachinesCh <- m
 
 	resp := &pb.AddMachineResponse{Machine: m}
 	return resp, nil

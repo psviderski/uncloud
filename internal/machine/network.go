@@ -2,16 +2,21 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"log/slog"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
+	"time"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/corroservice"
 	"uncloud/internal/machine/network"
+	"uncloud/internal/machine/store"
 )
 
 const (
@@ -21,17 +26,18 @@ const (
 )
 
 type networkController struct {
-	state         *State
-	wgnet         *network.WireGuardNetwork
-	server        *grpc.Server
-	corroService  corroservice.Service
-	newMachinesCh <-chan *pb.MachineInfo
+	state        *State
+	store        *store.Store
+	wgnet        *network.WireGuardNetwork
+	server       *grpc.Server
+	corroService corroservice.Service
+
 	// TODO: DNS server/resolver listening on the machine IP, e.g. 10.210.0.1:53. It can't listen on 127.0.X.X
 	//  like resolved does because it needs to be reachable from both the host and the containers.
 }
 
 func newNetworkController(
-	state *State, server *grpc.Server, corroService corroservice.Service, newMachCh <-chan *pb.MachineInfo,
+	state *State, store *store.Store, server *grpc.Server, corroService corroservice.Service,
 ) (
 	*networkController, error,
 ) {
@@ -42,11 +48,11 @@ func newNetworkController(
 	}
 
 	return &networkController{
-		state:         state,
-		wgnet:         wgnet,
-		server:        server,
-		corroService:  corroService,
-		newMachinesCh: newMachCh,
+		state:        state,
+		store:        store,
+		wgnet:        wgnet,
+		server:       server,
+		corroService: corroService,
 	}, nil
 }
 
@@ -98,11 +104,11 @@ func (nc *networkController) Run(ctx context.Context) error {
 		},
 	)
 
-	// Handle new machines added to the cluster. Handling new machines and endpoint changes should be done
+	// Handle machine changes in the cluster. Handling machine and endpoint changes should be done
 	// in separate goroutines to avoid a deadlock when reconfiguring the network.
 	errGroup.Go(
 		func() error {
-			if err := nc.handleNewMachines(ctx); err != nil {
+			if err := nc.handleMachineChanges(ctx); err != nil {
 				return fmt.Errorf("handle new machines: %w", err)
 			}
 			return nil
@@ -136,59 +142,117 @@ func (nc *networkController) Run(ctx context.Context) error {
 	return errGroup.Wait()
 }
 
-func (nc *networkController) handleNewMachines(ctx context.Context) error {
+// handleMachineChanges subscribes to machine changes in the cluster and reconfigures the network peers accordingly.
+func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 	for {
-		select {
-		case minfo := <-nc.newMachinesCh:
-			slog.Info("Handling new machine added to the cluster.", "name", minfo.Name)
+		// Retry to subscribe to machine changes indefinitely until the context is done.
+		b := backoff.WithContext(backoff.NewExponentialBackOff(
+			backoff.WithInitialInterval(1*time.Second),
+			backoff.WithMaxInterval(60*time.Second),
+			backoff.WithMaxElapsedTime(0),
+		), ctx)
 
-			// Skip the current machine.
-			nc.state.mu.RLock()
-			currentMachID := nc.state.ID
-			nc.state.mu.RUnlock()
-			if minfo.Id == currentMachID {
-				continue
+		var (
+			machines []*pb.MachineInfo
+			changes  <-chan struct{}
+			err      error
+		)
+		subscribe := func() error {
+			if machines, changes, err = nc.store.SubscribeMachines(ctx); err != nil {
+				slog.Info("Failed to subscribe to machine changes, retrying.", "err", err)
 			}
+			return err
+		}
+		if err = backoff.Retry(subscribe, b); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			slog.Error("Unexpected error while retrying to subscribe to machine changes.", "err", err)
+			continue
+		}
+		slog.Info("Subscribed to machine changes in the cluster to reconfigure network peers.")
 
-			if err := minfo.Network.Validate(); err != nil {
-				slog.Error("Invalid machine network configuration.", "err", err)
-				continue
+		if err = nc.configurePeers(machines); err != nil {
+			slog.Error("Failed to configure peers.", "err", err)
+		}
+		// For simplicity, reconfigure all peers on any change.
+		for {
+			select {
+			case <-changes:
+				slog.Info("Cluster machines changed, reconfiguring network peers.")
+				if machines, err = nc.store.ListMachines(ctx); err != nil {
+					slog.Error("Failed to list machines.", "err", err)
+					continue
+				}
+				if err = nc.configurePeers(machines); err != nil {
+					slog.Error("Failed to configure peers.", "err", err)
+				}
+			case <-ctx.Done():
+				return nil
 			}
-			// Ignore errors as they are already validated.
-			subnet, _ := minfo.Network.Subnet.ToPrefix()
-			manageIP, _ := minfo.Network.ManagementIp.ToAddr()
-			endpoints := make([]netip.AddrPort, len(minfo.Network.Endpoints))
-			for i, ep := range minfo.Network.Endpoints {
-				addrPort, _ := ep.ToAddrPort()
-				endpoints[i] = addrPort
-			}
-
-			peer := network.PeerConfig{
-				Subnet:       &subnet,
-				ManagementIP: manageIP,
-				AllEndpoints: endpoints,
-				PublicKey:    minfo.Network.PublicKey,
-			}
-			if len(endpoints) > 0 {
-				peer.Endpoint = &endpoints[0]
-			}
-
-			nc.state.mu.Lock()
-			// TODO: deduplicate peers by public key, maybe implement addNetworkPeer method in the state.
-			nc.state.Network.Peers = append(nc.state.Network.Peers, peer)
-			err := nc.state.Save()
-			nc.state.mu.Unlock()
-			if err != nil {
-				return fmt.Errorf("save machine state: %w", err)
-			}
-
-			if err := nc.wgnet.Configure(*nc.state.Network); err != nil {
-				return fmt.Errorf("configure network with new peer: %w", err)
-			}
-		case <-ctx.Done():
-			return nil
 		}
 	}
+}
+
+func (nc *networkController) configurePeers(machines []*pb.MachineInfo) error {
+	nc.state.mu.RLock()
+	currentPeerEndpoints := make(map[string]*netip.AddrPort, len(nc.state.Network.Peers))
+	for _, p := range nc.state.Network.Peers {
+		currentPeerEndpoints[p.PublicKey.String()] = p.Endpoint
+	}
+	nc.state.mu.RUnlock()
+
+	// Construct the list of peers from the machine configurations ensuring that the current endpoint is preserved.
+	peers := make([]network.PeerConfig, 0, len(machines)-1)
+	for _, m := range machines {
+		// Skip the current machine.
+		if m.Id == nc.state.ID {
+			continue
+		}
+		if err := m.Network.Validate(); err != nil {
+			slog.Error("Invalid machine network configuration.", "machine", m.Name, "err", err)
+			continue
+		}
+		// Ignore errors as they are already validated.
+		subnet, _ := m.Network.Subnet.ToPrefix()
+		manageIP, _ := m.Network.ManagementIp.ToAddr()
+		endpoints := make([]netip.AddrPort, len(m.Network.Endpoints))
+		for i, ep := range m.Network.Endpoints {
+			addrPort, _ := ep.ToAddrPort()
+			endpoints[i] = addrPort
+		}
+		peer := network.PeerConfig{
+			Subnet:       &subnet,
+			ManagementIP: manageIP,
+			AllEndpoints: endpoints,
+			PublicKey:    m.Network.PublicKey,
+		}
+
+		currentEndpoint := currentPeerEndpoints[peer.PublicKey.String()]
+		if currentEndpoint != nil && slices.Contains(endpoints, *currentEndpoint) {
+			peer.Endpoint = currentEndpoint
+		} else if len(endpoints) > 0 {
+			peer.Endpoint = &endpoints[0]
+		}
+
+		peers = append(peers, peer)
+	}
+
+	// Preserve the new list of peers in the machine state.
+	nc.state.mu.Lock()
+	nc.state.Network.Peers = peers
+	err := nc.state.Save()
+	nc.state.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("save machine state: %w", err)
+	}
+
+	nc.state.mu.RLock()
+	defer nc.state.mu.RUnlock()
+	if err = nc.wgnet.Configure(*nc.state.Network); err != nil {
+		return fmt.Errorf("configure network peers: %w", err)
+	}
+	return nil
 }
 
 // TODO: method to shutdown network when leaving a cluster. Regular context cancellation shouldn't bring it down.

@@ -79,9 +79,10 @@ type Machine struct {
 	// initialised is signalled when the machine is configured as a member of a cluster.
 	initialised chan struct{}
 
-	localServer   *grpc.Server
-	cluster       *cluster.Cluster
-	newMachinesCh <-chan *pb.MachineInfo
+	// store is the cluster store backed by a distributed Corrosion database.
+	store       *store.Store
+	cluster     *cluster.Cluster
+	localServer *grpc.Server
 }
 
 func NewMachine(config *Config) (*Machine, error) {
@@ -122,12 +123,12 @@ func NewMachine(config *Config) (*Machine, error) {
 	c := cluster.NewCluster(corroStore)
 
 	m := &Machine{
-		config:        *config,
-		state:         state,
-		started:       make(chan struct{}),
-		initialised:   make(chan struct{}, 1),
-		cluster:       c,
-		newMachinesCh: c.WatchNewMachines(),
+		config:      *config,
+		state:       state,
+		started:     make(chan struct{}),
+		initialised: make(chan struct{}, 1),
+		store:       corroStore,
+		cluster:     c,
 	}
 	m.localServer = newGRPCServer(m, c)
 
@@ -223,7 +224,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 					slog.Info("Starting network controller.")
 					networkServer := newGRPCServer(m, m.cluster)
-					ctrl, err = newNetworkController(m.state, networkServer, m.config.CorrosionService, m.newMachinesCh)
+					ctrl, err = newNetworkController(m.state, m.store, networkServer, m.config.CorrosionService)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
 					}
@@ -430,7 +431,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 }
 
 // JoinCluster configures the local machine to join an existing cluster.
-func (m *Machine) JoinCluster(ctx context.Context, req *pb.JoinClusterRequest) (*emptypb.Empty, error) {
+func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*emptypb.Empty, error) {
 	if m.Initialised() {
 		return nil, status.Error(codes.FailedPrecondition, "machine is already configured as a cluster member")
 	}
