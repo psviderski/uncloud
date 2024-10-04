@@ -81,3 +81,46 @@ func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
 	}
 	return machines, nil
 }
+
+// SubscribeMachines returns a list of machines and a channel that signals changes to the list. The channel doesn't
+// receive any values, it's just signals when a machine has been added, updated, or deleted in the database.
+func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-chan struct{}, error) {
+	sub, err := s.corro.SubscribeContext(ctx, "SELECT info FROM machines ORDER BY name", nil, false)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rows := sub.Rows()
+	var machines []*pb.MachineInfo
+	for rows.Next() {
+		var mJSON string
+		if err = rows.Scan(&mJSON); err != nil {
+			return nil, nil, err
+		}
+		var m pb.MachineInfo
+		if err = protojson.Unmarshal([]byte(mJSON), &m); err != nil {
+			return nil, nil, fmt.Errorf("unmarshal machine info: %w", err)
+		}
+		machines = append(machines, &m)
+	}
+	events, err := sub.Changes()
+	if err != nil {
+		return nil, nil, fmt.Errorf("get subscription changes: %w", err)
+	}
+
+	changes := make(chan struct{})
+	go func() {
+		defer close(changes)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-events:
+				// Just signal that there is a change in the machines list.
+				changes <- struct{}{}
+			}
+		}
+	}()
+
+	return machines, changes, nil
+}
