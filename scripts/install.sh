@@ -4,12 +4,16 @@ set -euo pipefail
 
 INSTALL_BIN_DIR=${INSTALL_BIN_DIR:-/usr/local/bin}
 INSTALL_SYSTEMD_DIR=${INSTALL_SYSTEMD_DIR:-/etc/systemd/system}
+
 UNCLOUD_GITHUB_URL="https://github.com/psviderski/uncloud"
 UNCLOUD_VERSION=${UNCLOUD_VERSION:-latest}
 UNCLOUD_USER="uncloud"
 # Add the specified Linux user to group $UNCLOUD_USER to allow the user to run uncloud commands without sudo.
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 UNCLOUD_DATA_DIR=${UNCLOUD_DATA_DIR:-/var/lib/uncloud}
+
+CORROSION_GITHUB_URL="https://github.com/psviderski/corrosion"
+CORROSION_VERSION=${CORROSION_VERSION:-latest}
 
 log() {
     echo -e "\033[1;32m$1\033[0m"
@@ -163,9 +167,40 @@ EOF
 }
 
 install_corrosion() {
-    # TODO: build corrosion binaries and release them on GitHub fork of corrosion repo.
-    #  For now, assume /usr/local/bin/uncloud-corrosion exists.
-    return
+    local arch
+    arch=$(uname -m)
+
+    local corrosion_install_path="${INSTALL_BIN_DIR}/uncloud-corrosion"
+    if [ -f "${corrosion_install_path}" ]; then
+        # TODO: Check the version of the installed corrosion binary and update if there is a newer stable version.
+        log "✓ uncloud-corrosion binary is already installed."
+        return
+    fi
+
+    # Create a temporary directory for downloads.
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    # Ensure the temporary directory is deleted on script exit.
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmp_dir'" EXIT
+
+    local corrosion_url
+    if [ "${CORROSION_VERSION}" == "latest" ]; then
+        corrosion_url="${CORROSION_GITHUB_URL}/releases/latest/download/corrosion-${arch}-unknown-linux-gnu.tar.gz"
+    else
+        corrosion_url="${CORROSION_GITHUB_URL}/releases/download/${CORROSION_VERSION}/corrosion-${arch}-unknown-linux-gnu.tar.gz"
+    fi
+    local corrosion_download_path="${tmp_dir}/corrosion.tar.gz"
+
+    log "⏳ Downloading uncloud-corrosion binary: ${corrosion_url}"
+    if ! curl -fsSL -o "${corrosion_download_path}" "${corrosion_url}"; then
+        error "Failed to download uncloud-corrosion binary."
+    fi
+    tar -xzf "${corrosion_download_path}" -C "${tmp_dir}"
+    if ! install "${tmp_dir}/corrosion" "${corrosion_install_path}"; then
+        error "Failed to install uncloud-corrosion binary to ${corrosion_install_path}"
+    fi
+    log "✓ uncloud-corrosion binary installed: ${corrosion_install_path}"
 }
 
 install_corrosion_systemd() {
