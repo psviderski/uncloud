@@ -110,11 +110,17 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 		}
 		if req.Network.ManagementIp != nil && req.Network.ManagementIp.Equal(m.Network.ManagementIp) {
 			manageIP, _ := req.Network.ManagementIp.ToAddr()
-			return nil, status.Errorf(codes.AlreadyExists, "machine with management IP %q already exists", manageIP)
+			return nil, status.Errorf(
+				codes.AlreadyExists, "machine with management IP %q already exists under the name %q",
+				manageIP, m.Name,
+			)
 		}
 		if bytes.Equal(m.Network.PublicKey, req.Network.PublicKey) {
 			publicKey := secret.Secret(m.Network.PublicKey)
-			return nil, status.Errorf(codes.AlreadyExists, "machine with public key %q already exists", publicKey)
+			return nil, status.Errorf(
+				codes.AlreadyExists, "machine with public key %q already exists under the name %q",
+				publicKey, m.Name,
+			)
 		}
 		allocatedSubnets[i], _ = m.Network.Subnet.ToPrefix()
 	}
