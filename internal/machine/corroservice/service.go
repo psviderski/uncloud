@@ -1,7 +1,9 @@
 package corroservice
 
+import "context"
+
 type Service interface {
-	Start() error
-	Restart() error
+	Start(ctx context.Context) error
+	Restart(ctx context.Context) error
 	Running() bool
 }

@@ -170,7 +170,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		}
 		slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
 
-		if err := m.config.CorrosionService.Start(); err != nil {
+		if err := m.config.CorrosionService.Start(ctx); err != nil {
 			return fmt.Errorf("start corrosion service: %w", err)
 		}
 	}

@@ -64,11 +64,11 @@ func (nc *networkController) Run(ctx context.Context) error {
 
 	if nc.corroService.Running() {
 		// Corrosion service was running before the WireGuard network was configured so we need to restart it.
-		if err := nc.corroService.Restart(); err != nil {
+		if err := nc.corroService.Restart(ctx); err != nil {
 			return fmt.Errorf("restart corrosion service: %w", err)
 		}
 	} else {
-		if err := nc.corroService.Start(); err != nil {
+		if err := nc.corroService.Start(ctx); err != nil {
 			return fmt.Errorf("start corrosion service: %w", err)
 		}
 	}
