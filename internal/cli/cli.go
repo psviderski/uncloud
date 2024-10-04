@@ -125,24 +125,9 @@ func (cli *CLI) initRemoteMachine(
 		return fmt.Errorf("cluster %q already exists", clusterName)
 	}
 
-	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
-	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
+	machineClient, err := cli.provisionRemoteMachine(ctx, remoteMachine)
 	if err != nil {
-		return fmt.Errorf(
-			"SSH login to remote machine %s: %w",
-			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
-		)
-	}
-	exec := sshexec.NewRemote(sshClient)
-	// Install and run the Uncloud daemon and dependencies on the remote machine.
-	if err = provisionMachine(ctx, exec); err != nil {
-		return fmt.Errorf("provision machine: %w", err)
-	}
-
-	// Create a machine API client over the SSH connection to the remote machine.
-	machineClient, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
-	if err != nil {
-		return fmt.Errorf("connect to remote machine: %w", err)
+		return err
 	}
 	defer machineClient.Close()
 
@@ -196,24 +181,9 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 		_ = c.Close()
 	}()
 
-	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
-	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
+	machineClient, err := cli.provisionRemoteMachine(ctx, remoteMachine)
 	if err != nil {
-		return fmt.Errorf(
-			"SSH login to remote machine %s: %w",
-			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
-		)
-	}
-	exec := sshexec.NewRemote(sshClient)
-	// Install and run the Uncloud daemon and dependencies on the remote machine.
-	if err = provisionMachine(ctx, exec); err != nil {
-		return fmt.Errorf("provision machine: %w", err)
-	}
-
-	// Create a machine API client over the SSH connection to the remote machine.
-	machineClient, err := client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
-	if err != nil {
-		return fmt.Errorf("connect to remote machine: %w", err)
+		return err
 	}
 	defer machineClient.Close()
 
@@ -290,6 +260,44 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	}
 
 	return nil
+}
+
+// provisionRemoteMachine installs the Uncloud daemon and dependencies on the remote machine over SSH and returns
+// a machine API client to interact with the machine. The client should be closed after use by the caller.
+func (cli *CLI) provisionRemoteMachine(ctx context.Context, remoteMachine RemoteMachine) (*client.Client, error) {
+	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
+	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"SSH login to remote machine %s: %w",
+			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
+		)
+	}
+	exec := sshexec.NewRemote(sshClient)
+	// Install and run the Uncloud daemon and dependencies on the remote machine.
+	if err = provisionMachine(ctx, exec); err != nil {
+		return nil, fmt.Errorf("provision machine: %w", err)
+	}
+
+	var machineClient *client.Client
+	if remoteMachine.User == "root" {
+		// Create a machine API client over the established SSH connection to the remote machine.
+		machineClient, err = client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
+	} else {
+		// Since the user is not root, we need to establish a new SSH connection to make the user's addition
+		// to the uncloud group effective, thus allowing access to the Uncloud daemon Unix socket.
+		sshConfig := &connector.SSHConnectorConfig{
+			User:    remoteMachine.User,
+			Host:    remoteMachine.Host,
+			Port:    remoteMachine.Port,
+			KeyPath: remoteMachine.KeyPath,
+		}
+		machineClient, err = client.New(ctx, connector.NewSSHConnector(sshConfig))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("connect to remote machine: %w", err)
+	}
+	return machineClient, nil
 }
 
 func (cli *CLI) promptResetMachine() error {
