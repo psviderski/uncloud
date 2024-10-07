@@ -97,7 +97,11 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	}
 	defer wg.Close()
 
-	wgConfig, err := config.toDeviceConfig()
+	dev, err := wg.Device(n.link.Attrs().Name)
+	if err != nil {
+		return fmt.Errorf("get WireGuard device %q: %w", n.link.Attrs().Name, err)
+	}
+	wgConfig, err := config.toDeviceConfig(dev.Peers)
 	if err != nil {
 		return err
 	}
@@ -159,11 +163,12 @@ func (n *WireGuardNetwork) updatePeersFromWireGuard() error {
 	}
 
 	for _, wgPeer := range dev.Peers {
-		if p, ok := n.peers[secret.Secret(wgPeer.PublicKey[:]).String()]; ok {
+		publicKey := secret.Secret(wgPeer.PublicKey[:])
+		if p, ok := n.peers[publicKey.String()]; ok {
 			p.updateFromWireGuard(wgPeer)
 		} else {
 			// Assume that WG peers are not updated out of band so they should always be in sync with the config.
-			slog.Warn("Found WireGuard peer that is not in the configuration.", "public_key", wgPeer.PublicKey)
+			slog.Warn("Found WireGuard peer that is not in the configuration.", "public_key", publicKey)
 		}
 	}
 	return nil
@@ -228,13 +233,16 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 				Scope:     netlink.SCOPE_LINK,
 				Dst:       &dst,
 			},
-		); err != nil && !errors.Is(err, unix.EEXIST) {
-			return fmt.Errorf("add route to WireGuard link %q: %w", n.link.Attrs().Name, err)
+		); err != nil {
+			if !errors.Is(err, unix.EEXIST) {
+				return fmt.Errorf("add route to WireGuard link %q: %w", n.link.Attrs().Name, err)
+			}
+		} else {
+			slog.Debug(
+				"Added route to peer(s) via WireGuard interface.",
+				"name", n.link.Attrs().Name, "dst", prefix,
+			)
 		}
-		slog.Debug(
-			"Added route to peer(s) via WireGuard interface.",
-			"name", n.link.Attrs().Name, "dst", prefix,
-		)
 	}
 
 	// Remove old routes to IP ranges that are no longer in the configuration.
@@ -338,7 +346,7 @@ func (n *WireGuardNetwork) changeWireGuardEndpoints() error {
 	}
 	for _, pc := range wgPeerConfigs {
 		slog.Info("Changed peer endpoint on WireGuard interface.",
-			"name", n.link.Attrs().Name, "public_key", pc.PublicKey.String(), "endpoint", pc.Endpoint)
+			"name", n.link.Attrs().Name, "public_key", secret.Secret(pc.PublicKey[:]), "endpoint", pc.Endpoint)
 	}
 	return nil
 }

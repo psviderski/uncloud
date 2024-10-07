@@ -41,7 +41,9 @@ func (c Config) IsConfigured() bool {
 		c.PrivateKey != nil && c.PublicKey != nil
 }
 
-func (c Config) toDeviceConfig() (wgtypes.Config, error) {
+// toDeviceConfig converts the configuration to a WireGuard device configuration. It updates the existing peers
+// without replacing them to not disrupt existing connections and to not lose track of the last handshake time.
+func (c Config) toDeviceConfig(currentPeers []wgtypes.Peer) (wgtypes.Config, error) {
 	privateKey, err := wgtypes.NewKey(c.PrivateKey)
 	if err != nil {
 		return wgtypes.Config{}, fmt.Errorf("parse private key: %w", err)
@@ -50,6 +52,8 @@ func (c Config) toDeviceConfig() (wgtypes.Config, error) {
 
 	persistentKeepalive := WireGuardKeepaliveInterval
 	wgPeerConfigs := make([]wgtypes.PeerConfig, len(c.Peers))
+	// A set of new peer public keys for checking which current peers should be removed.
+	newPeersSet := make(map[string]struct{}, len(c.Peers))
 	for i, peerConfig := range c.Peers {
 		peerPublicKey, kErr := wgtypes.NewKey(peerConfig.PublicKey)
 		if kErr != nil {
@@ -75,12 +79,24 @@ func (c Config) toDeviceConfig() (wgtypes.Config, error) {
 				Port: int(peerConfig.Endpoint.Port()),
 			}
 		}
+
+		newPeersSet[wgPeerConfigs[i].PublicKey.String()] = struct{}{}
+	}
+
+	// Remove peers that are not in the configuration.
+	for _, p := range currentPeers {
+		if _, ok := newPeersSet[p.PublicKey.String()]; !ok {
+			wgPeerConfigs = append(wgPeerConfigs, wgtypes.PeerConfig{
+				PublicKey: p.PublicKey,
+				Remove:    true,
+			})
+		}
 	}
 
 	return wgtypes.Config{
 		PrivateKey:   &privateKey,
 		ListenPort:   &listenPort,
-		ReplacePeers: true,
+		ReplacePeers: false,
 		Peers:        wgPeerConfigs,
 	}, nil
 }
