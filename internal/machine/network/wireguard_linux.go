@@ -10,7 +10,9 @@ import (
 	"go4.org/netipx"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/wgctrl"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"log/slog"
+	"net"
 	"net/netip"
 	"slices"
 	"sync"
@@ -261,22 +263,82 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 }
 
 func (n *WireGuardNetwork) Run(ctx context.Context) error {
+	wg, err := wgctrl.New()
+	if err != nil {
+		return fmt.Errorf("create WireGuard client: %w", err)
+	}
+	defer wg.Close()
+
 	ticker := time.NewTicker(1 * time.Second)
 	for {
 		select {
 		case <-ticker.C:
 			n.mu.Lock()
-			if err := n.updatePeersFromWireGuard(); err != nil {
+			if err = n.changeWireGuardEndpoints(); err != nil {
+				slog.Error("Failed to update peer endpoints on WireGuard interface.",
+					"name", n.link.Attrs().Name, "err", err)
+			}
+			if err = n.updatePeersFromWireGuard(); err != nil {
 				slog.Error("Failed to update peers status from WireGuard interface.",
 					"name", n.link.Attrs().Name, "err", err)
 			}
 			n.mu.Unlock()
 
-			// TODO: check if the endpoint should be changed for any peers. If so, change it and notify the controller
-			//  to preserve the change in the machine state.
+			// TODO: notify the controller through a channel to preserve the change in the machine state.
 		case <-ctx.Done():
 			return nil
 		}
 	}
 
+}
+
+// changeWireGuardEndpoints rotates the endpoints of the WireGuard peers that need to be changed.
+func (n *WireGuardNetwork) changeWireGuardEndpoints() error {
+	var wgPeerConfigs []wgtypes.PeerConfig
+	for _, p := range n.peers {
+		newEndpoint, ok := p.shouldChangeEndpoint()
+		if !ok {
+			continue
+		}
+		newConfig := p.config
+		newConfig.Endpoint = &newEndpoint
+		p.updateConfig(newConfig)
+
+		publicKey, err := wgtypes.NewKey(p.config.PublicKey)
+		if err != nil {
+			return fmt.Errorf("parse peer public key: %w", err)
+		}
+		wgPeerConfigs = append(wgPeerConfigs, wgtypes.PeerConfig{
+			PublicKey:  publicKey,
+			UpdateOnly: true,
+			Endpoint: &net.UDPAddr{
+				IP:   p.config.Endpoint.Addr().AsSlice(),
+				Port: int(p.config.Endpoint.Port()),
+			},
+		})
+	}
+	if len(wgPeerConfigs) == 0 {
+		// No changes to the endpoints.
+		return nil
+	}
+
+	wg, err := wgctrl.New()
+	if err != nil {
+		return fmt.Errorf("create WireGuard client: %w", err)
+	}
+	defer wg.Close()
+
+	wgConfigPatch := wgtypes.Config{
+		ReplacePeers: false,
+		Peers:        wgPeerConfigs,
+	}
+	// Apply the configuration patch to the WireGuard device.
+	if err = wg.ConfigureDevice(n.link.Attrs().Name, wgConfigPatch); err != nil {
+		return fmt.Errorf("configure WireGuard device %q with endpoint changes: %w", n.link.Attrs().Name, err)
+	}
+	for _, pc := range wgPeerConfigs {
+		slog.Info("Changed peer endpoint on WireGuard interface.",
+			"name", n.link.Attrs().Name, "public_key", pc.PublicKey.String(), "endpoint", pc.Endpoint)
+	}
+	return nil
 }

@@ -3,6 +3,8 @@ package network
 import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"log/slog"
+	"net/netip"
+	"slices"
 	"time"
 )
 
@@ -117,6 +119,31 @@ func (p *peer) calculateStatus() {
 		p.status = PeerStatusUnknown
 	}
 	if p.status != lastStatus {
-		slog.Debug("Peer status changed.", "public_key", p.config.PublicKey, "status", p.status)
+		slog.Info("Peer status changed.", "public_key", p.config.PublicKey, "status", p.status)
 	}
+}
+
+// shouldChangeEndpoint returns the next endpoint to use and a boolean indicating if the endpoint should be changed.
+func (p *peer) shouldChangeEndpoint() (netip.AddrPort, bool) {
+	if p.config.Endpoint != nil && p.status != PeerStatusDown {
+		// Shouldn't change the endpoint if it's set and the status is 'up' or 'unknown'.
+		return netip.AddrPort{}, false
+	}
+	if len(p.config.AllEndpoints) == 0 {
+		// No endpoints to choose from.
+		return netip.AddrPort{}, false
+	}
+	if p.config.Endpoint == nil {
+		// No endpoint set, so choose the first one.
+		return p.config.AllEndpoints[0], true
+	}
+	if len(p.config.AllEndpoints) == 1 && p.config.Endpoint == &p.config.AllEndpoints[0] {
+		// Only one endpoint and it's the current one, can't rotate.
+		return netip.AddrPort{}, false
+	}
+
+	// The endpoint is set and the status is 'down', so rotate to the next one.
+	idx := slices.Index(p.config.AllEndpoints, *p.config.Endpoint)
+	endpoint := p.config.AllEndpoints[(idx+1)%len(p.config.AllEndpoints)]
+	return endpoint, true
 }
