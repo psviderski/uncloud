@@ -14,19 +14,15 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
-	"time"
+	"uncloud/internal/secret"
 )
 
 type WireGuardNetwork struct {
-	link  netlink.Link
-	peers []peer
+	link netlink.Link
+	// peers is a map of peers indexed by their public key.
+	peers map[string]peer
 	// mu synchronises concurrent network configuration changes.
 	mu sync.Mutex
-}
-
-type peer struct {
-	config                 PeerConfig
-	lastEndpointChangeTime time.Time
 }
 
 func NewWireGuardNetwork() (*WireGuardNetwork, error) {
@@ -35,7 +31,8 @@ func NewWireGuardNetwork() (*WireGuardNetwork, error) {
 		return nil, fmt.Errorf("create or get WireGuard link %q: %v", WireGuardInterfaceName, err)
 	}
 	return &WireGuardNetwork{
-		link: link,
+		link:  link,
+		peers: make(map[string]peer),
 	}, nil
 }
 
@@ -74,21 +71,20 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	// Reconstruct the list of peers, ensuring that the last endpoint change time is preserved for any existing peers.
-	existingPeersByPublicKey := map[string]peer{}
-	for _, p := range n.peers {
-		existingPeersByPublicKey[p.config.PublicKey.String()] = p
-	}
-	n.peers = make([]peer, len(config.Peers))
-	for i, peerConfig := range config.Peers {
-		n.peers[i] = peer{
-			config: peerConfig,
-		}
-		existingPeer, ok := existingPeersByPublicKey[peerConfig.PublicKey.String()]
-		if ok && existingPeer.config.Endpoint == peerConfig.Endpoint {
-			n.peers[i].lastEndpointChangeTime = existingPeer.lastEndpointChangeTime
+	// Create or update peer structs based on the config.
+	newPeersSet := make(map[string]struct{}, len(config.Peers))
+	for _, pc := range config.Peers {
+		if p, ok := n.peers[pc.PublicKey.String()]; ok {
+			p.updateConfig(pc)
 		} else {
-			n.peers[i].lastEndpointChangeTime = time.Now()
+			n.peers[pc.PublicKey.String()] = newPeer(pc)
+		}
+		newPeersSet[pc.PublicKey.String()] = struct{}{}
+	}
+	// Delete peers that are no longer in the config.
+	for k := range n.peers {
+		if _, ok := newPeersSet[k]; !ok {
+			delete(n.peers, k)
 		}
 	}
 
@@ -96,7 +92,6 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	if err != nil {
 		return fmt.Errorf("create WireGuard client: %w", err)
 	}
-	//goland:noinspection GoUnhandledErrorResult
 	defer wg.Close()
 
 	wgConfig, err := config.toDeviceConfig()
@@ -108,6 +103,11 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 		return fmt.Errorf("configure WireGuard device %q: %w", n.link.Attrs().Name, err)
 	}
 	slog.Info("Configured WireGuard interface.", "name", n.link.Attrs().Name)
+
+	if err = n.updatePeersFromWireGuard(); err != nil {
+		return err
+	}
+	slog.Debug("Updated peers status from WireGuard interface.", "name", n.link.Attrs().Name)
 
 	machinePrefix := netip.PrefixFrom(MachineIP(config.Subnet), config.Subnet.Bits())
 	managementPrefix, err := addrToSingleIPPrefix(config.ManagementIP)
@@ -138,6 +138,31 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 		"name", n.link.Attrs().Name, "peers", len(n.peers),
 	)
 
+	return nil
+}
+
+// updatePeersFromWireGuard updates the peers status from the WireGuard device peers.
+// mu lock must be held before calling this method.
+func (n *WireGuardNetwork) updatePeersFromWireGuard() error {
+	wg, err := wgctrl.New()
+	if err != nil {
+		return fmt.Errorf("create WireGuard client: %w", err)
+	}
+	defer wg.Close()
+
+	dev, err := wg.Device(n.link.Attrs().Name)
+	if err != nil {
+		return fmt.Errorf("get WireGuard device %q: %w", n.link.Attrs().Name, err)
+	}
+
+	for _, wgPeer := range dev.Peers {
+		if p, ok := n.peers[secret.Secret(wgPeer.PublicKey[:]).String()]; ok {
+			p.updateFromWireGuard(wgPeer)
+		} else {
+			// Assume that WG peers are not updated out of band so they should always be in sync with the config.
+			slog.Warn("Found WireGuard peer that is not in the configuration.", "public_key", wgPeer.PublicKey)
+		}
+	}
 	return nil
 }
 
@@ -178,7 +203,7 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 	// Build a set of compacted IP ranges for all peers.
 	var ipsetBuilder netipx.IPSetBuilder
 	for _, p := range n.peers {
-		prefixes, err := p.prefixes()
+		prefixes, err := p.config.prefixes()
 		if err != nil {
 			return fmt.Errorf("get peer addresses: %w", err)
 		}
@@ -235,18 +260,8 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 }
 
 func (n *WireGuardNetwork) Run(ctx context.Context) error {
+	// TODO: check if the endpoint should be changed for any peers. If so, change it and notify the controller to
+	//  preserve the change in the machine state.
 	<-ctx.Done()
 	return nil
-}
-
-func (p peer) prefixes() ([]netip.Prefix, error) {
-	managePrefix, err := addrToSingleIPPrefix(p.config.ManagementIP)
-	if err != nil {
-		return nil, fmt.Errorf("parse management IP: %w", err)
-	}
-	prefixes := []netip.Prefix{managePrefix}
-	if p.config.Subnet != nil {
-		prefixes = append(prefixes, *p.config.Subnet)
-	}
-	return prefixes, nil
 }

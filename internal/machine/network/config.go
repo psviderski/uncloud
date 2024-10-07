@@ -84,3 +84,15 @@ func (c Config) toDeviceConfig() (wgtypes.Config, error) {
 		Peers:        wgPeerConfigs,
 	}, nil
 }
+
+func (p *PeerConfig) prefixes() ([]netip.Prefix, error) {
+	managePrefix, err := addrToSingleIPPrefix(p.ManagementIP)
+	if err != nil {
+		return nil, fmt.Errorf("parse management IP: %w", err)
+	}
+	prefixes := []netip.Prefix{managePrefix}
+	if p.Subnet != nil {
+		prefixes = append(prefixes, *p.Subnet)
+	}
+	return prefixes, nil
+}
