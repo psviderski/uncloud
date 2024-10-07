@@ -297,7 +297,6 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 			return nil
 		}
 	}
-
 }
 
 // changeWireGuardEndpoints rotates the endpoints of the WireGuard peers that need to be changed.
