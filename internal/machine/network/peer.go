@@ -2,6 +2,7 @@ package network
 
 import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"log/slog"
 	"time"
 )
 
@@ -20,8 +21,8 @@ type peer struct {
 	status                 string
 }
 
-func newPeer(config PeerConfig) peer {
-	p := peer{
+func newPeer(config PeerConfig) *peer {
+	p := &peer{
 		config: config,
 		status: PeerStatusUnknown,
 	}
@@ -83,6 +84,7 @@ const peerDownInterval = (180 + 5 + 90) * time.Second
 //   - if we're between (T0) and (T0+endpointConnectionTimeout), and there's no handshake since the endpoint change,
 //     consider the state to be unknown
 func (p *peer) calculateStatus() {
+	lastStatus := p.status
 	sinceLastHandshake := time.Since(p.lastHandshakeTime)
 	sinceEndpointChange := time.Since(p.lastEndpointChangeTime)
 
@@ -113,5 +115,8 @@ func (p *peer) calculateStatus() {
 	if p.status == PeerStatusDown && p.config.Endpoint == nil {
 		// No endpoint, so unknown.
 		p.status = PeerStatusUnknown
+	}
+	if p.status != lastStatus {
+		slog.Debug("Peer status changed.", "public_key", p.config.PublicKey, "status", p.status)
 	}
 }

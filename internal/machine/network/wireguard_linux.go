@@ -14,13 +14,14 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
+	"time"
 	"uncloud/internal/secret"
 )
 
 type WireGuardNetwork struct {
 	link netlink.Link
 	// peers is a map of peers indexed by their public key.
-	peers map[string]peer
+	peers map[string]*peer
 	// mu synchronises concurrent network configuration changes.
 	mu sync.Mutex
 }
@@ -32,7 +33,7 @@ func NewWireGuardNetwork() (*WireGuardNetwork, error) {
 	}
 	return &WireGuardNetwork{
 		link:  link,
-		peers: make(map[string]peer),
+		peers: make(map[string]*peer),
 	}, nil
 }
 
@@ -260,8 +261,22 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 }
 
 func (n *WireGuardNetwork) Run(ctx context.Context) error {
-	// TODO: check if the endpoint should be changed for any peers. If so, change it and notify the controller to
-	//  preserve the change in the machine state.
-	<-ctx.Done()
-	return nil
+	ticker := time.NewTicker(1 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			n.mu.Lock()
+			if err := n.updatePeersFromWireGuard(); err != nil {
+				slog.Error("Failed to update peers status from WireGuard interface.",
+					"name", n.link.Attrs().Name, "err", err)
+			}
+			n.mu.Unlock()
+
+			// TODO: check if the endpoint should be changed for any peers. If so, change it and notify the controller
+			//  to preserve the change in the machine state.
+		case <-ctx.Done():
+			return nil
+		}
+	}
+
 }
