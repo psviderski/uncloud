@@ -26,9 +26,12 @@ const (
 )
 
 type networkController struct {
-	state        *State
-	store        *store.Store
-	wgnet        *network.WireGuardNetwork
+	state *State
+	store *store.Store
+
+	wgnet           *network.WireGuardNetwork
+	endpointChanges <-chan network.EndpointChangeEvent
+
 	server       *grpc.Server
 	corroService corroservice.Service
 
@@ -46,13 +49,15 @@ func newNetworkController(
 	if err != nil {
 		return nil, fmt.Errorf("create WireGuard network: %w", err)
 	}
+	endpointChanges := wgnet.WatchEndpoints()
 
 	return &networkController{
-		state:        state,
-		store:        store,
-		wgnet:        wgnet,
-		server:       server,
-		corroService: corroService,
+		state:           state,
+		store:           store,
+		wgnet:           wgnet,
+		endpointChanges: endpointChanges,
+		server:          server,
+		corroService:    corroService,
 	}, nil
 }
 
@@ -115,8 +120,38 @@ func (nc *networkController) Run(ctx context.Context) error {
 		},
 	)
 
-	// TODO: run another goroutine to watch WG network endpoint changes and update the state accordingly.
-	//  Network updates in the state should not occur outside of this controller.
+	// Watch for endpoint changes and update the machine state accordingly.
+	errGroup.Go(
+		func() error {
+			for {
+				select {
+				case e, ok := <-nc.endpointChanges:
+					if !ok {
+						// The channel was closed, stop watching for changes.
+						nc.endpointChanges = nil
+						return nil
+					}
+
+					nc.state.mu.Lock()
+					for i := range nc.state.Network.Peers {
+						if nc.state.Network.Peers[i].PublicKey.Equal(e.PublicKey) {
+							nc.state.Network.Peers[i].Endpoint = &e.Endpoint
+							break
+						}
+					}
+					if err = nc.state.Save(); err != nil {
+						slog.Error("Failed to save machine state.", "err", err)
+					}
+					nc.state.mu.Unlock()
+
+					slog.Debug("Preserved endpoint change in the machine state.",
+						"public_key", e.PublicKey, "endpoint", e.Endpoint)
+				case <-ctx.Done():
+					return nil
+				}
+			}
+		},
+	)
 
 	errGroup.Go(
 		func() error {

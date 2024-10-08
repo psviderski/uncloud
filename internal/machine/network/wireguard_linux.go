@@ -24,6 +24,8 @@ type WireGuardNetwork struct {
 	link netlink.Link
 	// peers is a map of peers indexed by their public key.
 	peers map[string]*peer
+	// watchers is a list of channels that are notified when the endpoints of the peers change.
+	watchers []chan EndpointChangeEvent
 	// mu synchronises concurrent network configuration changes.
 	mu sync.Mutex
 }
@@ -282,7 +284,7 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 		select {
 		case <-ticker.C:
 			n.mu.Lock()
-			if err = n.changeWireGuardEndpoints(); err != nil {
+			if err = n.changeWireGuardEndpoints(ctx); err != nil {
 				slog.Error("Failed to update peer endpoints on WireGuard interface.",
 					"name", n.link.Attrs().Name, "err", err)
 			}
@@ -291,17 +293,27 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 					"name", n.link.Attrs().Name, "err", err)
 			}
 			n.mu.Unlock()
-
-			// TODO: notify the controller through a channel to preserve the change in the machine state.
 		case <-ctx.Done():
+			for _, ch := range n.watchers {
+				close(ch)
+			}
 			return nil
 		}
 	}
 }
 
-// changeWireGuardEndpoints rotates the endpoints of the WireGuard peers that need to be changed.
-func (n *WireGuardNetwork) changeWireGuardEndpoints() error {
+// WatchEndpoints returns a channel that receives endpoint change events for the WireGuard peers.
+func (n *WireGuardNetwork) WatchEndpoints() <-chan EndpointChangeEvent {
+	ch := make(chan EndpointChangeEvent)
+	n.watchers = append(n.watchers, ch)
+	return ch
+}
+
+// changeWireGuardEndpoints rotates the endpoints of the WireGuard peers with 'down' status
+// in an attempt to find a working one.
+func (n *WireGuardNetwork) changeWireGuardEndpoints(ctx context.Context) error {
 	var wgPeerConfigs []wgtypes.PeerConfig
+	var events []EndpointChangeEvent
 	for _, p := range n.peers {
 		newEndpoint, ok := p.shouldChangeEndpoint()
 		if !ok {
@@ -322,6 +334,11 @@ func (n *WireGuardNetwork) changeWireGuardEndpoints() error {
 				IP:   p.config.Endpoint.Addr().AsSlice(),
 				Port: int(p.config.Endpoint.Port()),
 			},
+		})
+
+		events = append(events, EndpointChangeEvent{
+			PublicKey: p.config.PublicKey,
+			Endpoint:  *p.config.Endpoint,
 		})
 	}
 	if len(wgPeerConfigs) == 0 {
@@ -346,6 +363,23 @@ func (n *WireGuardNetwork) changeWireGuardEndpoints() error {
 	for _, pc := range wgPeerConfigs {
 		slog.Info("Changed peer endpoint on WireGuard interface.",
 			"name", n.link.Attrs().Name, "public_key", secret.Secret(pc.PublicKey[:]), "endpoint", pc.Endpoint)
+	}
+
+	// Notify the watchers about the endpoint changes.
+	for _, ch := range n.watchers {
+		for _, e := range events {
+			select {
+			case ch <- e:
+			// Use a timeout to avoid blocking the network control loop.
+			case <-time.After(1 * time.Second):
+				slog.Error("Timeout notifying watchers about a peer endpoint change.")
+				// As of October 2024, the machine is the only watcher to persist changed endpoints in the machine
+				// state which can tolerate missed events. Therefore, we can ignore the error here.
+				return nil
+			case <-ctx.Done():
+				return nil
+			}
+		}
 	}
 	return nil
 }

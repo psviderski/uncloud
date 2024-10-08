@@ -20,3 +20,7 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 func (n *WireGuardNetwork) Run(ctx context.Context) error {
 	return errors.New("not implemented on darwin")
 }
+
+func (n *WireGuardNetwork) WatchEndpoints() <-chan EndpointChangeEvent {
+	return nil
+}
