@@ -23,13 +23,21 @@ type peer struct {
 	status                 string
 }
 
-func newPeer(config PeerConfig) *peer {
+func newPeer(config PeerConfig, wgPeer *wgtypes.Peer) *peer {
 	p := &peer{
 		config: config,
 		status: PeerStatusUnknown,
 	}
 	if p.config.Endpoint != nil {
 		p.lastEndpointChangeTime = time.Now()
+		// Reset the endpoint change time if the endpoint is the same as the one in the current WireGuard peer.
+		// This is to avoid unnecessary endpoint rotation for the already connected peer.
+		if wgPeer != nil && wgPeer.Endpoint != nil {
+			wgEndpoint := wgPeer.Endpoint.AddrPort()
+			if *p.config.Endpoint == wgEndpoint {
+				p.lastEndpointChangeTime = time.Time{}
+			}
+		}
 	}
 	return p
 }
@@ -42,11 +50,25 @@ func (p *peer) updateConfig(config PeerConfig) {
 	p.config = config
 }
 
-func (p *peer) updateFromWireGuard(wgPeer wgtypes.Peer) {
+func (p *peer) updateFromDevice(wgPeer wgtypes.Peer) (endpointChanged bool) {
+	if wgPeer.Endpoint != nil {
+		wgEndpoint := wgPeer.Endpoint.AddrPort()
+		if p.config.Endpoint == nil || *p.config.Endpoint != wgEndpoint {
+			// The peer endpoint has been automatically updated on the WireGuard device which normally happens
+			// when the peer establishes a reverse connection to this machine.
+			p.config.Endpoint = &wgEndpoint
+			// Reset the endpoint change time to not attempt to rotate the endpoint and correctly calculate the status.
+			p.lastEndpointChangeTime = time.Time{}
+			endpointChanged = true
+			slog.Info("Peer endpoint automatically updated on WireGuard interface by establishing a reverse "+
+				"connection to this machine.", "public_key", p.config.PublicKey, "endpoint", wgEndpoint)
+		}
+	}
 	p.lastHandshakeTime = wgPeer.LastHandshakeTime
 	p.receiveBytes = wgPeer.ReceiveBytes
 	p.transmitBytes = wgPeer.TransmitBytes
 	p.calculateStatus()
+	return
 }
 
 // Peer status calculation is based on Talos Kubespan implementation:
@@ -119,7 +141,8 @@ func (p *peer) calculateStatus() {
 		p.status = PeerStatusUnknown
 	}
 	if p.status != lastStatus {
-		slog.Info("Peer status changed.", "public_key", p.config.PublicKey, "status", p.status)
+		slog.Info("Peer status changed.", "public_key", p.config.PublicKey,
+			"status", p.status, "previous_status", lastStatus)
 	}
 }
 

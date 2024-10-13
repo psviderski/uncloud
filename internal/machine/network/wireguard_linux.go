@@ -35,10 +35,7 @@ func NewWireGuardNetwork() (*WireGuardNetwork, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create or get WireGuard link %q: %v", WireGuardInterfaceName, err)
 	}
-	return &WireGuardNetwork{
-		link:  link,
-		peers: make(map[string]*peer),
-	}, nil
+	return &WireGuardNetwork{link: link}, nil
 }
 
 // createOrGetLink creates a new WireGuard link with the given name if it doesn't already exist, otherwise it returns the existing link.
@@ -76,47 +73,10 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	// Create or update peer structs based on the config.
-	newPeersSet := make(map[string]struct{}, len(config.Peers))
-	for _, pc := range config.Peers {
-		if p, ok := n.peers[pc.PublicKey.String()]; ok {
-			p.updateConfig(pc)
-		} else {
-			n.peers[pc.PublicKey.String()] = newPeer(pc)
-		}
-		newPeersSet[pc.PublicKey.String()] = struct{}{}
-	}
-	// Delete peers that are no longer in the config.
-	for k := range n.peers {
-		if _, ok := newPeersSet[k]; !ok {
-			delete(n.peers, k)
-		}
-	}
-
-	wg, err := wgctrl.New()
-	if err != nil {
-		return fmt.Errorf("create WireGuard client: %w", err)
-	}
-	defer wg.Close()
-
-	dev, err := wg.Device(n.link.Attrs().Name)
-	if err != nil {
-		return fmt.Errorf("get WireGuard device %q: %w", n.link.Attrs().Name, err)
-	}
-	wgConfig, err := config.toDeviceConfig(dev.Peers)
-	if err != nil {
+	if err := n.configureDevice(config); err != nil {
 		return err
-	}
-	// Apply the new configuration to the WireGuard device.
-	if err = wg.ConfigureDevice(n.link.Attrs().Name, wgConfig); err != nil {
-		return fmt.Errorf("configure WireGuard device %q: %w", n.link.Attrs().Name, err)
 	}
 	slog.Info("Configured WireGuard interface.", "name", n.link.Attrs().Name)
-
-	if err = n.updatePeersFromWireGuard(); err != nil {
-		return err
-	}
-	slog.Debug("Updated peers status from WireGuard interface.", "name", n.link.Attrs().Name)
 
 	machinePrefix := netip.PrefixFrom(MachineIP(config.Subnet), config.Subnet.Bits())
 	managementPrefix, err := addrToSingleIPPrefix(config.ManagementIP)
@@ -150,29 +110,62 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	return nil
 }
 
-// updatePeersFromWireGuard updates the peers status from the WireGuard device peers.
-// mu lock must be held before calling this method.
-func (n *WireGuardNetwork) updatePeersFromWireGuard() error {
+func (n *WireGuardNetwork) configureDevice(config Config) error {
 	wg, err := wgctrl.New()
 	if err != nil {
 		return fmt.Errorf("create WireGuard client: %w", err)
 	}
 	defer wg.Close()
 
+	// Get the current WireGuard peers from the device which are required to reconstruct the local peers structs
+	// and build a new config for the device.
 	dev, err := wg.Device(n.link.Attrs().Name)
 	if err != nil {
 		return fmt.Errorf("get WireGuard device %q: %w", n.link.Attrs().Name, err)
 	}
-
-	for _, wgPeer := range dev.Peers {
-		publicKey := secret.Secret(wgPeer.PublicKey[:])
-		if p, ok := n.peers[publicKey.String()]; ok {
-			p.updateFromWireGuard(wgPeer)
-		} else {
-			// Assume that WG peers are not updated out of band so they should always be in sync with the config.
-			slog.Warn("Found WireGuard peer that is not in the configuration.", "public_key", publicKey)
+	if n.peers == nil {
+		// This is the first time we configure this instance of the network. If the device has been configured earlier
+		// and the daemon restarted, attempt to reconstruct the peers from the device to avoid unnecessary endpoint
+		// rotations and connection disruptions.
+		n.peers = make(map[string]*peer, len(config.Peers))
+		wgPeers := make(map[string]*wgtypes.Peer, len(dev.Peers))
+		for i, _ := range dev.Peers {
+			wgPeers[secret.Secret(dev.Peers[i].PublicKey[:]).String()] = &dev.Peers[i]
+		}
+		for _, pc := range config.Peers {
+			wgPeer := wgPeers[pc.PublicKey.String()]
+			n.peers[pc.PublicKey.String()] = newPeer(pc, wgPeer)
 		}
 	}
+
+	// Create or update peer structs based on the config.
+	newPeersSet := make(map[string]struct{}, len(config.Peers))
+	for _, pc := range config.Peers {
+		if p, ok := n.peers[pc.PublicKey.String()]; ok {
+			p.updateConfig(pc)
+		} else {
+			// WireGuard peers should not be configured out of band so the current WG peer is provided only
+			// for the first time configuration above.
+			n.peers[pc.PublicKey.String()] = newPeer(pc, nil)
+		}
+		newPeersSet[pc.PublicKey.String()] = struct{}{}
+	}
+	// Delete peers that are no longer in the config.
+	for k := range n.peers {
+		if _, ok := newPeersSet[k]; !ok {
+			delete(n.peers, k)
+		}
+	}
+
+	wgConfig, err := config.toDeviceConfig(dev.Peers)
+	if err != nil {
+		return err
+	}
+	// Apply the new configuration to the WireGuard device.
+	if err = wg.ConfigureDevice(n.link.Attrs().Name, wgConfig); err != nil {
+		return fmt.Errorf("configure WireGuard device %q: %w", n.link.Attrs().Name, err)
+	}
+
 	return nil
 }
 
@@ -284,12 +277,12 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 		select {
 		case <-ticker.C:
 			n.mu.Lock()
-			if err = n.changeWireGuardEndpoints(ctx); err != nil {
-				slog.Error("Failed to update peer endpoints on WireGuard interface.",
+			if err = n.updatePeersFromDevice(ctx); err != nil {
+				slog.Error("Failed to update peers status from WireGuard interface.",
 					"name", n.link.Attrs().Name, "err", err)
 			}
-			if err = n.updatePeersFromWireGuard(); err != nil {
-				slog.Error("Failed to update peers status from WireGuard interface.",
+			if err = n.changeWireGuardEndpoints(ctx); err != nil {
+				slog.Error("Failed to update peer endpoints on WireGuard interface.",
 					"name", n.link.Attrs().Name, "err", err)
 			}
 			n.mu.Unlock()
@@ -309,8 +302,50 @@ func (n *WireGuardNetwork) WatchEndpoints() <-chan EndpointChangeEvent {
 	return ch
 }
 
+// updatePeersFromDevice updates the peers status from the WireGuard device peers.
+// mu lock must be held before calling this method.
+func (n *WireGuardNetwork) updatePeersFromDevice(ctx context.Context) error {
+	wg, err := wgctrl.New()
+	if err != nil {
+		return fmt.Errorf("create WireGuard client: %w", err)
+	}
+	defer wg.Close()
+
+	dev, err := wg.Device(n.link.Attrs().Name)
+	if err != nil {
+		return fmt.Errorf("get WireGuard device %q: %w", n.link.Attrs().Name, err)
+	}
+
+	var events []EndpointChangeEvent
+	for _, wgPeer := range dev.Peers {
+		publicKey := secret.Secret(wgPeer.PublicKey[:])
+		if p, ok := n.peers[publicKey.String()]; ok {
+			endpointChanged := p.updateFromDevice(wgPeer)
+			if endpointChanged {
+				events = append(events, EndpointChangeEvent{
+					PublicKey: publicKey,
+					Endpoint:  *p.config.Endpoint,
+				})
+			}
+		} else {
+			// Assume that WG peers are not updated out of band so they should always be in sync with the config.
+			slog.Warn("Found WireGuard peer that is not in the configuration.", "public_key", publicKey)
+		}
+	}
+
+	if len(events) > 0 {
+		if err = n.notifyWatchers(ctx, events); err != nil {
+			// As of October 2024, the machine is the only watcher to persist changed endpoints in the machine
+			// state which can tolerate missed events. Therefore, we can ignore the error here.
+			slog.Error("Failed to notify watchers about a peer endpoint change.", "err", err)
+		}
+	}
+	return nil
+}
+
 // changeWireGuardEndpoints rotates the endpoints of the WireGuard peers with 'down' status
 // in an attempt to find a working one.
+// mu lock must be held before calling this method.
 func (n *WireGuardNetwork) changeWireGuardEndpoints(ctx context.Context) error {
 	var wgPeerConfigs []wgtypes.PeerConfig
 	var events []EndpointChangeEvent
@@ -361,21 +396,30 @@ func (n *WireGuardNetwork) changeWireGuardEndpoints(ctx context.Context) error {
 		return fmt.Errorf("configure WireGuard device %q with endpoint changes: %w", n.link.Attrs().Name, err)
 	}
 	for _, pc := range wgPeerConfigs {
+		publicKey := secret.Secret(pc.PublicKey[:])
 		slog.Info("Changed peer endpoint on WireGuard interface.",
-			"name", n.link.Attrs().Name, "public_key", secret.Secret(pc.PublicKey[:]), "endpoint", pc.Endpoint)
+			"name", n.link.Attrs().Name, "public_key", publicKey, "endpoint", pc.Endpoint,
+			"status", n.peers[publicKey.String()].status)
 	}
 
-	// Notify the watchers about the endpoint changes.
+	if err = n.notifyWatchers(ctx, events); err != nil {
+		// As of October 2024, the machine is the only watcher to persist changed endpoints in the machine
+		// state which can tolerate missed events. Therefore, we can ignore the error here.
+		slog.Error("Failed to notify watchers about a peer endpoint change.", "err", err)
+	}
+
+	return nil
+}
+
+// notifyWatchers notifies the watchers about peer endpoint changes.
+func (n *WireGuardNetwork) notifyWatchers(ctx context.Context, events []EndpointChangeEvent) error {
 	for _, ch := range n.watchers {
 		for _, e := range events {
 			select {
 			case ch <- e:
 			// Use a timeout to avoid blocking the network control loop.
 			case <-time.After(1 * time.Second):
-				slog.Error("Timeout notifying watchers about a peer endpoint change.")
-				// As of October 2024, the machine is the only watcher to persist changed endpoints in the machine
-				// state which can tolerate missed events. Therefore, we can ignore the error here.
-				return nil
+				return errors.New("timeout 1 second")
 			case <-ctx.Done():
 				return nil
 			}
