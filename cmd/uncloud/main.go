@@ -36,11 +36,12 @@ func main() {
 	}
 	// TODO: allow to override using UNCLOUD_CONFIG env var.
 	cmd.PersistentFlags().StringVar(&configPath, "uncloud-config", "~/.config/uncloud/config.toml",
-		"path to the Uncloud configuration file")
+		"path to the Uncloud configuration file.")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "toml")
 
 	cmd.AddCommand(
 		machine.NewRootCommand(),
+		NewRunCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())
 }
