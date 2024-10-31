@@ -8,8 +8,8 @@ import (
 func NewListCommand() *cobra.Command {
 	var cluster string
 	cmd := &cobra.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
+		Use:     "ls",
+		Aliases: []string{"list"},
 		Short:   "List machines in a cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
