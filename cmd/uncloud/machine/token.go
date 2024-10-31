@@ -31,7 +31,7 @@ func NewTokenCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&opts.dataDir, "data-dir", "d", machine.DefaultDataDir,
-		"Directory for storing persistent machine state")
+		"Directory for storing persistent machine state.")
 	_ = cmd.MarkFlagDirname("data-dir")
 
 	return cmd

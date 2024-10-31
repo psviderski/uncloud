@@ -10,7 +10,7 @@ func NewListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
-		Short:   "List machines in a cluster",
+		Short:   "List machines in a cluster.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return uncli.ListMachines(cmd.Context(), cluster)
@@ -18,7 +18,7 @@ func NewListCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(
 		&cluster, "cluster", "c", "",
-		"Name of the cluster (default is the current cluster)",
+		"Name of the cluster. (default is the current cluster)",
 	)
 	return cmd
 }

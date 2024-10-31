@@ -36,14 +36,14 @@ func NewAddCommand() *cobra.Command {
 			return uncli.AddMachine(cmd.Context(), remoteMachine, opts.cluster, opts.name)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Assign a name to the machine")
+	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Assign a name to the machine.")
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "",
-		"path to SSH private key for SSH remote login (default ~/.ssh/id_*)",
+		"path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
 	)
 	cmd.Flags().StringVarP(
 		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster to add the machine to (default is the current cluster)",
+		"Name of the cluster to add the machine to. (default is the current cluster)",
 	)
 	return cmd
 }
