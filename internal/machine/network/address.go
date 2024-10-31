@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -24,6 +25,13 @@ func ListRoutableIPs() ([]netip.Addr, error) {
 			// Skip the Uncloud WireGuard and Docker interfaces.
 			continue
 		}
+		// Docker bridge name doesn't seem to be documented but this is the source code where it is generated:
+		// https://github.com/moby/moby/blob/v27.2.1/libnetwork/drivers/bridge/bridge_linux.go#L664
+		if match, _ := regexp.MatchString(`br-[0-9a-f]{12}`, iface.Name); match {
+			// Skip Docker bridge interfaces.
+			continue
+		}
+
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagRunning == 0 || iface.Flags&net.FlagLoopback != 0 {
 			// Skip interfaces:
 			//  * Not administratively UP.
