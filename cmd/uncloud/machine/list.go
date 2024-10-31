@@ -6,18 +6,18 @@ import (
 )
 
 func NewListCommand() *cobra.Command {
-	opts := addOptions{}
+	var cluster string
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List machines in a cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return uncli.ListMachines(cmd.Context(), opts.cluster)
+			return uncli.ListMachines(cmd.Context(), cluster)
 		},
 	}
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
+		&cluster, "cluster", "c", "",
 		"Name of the cluster (default is the current cluster)",
 	)
 	return cmd
