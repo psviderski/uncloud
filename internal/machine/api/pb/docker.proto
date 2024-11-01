@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
+
+import "google/protobuf/empty.proto";
+
+service Docker {
+  rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
+  rpc StartContainer(StartContainerRequest) returns (google.protobuf.Empty);
+}
+
+message CreateContainerRequest {
+  // JSON serialized container.Config.
+  bytes config = 1;
+  // JSON serialized container.HostConfig.
+  bytes host_config = 2;
+  // JSON serialized network.NetworkingConfig.
+  bytes network_config = 3;
+  // JSON serialized ocispec.Platform.
+  bytes platform = 4;
+  string name = 5;
+}
+
+message CreateContainerResponse {
+  // JSON serialized container.CreateResponse.
+  bytes response = 1;
+}
+
+message StartContainerRequest {
+  string id = 1;
+  // JSON serialized container.StartOptions.
+  bytes options = 2;
+}
