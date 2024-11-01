@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/machine/docker"
 )
 
 // Client is a client for the machine API.
@@ -15,7 +16,11 @@ type Client struct {
 
 	pb.MachineClient
 	pb.ClusterClient
+	*DockerClient
 }
+
+// DockerClient is a type alias for the Docker client to embed it in Client with a more specific name.
+type DockerClient = docker.Client
 
 // Connector is an interface for establishing a connection to the machine API.
 type Connector interface {
@@ -37,10 +42,10 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 
 	c.MachineClient = pb.NewMachineClient(c.conn)
 	c.ClusterClient = pb.NewClusterClient(c.conn)
+	c.DockerClient = docker.NewClient(c.conn)
 	return c, nil
 }
 
 func (c *Client) Close() error {
-	err := c.conn.Close()
-	return errors.Join(err, c.connector.Close())
+	return errors.Join(c.conn.Close(), c.connector.Close())
 }

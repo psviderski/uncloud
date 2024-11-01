@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -21,6 +22,7 @@ import (
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/corroservice"
+	"uncloud/internal/machine/docker"
 	"uncloud/internal/machine/network"
 	"uncloud/internal/machine/store"
 )
@@ -82,6 +84,7 @@ type Machine struct {
 	// store is the cluster store backed by a distributed Corrosion database.
 	store       *store.Store
 	cluster     *cluster.Cluster
+	docker      *docker.Server
 	localServer *grpc.Server
 }
 
@@ -122,6 +125,13 @@ func NewMachine(config *Config) (*Machine, error) {
 	corroStore := store.New(corro)
 	c := cluster.NewCluster(corroStore)
 
+	// Init a gRPC Docker server that proxies requests to the local Docker daemon.
+	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil, fmt.Errorf("create Docker client: %w", err)
+	}
+	dockerServer := docker.NewServer(dockerCli)
+
 	m := &Machine{
 		config:      *config,
 		state:       state,
@@ -129,8 +139,9 @@ func NewMachine(config *Config) (*Machine, error) {
 		initialised: make(chan struct{}, 1),
 		store:       corroStore,
 		cluster:     c,
+		docker:      dockerServer,
 	}
-	m.localServer = newGRPCServer(m, c)
+	m.localServer = newGRPCServer(m, c, dockerServer)
 
 	if m.Initialised() {
 		m.initialised <- struct{}{}
@@ -139,10 +150,11 @@ func NewMachine(config *Config) (*Machine, error) {
 	return m, nil
 }
 
-func newGRPCServer(m pb.MachineServer, c pb.ClusterServer) *grpc.Server {
+func newGRPCServer(m pb.MachineServer, c pb.ClusterServer, d pb.DockerServer) *grpc.Server {
 	s := grpc.NewServer()
 	pb.RegisterMachineServer(s, m)
 	pb.RegisterClusterServer(s, c)
+	pb.RegisterDockerServer(s, d)
 	return s
 }
 
@@ -223,7 +235,7 @@ func (m *Machine) Run(ctx context.Context) error {
 					slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
 
 					slog.Info("Starting network controller.")
-					networkServer := newGRPCServer(m, m.cluster)
+					networkServer := newGRPCServer(m, m.cluster, m.docker)
 					ctrl, err = newNetworkController(m.state, m.store, networkServer, m.config.CorrosionService)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
