@@ -28,14 +28,16 @@ import (
 )
 
 const (
-	DefaultAPISockPath  = "/run/uncloud.sock"
-	DefaultAPISockGroup = "uncloud"
+	DefaultMachineSockPath  = "/run/uncloud/machine.sock"
+	DefaultUncloudSockPath  = "/run/uncloud/uncloud.sock"
+	DefaultUncloudSockGroup = "uncloud"
 )
 
 type Config struct {
 	// DataDir is the directory where the machine stores its persistent state.
-	DataDir     string
-	APISockPath string
+	DataDir         string
+	MachineSockPath string
+	UncloudSockPath string
 
 	CorrosionDir           string
 	CorrosionAPIListenAddr netip.AddrPort
@@ -51,8 +53,11 @@ func (c *Config) SetDefaults() *Config {
 	if cfg.DataDir == "" {
 		cfg.DataDir = "/var/lib/uncloud"
 	}
-	if cfg.APISockPath == "" {
-		cfg.APISockPath = DefaultAPISockPath
+	if cfg.MachineSockPath == "" {
+		cfg.MachineSockPath = DefaultMachineSockPath
+	}
+	if cfg.UncloudSockPath == "" {
+		cfg.UncloudSockPath = DefaultUncloudSockPath
 	}
 	if cfg.CorrosionDir == "" {
 		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
@@ -191,13 +196,14 @@ func (m *Machine) Run(ctx context.Context) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Start the machine local API server.
-	localListener, err := listenUnixSocket(m.config.APISockPath)
+	// TODO: start this on machine.sock and start grpc-proxy on uncloud.sock. Use 700 mode for machine.sock.
+	localListener, err := listenUnixSocket(m.config.UncloudSockPath)
 	if err != nil {
-		return fmt.Errorf("listen API unix socket %q: %w", m.config.APISockPath, err)
+		return fmt.Errorf("listen API unix socket %q: %w", m.config.UncloudSockPath, err)
 	}
 	errGroup.Go(
 		func() error {
-			slog.Info("Starting local API server.", "path", m.config.APISockPath)
+			slog.Info("Starting local API server.", "path", m.config.UncloudSockPath)
 			if err := m.localServer.Serve(localListener); err != nil {
 				return fmt.Errorf("local API server failed: %w", err)
 			}
@@ -286,22 +292,31 @@ func (m *Machine) Run(ctx context.Context) error {
 // access mode and uncloud group if the group is found, otherwise it falls back to the root group.
 func listenUnixSocket(path string) (net.Listener, error) {
 	gid := 0 // Fall back to the root group if the uncloud group is not found.
-	group, err := user.LookupGroup(DefaultAPISockGroup)
+	group, err := user.LookupGroup(DefaultUncloudSockGroup)
 	if err != nil {
 		//goland:noinspection GoTypeAssertionOnErrors
 		if _, ok := err.(user.UnknownGroupError); ok {
 			slog.Info(
 				"Specified group not found, using root group for the API socket.",
-				"group", DefaultAPISockGroup, "path", path,
+				"group", DefaultUncloudSockGroup, "path", path,
 			)
 		} else {
-			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultAPISockGroup, err)
+			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultUncloudSockGroup, err)
 		}
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
-			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultAPISockGroup, group.Gid, err)
+			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultUncloudSockGroup, group.Gid, err)
 		}
+	}
+
+	// Ensure the parent directory exists and has the correct group permissions.
+	parent, _ := filepath.Split(path)
+	if err = os.MkdirAll(parent, 0750); err != nil {
+		return nil, fmt.Errorf("create directory %q: %w", parent, err)
+	}
+	if err = os.Chown(parent, -1, gid); err != nil {
+		return nil, fmt.Errorf("chown directory %q: %w", parent, err)
 	}
 
 	return sockets.NewUnixSocket(path, gid)

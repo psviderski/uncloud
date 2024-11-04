@@ -18,7 +18,7 @@ type SSHConnectorConfig struct {
 	Port    int
 	KeyPath string
 
-	APISockPath string
+	SockPath string
 }
 
 // SSHConnector establishes a connection to the machine API through an SSH tunnel to the machine.
@@ -49,12 +49,12 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 		}
 	}
 
-	apiSockPath := c.config.APISockPath
-	if apiSockPath == "" {
-		apiSockPath = machine.DefaultAPISockPath
+	sockPath := c.config.SockPath
+	if sockPath == "" {
+		sockPath = machine.DefaultUncloudSockPath
 	}
 	conn, err := grpc.NewClient(
-		"unix://"+apiSockPath,
+		"unix://"+sockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(
 			func(ctx context.Context, addr string) (net.Conn, error) {
