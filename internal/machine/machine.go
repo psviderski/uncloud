@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
+	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -20,6 +21,7 @@ import (
 	"strconv"
 	"uncloud/internal/corrosion"
 	"uncloud/internal/machine/api/pb"
+	apiproxy "uncloud/internal/machine/api/proxy"
 	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/corroservice"
 	"uncloud/internal/machine/docker"
@@ -87,10 +89,18 @@ type Machine struct {
 	initialised chan struct{}
 
 	// store is the cluster store backed by a distributed Corrosion database.
-	store       *store.Store
-	cluster     *cluster.Cluster
-	docker      *docker.Server
-	localServer *grpc.Server
+	store   *store.Store
+	cluster *cluster.Cluster
+	docker  *docker.Server
+	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
+	localMachineServer *grpc.Server
+
+	// proxyDirector manages routing of gRPC requests between local and remote machine API servers.
+	proxyDirector *apiproxy.Director
+	// localProxyServer is the gRPC proxy server for the machine API listening on the local Unix socket.
+	// It proxies requests to the local or remote machine API servers depending on the request targets
+	// and aggregates responses.
+	localProxyServer *grpc.Server
 }
 
 func NewMachine(config *Config) (*Machine, error) {
@@ -137,16 +147,27 @@ func NewMachine(config *Config) (*Machine, error) {
 	}
 	dockerServer := docker.NewServer(dockerCli)
 
+	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
+	proxyDirector := apiproxy.NewDirector(config.MachineSockPath)
+	localProxyServer := grpc.NewServer(
+		grpc.ForceServerCodecV2(proxy.Codec()),
+		grpc.UnknownServiceHandler(
+			proxy.TransparentHandler(proxyDirector.Director),
+		),
+	)
+
 	m := &Machine{
-		config:      *config,
-		state:       state,
-		started:     make(chan struct{}),
-		initialised: make(chan struct{}, 1),
-		store:       corroStore,
-		cluster:     c,
-		docker:      dockerServer,
+		config:           *config,
+		state:            state,
+		started:          make(chan struct{}),
+		initialised:      make(chan struct{}, 1),
+		store:            corroStore,
+		cluster:          c,
+		docker:           dockerServer,
+		localProxyServer: localProxyServer,
+		proxyDirector:    proxyDirector,
 	}
-	m.localServer = newGRPCServer(m, c, dockerServer)
+	m.localMachineServer = newGRPCServer(m, c, dockerServer)
 
 	if m.Initialised() {
 		m.initialised <- struct{}{}
@@ -195,17 +216,31 @@ func (m *Machine) Run(ctx context.Context) error {
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple machine components.
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	// Start the machine local API server.
-	// TODO: start this on machine.sock and start grpc-proxy on uncloud.sock. Use 700 mode for machine.sock.
-	localListener, err := listenUnixSocket(m.config.UncloudSockPath)
+	// Start the local machine API server.
+	machineListener, err := listenUnixSocket(m.config.MachineSockPath)
 	if err != nil {
-		return fmt.Errorf("listen API unix socket %q: %w", m.config.UncloudSockPath, err)
+		return fmt.Errorf("listen machine API unix socket %q: %w", m.config.MachineSockPath, err)
 	}
 	errGroup.Go(
 		func() error {
-			slog.Info("Starting local API server.", "path", m.config.UncloudSockPath)
-			if err := m.localServer.Serve(localListener); err != nil {
-				return fmt.Errorf("local API server failed: %w", err)
+			slog.Info("Starting local machine API server.", "path", m.config.MachineSockPath)
+			if err := m.localMachineServer.Serve(machineListener); err != nil {
+				return fmt.Errorf("local machine API server failed: %w", err)
+			}
+			return nil
+		},
+	)
+
+	// Start the local API proxy server.
+	proxyListener, err := listenUnixSocket(m.config.UncloudSockPath)
+	if err != nil {
+		return fmt.Errorf("listen API proxy unix socket %q: %w", m.config.UncloudSockPath, err)
+	}
+	errGroup.Go(
+		func() error {
+			slog.Info("Starting local API proxy server.", "path", m.config.UncloudSockPath)
+			if err := m.localProxyServer.Serve(proxyListener); err != nil {
+				return fmt.Errorf("local API proxy server failed: %w", err)
 			}
 			return nil
 		},
@@ -241,8 +276,17 @@ func (m *Machine) Run(ctx context.Context) error {
 					slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
 
 					slog.Info("Starting network controller.")
-					networkServer := newGRPCServer(m, m.cluster, m.docker)
-					ctrl, err = newNetworkController(m.state, m.store, networkServer, m.config.CorrosionService)
+					// Update the proxy director's local address to the machine's management IP address, allowing
+					// the proxy to identify which requests should be proxied to the local machine API server.
+					m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
+					proxyServer := grpc.NewServer(
+						grpc.ForceServerCodecV2(proxy.Codec()),
+						grpc.UnknownServiceHandler(
+							proxy.TransparentHandler(m.proxyDirector.Director),
+						),
+					)
+
+					ctrl, err = newNetworkController(m.state, m.store, proxyServer, m.config.CorrosionService)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
 					}
@@ -277,10 +321,15 @@ func (m *Machine) Run(ctx context.Context) error {
 	errGroup.Go(
 		func() error {
 			<-ctx.Done()
-			slog.Info("Stopping local API server.")
+			slog.Info("Stopping local machine API server.")
 			// TODO: implement timeout for graceful shutdown.
-			m.localServer.GracefulStop()
-			slog.Info("Local API server stopped.")
+			m.localMachineServer.GracefulStop()
+			slog.Info("Local machine API server stopped.")
+
+			slog.Info("Stopping local API proxy server.")
+			// TODO: implement timeout for graceful shutdown.
+			m.localProxyServer.GracefulStop()
+			slog.Info("Local API proxy server stopped.")
 			return nil
 		},
 	)
