@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -26,43 +27,56 @@ func NewLocalBackend(sockPath string) *LocalBackend {
 	}
 }
 
-func (l *LocalBackend) String() string {
+func (b *LocalBackend) String() string {
 	return "local"
 }
 
 // GetConnection returns a gRPC connection to the local server listening on the Unix socket.
-func (l *LocalBackend) GetConnection(ctx context.Context, _ string) (context.Context, *grpc.ClientConn, error) {
+func (b *LocalBackend) GetConnection(ctx context.Context, _ string) (context.Context, *grpc.ClientConn, error) {
 	md, _ := metadata.FromIncomingContext(ctx)
+	// TODO: delete
+	fmt.Printf("### local backend metadata: %+v\n", md)
 	outCtx := metadata.NewOutgoingContext(ctx, md)
 
-	l.mu.RLock()
-	if l.conn != nil {
-		l.mu.RUnlock()
-		return outCtx, l.conn, nil
+	b.mu.RLock()
+	if b.conn != nil {
+		defer b.mu.RUnlock()
+		return outCtx, b.conn, nil
 	}
-	l.mu.RUnlock()
+	b.mu.RUnlock()
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	var err error
-	l.conn, err = grpc.NewClient(
-		"unix://"+l.sockPath,
+	b.conn, err = grpc.NewClient(
+		"unix://"+b.sockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(
 			grpc.ForceCodecV2(proxy.Codec()),
 		),
 	)
 
-	return outCtx, l.conn, err
+	return outCtx, b.conn, err
 }
 
 // AppendInfo is called to enhance response from the backend with additional data.
-func (l *LocalBackend) AppendInfo(_ bool, resp []byte) ([]byte, error) {
+func (b *LocalBackend) AppendInfo(_ bool, resp []byte) ([]byte, error) {
 	return resp, nil
 }
 
 // BuildError is called to convert error from upstream into response field.
-func (l *LocalBackend) BuildError(bool, error) ([]byte, error) {
+func (b *LocalBackend) BuildError(bool, error) ([]byte, error) {
 	return nil, nil
+}
+
+// Close closes the upstream gRPC connection.
+func (b *LocalBackend) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.conn != nil {
+		b.conn.Close()
+		b.conn = nil
+	}
 }
