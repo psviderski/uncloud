@@ -148,7 +148,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	dockerServer := docker.NewServer(dockerCli)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
-	proxyDirector := apiproxy.NewDirector(config.MachineSockPath)
+	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, APIPort)
 	localProxyServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.UnknownServiceHandler(
@@ -329,6 +329,8 @@ func (m *Machine) Run(ctx context.Context) error {
 			slog.Info("Stopping local API proxy server.")
 			// TODO: implement timeout for graceful shutdown.
 			m.localProxyServer.GracefulStop()
+			// Close the proxy director to close all backend connections.
+			m.proxyDirector.Close()
 			slog.Info("Local API proxy server stopped.")
 			return nil
 		},
