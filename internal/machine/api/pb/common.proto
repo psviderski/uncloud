@@ -23,6 +23,11 @@ message Empty {
   Metadata metadata = 1;
 }
 
+// EmptyResponse is a response message to be returned by the gRPC proxy when a request to the upstream failed.
+// The nested Empty.Metadata message should contain an error.
+message EmptyResponse {
+  repeated Empty messages = 1;
+}
 
 message IP {
   bytes ip = 1;
