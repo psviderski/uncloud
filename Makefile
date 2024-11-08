@@ -13,4 +13,5 @@ reset-dev:
 
 .PHONY: proto
 proto:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/machine/api/pb/*.proto
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		--proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto

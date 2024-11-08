@@ -4,6 +4,20 @@ package api;
 
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
+// Vendored at internal/machine/api/vendor/google/rpc/status.proto.
+import "google/rpc/status.proto";
+
+// Common metadata message nested in all reply message types, injected by the gRPC proxy to provide information
+// about the machine that responded to the request.
+message Metadata {
+  // Address of the machine the response came from.
+  string machine = 1;
+  // error is set if the request to upstream failed. The rest of the response is undefined.
+  string error = 2;
+  // error as a gRPC Status message.
+  google.rpc.Status status = 3;
+}
+
 message IP {
   bytes ip = 1;
 }
