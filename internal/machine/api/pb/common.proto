@@ -18,6 +18,12 @@ message Metadata {
   google.rpc.Status status = 3;
 }
 
+// A helper message for marshalling the metadata field and injecting it into the response by the gRPC proxy.
+message Empty {
+  Metadata metadata = 1;
+}
+
+
 message IP {
   bytes ip = 1;
 }
