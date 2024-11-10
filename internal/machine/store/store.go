@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/encoding/protojson"
+	"log/slog"
 	"uncloud/internal/corrosion"
 	"uncloud/internal/machine/api/pb"
 )
@@ -76,6 +77,10 @@ func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
 		var m pb.MachineInfo
 		if err = protojson.Unmarshal([]byte(mJSON), &m); err != nil {
 			return nil, fmt.Errorf("unmarshal machine info: %w", err)
+		}
+		if err = m.Network.Validate(); err != nil {
+			slog.Error("Invalid network configuration for machine in store", "id", m.Id, "error", err)
+			continue
 		}
 		machines = append(machines, &m)
 	}
