@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types/container"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // ServiceOptions contains all the options for creating a service.
 type ServiceOptions struct {
 	Image   string
 	Name    string
+	Machine string
 	Publish []string
 }
 
@@ -21,6 +24,25 @@ func (cli *CLI) RunService(ctx context.Context, clusterName string, opts *Servic
 	defer func() {
 		_ = c.Close()
 	}()
+
+	machResp, err := c.ListMachines(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("list machines: %w", err)
+	}
+	// TODO: update ListMachine endpoint to return machine status based on the Corrosion member list.
+
+	machineIP, _ := machResp.Machines[0].Network.ManagementIp.ToAddr()
+	if opts.Machine != "" {
+		for _, m := range machResp.Machines {
+			if m.Name == opts.Machine || m.Id == opts.Machine {
+				machineIP, _ = m.Network.ManagementIp.ToAddr()
+				break
+			}
+		}
+	}
+
+	md := metadata.Pairs("machines", machineIP.String())
+	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	config := &container.Config{
 		Image: opts.Image,

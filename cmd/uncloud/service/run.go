@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"github.com/spf13/cobra"
@@ -13,7 +13,7 @@ func NewRunCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "run IMAGE",
-		Short: "Run a service in a cluster.",
+		Short: "Run a service.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
@@ -25,6 +25,10 @@ func NewRunCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&opts.Name, "name", "n", "",
 		"Assign a name to the service. A random name is generated if not specified.")
+	cmd.Flags().StringVarP(
+		&opts.Machine, "machine", "m", "",
+		"Name or ID of the machine to run the service on. (default is first available)",
+	)
 	cmd.Flags().StringSliceVarP(&opts.Publish, "publish", "p", nil,
 		"Publish a service port to make it accessible outside the cluster. Can be specified multiple times. "+
 			"Format: [load_balancer_port:]container_port[/protocol]")

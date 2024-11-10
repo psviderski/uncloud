@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"uncloud/cmd/uncloud/machine"
+	"uncloud/cmd/uncloud/service"
 	"uncloud/internal/cli"
 )
 
@@ -41,7 +42,8 @@ func main() {
 
 	cmd.AddCommand(
 		machine.NewRootCommand(),
-		NewRunCommand(),
+		service.NewRootCommand(),
+		service.NewRunCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())
 }
