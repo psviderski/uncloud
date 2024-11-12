@@ -44,6 +44,7 @@ type Config struct {
 	CorrosionDir           string
 	CorrosionAPIListenAddr netip.AddrPort
 	CorrosionAPIAddr       netip.AddrPort
+	CorrosionAdminSockPath string
 	CorrosionService       corroservice.Service
 }
 
@@ -71,6 +72,9 @@ func (c *Config) SetDefaults() *Config {
 	if !cfg.CorrosionAPIAddr.IsValid() {
 		cfg.CorrosionAPIAddr = netip.AddrPortFrom(
 			netip.AddrFrom4([4]byte{127, 0, 0, 1}), corroservice.DefaultAPIPort)
+	}
+	if cfg.CorrosionAdminSockPath == "" {
+		cfg.CorrosionAdminSockPath = filepath.Join(cfg.CorrosionDir, "admin.sock")
 	}
 	if cfg.CorrosionService == nil {
 		cfg.CorrosionService = corroservice.DefaultSystemdService(cfg.CorrosionDir)
@@ -138,7 +142,11 @@ func NewMachine(config *Config) (*Machine, error) {
 		return nil, fmt.Errorf("create corrosion API client: %w", err)
 	}
 	corroStore := store.New(corro)
-	c := cluster.NewCluster(corroStore)
+	corroAdmin, err := corrosion.NewAdminClient(config.CorrosionAdminSockPath)
+	if err != nil {
+		return nil, fmt.Errorf("create corrosion admin client: %w", err)
+	}
+	c := cluster.NewCluster(corroStore, corroAdmin)
 
 	// Init a gRPC Docker server that proxies requests to the local Docker daemon.
 	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
