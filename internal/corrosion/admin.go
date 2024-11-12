@@ -13,19 +13,11 @@ import (
 
 // AdminClient is a client for the Corrosion admin API.
 type AdminClient struct {
-	conn net.Conn
+	sockPath string
 }
 
 func NewAdminClient(sockPath string) (*AdminClient, error) {
-	conn, err := net.Dial("unix", sockPath)
-	if err != nil {
-		return nil, fmt.Errorf("connect to admin socket: %w", err)
-	}
-	return &AdminClient{conn: conn}, nil
-}
-
-func (c *AdminClient) Close() error {
-	return c.conn.Close()
+	return &AdminClient{sockPath: sockPath}, nil
 }
 
 type Response struct {
@@ -38,18 +30,25 @@ type Response struct {
 // The channel will be closed after sending the last or error response. The caller must read from the channel until
 // it is closed.
 func (c *AdminClient) SendCommand(cmd []byte) (<-chan Response, error) {
-	if _, err := c.conn.Write(encodeFrame(cmd)); err != nil {
+	conn, err := net.Dial("unix", c.sockPath)
+	if err != nil {
+		return nil, fmt.Errorf("connect to admin socket: %w", err)
+	}
+
+	if _, err = conn.Write(encodeFrame(cmd)); err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("send command: %w", err)
 	}
 
 	ch := make(chan Response)
 	go func() {
 		defer close(ch)
+		defer conn.Close()
 
 		for {
 			r := Response{}
 
-			data, err := c.readFrame()
+			data, err := readFrame(conn)
 			if err != nil {
 				r.Err = err
 				ch <- r
@@ -60,7 +59,6 @@ func (c *AdminClient) SendCommand(cmd []byte) (<-chan Response, error) {
 			if err = json.Unmarshal(data, &decoded); err != nil {
 				r.Err = fmt.Errorf("unmarshal response: %w", err)
 				ch <- r
-				// TODO: should we drain the connection here?
 				return
 			}
 
@@ -102,17 +100,18 @@ func encodeFrame(data []byte) []byte {
 	return encoded
 }
 
-// readFrame reads a length_delimited Tokio frame by extracting the frame data that follows the frame head.
-func (c *AdminClient) readFrame() ([]byte, error) {
+// readFrame reads a length_delimited Tokio frame from the connection by extracting the frame data that follows
+// the frame head.
+func readFrame(conn net.Conn) ([]byte, error) {
 	// Read the frame head (4 bytes).
 	head := make([]byte, 4)
-	if _, err := io.ReadFull(c.conn, head); err != nil {
+	if _, err := io.ReadFull(conn, head); err != nil {
 		return nil, fmt.Errorf("read frame head: %w", err)
 	}
 	// Read the frame data (length specified in the frame head).
 	length := binary.BigEndian.Uint32(head)
 	data := make([]byte, length)
-	if _, err := io.ReadFull(c.conn, data); err != nil {
+	if _, err := io.ReadFull(conn, data); err != nil {
 		return nil, fmt.Errorf("read frame data: %w", err)
 	}
 
