@@ -25,17 +25,17 @@ func (cli *CLI) RunService(ctx context.Context, clusterName string, opts *Servic
 		_ = c.Close()
 	}()
 
-	machResp, err := c.ListMachines(ctx, &emptypb.Empty{})
+	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
 	// TODO: update ListMachine endpoint to return machine status based on the Corrosion member list.
 
-	machineIP, _ := machResp.Machines[0].Network.ManagementIp.ToAddr()
+	machineIP, _ := listResp.Machines[0].Machine.Network.ManagementIp.ToAddr()
 	if opts.Machine != "" {
-		for _, m := range machResp.Machines {
-			if m.Name == opts.Machine || m.Id == opts.Machine {
-				machineIP, _ = m.Network.ManagementIp.ToAddr()
+		for _, m := range listResp.Machines {
+			if m.Machine.Name == opts.Machine || m.Machine.Id == opts.Machine {
+				machineIP, _ = m.Machine.Network.ManagementIp.ToAddr()
 				break
 			}
 		}

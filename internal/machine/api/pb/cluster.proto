@@ -21,6 +21,23 @@ message AddMachineResponse {
   MachineInfo machine = 1;
 }
 
+message MachineMember {
+  MachineInfo machine = 1;
+
+  enum MembershipState {
+    UNKNOWN = 0;
+    // The member is active.
+    UP = 1;
+    // The member is active, but at least one cluster member suspects its down. For all purposes,
+    // a SUSPECT member is treated as if it were UP until either it refutes the suspicion (becoming UP)
+    // or fails to do so (being declared DOWN).
+    SUSPECT = 2;
+    // The member is confirmed DOWN.
+    DOWN = 3;
+  }
+  MembershipState state = 2;
+}
+
 message ListMachinesResponse {
-  repeated MachineInfo machines = 1;
+  repeated MachineMember machines = 1;
 }

@@ -256,7 +256,7 @@ func (m *Machine) Run(ctx context.Context) error {
 	// Signal that the machine is ready.
 	close(m.started)
 
-	// Control loop for managing the network controller.
+	// Control loop for managing components that depend on the machine being initialised as a cluster member.
 	errGroup.Go(
 		func() error {
 			if !m.Initialised() {
@@ -276,6 +276,9 @@ func (m *Machine) Run(ctx context.Context) error {
 				// It can be reset when leaving the cluster and then re-initialised again with a new configuration.
 				case <-m.initialised:
 					var err error
+
+					m.cluster.UpdateMachineID(m.state.ID)
+
 					// Ensure the corrosion config is up to date, including a new gossip address if the machine
 					// has just joined a cluster.
 					if err = m.configureCorrosion(); err != nil {

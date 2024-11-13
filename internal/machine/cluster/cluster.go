@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"time"
+	"uncloud/internal/corrosion"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/network"
 	"uncloud/internal/machine/store"
@@ -20,11 +21,22 @@ import (
 type Cluster struct {
 	pb.UnimplementedClusterServer
 
-	store *store.Store
+	store      *store.Store
+	corroAdmin *corrosion.AdminClient
+	// machineID is the ID of the current machine that is running the cluster service.
+	machineID string
 }
 
-func NewCluster(store *store.Store) *Cluster {
-	return &Cluster{store: store}
+func NewCluster(store *store.Store, corroAdmin *corrosion.AdminClient) *Cluster {
+	return &Cluster{
+		store:      store,
+		corroAdmin: corroAdmin,
+	}
+}
+
+// UpdateMachineID updates the current machine ID that is running the cluster service.
+func (c *Cluster) UpdateMachineID(mid string) {
+	c.machineID = mid
 }
 
 func (c *Cluster) Init(ctx context.Context, network netip.Prefix) error {
@@ -175,6 +187,7 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	return resp, nil
 }
 
+// ListMachines lists all machines in the cluster including their membership states.
 func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListMachinesResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
 		return nil, err
@@ -184,5 +197,55 @@ func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListM
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return &pb.ListMachinesResponse{Machines: machines}, nil
+
+	states, err := c.corroAdmin.ClusterMembershipStates(true)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get cluster membership states: %v", err)
+	}
+
+	members := make([]*pb.MachineMember, len(machines))
+	for i, m := range machines {
+		// If the machine is not in the cluster membership states or its state is not ALIVE or SUSPECT, it is DOWN.
+		// The exception is the current machine which is always UP as it is serving this request.
+		state := pb.MachineMember_DOWN
+		addr, _ := m.Network.ManagementIp.ToAddr()
+		for _, s := range states {
+			if s.Addr.Addr().Compare(addr) == 0 &&
+				(s.State == corrosion.MembershipStateAlive || s.State == corrosion.MembershipStateSuspect) {
+				state = pb.MachineMember_UP
+				break
+			}
+		}
+		// If the machine is the current machine, it is UP.
+		if m.Id == c.machineID {
+			state = pb.MachineMember_UP
+		}
+		members[i] = &pb.MachineMember{
+			Machine: m,
+			State:   state,
+		}
+	}
+
+	return &pb.ListMachinesResponse{Machines: members}, nil
 }
+
+//func (c *Cluster) ListServices(ctx context.Context, _ *emptypb.Empty) (*pb.ListServicesResponse, error) {
+//	if err := c.checkInitialised(ctx); err != nil {
+//		return nil, err
+//	}
+//
+//	return &pb.ListServicesResponse{
+//		Messages: []*pb.Services{
+//			{
+//				Services: []*pb.Service{
+//					{
+//						Name: "service1",
+//					},
+//					{
+//						Name: "service2",
+//					},
+//				},
+//			},
+//		},
+//	}, nil
+//}

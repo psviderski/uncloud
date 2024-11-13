@@ -231,8 +231,8 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	}
 	otherMachines := make([]*pb.MachineInfo, 0, len(listResp.Machines)-1)
 	for _, m := range listResp.Machines {
-		if m.Id != addResp.Machine.Id {
-			otherMachines = append(otherMachines, m)
+		if m.Machine.Id != addResp.Machine.Id {
+			otherMachines = append(otherMachines, m.Machine)
 		}
 	}
 
@@ -341,11 +341,12 @@ func (cli *CLI) ListMachines(ctx context.Context, clusterName string) error {
 	// Print the list of machines in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	// Print header.
-	if _, err = fmt.Fprintln(tw, "NAME\tADDRESS\tPUBLIC KEY\tENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tSTATE\tADDRESS\tPUBLIC KEY\tENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	// Print rows.
-	for _, m := range listResp.Machines {
+	for _, member := range listResp.Machines {
+		m := member.Machine
 		subnet, _ := m.Network.Subnet.ToPrefix()
 		subnet = netip.PrefixFrom(network.MachineIP(subnet), subnet.Bits())
 		endpoints := make([]string, len(m.Network.Endpoints))
@@ -355,10 +356,18 @@ func (cli *CLI) ListMachines(ctx context.Context, clusterName string) error {
 		}
 		publicKey := secret.Secret(m.Network.PublicKey)
 		if _, err = fmt.Fprintf(
-			tw, "%s\t%s\t%s\t%s\n", m.Name, subnet, publicKey, strings.Join(endpoints, ", "),
+			tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicKey, strings.Join(endpoints, ", "),
 		); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}
 	return tw.Flush()
+}
+
+// capitalise returns a string where the first character is upper case, and the rest is lower case.
+func capitalise(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
 }
