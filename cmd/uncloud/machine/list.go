@@ -37,9 +37,7 @@ func runList(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer func() {
-		_ = c.Close()
-	}()
+	defer c.Close()
 
 	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
 	if err != nil {

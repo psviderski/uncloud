@@ -1,14 +1,17 @@
 package service
 
 import (
+	"context"
+	"fmt"
 	"github.com/spf13/cobra"
 	"uncloud/internal/cli"
+	"uncloud/internal/cli/client"
 )
 
 func NewRunCommand() *cobra.Command {
 	var (
 		cluster string
-		opts    cli.ServiceOptions
+		opts    client.ServiceOptions
 	)
 
 	cmd := &cobra.Command{
@@ -17,9 +20,8 @@ func NewRunCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-
 			opts.Image = args[0]
-			return uncli.RunService(cmd.Context(), cluster, &opts)
+			return runRun(cmd.Context(), uncli, cluster, &opts)
 		},
 	}
 
@@ -38,4 +40,20 @@ func NewRunCommand() *cobra.Command {
 	)
 
 	return cmd
+}
+
+func runRun(ctx context.Context, uncli *cli.CLI, clusterName string, opts *client.ServiceOptions) error {
+	c, err := uncli.ConnectCluster(ctx, clusterName)
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
+	}
+	defer c.Close()
+
+	resp, err := c.RunService(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("run service: %w", err)
+	}
+
+	fmt.Printf("Service %q started on machine %q.\n", resp.Name, resp.MachineName)
+	return nil
 }
