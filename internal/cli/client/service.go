@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/network"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"slices"
 	"strings"
+	machinecore "uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/secret"
 )
@@ -102,7 +104,12 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 			"uncloud.service.name": serviceName,
 		},
 	}
-	createResp, err := c.CreateContainer(ctx, config, nil, nil, nil, containerName)
+	netConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			machinecore.DockerNetworkName: {},
+		},
+	}
+	createResp, err := c.CreateContainer(ctx, config, nil, netConfig, nil, containerName)
 	if err != nil {
 		return resp, fmt.Errorf("create container: %w", err)
 	}
