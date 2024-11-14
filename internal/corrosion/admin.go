@@ -1,10 +1,10 @@
 package corrosion
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gvisor.dev/gvisor/pkg/binary"
 	"io"
 	"net"
 	"net/netip"

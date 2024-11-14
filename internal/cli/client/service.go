@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"slices"
+	"strings"
 	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/secret"
 )
 
 // ServiceOptions contains all the options for creating a service.
@@ -28,6 +31,12 @@ type RunServiceResponse struct {
 func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServiceResponse, error) {
 	var resp RunServiceResponse
 
+	image, err := reference.ParseDockerRef(opts.Image)
+	if err != nil {
+		return resp, fmt.Errorf("invalid image: %w", err)
+	}
+
+	// Find a machine to run the service on.
 	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
 	if err != nil {
 		return resp, fmt.Errorf("list machines: %w", err)
@@ -53,16 +62,33 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 		return resp, errors.New("no available machine to run the service")
 	}
 
+	// Proxy Docker gRPC requests to the selected machine.
 	machineIP, _ := machine.Machine.Network.ManagementIp.ToAddr()
-	resp.MachineName = machine.Machine.Name
-
 	md := metadata.Pairs("machines", machineIP.String())
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	// TODO: generate a random service ID.
-	resp.ID = "todo-service-id"
-	// TODO: generate a random service name if not specified.
-	resp.Name = opts.Name
+	serviceID, err := secret.NewID()
+	if err != nil {
+		return resp, fmt.Errorf("generate service ID: %w", err)
+	}
+
+	serviceName := opts.Name
+	// Generate a random service name if not specified.
+	if serviceName == "" {
+		// Get the image name without the repository and tag/digest parts.
+		imageName := reference.FamiliarName(image)
+		// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
+		if i := strings.LastIndex(imageName, "/"); i != -1 {
+			imageName = imageName[i+1:]
+		}
+		// Append a random suffix to the image name to generate an optimistically unique service name.
+		suffix, err := secret.RandomAlphaNumeric(4)
+		if err != nil {
+			return resp, fmt.Errorf("generate random suffix: %w", err)
+		}
+		serviceName = fmt.Sprintf("%s-%s", imageName, suffix)
+	}
+
 	// TODO: generate a container name from the service name.
 	// TODO: set service labels on the container.
 
@@ -77,6 +103,9 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 		return resp, fmt.Errorf("start container: %w", err)
 	}
 
+	resp.ID = serviceID
+	resp.Name = serviceName
+	resp.MachineName = machine.Machine.Name
 	return resp, nil
 }
 
