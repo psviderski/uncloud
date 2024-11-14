@@ -89,13 +89,20 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 		serviceName = fmt.Sprintf("%s-%s", imageName, suffix)
 	}
 
-	// TODO: generate a container name from the service name.
-	// TODO: set service labels on the container.
+	suffix, err := secret.RandomAlphaNumeric(4)
+	if err != nil {
+		return resp, fmt.Errorf("generate random suffix: %w", err)
+	}
+	containerName := fmt.Sprintf("%s-%s", serviceName, suffix)
 
 	config := &container.Config{
 		Image: opts.Image,
+		Labels: map[string]string{
+			"uncloud.service.id":   serviceID,
+			"uncloud.service.name": serviceName,
+		},
 	}
-	createResp, err := c.CreateContainer(ctx, config, nil, nil, nil, opts.Name)
+	createResp, err := c.CreateContainer(ctx, config, nil, nil, nil, containerName)
 	if err != nil {
 		return resp, fmt.Errorf("create container: %w", err)
 	}
