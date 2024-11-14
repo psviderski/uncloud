@@ -54,11 +54,3 @@ func New(len int) (Secret, error) {
 	}
 	return s, nil
 }
-
-func NewID() (string, error) {
-	if s, err := New(16); err != nil {
-		return "", err
-	} else {
-		return s.String(), nil
-	}
-}
