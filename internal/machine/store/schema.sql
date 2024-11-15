@@ -26,5 +26,7 @@ CREATE TABLE containers
 );
 
 CREATE INDEX idx_machines_name ON machines (name);
+
+CREATE INDEX idx_containers_machine_id ON containers (machine_id);
 CREATE INDEX idx_containers_service_id ON containers (service_id);
 CREATE INDEX idx_containers_service_name ON containers (service_name);

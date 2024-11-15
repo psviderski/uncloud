@@ -16,6 +16,11 @@ import (
 	"uncloud/internal/secret"
 )
 
+const (
+	LabelServiceID   = "uncloud.service.id"
+	LabelServiceName = "uncloud.service.name"
+)
+
 // ServiceOptions contains all the options for creating a service.
 type ServiceOptions struct {
 	Image   string
@@ -100,8 +105,8 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	config := &container.Config{
 		Image: opts.Image,
 		Labels: map[string]string{
-			"uncloud.service.id":   serviceID,
-			"uncloud.service.name": serviceName,
+			LabelServiceID:   serviceID,
+			LabelServiceName: serviceName,
 		},
 	}
 	netConfig := &network.NetworkingConfig{
