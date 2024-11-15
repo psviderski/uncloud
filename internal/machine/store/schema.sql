@@ -5,16 +5,20 @@ CREATE TABLE cluster
     value ANY
 );
 
+-- machines table stores the basic information of the machines in the cluster.
 CREATE TABLE machines
 (
     id   TEXT NOT NULL PRIMARY KEY,
     name TEXT AS (json_extract(info, '$.name')),
+    -- info is a JSON-serialized MachineInfo protobuf message.
     info TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(info))
 );
 
+-- containers table stores the Uncloud-managed Docker containers created in the cluster.
 CREATE TABLE containers
 (
     id           TEXT NOT NULL PRIMARY KEY,
+    -- container is a JSON-serialized Docker container.Summary struct.
     container    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(container)),
     machine_id   TEXT NOT NULL DEFAULT '',
     service_id   TEXT AS (json_extract(container, '$.Labels."uncloud.service.id"')),
