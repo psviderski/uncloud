@@ -22,7 +22,9 @@ CREATE TABLE containers
     container    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(container)),
     machine_id   TEXT NOT NULL DEFAULT '',
     service_id   TEXT AS (json_extract(container, '$.Labels."uncloud.service.id"')),
-    service_name TEXT AS (json_extract(container, '$.Labels."uncloud.service.name"'))
+    service_name TEXT AS (json_extract(container, '$.Labels."uncloud.service.name"')),
+    -- updated_at is the last time the record was updated.
+    updated_at   TIMESTAMP NOT NULL DEFAULT '1970-01-01 00:00:00'
 );
 
 CREATE INDEX idx_machines_name ON machines (name);

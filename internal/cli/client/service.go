@@ -114,6 +114,7 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 			machinecore.DockerNetworkName: {},
 		},
 	}
+	// TODO: pull image if it doesn't exist on the machine.
 	createResp, err := c.CreateContainer(ctx, config, nil, netConfig, nil, containerName)
 	if err != nil {
 		return resp, fmt.Errorf("create container: %w", err)
