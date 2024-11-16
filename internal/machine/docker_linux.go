@@ -1,5 +1,3 @@
-//go:build linux
-
 package machine
 
 import (
@@ -9,58 +7,29 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/libnetwork/iptables"
 	"log/slog"
-	"time"
+	"net/netip"
 	"uncloud/internal/machine/network"
 )
 
-// setupDockerNetwork creates the Docker bridge network DockerNetworkName with the machine subnet and configures
-// iptables to allow WireGuard network to access containers.
-func (nc *networkController) setupDockerNetwork(ctx context.Context) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return fmt.Errorf("init Docker client: %w", err)
-	}
-	defer cli.Close()
-
-	// Wait for the Docker daemon to start and be ready by sending a ping request in a loop.
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	ready, waitingLogged := false, false
-	for !ready {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			_, err = cli.Ping(ctx)
-			if err == nil {
-				ready = true
-				break
-			}
-			if !client.IsErrConnectionFailed(err) {
-				return fmt.Errorf("connect to Docker daemon: %w", err)
-			}
-			if !waitingLogged {
-				slog.Info("Waiting for Docker daemon to start and be ready to setup Docker network.")
-				waitingLogged = true
-			}
-		}
-	}
-
+// EnsureUncloudNetwork creates the Docker bridge network DockerNetworkName with the provided machine subnet
+// if it doesn't exist. If the network exists but has a different subnet, it removes and recreates the network.
+// It also configures iptables to allow container access from the WireGuard network.
+func (d *DockerManager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix) error {
 	// Ensure the Docker network 'uncloud' is created with the correct subnet.
 	needsCreation := false
-	nw, err := cli.NetworkInspect(ctx, DockerNetworkName, dnetwork.InspectOptions{})
+	nw, err := d.client.NetworkInspect(ctx, DockerNetworkName, dnetwork.InspectOptions{})
 	if err != nil {
 		if !client.IsErrNotFound(err) {
 			return fmt.Errorf("inspect Docker network %q: %w", DockerNetworkName, err)
 		}
 		needsCreation = true
-	} else if nw.IPAM.Config[0].Subnet != nc.state.Network.Subnet.String() {
+	} else if nw.IPAM.Config[0].Subnet != subnet.String() {
 		// Remove the Docker network if the subnet is different.
 		// It could be a leftover from a previous incomplete cleanup.
 		slog.Info(
 			"Removing Docker network with old subnet.", "name", DockerNetworkName, "subnet", nw.IPAM.Config[0].Subnet,
 		)
-		if err = cli.NetworkRemove(ctx, DockerNetworkName); err != nil {
+		if err = d.client.NetworkRemove(ctx, DockerNetworkName); err != nil {
 			// It can still fail if the network is in use by a container. Leave it to the user to resolve the issue.
 			return fmt.Errorf("remove Docker network %q: %w", DockerNetworkName, err)
 		}
@@ -68,14 +37,14 @@ func (nc *networkController) setupDockerNetwork(ctx context.Context) error {
 	}
 
 	if needsCreation {
-		if _, err = cli.NetworkCreate(
+		if _, err = d.client.NetworkCreate(
 			ctx, DockerNetworkName, dnetwork.CreateOptions{
 				Driver: "bridge",
 				Scope:  "local",
 				IPAM: &dnetwork.IPAM{
 					Config: []dnetwork.IPAMConfig{
 						{
-							Subnet: nc.state.Network.Subnet.String(),
+							Subnet: subnet.String(),
 						},
 					},
 				},
@@ -83,9 +52,9 @@ func (nc *networkController) setupDockerNetwork(ctx context.Context) error {
 		); err != nil {
 			return fmt.Errorf("create Docker network %q: %w", DockerNetworkName, err)
 		}
-		slog.Info("Docker network created.", "name", DockerNetworkName, "subnet", nc.state.Network.Subnet.String())
+		slog.Info("Docker network created.", "name", DockerNetworkName, "subnet", subnet.String())
 
-		if nw, err = cli.NetworkInspect(ctx, DockerNetworkName, dnetwork.InspectOptions{}); err != nil {
+		if nw, err = d.client.NetworkInspect(ctx, DockerNetworkName, dnetwork.InspectOptions{}); err != nil {
 			return fmt.Errorf("inspect Docker network %q: %w", DockerNetworkName, err)
 		}
 	}

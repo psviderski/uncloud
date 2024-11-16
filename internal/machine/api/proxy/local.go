@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -34,8 +33,6 @@ func (b *LocalBackend) String() string {
 // GetConnection returns a gRPC connection to the local server listening on the Unix socket.
 func (b *LocalBackend) GetConnection(ctx context.Context, _ string) (context.Context, *grpc.ClientConn, error) {
 	md, _ := metadata.FromIncomingContext(ctx)
-	// TODO: delete
-	fmt.Printf("### local backend metadata: %+v\n", md)
 	outCtx := metadata.NewOutgoingContext(ctx, md)
 
 	b.mu.RLock()

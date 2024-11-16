@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/docker/docker/client"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"log/slog"
@@ -20,9 +21,7 @@ import (
 )
 
 const (
-	APIPort           = 51000
-	DockerNetworkName = "uncloud"
-	DockerUserChain   = "DOCKER-USER"
+	APIPort = 51000
 )
 
 type networkController struct {
@@ -78,7 +77,7 @@ func (nc *networkController) Run(ctx context.Context) error {
 		}
 	}
 	// TODO: Figure out if we need to manually stop the corrosion service when the context is done or just
-	//  rely on systemd to handle service dependencies on its own .
+	//  rely on systemd to handle service dependencies on its own.
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
@@ -101,10 +100,25 @@ func (nc *networkController) Run(ctx context.Context) error {
 	// Setup Docker network and iptables rules in a goroutine because it may block until the Docker daemon is ready.
 	errGroup.Go(
 		func() error {
-			if err := nc.setupDockerNetwork(ctx); err != nil {
-				return fmt.Errorf("setup Docker network: %w", err)
+			cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+			if err != nil {
+				return fmt.Errorf("init Docker client: %w", err)
+			}
+			defer cli.Close()
+
+			d := NewDockerManager(cli, nc.store)
+			if err := d.WaitDaemonReady(ctx); err != nil {
+				return fmt.Errorf("wait for Docker daemon: %w", err)
+			}
+
+			if err := d.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
+				return err
 			}
 			slog.Info("Docker network configured.")
+
+			//if err := d.WatchAndSyncContainers(ctx); err != nil {
+			//	return fmt.Errorf("watch and sync containers to store: %w", err)
+			//}
 			return nil
 		},
 	)
