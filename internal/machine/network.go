@@ -106,12 +106,12 @@ func (nc *networkController) Run(ctx context.Context) error {
 			}
 			defer cli.Close()
 
-			d := NewDockerManager(cli, nc.store)
-			if err := d.WaitDaemonReady(ctx); err != nil {
+			docker := NewDockerManager(cli, nc.store)
+			if err := docker.WaitDaemonReady(ctx); err != nil {
 				return fmt.Errorf("wait for Docker daemon: %w", err)
 			}
 
-			if err := d.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
+			if err := docker.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
 				return err
 			}
 			slog.Info("Docker network configured.")
