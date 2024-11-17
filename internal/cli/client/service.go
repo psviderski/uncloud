@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"slices"
 	"strings"
-	machinecore "uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/machine/docker"
 	"uncloud/internal/secret"
 )
 
@@ -111,7 +111,7 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	}
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
-			machinecore.DockerNetworkName: {},
+			docker.NetworkName: {},
 		},
 	}
 	// TODO: pull image if it doesn't exist on the machine.

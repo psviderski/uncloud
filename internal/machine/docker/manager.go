@@ -1,4 +1,4 @@
-package machine
+package docker
 
 import (
 	"context"
@@ -10,24 +10,24 @@ import (
 )
 
 const (
-	DockerNetworkName = "uncloud"
-	DockerUserChain   = "DOCKER-USER"
+	NetworkName = "uncloud"
+	UserChain   = "DOCKER-USER"
 )
 
-type DockerManager struct {
+type Manager struct {
 	client *client.Client
 	store  *store.Store
 }
 
-func NewDockerManager(client *client.Client, store *store.Store) *DockerManager {
-	return &DockerManager{
+func NewManager(client *client.Client, store *store.Store) *Manager {
+	return &Manager{
 		client: client,
 		store:  store,
 	}
 }
 
 // WaitDaemonReady waits for the Docker daemon to start and be ready to serve requests.
-func (d *DockerManager) WaitDaemonReady(ctx context.Context) error {
+func (d *Manager) WaitDaemonReady(ctx context.Context) error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 

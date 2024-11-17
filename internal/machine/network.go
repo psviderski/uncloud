@@ -16,6 +16,7 @@ import (
 	"time"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/corroservice"
+	"uncloud/internal/machine/docker"
 	"uncloud/internal/machine/network"
 	"uncloud/internal/machine/store"
 )
@@ -106,12 +107,12 @@ func (nc *networkController) Run(ctx context.Context) error {
 			}
 			defer cli.Close()
 
-			docker := NewDockerManager(cli, nc.store)
-			if err := docker.WaitDaemonReady(ctx); err != nil {
+			manager := docker.NewManager(cli, nc.store)
+			if err := manager.WaitDaemonReady(ctx); err != nil {
 				return fmt.Errorf("wait for Docker daemon: %w", err)
 			}
 
-			if err := docker.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
+			if err := manager.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
 				return err
 			}
 			slog.Info("Docker network configured.")
