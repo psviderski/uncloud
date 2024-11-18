@@ -98,29 +98,10 @@ func (nc *networkController) Run(ctx context.Context) error {
 		},
 	)
 
-	// Setup Docker network and iptables rules in a goroutine because it may block until the Docker daemon is ready.
+	// Setup Docker network and synchronise containers to the cluster store.
 	errGroup.Go(
 		func() error {
-			cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-			if err != nil {
-				return fmt.Errorf("init Docker client: %w", err)
-			}
-			defer cli.Close()
-
-			manager := docker.NewManager(cli, nc.store)
-			if err := manager.WaitDaemonReady(ctx); err != nil {
-				return fmt.Errorf("wait for Docker daemon: %w", err)
-			}
-
-			if err := manager.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
-				return err
-			}
-			slog.Info("Docker network configured.")
-
-			//if err := d.WatchAndSyncContainers(ctx); err != nil {
-			//	return fmt.Errorf("watch and sync containers to store: %w", err)
-			//}
-			return nil
+			return nc.prepareAndWatchDocker(ctx)
 		},
 	)
 
@@ -192,11 +173,55 @@ func (nc *networkController) Run(ctx context.Context) error {
 	return errGroup.Wait()
 }
 
+// prepareAndWatchDocker configures the Docker network and watches local Docker containers to sync them
+// to the cluster store.
+func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("init Docker client: %w", err)
+	}
+	defer cli.Close()
+
+	manager := docker.NewManager(cli)
+	if err = manager.WaitDaemonReady(ctx); err != nil {
+		return fmt.Errorf("wait for Docker daemon: %w", err)
+	}
+
+	if err = manager.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
+		return err
+	}
+	slog.Info("Docker network configured.")
+
+	slog.Info("Watching Docker containers and syncing them to the cluster store.")
+	// Retry to watch and sync containers until the context is done.
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(5*time.Second),
+		// Retry indefinitely.
+		backoff.WithMaxElapsedTime(0),
+	), ctx)
+	watchAndSync := func() error {
+		if wErr := manager.WatchAndSyncContainers(ctx, nc.store); wErr != nil {
+			slog.Error("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
+			return wErr
+		}
+		return nil
+	}
+	if err = backoff.Retry(watchAndSync, boff); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+		return fmt.Errorf("watch and sync containers to cluster store: %w", err)
+	}
+
+	return nil
+}
+
 // handleMachineChanges subscribes to machine changes in the cluster and reconfigures the network peers accordingly.
 func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 	for {
 		// Retry to subscribe to machine changes indefinitely until the context is done.
-		b := backoff.WithContext(backoff.NewExponentialBackOff(
+		boff := backoff.WithContext(backoff.NewExponentialBackOff(
 			backoff.WithInitialInterval(1*time.Second),
 			backoff.WithMaxInterval(60*time.Second),
 			backoff.WithMaxElapsedTime(0),
@@ -213,7 +238,7 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 			}
 			return err
 		}
-		if err = backoff.Retry(subscribe, b); err != nil {
+		if err = backoff.Retry(subscribe, boff); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
@@ -229,6 +254,9 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 		// For simplicity, reconfigure all peers on any change.
 		for {
 			select {
+			// TODO: test when Corrosion fails and the subscription fails to resubscribe (after 1 minute). It seems
+			//  the changes channel will be closed and this will become a busy loop. Perhaps, the outer for loop should
+			//  be reworked as well.
 			case <-changes:
 				slog.Info("Cluster machines changed, reconfiguring network peers.")
 				if machines, err = nc.store.ListMachines(ctx); err != nil {

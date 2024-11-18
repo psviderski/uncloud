@@ -2,7 +2,10 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"log/slog"
 	"time"
@@ -12,18 +15,19 @@ import (
 const (
 	NetworkName = "uncloud"
 	UserChain   = "DOCKER-USER"
+	// EventsDebounceInterval defines how long to wait before processing the next Docker event. Multiple events
+	// occurring within this window will be processed together as a single event to prevent system overload.
+	EventsDebounceInterval = 100 * time.Millisecond
+	// SyncInterval defines a regular interval to sync containers to the cluster store.
+	SyncInterval = 30 * time.Second
 )
 
 type Manager struct {
 	client *client.Client
-	store  *store.Store
 }
 
-func NewManager(client *client.Client, store *store.Store) *Manager {
-	return &Manager{
-		client: client,
-		store:  store,
-	}
+func NewManager(client *client.Client) *Manager {
+	return &Manager{client: client}
 }
 
 // WaitDaemonReady waits for the Docker daemon to start and be ready to serve requests.
@@ -51,5 +55,84 @@ func (d *Manager) WaitDaemonReady(ctx context.Context) error {
 			}
 		}
 	}
+	return nil
+}
+
+func (d *Manager) WatchAndSyncContainers(ctx context.Context, store *store.Store) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// Filter only local container events.
+	opts := events.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("scope", "local"),
+			filters.Arg("type", string(events.ContainerEventType)),
+		),
+	}
+
+	// Subscribe to Docker events before running the initial sync to avoid missing any events.
+	eventCh, errCh := d.client.Events(ctx, opts)
+	slog.Debug("Syncing containers to cluster store before processing Docker events.")
+	if err := d.syncContainersToStore(ctx, store); err != nil {
+		// The deferred cancel will stop the event subscription.
+		return fmt.Errorf("sync containers to cluster store: %w", err)
+	}
+
+	var (
+		// debouncer is used to debounce multiple Docker events into a single event sent to the debouncerCh
+		// to prevent system overload.
+		debouncer   *time.Timer
+		debouncerCh = make(chan events.Message)
+		// ticker is used to trigger a regular sync of containers to the cluster store as a fallback.
+		ticker = time.NewTicker(SyncInterval)
+	)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case e := <-eventCh:
+			switch e.Action {
+			case events.ActionStart,
+				events.ActionStop,
+				events.ActionPause,
+				events.ActionUnPause,
+				events.ActionKill,
+				events.ActionDie,
+				events.ActionOOM,
+				events.ActionHealthStatusHealthy,
+				events.ActionHealthStatusUnhealthy:
+
+				if debouncer == nil {
+					debouncer = time.AfterFunc(EventsDebounceInterval, func() {
+						debouncerCh <- e
+					})
+				}
+			}
+		case e := <-debouncerCh:
+			debouncer = nil
+			slog.Debug("Syncing containers to cluster store triggered by a Docker container event.",
+				"container_id", e.Actor.ID,
+				"container_name", e.Actor.Attributes["name"],
+				"action", e.Action)
+
+			if err := d.syncContainersToStore(ctx, store); err != nil {
+				return fmt.Errorf("sync containers to cluster store: %w", err)
+			}
+		case <-ticker.C:
+			slog.Debug("Syncing containers to cluster store triggered by a regular interval.",
+				"interval", SyncInterval)
+			if err := d.syncContainersToStore(ctx, store); err != nil {
+				return fmt.Errorf("sync containers to cluster store: %w", err)
+			}
+		case err := <-errCh:
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return fmt.Errorf("receive Docker event: %w", err)
+		}
+	}
+}
+
+func (d *Manager) syncContainersToStore(ctx context.Context, store *store.Store) error {
+	// TODO: implement
 	return nil
 }
