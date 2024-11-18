@@ -23,6 +23,8 @@ CREATE TABLE containers
     machine_id   TEXT NOT NULL DEFAULT '',
     service_id   TEXT AS (json_extract(container, '$.Labels."uncloud.service.id"')),
     service_name TEXT AS (json_extract(container, '$.Labels."uncloud.service.name"')),
+    -- sync_status indicates if the record reflects the actual Docker state of the container.
+    sync_status  TEXT NOT NULL DEFAULT '',
     -- updated_at is the last time the record was updated.
     updated_at   TIMESTAMP NOT NULL DEFAULT '1970-01-01 00:00:00'
 );

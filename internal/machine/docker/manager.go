@@ -20,6 +20,12 @@ const (
 	EventsDebounceInterval = 100 * time.Millisecond
 	// SyncInterval defines a regular interval to sync containers to the cluster store.
 	SyncInterval = 30 * time.Second
+
+	// SyncStatusSynced indicates that a container record is synchronised with the Docker state.
+	SyncStatusSynced = "synced"
+	// SyncStatusOutdated indicates that a container record may be outdated, for example, due to being unable
+	// to retrieve the container's state from the Docker daemon or when the machine is being stopped or restarted.
+	SyncStatusOutdated = "outdated"
 )
 
 type Manager struct {
@@ -91,6 +97,7 @@ func (d *Manager) WatchAndSyncContainers(ctx context.Context, store *store.Store
 		select {
 		case e := <-eventCh:
 			switch e.Action {
+			// Actions that may trigger a container state change.
 			case events.ActionStart,
 				events.ActionStop,
 				events.ActionPause,

@@ -188,16 +188,15 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 	}
 
 	if err = manager.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
-		return err
+		return fmt.Errorf("ensure Docker network: %w", err)
 	}
 	slog.Info("Docker network configured.")
 
-	slog.Info("Watching Docker containers and syncing them to the cluster store.")
+	slog.Info("Watching Docker containers and syncing them to cluster store.")
 	// Retry to watch and sync containers until the context is done.
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(100*time.Millisecond),
 		backoff.WithMaxInterval(5*time.Second),
-		// Retry indefinitely.
 		backoff.WithMaxElapsedTime(0),
 	), ctx)
 	watchAndSync := func() error {
