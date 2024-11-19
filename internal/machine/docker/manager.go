@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"log/slog"
 	"time"
+	"uncloud/internal/machine/docker/container"
 	"uncloud/internal/machine/store"
 )
 
@@ -20,26 +22,25 @@ const (
 	EventsDebounceInterval = 100 * time.Millisecond
 	// SyncInterval defines a regular interval to sync containers to the cluster store.
 	SyncInterval = 30 * time.Second
-
-	// SyncStatusSynced indicates that a container record is synchronised with the Docker daemon. The record may
-	// become outdated even when the status is "synced" if the machine crashes or a network partition occurs.
-	// The cluster membership state of the machine should also be checked to determine if the record can be trusted.
-	SyncStatusSynced = "synced"
-	// SyncStatusOutdated indicates that a container record may be outdated, for example, due to being unable
-	// to retrieve the container's state from the Docker daemon or when the machine is being stopped or restarted.
-	SyncStatusOutdated = "outdated"
 )
 
 type Manager struct {
 	client *client.Client
+	// machineID is the ID of the machine where the managed Docker daemon is running.
+	machineID string
+	store     *store.Store
 }
 
-func NewManager(client *client.Client) *Manager {
-	return &Manager{client: client}
+func NewManager(client *client.Client, machineID string, store *store.Store) *Manager {
+	return &Manager{
+		client:    client,
+		machineID: machineID,
+		store:     store,
+	}
 }
 
 // WaitDaemonReady waits for the Docker daemon to start and be ready to serve requests.
-func (d *Manager) WaitDaemonReady(ctx context.Context) error {
+func (m *Manager) WaitDaemonReady(ctx context.Context) error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -49,7 +50,7 @@ func (d *Manager) WaitDaemonReady(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			_, err := d.client.Ping(ctx)
+			_, err := m.client.Ping(ctx)
 			if err == nil {
 				ready = true
 				break
@@ -66,7 +67,7 @@ func (d *Manager) WaitDaemonReady(ctx context.Context) error {
 	return nil
 }
 
-func (d *Manager) WatchAndSyncContainers(ctx context.Context, store *store.Store) error {
+func (m *Manager) WatchAndSyncContainers(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// Filter only local container events.
@@ -78,9 +79,9 @@ func (d *Manager) WatchAndSyncContainers(ctx context.Context, store *store.Store
 	}
 
 	// Subscribe to Docker events before running the initial sync to avoid missing any events.
-	eventCh, errCh := d.client.Events(ctx, opts)
+	eventCh, errCh := m.client.Events(ctx, opts)
 	slog.Debug("Syncing containers to cluster store before processing Docker events.")
-	if err := d.syncContainersToStore(ctx, store); err != nil {
+	if err := m.syncContainersToStore(ctx); err != nil {
 		// The deferred cancel will stop the event subscription.
 		return fmt.Errorf("sync containers to cluster store: %w", err)
 	}
@@ -123,13 +124,13 @@ func (d *Manager) WatchAndSyncContainers(ctx context.Context, store *store.Store
 				"container_name", e.Actor.Attributes["name"],
 				"action", e.Action)
 
-			if err := d.syncContainersToStore(ctx, store); err != nil {
+			if err := m.syncContainersToStore(ctx); err != nil {
 				return fmt.Errorf("sync containers to cluster store: %w", err)
 			}
 		case <-ticker.C:
 			slog.Debug("Syncing containers to cluster store triggered by a regular interval.",
 				"interval", SyncInterval)
-			if err := d.syncContainersToStore(ctx, store); err != nil {
+			if err := m.syncContainersToStore(ctx); err != nil {
 				return fmt.Errorf("sync containers to cluster store: %w", err)
 			}
 		case err := <-errCh:
@@ -141,7 +142,20 @@ func (d *Manager) WatchAndSyncContainers(ctx context.Context, store *store.Store
 	}
 }
 
-func (d *Manager) syncContainersToStore(ctx context.Context, store *store.Store) error {
-	// TODO: implement
+func (m *Manager) syncContainersToStore(ctx context.Context) error {
+	containers, err := m.client.ContainerList(ctx, dockercontainer.ListOptions{})
+	if err != nil {
+		// TODO: mark all containers as outdated in the store.
+		return fmt.Errorf("list containers: %w", err)
+	}
+	for _, dc := range containers {
+		c := &container.Container{
+			Container: dc,
+		}
+		if err = m.store.CreateOrUpdateContainer(ctx, c, m.machineID); err != nil {
+			return fmt.Errorf("create or update container: %w", err)
+		}
+	}
+
 	return nil
 }

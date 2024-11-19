@@ -12,6 +12,7 @@ CREATE TABLE machines
     name TEXT AS (json_extract(info, '$.name')),
     -- info is a JSON-serialized MachineInfo protobuf message.
     info TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(info))
+    -- TODO: add created_at and updated_at fields to track machine age and last update time.
 );
 
 -- containers table stores the Uncloud-managed Docker containers created in the cluster.

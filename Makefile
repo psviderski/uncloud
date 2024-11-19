@@ -1,10 +1,17 @@
 .PHONY: build
-uncloud-dev:
+update-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
 		scp uncloudd-linux-amd64 spy@192.168.40.243:~/ && \
 		ssh spy@192.168.40.243 sudo install ./uncloudd-linux-amd64 /usr/local/bin/uncloudd
 		scp uncloudd-linux-amd64 spy@192.168.40.176:~/ && \
 		ssh spy@192.168.40.176 sudo install ./uncloudd-linux-amd64 /usr/local/bin/uncloudd
+
+update-restart-dev:
+	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
+		scp uncloudd-linux-amd64 spy@192.168.40.243:~/ && \
+		ssh spy@192.168.40.243 "sudo install ./uncloudd-linux-amd64 /usr/local/bin/uncloudd && sudo systemctl restart uncloud" && \
+		scp uncloudd-linux-amd64 spy@192.168.40.176:~/ && \
+		ssh spy@192.168.40.176 "sudo install ./uncloudd-linux-amd64 /usr/local/bin/uncloudd && sudo systemctl restart uncloud"
 
 reset-dev:
 	ssh spy@192.168.40.243 "sudo systemctl stop uncloud && sudo rm -rf /var/lib/uncloud"

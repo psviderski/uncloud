@@ -182,7 +182,7 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 	}
 	defer cli.Close()
 
-	manager := docker.NewManager(cli)
+	manager := docker.NewManager(cli, nc.state.ID, nc.store)
 	if err = manager.WaitDaemonReady(ctx); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
@@ -200,7 +200,7 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 		backoff.WithMaxElapsedTime(0),
 	), ctx)
 	watchAndSync := func() error {
-		if wErr := manager.WatchAndSyncContainers(ctx, nc.store); wErr != nil {
+		if wErr := manager.WatchAndSyncContainers(ctx); wErr != nil {
 			slog.Error("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
 			return wErr
 		}
