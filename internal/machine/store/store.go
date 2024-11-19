@@ -3,14 +3,12 @@ package store
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/encoding/protojson"
 	"log/slog"
 	"uncloud/internal/corrosion"
 	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/docker/container"
 )
 
 var (
@@ -130,33 +128,4 @@ func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-cha
 	}()
 
 	return machines, changes, nil
-}
-
-// CreateOrUpdateContainer creates a new container record or updates an existing one in the store database.
-// The container is associated with the given machine ID that indicates which machine the container is running on.
-func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *container.Container, machineID string) error {
-	cJSON, err := json.Marshal(c)
-	if err != nil {
-		return fmt.Errorf("marshal container: %w", err)
-	}
-
-	// Insert or update the container record if the container or machine ID has changed.
-	res, err := s.corro.ExecContext(ctx, `
-		INSERT INTO containers (id, container, machine_id, sync_status, updated_at)
-		VALUES (?, ?, ?, ?, datetime('now'))
-		ON CONFLICT (id) DO UPDATE SET container   = excluded.container,
-									   machine_id  = excluded.machine_id,
-									   sync_status = excluded.sync_status,
-									   updated_at  = excluded.updated_at
-		WHERE containers.container != excluded.container
-		  OR containers.machine_id != excluded.machine_id`,
-		c.ID, string(cJSON), machineID, SyncStatusSynced)
-	if err != nil {
-		return fmt.Errorf("upsert query: %w", err)
-	}
-	if res.RowsAffected > 0 {
-		slog.Debug("Container record updated in store DB.", "id", c.ID, "machine_id", machineID)
-	}
-
-	return nil
 }
