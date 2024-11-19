@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/distribution/reference"
-	"github.com/docker/docker/api/types/container"
+	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -13,12 +13,8 @@ import (
 	"strings"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/docker"
+	"uncloud/internal/machine/docker/container"
 	"uncloud/internal/secret"
-)
-
-const (
-	LabelServiceID   = "uncloud.service.id"
-	LabelServiceName = "uncloud.service.name"
 )
 
 // ServiceOptions contains all the options for creating a service.
@@ -57,6 +53,8 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 				machine = m
 				break
 			}
+		}
+		if machine == nil {
 			return resp, fmt.Errorf("machine %q not found", opts.Machine)
 		}
 	} else {
@@ -102,11 +100,11 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	}
 	containerName := fmt.Sprintf("%s-%s", serviceName, suffix)
 
-	config := &container.Config{
+	config := &dockercontainer.Config{
 		Image: opts.Image,
 		Labels: map[string]string{
-			LabelServiceID:   serviceID,
-			LabelServiceName: serviceName,
+			container.LabelServiceID:   serviceID,
+			container.LabelServiceName: serviceName,
 		},
 	}
 	netConfig := &network.NetworkingConfig{
@@ -119,7 +117,7 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	if err != nil {
 		return resp, fmt.Errorf("create container: %w", err)
 	}
-	if err = c.StartContainer(ctx, createResp.ID, container.StartOptions{}); err != nil {
+	if err = c.StartContainer(ctx, createResp.ID, dockercontainer.StartOptions{}); err != nil {
 		return resp, fmt.Errorf("start container: %w", err)
 	}
 

@@ -100,14 +100,16 @@ func (m *Manager) WatchAndSyncContainers(ctx context.Context) error {
 		select {
 		case e := <-eventCh:
 			switch e.Action {
-			// Actions that may trigger a container state change.
-			case events.ActionStart,
+			// Actions that may trigger a container state change or creation/deletion of a container.
+			case events.ActionCreate,
+				events.ActionStart,
 				events.ActionStop,
 				events.ActionPause,
 				events.ActionUnPause,
 				events.ActionKill,
 				events.ActionDie,
 				events.ActionOOM,
+				events.ActionDestroy,
 				events.ActionHealthStatusHealthy,
 				events.ActionHealthStatusUnhealthy:
 
@@ -143,19 +145,50 @@ func (m *Manager) WatchAndSyncContainers(ctx context.Context) error {
 }
 
 func (m *Manager) syncContainersToStore(ctx context.Context) error {
-	containers, err := m.client.ContainerList(ctx, dockercontainer.ListOptions{})
+	storeContainers, err := m.store.ListContainers(ctx, store.ListOptions{MachineIDs: []string{m.machineID}})
+	if err != nil {
+		return fmt.Errorf("list containers from store: %w", err)
+	}
+	// List only Uncloud service containers identified by their labels.
+	containers, err := m.client.ContainerList(ctx, dockercontainer.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("label", container.LabelServiceID),
+			filters.Arg("label", container.LabelServiceName),
+		),
+	})
 	if err != nil {
 		// TODO: mark all containers as outdated in the store.
-		return fmt.Errorf("list containers: %w", err)
+		return fmt.Errorf("list Docker containers: %w", err)
 	}
-	for _, dc := range containers {
-		c := &container.Container{
-			Container: dc,
+
+	// Delete containers that are not present in the Docker daemon from the store.
+	var deleteIDs []string
+	for _, sc := range storeContainers {
+		found := false
+		for i, _ := range containers {
+			if containers[i].ID == sc.Container.ID {
+				found = true
+				break
+			}
 		}
-		if err = m.store.CreateOrUpdateContainer(ctx, c, m.machineID); err != nil {
-			return fmt.Errorf("create or update container: %w", err)
+		if !found {
+			deleteIDs = append(deleteIDs, sc.Container.ID)
 		}
 	}
 
-	return nil
+	var storeErr error
+	if len(deleteIDs) > 0 {
+		if err = m.store.DeleteContainers(ctx, store.DeleteOptions{IDs: deleteIDs}); err != nil {
+			storeErr = fmt.Errorf("delete containers from store: %w", err)
+		}
+	}
+
+	// Create or update the current Docker containers in the store.
+	for _, dc := range containers {
+		c := &container.Container{Container: dc}
+		if err = m.store.CreateOrUpdateContainer(ctx, c, m.machineID); err != nil {
+			storeErr = errors.Join(storeErr, fmt.Errorf("create or update container %q: %w", c.ID, err))
+		}
+	}
+	return storeErr
 }
