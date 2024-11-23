@@ -22,6 +22,8 @@ type ServiceOptions struct {
 	Image   string
 	Name    string
 	Machine string
+	// Mode is the replication mode of the service.
+	Mode    string
 	Publish []string
 }
 
@@ -37,6 +39,14 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	image, err := reference.ParseDockerRef(opts.Image)
 	if err != nil {
 		return resp, fmt.Errorf("invalid image: %w", err)
+	}
+
+	switch opts.Mode {
+	case docker.DeployModeReplicated:
+	case docker.DeployModeGlobal:
+		return resp, errors.New("global mode is not supported yet")
+	default:
+		return resp, fmt.Errorf("invalid mode: %q", opts.Mode)
 	}
 
 	// Find a machine to run the service on.

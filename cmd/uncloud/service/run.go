@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"uncloud/internal/cli"
 	"uncloud/internal/cli/client"
+	"uncloud/internal/docker"
 )
 
 func NewRunCommand() *cobra.Command {
@@ -31,6 +32,10 @@ func NewRunCommand() *cobra.Command {
 		&opts.Machine, "machine", "m", "",
 		"Name or ID of the machine to run the service on. (default is first available)",
 	)
+	cmd.Flags().StringVar(&opts.Mode, "mode", docker.DeployModeReplicated,
+		fmt.Sprintf("Replication mode of the service: either %q (a specified number of containers across "+
+			"the machines) or %q (one container on every machine).",
+			docker.DeployModeReplicated, docker.DeployModeGlobal))
 	cmd.Flags().StringSliceVarP(&opts.Publish, "publish", "p", nil,
 		"Publish a service port to make it accessible outside the cluster. Can be specified multiple times. "+
 			"Format: [load_balancer_port:]container_port[/protocol]")
