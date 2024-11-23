@@ -5,15 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"github.com/distribution/reference"
-	dockercontainer "github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"slices"
 	"strings"
+	"uncloud/internal/docker"
 	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/docker"
-	"uncloud/internal/machine/docker/container"
+	machinedocker "uncloud/internal/machine/docker"
 	"uncloud/internal/secret"
 )
 
@@ -100,16 +100,16 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	}
 	containerName := fmt.Sprintf("%s-%s", serviceName, suffix)
 
-	config := &dockercontainer.Config{
+	config := &container.Config{
 		Image: opts.Image,
 		Labels: map[string]string{
-			container.LabelServiceID:   serviceID,
-			container.LabelServiceName: serviceName,
+			docker.LabelServiceID:   serviceID,
+			docker.LabelServiceName: serviceName,
 		},
 	}
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
-			docker.NetworkName: {},
+			machinedocker.NetworkName: {},
 		},
 	}
 	// TODO: pull image if it doesn't exist on the machine.
@@ -117,7 +117,7 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	if err != nil {
 		return resp, fmt.Errorf("create container: %w", err)
 	}
-	if err = c.StartContainer(ctx, createResp.ID, dockercontainer.StartOptions{}); err != nil {
+	if err = c.StartContainer(ctx, createResp.ID, container.StartOptions{}); err != nil {
 		return resp, fmt.Errorf("start container: %w", err)
 	}
 

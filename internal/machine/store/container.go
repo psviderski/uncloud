@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-	"uncloud/internal/machine/docker/container"
+	"uncloud/internal/docker"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 )
 
 type ContainerRecord struct {
-	Container  *container.Container
+	Container  *docker.Container
 	MachineID  string
 	SyncStatus string
 	UpdatedAt  time.Time
@@ -38,7 +38,7 @@ type DeleteOptions struct {
 
 // CreateOrUpdateContainer creates a new container record or updates an existing one in the store database.
 // The container is associated with the given machine ID that indicates which machine the container is running on.
-func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *container.Container, machineID string) error {
+func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *docker.Container, machineID string) error {
 	cJSON, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("marshal container: %w", err)
@@ -93,7 +93,7 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*Contai
 			return nil, fmt.Errorf("scan container record: %w", err)
 		}
 
-		var c container.Container
+		var c docker.Container
 		if err = json.Unmarshal([]byte(cJSON), &c); err != nil {
 			return nil, fmt.Errorf("unmarshal container: %w", err)
 		}
