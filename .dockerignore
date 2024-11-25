@@ -1,0 +1,10 @@
+# Ignore everything and use an allowlist of what is allowed to not package any secrets by accident.
+*
+
+# Allow files and directories.
+!cmd/
+!internal/
+!go.*
+
+# Ignore unnecessary files inside allowed directories.
+**/.DS_Store
