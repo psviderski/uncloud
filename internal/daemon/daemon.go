@@ -35,7 +35,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		case <-d.machine.Started():
 			_, err := systemd.SdNotify(false, systemd.SdNotifyReady)
 			if err != nil {
-				slog.Error("Failed to notify systemd that the daemon is ready.", "error", err)
+				slog.Error("Failed to notify systemd that the daemon is ready.", "err", err)
 			}
 		case <-ctx.Done():
 		}

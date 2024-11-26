@@ -191,7 +191,7 @@ func (s *Subscription) handleChangeEvents() {
 			}
 
 			slog.Info("Resubscribing to Corrosion query due to an error.",
-				"error", err, "id", s.id, "from_change", s.lastChangeID)
+				"err", err, "id", s.id, "from_change", s.lastChangeID)
 			sub, sErr := s.resubscribe(s.ctx, s.lastChangeID)
 			if sErr != nil {
 				// resubscribe returns a permanent error after unsuccessful retries.

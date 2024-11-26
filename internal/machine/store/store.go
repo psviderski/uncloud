@@ -79,7 +79,7 @@ func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
 			return nil, fmt.Errorf("unmarshal machine info: %w", err)
 		}
 		if err = m.Network.Validate(); err != nil {
-			slog.Error("Invalid network configuration for machine in store", "id", m.Id, "error", err)
+			slog.Error("Invalid network configuration for machine in store", "id", m.Id, "err", err)
 			continue
 		}
 		machines = append(machines, &m)
