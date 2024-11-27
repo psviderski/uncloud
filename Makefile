@@ -1,4 +1,5 @@
-.PHONY: build
+CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
+
 update-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
 		scp uncloudd-linux-amd64 spy@192.168.40.243:~/ && \
@@ -24,3 +25,11 @@ reset-dev:
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
 		--proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
+
+.PHONY: corrosion-image
+corrosion-image:
+	docker build -t "$(CORROSION_IMAGE)" --target corrosion .
+
+.PHONY: corrosion-image-push
+corrosion-image-push: corrosion-image
+	docker push "$(CORROSION_IMAGE)"

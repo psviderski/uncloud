@@ -45,7 +45,6 @@ RUN addgroup -S uncloud && adduser -SHD -h /nonexistent -G uncloud -g "" uncloud
 COPY --from=corrosion-image-tarball /corrosion.tar /images/corrosion.tar
 COPY scripts/docker/dind scripts/docker/entrypoint.sh /usr/local/bin/
 COPY --from=uncloudd /build/uncloudd /usr/local/bin/
-# TODO: socat to forward uncloud.sock unix socket?
 
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["uncloudd"]
