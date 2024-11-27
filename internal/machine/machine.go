@@ -32,9 +32,9 @@ import (
 )
 
 const (
-	DefaultMachineSockPath  = "/run/uncloud/machine.sock"
-	DefaultUncloudSockPath  = "/run/uncloud/uncloud.sock"
-	DefaultUncloudSockGroup = "uncloud"
+	DefaultMachineSockPath = "/run/uncloud/machine.sock"
+	DefaultUncloudSockPath = "/run/uncloud/uncloud.sock"
+	DefaultSockGroup       = "uncloud"
 )
 
 type Config struct {
@@ -48,6 +48,8 @@ type Config struct {
 	CorrosionAPIAddr       netip.AddrPort
 	CorrosionAdminSockPath string
 	CorrosionService       corroservice.Service
+	// CorrosionUser sets the Linux user for running the corrosion service.
+	CorrosionUser string
 
 	// DockerClient manages system and user containers using the local Docker daemon.
 	DockerClient *client.Client
@@ -90,15 +92,24 @@ func (c *Config) SetDefaults() (*Config, error) {
 	if cfg.CorrosionAdminSockPath == "" {
 		cfg.CorrosionAdminSockPath = filepath.Join(cfg.CorrosionDir, "admin.sock")
 	}
+	if cfg.CorrosionUser == "" {
+		cfg.CorrosionUser = corroservice.DefaultUser
+	}
 	if cfg.CorrosionService == nil {
 		if isRunningInDocker() {
 			// Run corrosion in a nested Docker container if the machine is running in a container.
-			cfg.CorrosionService = corroservice.NewDockerService(
-				cfg.DockerClient,
-				corroservice.LatestImage,
-				"uncloud-corrosion",
-				cfg.CorrosionDir,
-			)
+			uid, gid, err := fs.LookupUIDGID(cfg.CorrosionUser)
+			if err != nil {
+				return nil, fmt.Errorf("lookup corrosion user %q: %w", cfg.CorrosionUser, err)
+			}
+
+			cfg.CorrosionService = &corroservice.DockerService{
+				Client:  cfg.DockerClient,
+				Image:   corroservice.LatestImage,
+				Name:    "uncloud-corrosion",
+				DataDir: cfg.CorrosionDir,
+				User:    fmt.Sprintf("%d:%d", uid, gid),
+			}
 		} else {
 			cfg.CorrosionService = corroservice.DefaultSystemdService(cfg.CorrosionDir)
 		}
@@ -400,21 +411,21 @@ func (m *Machine) Run(ctx context.Context) error {
 // access mode and uncloud group if the group is found, otherwise it falls back to the root group.
 func listenUnixSocket(path string) (net.Listener, error) {
 	gid := 0 // Fall back to the root group if the uncloud group is not found.
-	group, err := user.LookupGroup(DefaultUncloudSockGroup)
+	group, err := user.LookupGroup(DefaultSockGroup)
 	if err != nil {
 		//goland:noinspection GoTypeAssertionOnErrors
 		if _, ok := err.(user.UnknownGroupError); ok {
 			slog.Info(
 				"Specified group not found, using root group for the API socket.",
-				"group", DefaultUncloudSockGroup, "path", path,
+				"group", DefaultSockGroup, "path", path,
 			)
 		} else {
-			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultUncloudSockGroup, err)
+			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultSockGroup, err)
 		}
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
-			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultUncloudSockGroup, group.Gid, err)
+			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultSockGroup, group.Gid, err)
 		}
 	}
 
@@ -431,7 +442,7 @@ func listenUnixSocket(path string) (net.Listener, error) {
 }
 
 func (m *Machine) configureCorrosion() error {
-	if err := fs.MkDataDir(m.config.CorrosionDir, corroservice.DefaultUser); err != nil {
+	if err := corroservice.MkDataDir(m.config.CorrosionDir, m.config.CorrosionUser); err != nil {
 		return fmt.Errorf("create corrosion data directory: %w", err)
 	}
 	configPath := filepath.Join(m.config.CorrosionDir, "config.toml")
@@ -469,15 +480,13 @@ func (m *Machine) configureCorrosion() error {
 			Path: filepath.Join(m.config.CorrosionDir, "admin.sock"),
 		},
 	}
-	if err := cfg.Write(configPath, corroservice.DefaultUser); err != nil {
+	// TODO: change file permissions to 0640 root:uncloud to emphasize the owner is the machine, not corrosion.
+	if err := cfg.Write(configPath, m.config.CorrosionUser); err != nil {
 		return fmt.Errorf("write corrosion config: %w", err)
 	}
 
 	if err := os.WriteFile(schemaPath, []byte(store.Schema), 0644); err != nil {
 		return fmt.Errorf("write corrosion schema: %w", err)
-	}
-	if err := fs.Chown(schemaPath, corroservice.DefaultUser); err != nil {
-		return fmt.Errorf("chown corrosion schema: %w", err)
 	}
 
 	return nil

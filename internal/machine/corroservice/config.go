@@ -6,6 +6,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"uncloud/internal/fs"
 )
 
@@ -54,6 +55,26 @@ func (c *Config) Write(path, owner string) error {
 	}
 	if err := fs.Chown(path, owner); err != nil {
 		return err
+	}
+	return nil
+}
+
+func MkDataDir(dir, owner string) error {
+	parent, _ := filepath.Split(dir)
+	// Use 0711 for parent directories to allow `owner` to access its nested data directory.
+	if err := os.MkdirAll(parent, 0711); err != nil {
+		return fmt.Errorf("create directory %q: %w", parent, err)
+	}
+	if err := os.Mkdir(dir, 0700); err != nil {
+		if !os.IsExist(err) {
+			return fmt.Errorf("create directory %q: %w", dir, err)
+		}
+	}
+
+	if owner != "" {
+		if err := fs.Chown(dir, owner); err != nil {
+			return err
+		}
 	}
 	return nil
 }

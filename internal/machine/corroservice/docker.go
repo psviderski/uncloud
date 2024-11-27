@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"io"
@@ -22,7 +23,7 @@ type DockerService struct {
 	Image   string
 	Name    string
 	DataDir string
-	// TODO: uid/guid
+	User    string
 }
 
 func NewDockerService(cli *client.Client, image, name, dataDir string) *DockerService {
@@ -71,6 +72,7 @@ func (s *DockerService) containerConfig() *container.Config {
 	return &container.Config{
 		Image: s.Image,
 		Cmd:   []string{"corrosion", "agent", "-c", filepath.Join(s.DataDir, "config.toml")},
+		User:  s.User,
 	}
 }
 
@@ -79,6 +81,14 @@ func (s *DockerService) hostConfig() *container.HostConfig {
 		NetworkMode: network.NetworkHost,
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyAlways,
+		},
+		Mounts: []mount.Mount{
+			// Bind mount the data directory at the same path inside the container to simplify path handling.
+			{
+				Type:   mount.TypeBind,
+				Source: s.DataDir,
+				Target: s.DataDir,
+			},
 		},
 	}
 }
