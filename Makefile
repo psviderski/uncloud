@@ -1,4 +1,5 @@
 CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
+UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
 
 update-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
@@ -33,3 +34,11 @@ corrosion-image:
 .PHONY: corrosion-image-push
 corrosion-image-push: corrosion-image
 	docker push "$(CORROSION_IMAGE)"
+
+.PHONY: ucind-image
+ucind-image:
+	docker build -t "$(UCIND_IMAGE)" --target ucind .
+
+.PHONY: ucind-image-push
+ucind-image-push: ucind-image
+	docker push "$(UCIND_IMAGE)"

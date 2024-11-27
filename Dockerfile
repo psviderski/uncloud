@@ -35,12 +35,12 @@ RUN apk --no-cache add crane
 RUN crane pull "${CORROSION_IMAGE}" /corrosion.tar
 
 
-FROM docker:27.3.1-dind AS machine
+FROM docker:27.3.1-dind AS ucind
+# Create system group and user 'uncloud'.
+RUN addgroup -S uncloud && adduser -SHD -h /nonexistent -G uncloud -g "" uncloud
 RUN apk --no-cache add \
     socat \
     wireguard-tools
-# Create system group and user 'uncloud'.
-RUN addgroup -S uncloud && adduser -SHD -h /nonexistent -G uncloud -g "" uncloud
 
 COPY --from=corrosion-image-tarball /corrosion.tar /images/corrosion.tar
 COPY scripts/docker/dind scripts/docker/entrypoint.sh /usr/local/bin/
