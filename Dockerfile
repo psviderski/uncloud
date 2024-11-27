@@ -37,6 +37,7 @@ RUN crane pull "${CORROSION_IMAGE}" /corrosion.tar
 
 FROM docker:27.3.1-dind AS machine
 RUN apk --no-cache add \
+    socat \
     wireguard-tools
 # Create system group and user 'uncloud'.
 RUN addgroup -S uncloud && adduser -SHD -h /nonexistent -G uncloud -g "" uncloud
