@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"uncloud/internal/corrosion"
 	"uncloud/internal/docker"
+	"uncloud/internal/fs"
 	"uncloud/internal/machine/api/pb"
 	apiproxy "uncloud/internal/machine/api/proxy"
 	"uncloud/internal/machine/cluster"
@@ -430,7 +431,7 @@ func listenUnixSocket(path string) (net.Listener, error) {
 }
 
 func (m *Machine) configureCorrosion() error {
-	if err := corroservice.MkDataDir(m.config.CorrosionDir, corroservice.DefaultUser); err != nil {
+	if err := fs.MkDataDir(m.config.CorrosionDir, corroservice.DefaultUser); err != nil {
 		return fmt.Errorf("create corrosion data directory: %w", err)
 	}
 	configPath := filepath.Join(m.config.CorrosionDir, "config.toml")
@@ -475,7 +476,7 @@ func (m *Machine) configureCorrosion() error {
 	if err := os.WriteFile(schemaPath, []byte(store.Schema), 0644); err != nil {
 		return fmt.Errorf("write corrosion schema: %w", err)
 	}
-	if err := corroservice.Chown(schemaPath, corroservice.DefaultUser); err != nil {
+	if err := fs.Chown(schemaPath, corroservice.DefaultUser); err != nil {
 		return fmt.Errorf("chown corrosion schema: %w", err)
 	}
 
