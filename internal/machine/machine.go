@@ -20,11 +20,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"uncloud/internal/corrosion"
+	"uncloud/internal/docker"
 	"uncloud/internal/machine/api/pb"
 	apiproxy "uncloud/internal/machine/api/proxy"
 	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/corroservice"
-	"uncloud/internal/machine/docker"
+	machinedocker "uncloud/internal/machine/docker"
 	"uncloud/internal/machine/network"
 	"uncloud/internal/machine/store"
 )
@@ -46,10 +47,13 @@ type Config struct {
 	CorrosionAPIAddr       netip.AddrPort
 	CorrosionAdminSockPath string
 	CorrosionService       corroservice.Service
+
+	// DockerClient manages system and user containers using the local Docker daemon.
+	DockerClient *client.Client
 }
 
 // SetDefaults returns a new Config with default values set where not provided.
-func (c *Config) SetDefaults() *Config {
+func (c *Config) SetDefaults() (*Config, error) {
 	// Copy c into a new Config to avoid modifying the original.
 	cfg := *c
 
@@ -62,6 +66,15 @@ func (c *Config) SetDefaults() *Config {
 	if cfg.UncloudSockPath == "" {
 		cfg.UncloudSockPath = DefaultUncloudSockPath
 	}
+
+	if cfg.DockerClient == nil {
+		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			return nil, fmt.Errorf("create Docker client: %w", err)
+		}
+		cfg.DockerClient = cli
+	}
+
 	if cfg.CorrosionDir == "" {
 		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
 	}
@@ -77,9 +90,25 @@ func (c *Config) SetDefaults() *Config {
 		cfg.CorrosionAdminSockPath = filepath.Join(cfg.CorrosionDir, "admin.sock")
 	}
 	if cfg.CorrosionService == nil {
-		cfg.CorrosionService = corroservice.DefaultSystemdService(cfg.CorrosionDir)
+		if isRunningInDocker() {
+			// Run corrosion in a nested Docker container if the machine is running in a container.
+			cfg.CorrosionService = corroservice.NewDockerService(
+				cfg.DockerClient,
+				corroservice.LatestImage,
+				"uncloud-corrosion",
+				cfg.CorrosionDir,
+			)
+		} else {
+			cfg.CorrosionService = corroservice.DefaultSystemdService(cfg.CorrosionDir)
+		}
 	}
-	return &cfg
+	return &cfg, nil
+}
+
+// isRunningInDocker returns true if the current process is running in a Docker container.
+func isRunningInDocker() bool {
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
 }
 
 type Machine struct {
@@ -95,7 +124,7 @@ type Machine struct {
 	// store is the cluster store backed by a distributed Corrosion database.
 	store   *store.Store
 	cluster *cluster.Cluster
-	docker  *docker.Server
+	docker  *machinedocker.Server
 	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
 	localMachineServer *grpc.Server
 
@@ -108,7 +137,10 @@ type Machine struct {
 }
 
 func NewMachine(config *Config) (*Machine, error) {
-	config = config.SetDefaults()
+	config, err := config.SetDefaults()
+	if err != nil {
+		return nil, fmt.Errorf("set default config values: %w", err)
+	}
 
 	// Load the existing machine state or create a new one.
 	statePath := StatePath(config.DataDir)
@@ -153,7 +185,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Docker client: %w", err)
 	}
-	dockerServer := docker.NewServer(dockerCli)
+	dockerServer := machinedocker.NewServer(dockerCli)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, APIPort)
@@ -207,6 +239,11 @@ func (m *Machine) Initialised() bool {
 }
 
 func (m *Machine) Run(ctx context.Context) error {
+	// Docker dependency is essential for the machine to function. Block until it's ready.
+	if err := docker.WaitDaemonReady(ctx, m.config.DockerClient); err != nil {
+		return fmt.Errorf("wait for Docker daemon: %w", err)
+	}
+
 	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
 	// member. This provides the store required for the machine to initialise a new cluster on it. Once the machine
 	// is initialised, the corrosion service is managed by the networkController.
@@ -297,7 +334,13 @@ func (m *Machine) Run(ctx context.Context) error {
 						),
 					)
 
-					ctrl, err = newNetworkController(m.state, m.store, proxyServer, m.config.CorrosionService)
+					ctrl, err = newNetworkController(
+						m.state,
+						m.store,
+						proxyServer,
+						m.config.CorrosionService,
+						m.config.DockerClient,
+					)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
 					}
@@ -343,6 +386,8 @@ func (m *Machine) Run(ctx context.Context) error {
 			// Close the proxy director to close all backend connections.
 			m.proxyDirector.Close()
 			slog.Info("Local API proxy server stopped.")
+
+			m.config.DockerClient.Close()
 			return nil
 		},
 	)

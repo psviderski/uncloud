@@ -34,13 +34,14 @@ type networkController struct {
 
 	server       *grpc.Server
 	corroService corroservice.Service
+	dockerCli    *client.Client
 
 	// TODO: DNS server/resolver listening on the machine IP, e.g. 10.210.0.1:53. It can't listen on 127.0.X.X
 	//  like resolved does because it needs to be reachable from both the host and the containers.
 }
 
 func newNetworkController(
-	state *State, store *store.Store, server *grpc.Server, corroService corroservice.Service,
+	state *State, store *store.Store, server *grpc.Server, corroService corroservice.Service, dockerCli *client.Client,
 ) (
 	*networkController, error,
 ) {
@@ -58,6 +59,7 @@ func newNetworkController(
 		endpointChanges: endpointChanges,
 		server:          server,
 		corroService:    corroService,
+		dockerCli:       dockerCli,
 	}, nil
 }
 
@@ -176,18 +178,12 @@ func (nc *networkController) Run(ctx context.Context) error {
 // prepareAndWatchDocker configures the Docker network and watches local Docker containers to sync them
 // to the cluster store.
 func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return fmt.Errorf("init Docker client: %w", err)
-	}
-	defer cli.Close()
-
-	manager := docker.NewManager(cli, nc.state.ID, nc.store)
-	if err = manager.WaitDaemonReady(ctx); err != nil {
+	manager := docker.NewManager(nc.dockerCli, nc.state.ID, nc.store)
+	if err := manager.WaitDaemonReady(ctx); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
 
-	if err = manager.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
+	if err := manager.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet); err != nil {
 		return fmt.Errorf("ensure Docker network: %w", err)
 	}
 	slog.Info("Docker network configured.")
@@ -206,7 +202,7 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 		}
 		return nil
 	}
-	if err = backoff.Retry(watchAndSync, boff); err != nil {
+	if err := backoff.Retry(watchAndSync, boff); err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
