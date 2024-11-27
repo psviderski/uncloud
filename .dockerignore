@@ -4,7 +4,7 @@
 # Allow files and directories.
 !cmd/
 !internal/
-!scripts/docker-entrypoint.sh
+!scripts/docker/
 !go.*
 
 # Ignore unnecessary files inside allowed directories.
