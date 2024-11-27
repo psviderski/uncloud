@@ -4,13 +4,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"io"
+	"log/slog"
 	"path/filepath"
+	"time"
 )
 
 const (
-	LatestImage = "corrosion:latest"
+	LatestImage = "ghcr.io/psviderski/corrosion:latest"
 )
 
 type DockerService struct {
@@ -66,23 +70,48 @@ func (s *DockerService) Running() bool {
 func (s *DockerService) containerConfig() *container.Config {
 	return &container.Config{
 		Image: s.Image,
-		Env: []string{
-			fmt.Sprintf("CONFIG_PATH=%s", filepath.Join(s.DataDir, "config.toml")),
-		},
+		Cmd:   []string{"corrosion", "agent", "-c", filepath.Join(s.DataDir, "config.toml")},
 	}
 }
 
 func (s *DockerService) hostConfig() *container.HostConfig {
 	return &container.HostConfig{
 		NetworkMode: network.NetworkHost,
+		RestartPolicy: container.RestartPolicy{
+			Name: container.RestartPolicyAlways,
+		},
 	}
 }
 
 func (s *DockerService) startNewContainer(ctx context.Context) error {
 	_, err := s.Client.ContainerCreate(ctx, s.containerConfig(), s.hostConfig(), nil, nil, s.Name)
 	if err != nil {
-		return fmt.Errorf("create container: %w", err)
+		if !client.IsErrNotFound(err) {
+			return fmt.Errorf("create container: %w", err)
+		}
+
+		slog.Info("Pulling Docker image for corrosion service.", "image", s.Image)
+		start := time.Now()
+
+		respBody, err := s.Client.ImagePull(ctx, s.Image, image.PullOptions{})
+		if err != nil {
+			return fmt.Errorf("pull image: %w", err)
+		}
+		defer respBody.Close()
+
+		// Wait for pull to complete.
+		if _, err := io.Copy(io.Discard, respBody); err != nil {
+			return fmt.Errorf("read pull response: %w", err)
+		}
+
+		slog.Info("Docker image pulled.", "image", s.Image, "duration", time.Since(start).String())
+
+		// Create container again after image pull.
+		if _, err = s.Client.ContainerCreate(ctx, s.containerConfig(), s.hostConfig(), nil, nil, s.Name); err != nil {
+			return fmt.Errorf("create container: %w", err)
+		}
 	}
+
 	if err = s.Client.ContainerStart(ctx, s.Name, container.StartOptions{}); err != nil {
 		return fmt.Errorf("start container: %w", err)
 	}
