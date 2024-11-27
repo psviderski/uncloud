@@ -43,8 +43,7 @@ func (s *DockerService) Start(ctx context.Context) error {
 		}
 		return fmt.Errorf("inspect container %q: %w", s.Name, err)
 	}
-	// Container already exists, recreate it if its configuration has to be changed.
-	// TODO: check config equal to the new one
+	// TODO: recreate only if the container configuration has to be changed.
 	if err = s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{Force: true}); err != nil {
 		return fmt.Errorf("remove container %q: %w", s.Name, err)
 	}
