@@ -7,7 +7,14 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
+	dockerclient "github.com/docker/docker/client"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"time"
+	"uncloud/internal/cli/client"
+	"uncloud/internal/cli/client/connector"
+	"uncloud/internal/machine"
+	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/machine/cluster"
 )
 
 const (
@@ -60,7 +67,87 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 		c.Machines = append(c.Machines, m)
 	}
 
+	if len(c.Machines) == 0 {
+		return c, nil
+	}
+
+	if err = p.initCluster(ctx, c.Machines); err != nil {
+		return c, err
+	}
+
 	return c, nil
+}
+
+func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error {
+	// TODO: properly wait for the API to respond.
+	time.Sleep(2 * time.Second) // Wait for the machines to be up and running.
+
+	// Init a new cluster on the first machine.
+	initMachine := machines[0]
+	initClient, err := client.New(ctx, connector.NewTCPConnector(initMachine.APIAddress))
+	if err != nil {
+		return fmt.Errorf("create machine client over TCP '%s': %w", initMachine.APIAddress, err)
+	}
+	defer initClient.Close()
+
+	req := &pb.InitClusterRequest{
+		MachineName: initMachine.Name,
+		Network:     pb.NewIPPrefix(cluster.DefaultNetwork),
+	}
+	initResp, err := initClient.InitCluster(ctx, req)
+	if err != nil {
+		return fmt.Errorf("init cluster: %w", err)
+	}
+	fmt.Printf("Cluster %q initialised with machine %q\n", initMachine.ClusterName, initResp.Machine.Name)
+
+	// Join the rest of the machines to the cluster.
+	for _, m := range machines[1:] {
+		mcli, err := client.New(ctx, connector.NewTCPConnector(m.APIAddress))
+		if err != nil {
+			return fmt.Errorf("create machine client over TCP '%s': %w", m.APIAddress, err)
+		}
+		//goland:noinspection GoDeferInLoop
+		defer mcli.Close()
+
+		tokenResp, err := mcli.Token(ctx, &emptypb.Empty{})
+		if err != nil {
+			return fmt.Errorf("get machine token: %w", err)
+		}
+		token, err := machine.ParseToken(tokenResp.Token)
+		if err != nil {
+			return fmt.Errorf("parse machine token: %w", err)
+		}
+
+		// Register the machine in the cluster using its public key and endpoints from the token.
+		endpoints := make([]*pb.IPPort, len(token.Endpoints))
+		for i, addrPort := range token.Endpoints {
+			endpoints[i] = pb.NewIPPort(addrPort)
+		}
+		addReq := &pb.AddMachineRequest{
+			Name: m.Name,
+			Network: &pb.NetworkConfig{
+				Endpoints: endpoints,
+				PublicKey: token.PublicKey,
+			},
+		}
+		addResp, err := initClient.AddMachine(ctx, addReq)
+		if err != nil {
+			return fmt.Errorf("add machine to cluster: %w", err)
+		}
+
+		// Configure the machine to join the cluster.
+		joinReq := &pb.JoinClusterRequest{
+			Machine:       addResp.Machine,
+			OtherMachines: []*pb.MachineInfo{initResp.Machine},
+		}
+		if _, err = mcli.JoinCluster(ctx, joinReq); err != nil {
+			return fmt.Errorf("join cluster: %w", err)
+		}
+
+		fmt.Printf("Machine %q added to cluster\n", addResp.Machine.Name)
+	}
+
+	return nil
 }
 
 func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster, error) {
@@ -69,7 +156,7 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 	// Docker network name is the same as the cluster name.
 	net, err := p.client.NetworkInspect(ctx, name, network.InspectOptions{})
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if dockerclient.IsErrNotFound(err) {
 			return c, ErrNotFound
 		}
 		return c, fmt.Errorf("inspect Docker network '%s': %w", name, err)

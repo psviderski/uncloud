@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 
+# TODO: cleanup /run/docker.pid on exit to support container restart.
 dind dockerd &
 echo "Waiting for Docker in Docker to be ready..."
 timeout 5s sh -c "until docker info &> /dev/null; do sleep 0.1; done"
