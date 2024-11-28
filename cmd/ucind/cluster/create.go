@@ -6,11 +6,8 @@ import (
 	"uncloud/internal/ucind"
 )
 
-type createOptions struct {
-}
-
 func NewCreateCommand() *cobra.Command {
-	//opts := createOptions{}
+	opts := ucind.CreateClusterOptions{}
 	cmd := &cobra.Command{
 		Use:   "create [NAME]",
 		Short: "Create a new cluster.",
@@ -23,12 +20,15 @@ func NewCreateCommand() *cobra.Command {
 				name = args[0]
 			}
 
-			if err := p.CreateCluster(cmd.Context(), name, ucind.CreateClusterOptions{}); err != nil {
+			if _, err := p.CreateCluster(cmd.Context(), name, opts); err != nil {
 				return fmt.Errorf("create cluster '%s': %w", name, err)
 			}
 			fmt.Printf("Cluster '%s' created.\n", name)
 			return nil
 		},
 	}
+
+	cmd.Flags().IntVarP(&opts.Machines, "machines", "m", 1, "Number of machines to create.")
+
 	return cmd
 }
