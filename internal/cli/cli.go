@@ -88,16 +88,21 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 
 	// TODO: iterate over all connections and try to connect to the cluster using the first successful connection.
 	conn := cfg.Connections[0]
-	user, host, port, err := conn.SSH.Parse()
-	if err != nil {
-		return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
+	if conn.SSH != "" {
+		user, host, port, err := conn.SSH.Parse()
+		if err != nil {
+			return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
+		}
+		sshConfig := &connector.SSHConnectorConfig{
+			User: user,
+			Host: host,
+			Port: port,
+		}
+		return client.New(ctx, connector.NewSSHConnector(sshConfig))
+	} else if conn.TCP.IsValid() {
+		return client.New(ctx, connector.NewTCPConnector(conn.TCP))
 	}
-	sshConfig := &connector.SSHConnectorConfig{
-		User: user,
-		Host: host,
-		Port: port,
-	}
-	return client.New(ctx, connector.NewSSHConnector(sshConfig))
+	return nil, errors.New("no valid connection configuration found for the cluster")
 }
 
 func (cli *CLI) InitCluster(

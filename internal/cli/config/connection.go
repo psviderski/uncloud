@@ -2,6 +2,7 @@ package config
 
 import (
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"uncloud/internal/secret"
@@ -14,6 +15,7 @@ const (
 
 type MachineConnection struct {
 	SSH       SSHDestination `toml:"ssh,omitempty"`
+	TCP       netip.AddrPort `toml:"tcp,omitempty"`
 	Host      string         `toml:"host,omitempty"`
 	PublicKey secret.Secret  `toml:"public_key,omitempty"`
 }
