@@ -21,7 +21,7 @@ cleanup() {
     # Wait for processes to terminate.
     wait
 }
-trap cleanup INT TERM
+trap cleanup INT TERM EXIT
 
 dind dockerd &
 echo "Waiting for Docker in Docker to be ready..."
