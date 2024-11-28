@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"uncloud/internal/cli"
 	"uncloud/internal/cli/config"
-	"uncloud/internal/machine/network"
+	"uncloud/internal/machine/cluster"
 )
 
 type initOptions struct {
@@ -49,7 +49,7 @@ func NewInitCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Assign a name to the machine.")
 	cmd.Flags().StringVar(
-		&opts.network, "network", network.DefaultNetwork.String(),
+		&opts.network, "network", cluster.DefaultNetwork.String(),
 		"IPv4 network CIDR to use for machines and services.",
 	)
 	cmd.Flags().StringVarP(

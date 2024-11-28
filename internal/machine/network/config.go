@@ -8,11 +8,6 @@ import (
 	"uncloud/internal/secret"
 )
 
-var (
-	DefaultNetwork    = netip.MustParsePrefix("10.210.0.0/16")
-	DefaultSubnetBits = 24
-)
-
 type Config struct {
 	// Subnet is the IPv4 address range allocated to the machine. The machine's IP address is the first address
 	// in the subnet. Other IP addresses are allocated to containers running on the machine.

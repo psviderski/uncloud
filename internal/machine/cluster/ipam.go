@@ -7,6 +7,10 @@ import (
 	"net/netip"
 )
 
+const DefaultSubnetBits = 24
+
+var DefaultNetwork = netip.MustParsePrefix("10.210.0.0/16")
+
 // IPAM is an in-memory IP address manager for allocating and releasing subnets for machines from a cluster network.
 type IPAM struct {
 	network   netip.Prefix

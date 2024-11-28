@@ -160,7 +160,7 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create IPAM manager: %v", err)
 	}
-	subnet, err := ipam.AllocateSubnetLen(network.DefaultSubnetBits)
+	subnet, err := ipam.AllocateSubnetLen(DefaultSubnetBits)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "allocate subnet for machine: %v", err)
 	}

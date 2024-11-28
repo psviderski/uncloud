@@ -3,11 +3,9 @@ package machine
 import (
 	"encoding/json"
 	"fmt"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"sync"
-	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/network"
 )
 
@@ -82,38 +80,4 @@ func (c *State) Save() error {
 		return err
 	}
 	return os.WriteFile(c.path, data, 0600)
-}
-
-// NewBootstrapConfig returns a new machine configuration that should be applied to the first machine in a cluster.
-func NewBootstrapConfig(name string, subnet netip.Prefix, peers ...network.PeerConfig) (*State, error) {
-	mid, err := cluster.NewMachineID()
-	if err != nil {
-		return nil, fmt.Errorf("generate machine ID: %w", err)
-	}
-	if name == "" {
-		name, err = cluster.NewRandomMachineName()
-		if err != nil {
-			return nil, fmt.Errorf("generate machine name: %w", err)
-		}
-	}
-	privKey, pubKey, err := network.NewMachineKeys()
-	if err != nil {
-		return nil, fmt.Errorf("generate machine keys: %w", err)
-	}
-	if subnet == (netip.Prefix{}) {
-		// Use the first /24 subnet in the default network.
-		subnet = netip.PrefixFrom(network.DefaultNetwork.Addr(), network.DefaultSubnetBits)
-	}
-
-	return &State{
-		ID:   mid,
-		Name: name,
-		Network: &network.Config{
-			Subnet:       subnet,
-			ManagementIP: network.ManagementIP(pubKey),
-			PrivateKey:   privKey,
-			PublicKey:    pubKey,
-			Peers:        peers,
-		},
-	}, nil
 }
