@@ -35,6 +35,7 @@ RUN apk --no-cache add crane
 RUN crane pull "${CORROSION_IMAGE}" /corrosion.tar
 
 
+# Uncloud-in-Docker (ucind) image for running Uncloud test clusters using Docker.
 FROM docker:27.3.1-dind AS ucind
 # Create system group and user 'uncloud'.
 RUN addgroup -S uncloud && adduser -SHD -h /nonexistent -G uncloud -g "" uncloud
