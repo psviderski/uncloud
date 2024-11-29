@@ -193,6 +193,9 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 
 func (p *Provisioner) RemoveCluster(ctx context.Context, name string) error {
 	if _, err := p.InspectCluster(ctx, name); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil
+		}
 		return err
 	}
 
