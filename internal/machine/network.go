@@ -242,9 +242,13 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 		}
 		slog.Info("Subscribed to machine changes in the cluster to reconfigure network peers.")
 
-		slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
-		if err = nc.configurePeers(machines); err != nil {
-			slog.Error("Failed to configure peers.", "err", err)
+		// The machine store may be empty when a machine first joins the cluster, before store synchronization
+		// completes. Skip configuration now and apply it when the store changes are received.
+		if len(machines) > 0 {
+			slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
+			if err = nc.configurePeers(machines); err != nil {
+				slog.Error("Failed to configure peers.", "err", err)
+			}
 		}
 		// For simplicity, reconfigure all peers on any change.
 		for {
@@ -269,6 +273,10 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 }
 
 func (nc *networkController) configurePeers(machines []*pb.MachineInfo) error {
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines to configure peers")
+	}
+
 	nc.state.mu.RLock()
 	currentPeerEndpoints := make(map[string]*netip.AddrPort, len(nc.state.Network.Peers))
 	for _, p := range nc.state.Network.Peers {
