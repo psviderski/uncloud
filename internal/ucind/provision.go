@@ -8,11 +8,11 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type Provisioner struct {
-	client *client.Client
+	dockerCli *client.Client
 }
 
 func NewProvisioner(cli *client.Client) *Provisioner {
 	return &Provisioner{
-		client: cli,
+		dockerCli: cli,
 	}
 }

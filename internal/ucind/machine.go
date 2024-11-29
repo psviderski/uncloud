@@ -2,18 +2,21 @@ package ucind
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"io"
-	"math/big"
 	"net"
 	"net/netip"
 	"time"
+	"uncloud/internal/cli/client"
+	"uncloud/internal/cli/client/connector"
+	"uncloud/internal/secret"
 )
 
 const (
@@ -41,8 +44,8 @@ func (p *Provisioner) CreateMachine(ctx context.Context, clusterName string, opt
 	machineName := opts.Name
 	if machineName == "" {
 		var err error
-		if machineName, err = p.generateMachineName(ctx, clusterName); err != nil {
-			return m, fmt.Errorf("generate machine name: %w", err)
+		if machineName, err = randomMachineName(); err != nil {
+			return m, fmt.Errorf("generate random machine name: %w", err)
 		}
 	}
 	containerName := clusterName + "-" + machineName
@@ -83,7 +86,7 @@ func (p *Provisioner) CreateMachine(ctx context.Context, clusterName string, opt
 	if _, err := p.createContainerWithImagePull(ctx, containerName, config, hostConfig); err != nil {
 		return m, err
 	}
-	if err := p.client.ContainerStart(ctx, containerName, container.StartOptions{}); err != nil {
+	if err := p.dockerCli.ContainerStart(ctx, containerName, container.StartOptions{}); err != nil {
 		return m, fmt.Errorf("start Docker container: %w", err)
 	}
 
@@ -111,16 +114,16 @@ func (p *Provisioner) createContainerWithImagePull(
 ) (container.CreateResponse, error) {
 	var resp container.CreateResponse
 
-	_, err := p.client.ContainerCreate(ctx, config, hostConfig, nil, nil, name)
+	_, err := p.dockerCli.ContainerCreate(ctx, config, hostConfig, nil, nil, name)
 	if err == nil {
 		return resp, nil
 	}
 
-	if !client.IsErrNotFound(err) {
+	if !dockerclient.IsErrNotFound(err) {
 		return resp, fmt.Errorf("create Docker container: %w", err)
 	}
 
-	respBody, err := p.client.ImagePull(ctx, config.Image, image.PullOptions{})
+	respBody, err := p.dockerCli.ImagePull(ctx, config.Image, image.PullOptions{})
 	if err != nil {
 		return resp, fmt.Errorf("pull Docker image: %w", err)
 	}
@@ -132,7 +135,7 @@ func (p *Provisioner) createContainerWithImagePull(
 	}
 
 	// Create container again after image pull.
-	if resp, err = p.client.ContainerCreate(ctx, config, hostConfig, nil, nil, name); err != nil {
+	if resp, err = p.dockerCli.ContainerCreate(ctx, config, hostConfig, nil, nil, name); err != nil {
 		return resp, fmt.Errorf("create Docker container: %w", err)
 	}
 
@@ -141,11 +144,11 @@ func (p *Provisioner) createContainerWithImagePull(
 
 // waitPortPublished waits for a Docker container port to be published on the host which happens asynchronously.
 func (p *Provisioner) waitPortPublished(ctx context.Context, containerID string, port nat.Port) ([]nat.PortBinding, error) {
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Second))
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	for {
-		c, err := p.client.ContainerInspect(ctx, containerID)
+		c, err := p.dockerCli.ContainerInspect(ctx, containerID)
 		if err != nil {
 			return nil, fmt.Errorf("inspect container: %w", err)
 		}
@@ -169,12 +172,33 @@ func (p *Provisioner) waitPortPublished(ctx context.Context, containerID string,
 	}
 }
 
-func (p *Provisioner) generateMachineName(ctx context.Context, clusterName string) (string, error) {
-	// TODO: list existing containers and extract the last number X from machine-X names.
-	r, err := rand.Int(rand.Reader, big.NewInt(1000))
+func randomMachineName() (string, error) {
+	suffix, err := secret.RandomAlphaNumeric(4)
 	if err != nil {
-		return "", fmt.Errorf("generate machine name: %w", err)
+		return "", fmt.Errorf("generate random suffix: %w", err)
 	}
-	i := r.Int64() + 10
-	return fmt.Sprintf("machine-%d", i), nil
+	return "machine-" + suffix, nil
+}
+
+// WaitMachineReady waits for the machine API to respond.
+func (p *Provisioner) WaitMachineReady(ctx context.Context, m Machine) error {
+	cli, err := client.New(ctx, connector.NewTCPConnector(m.APIAddress))
+	if err != nil {
+		return fmt.Errorf("create machine client over TCP '%s': %w", m.APIAddress, err)
+	}
+	defer cli.Close()
+
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxElapsedTime(0),
+	), ctx)
+
+	inspect := func() error {
+		if _, err := cli.Inspect(ctx, &emptypb.Empty{}); err != nil {
+			return fmt.Errorf("inspect machine: %w", err)
+		}
+		return nil
+	}
+	return backoff.Retry(inspect, boff)
 }

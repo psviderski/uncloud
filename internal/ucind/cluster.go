@@ -49,7 +49,7 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 		},
 	}
 	// Create a Docker network with the same as the cluster name.
-	if _, err = p.client.NetworkCreate(ctx, name, netOpts); err != nil {
+	if _, err = p.dockerCli.NetworkCreate(ctx, name, netOpts); err != nil {
 		return c, fmt.Errorf("create Docker network '%s': %w", name, err)
 	}
 	c.Name = name
@@ -79,11 +79,15 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 }
 
 func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error {
-	// TODO: properly wait for the API to respond.
-	time.Sleep(2 * time.Second) // Wait for the machines to be up and running.
-
 	// Init a new cluster on the first machine.
 	initMachine := machines[0]
+
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := p.WaitMachineReady(waitCtx, initMachine); err != nil {
+		return fmt.Errorf("wait for machine %q to be ready: %w", initMachine.Name, err)
+	}
+
 	initClient, err := client.New(ctx, connector.NewTCPConnector(initMachine.APIAddress))
 	if err != nil {
 		return fmt.Errorf("create machine client over TCP '%s': %w", initMachine.APIAddress, err)
@@ -102,14 +106,21 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 
 	// Join the rest of the machines to the cluster.
 	for _, m := range machines[1:] {
-		mcli, err := client.New(ctx, connector.NewTCPConnector(m.APIAddress))
+		waitCtx, cancel = context.WithTimeout(ctx, 5*time.Second)
+		//goland:noinspection GoDeferInLoop
+		defer cancel()
+		if err = p.WaitMachineReady(waitCtx, m); err != nil {
+			return fmt.Errorf("wait for machine %q to be ready: %w", m.Name, err)
+		}
+
+		cli, err := client.New(ctx, connector.NewTCPConnector(m.APIAddress))
 		if err != nil {
 			return fmt.Errorf("create machine client over TCP '%s': %w", m.APIAddress, err)
 		}
 		//goland:noinspection GoDeferInLoop
-		defer mcli.Close()
+		defer cli.Close()
 
-		tokenResp, err := mcli.Token(ctx, &emptypb.Empty{})
+		tokenResp, err := cli.Token(ctx, &emptypb.Empty{})
 		if err != nil {
 			return fmt.Errorf("get machine token: %w", err)
 		}
@@ -140,7 +151,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 			Machine:       addResp.Machine,
 			OtherMachines: []*pb.MachineInfo{initResp.Machine},
 		}
-		if _, err = mcli.JoinCluster(ctx, joinReq); err != nil {
+		if _, err = cli.JoinCluster(ctx, joinReq); err != nil {
 			return fmt.Errorf("join cluster: %w", err)
 		}
 
@@ -154,7 +165,7 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 	var c Cluster
 
 	// Docker network name is the same as the cluster name.
-	net, err := p.client.NetworkInspect(ctx, name, network.InspectOptions{})
+	net, err := p.dockerCli.NetworkInspect(ctx, name, network.InspectOptions{})
 	if err != nil {
 		if dockerclient.IsErrNotFound(err) {
 			return c, ErrNotFound
@@ -186,17 +197,17 @@ func (p *Provisioner) RemoveCluster(ctx context.Context, name string) error {
 			filters.Arg("label", ManagedLabel),
 		),
 	}
-	containers, err := p.client.ContainerList(ctx, opts)
+	containers, err := p.dockerCli.ContainerList(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("list Docker containers with cluster name '%s': %w", name, err)
 	}
 	for _, c := range containers {
-		if err = p.client.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true}); err != nil {
+		if err = p.dockerCli.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true}); err != nil {
 			return fmt.Errorf("remove Docker container '%s': %w", c.ID, err)
 		}
 	}
 
-	if err = p.client.NetworkRemove(ctx, name); err != nil {
+	if err = p.dockerCli.NetworkRemove(ctx, name); err != nil {
 		return fmt.Errorf("remove Docker network '%s': %w", name, err)
 	}
 	return nil
