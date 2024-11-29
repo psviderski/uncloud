@@ -75,6 +75,13 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 		return c, err
 	}
 
+	if p.configUpdater != nil {
+		if err = p.configUpdater.AddCluster(c); err != nil {
+			return c, fmt.Errorf("add cluster to Uncloud config: %w", err)
+		}
+		fmt.Printf("Cluster '%s' added to Uncloud config.\n", c.Name)
+	}
+
 	return c, nil
 }
 
@@ -210,5 +217,13 @@ func (p *Provisioner) RemoveCluster(ctx context.Context, name string) error {
 	if err = p.dockerCli.NetworkRemove(ctx, name); err != nil {
 		return fmt.Errorf("remove Docker network '%s': %w", name, err)
 	}
+
+	if p.configUpdater != nil {
+		if err = p.configUpdater.RemoveCluster(name); err != nil {
+			return fmt.Errorf("remove cluster from Uncloud config: %w", err)
+		}
+		fmt.Printf("Cluster '%s' removed from Uncloud config.\n", name)
+	}
+
 	return nil
 }

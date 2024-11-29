@@ -8,11 +8,13 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type Provisioner struct {
-	dockerCli *client.Client
+	dockerCli     *client.Client
+	configUpdater *ConfigUpdater
 }
 
-func NewProvisioner(cli *client.Client) *Provisioner {
+func NewProvisioner(cli *client.Client, configUpdater *ConfigUpdater) *Provisioner {
 	return &Provisioner{
-		dockerCli: cli,
+		dockerCli:     cli,
+		configUpdater: configUpdater,
 	}
 }
