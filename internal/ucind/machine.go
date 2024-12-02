@@ -33,6 +33,10 @@ type Machine struct {
 	APIAddress    netip.AddrPort
 }
 
+func (m *Machine) Connect(ctx context.Context) (*client.Client, error) {
+	return client.New(ctx, connector.NewTCPConnector(m.APIAddress))
+}
+
 type CreateMachineOptions struct {
 	Name  string
 	Image string

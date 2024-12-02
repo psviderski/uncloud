@@ -10,12 +10,11 @@ import (
 	"testing"
 	"time"
 	"uncloud/internal/cli/client"
-	"uncloud/internal/cli/client/connector"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/ucind"
 )
 
-func createTestCluster(t *testing.T, name string, opts ucind.CreateClusterOptions) (*ucind.Provisioner, ucind.Cluster) {
+func createTestCluster(t *testing.T, name string, opts ucind.CreateClusterOptions) (ucind.Cluster, *ucind.Provisioner) {
 	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 
@@ -26,25 +25,22 @@ func createTestCluster(t *testing.T, name string, opts ucind.CreateClusterOption
 
 	c, err := p.CreateCluster(ctx, name, opts)
 	require.NoError(t, err)
+	require.Equal(t, name, c.Name)
+	require.Len(t, c.Machines, opts.Machines)
 
 	t.Cleanup(func() {
 		require.NoError(t, p.RemoveCluster(ctx, name))
 	})
 
-	return p, c
+	return c, p
 }
 
 func TestClusterLifecycle(t *testing.T) {
 	t.Parallel()
 
-	var (
-		name = "test-cluster-lifecycle"
-		ctx  = context.Background()
-	)
-
-	p, c := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3})
-	require.Equal(t, name, c.Name)
-	require.Len(t, c.Machines, 3)
+	name := "ucind-test.cluster-lifecycle"
+	ctx := context.Background()
+	c, p := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3})
 
 	t.Run("each machine reconciled cluster store", func(t *testing.T) {
 		var err error
@@ -52,14 +48,14 @@ func TestClusterLifecycle(t *testing.T) {
 		clients := make([]*client.Client, len(c.Machines))
 		for i, m := range c.Machines {
 			require.NoError(t, p.WaitMachineReady(ctx, m))
-			clients[i], err = client.New(ctx, connector.NewTCPConnector(m.APIAddress))
+			clients[i], err = m.Connect(ctx)
 			require.NoError(t, err)
 			//goland:noinspection GoDeferInLoop
 			defer clients[i].Close()
 		}
 
 		// Any machine should work as a cluster API endpoint, e.g. be able to list all machines in the cluster.
-		for _, cli := range clients {
+		for i, cli := range clients {
 			// Wait for the machine to reconcile the cluster store.
 			require.Eventually(t, func() bool {
 				machines, err := cli.ListMachines(ctx, &emptypb.Empty{})
@@ -84,7 +80,7 @@ func TestClusterLifecycle(t *testing.T) {
 				}
 
 				return true
-			}, 15*time.Second, 50*time.Millisecond)
+			}, 15*time.Second, 50*time.Millisecond, "cluster store not reconciled on machine #%d", i+1)
 		}
 	})
 
