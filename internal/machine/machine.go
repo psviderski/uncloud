@@ -474,7 +474,7 @@ func (m *Machine) configureCorrosion() error {
 			Plaintext: true,
 		},
 		API: corroservice.APIConfig{
-			Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), corroservice.DefaultAPIPort),
+			Addr: m.config.CorrosionAPIAddr,
 		},
 		Admin: corroservice.AdminConfig{
 			Path: filepath.Join(m.config.CorrosionDir, "admin.sock"),
