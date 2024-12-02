@@ -29,7 +29,15 @@ type ContainerRecord struct {
 
 type ListOptions struct {
 	// MachineIDs filters containers by the machine IDs they are running on.
-	MachineIDs []string
+	MachineIDs      []string
+	ServiceIDOrName ServiceIDOrNameOptions
+}
+
+// ServiceIDOrNameOptions filters containers by the service ID or name they are part of. If both ID and Name are
+// provided, they are combined with an OR operator.
+type ServiceIDOrNameOptions struct {
+	ID   string
+	Name string
 }
 
 type DeleteOptions struct {
@@ -70,13 +78,31 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*Contai
 	query := "SELECT container, machine_id, sync_status, updated_at FROM containers"
 	var args []any
 
+	var whereConditions []string
 	if len(opts.MachineIDs) > 0 {
-		query += " WHERE machine_id IN (?" + strings.Repeat(", ?", len(opts.MachineIDs)-1) + ")"
+		whereConditions = append(whereConditions, "machine_id IN (?"+strings.Repeat(", ?", len(opts.MachineIDs)-1)+")")
 		args = make([]any, len(opts.MachineIDs))
 		for i, id := range opts.MachineIDs {
 			args[i] = id
 		}
 	}
+
+	var serviceConditions []string
+	var serviceArgs []any
+	if opts.ServiceIDOrName.ID != "" {
+		serviceConditions = append(serviceConditions, "service_id = ?")
+		serviceArgs = append(serviceArgs, opts.ServiceIDOrName.ID)
+	}
+	if opts.ServiceIDOrName.Name != "" {
+		serviceConditions = append(serviceConditions, "service_name = ?")
+		serviceArgs = append(serviceArgs, opts.ServiceIDOrName.Name)
+	}
+	if len(serviceConditions) > 0 {
+		whereConditions = append(whereConditions, "("+strings.Join(serviceConditions, " OR ")+")")
+		args = append(args, serviceArgs...)
+	}
+
+	query += " WHERE " + strings.Join(whereConditions, " AND ")
 
 	rows, err := s.corro.QueryContext(ctx, query, args...)
 	if err != nil {

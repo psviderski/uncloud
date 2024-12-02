@@ -685,3 +685,24 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 		},
 	}, nil
 }
+
+func (m *Machine) InspectService(
+	ctx context.Context, req *pb.InspectServiceRequest,
+) (*pb.InspectServiceResponse, error) {
+	opts := store.ListOptions{ServiceIDOrName: store.ServiceIDOrNameOptions{
+		ID:   req.Id,
+		Name: req.Id,
+	}}
+
+	records, err := m.store.ListContainers(ctx, opts)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list containers: %v", err)
+	}
+
+	fmt.Println("## records: ", records)
+	return &pb.InspectServiceResponse{
+		Service: &pb.Service{
+			Id: req.Id,
+		},
+	}, nil
+}

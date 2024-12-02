@@ -15,6 +15,7 @@ import (
 	"uncloud/internal/machine/api/pb"
 	machinedocker "uncloud/internal/machine/docker"
 	"uncloud/internal/secret"
+	"uncloud/internal/service"
 )
 
 // ServiceOptions contains all the options for creating a service.
@@ -42,8 +43,8 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	}
 
 	switch opts.Mode {
-	case docker.DeployModeReplicated:
-	case docker.DeployModeGlobal:
+	case service.ModeReplicated:
+	case service.ModeGlobal:
 		return resp, errors.New("global mode is not supported yet")
 	default:
 		return resp, fmt.Errorf("invalid mode: %q", opts.Mode)
@@ -154,4 +155,13 @@ func firstAvailableMachine(machines []*pb.MachineMember) (*pb.MachineMember, err
 	}
 
 	return nil, errors.New("no available machine to run the service")
+}
+
+func (c *Client) InspectService(ctx context.Context, id string) error {
+	_, err := c.MachineClient.InspectService(ctx, &pb.InspectServiceRequest{Id: id})
+	if err != nil {
+		return err
+	}
+
+	return errors.New("not implemented")
 }

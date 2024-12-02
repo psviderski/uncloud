@@ -20,10 +20,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Machine_InitCluster_FullMethodName = "/api.Machine/InitCluster"
-	Machine_JoinCluster_FullMethodName = "/api.Machine/JoinCluster"
-	Machine_Token_FullMethodName       = "/api.Machine/Token"
-	Machine_Inspect_FullMethodName     = "/api.Machine/Inspect"
+	Machine_InitCluster_FullMethodName    = "/api.Machine/InitCluster"
+	Machine_JoinCluster_FullMethodName    = "/api.Machine/JoinCluster"
+	Machine_Token_FullMethodName          = "/api.Machine/Token"
+	Machine_Inspect_FullMethodName        = "/api.Machine/Inspect"
+	Machine_InspectService_FullMethodName = "/api.Machine/InspectService"
 )
 
 // MachineClient is the client API for Machine service.
@@ -34,6 +35,7 @@ type MachineClient interface {
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error)
 	Inspect(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MachineInfo, error)
+	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
 }
 
 type machineClient struct {
@@ -84,6 +86,16 @@ func (c *machineClient) Inspect(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
+func (c *machineClient) InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InspectServiceResponse)
+	err := c.cc.Invoke(ctx, Machine_InspectService_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MachineServer is the server API for Machine service.
 // All implementations must embed UnimplementedMachineServer
 // for forward compatibility.
@@ -92,6 +104,7 @@ type MachineServer interface {
 	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
 	Token(context.Context, *emptypb.Empty) (*TokenResponse, error)
 	Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error)
+	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
 	mustEmbedUnimplementedMachineServer()
 }
 
@@ -113,6 +126,9 @@ func (UnimplementedMachineServer) Token(context.Context, *emptypb.Empty) (*Token
 }
 func (UnimplementedMachineServer) Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Inspect not implemented")
+}
+func (UnimplementedMachineServer) InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectService not implemented")
 }
 func (UnimplementedMachineServer) mustEmbedUnimplementedMachineServer() {}
 func (UnimplementedMachineServer) testEmbeddedByValue()                 {}
@@ -207,6 +223,24 @@ func _Machine_Inspect_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_InspectService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InspectServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).InspectService(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_InspectService_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).InspectService(ctx, req.(*InspectServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Machine_ServiceDesc is the grpc.ServiceDesc for Machine service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -229,6 +263,10 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Inspect",
 			Handler:    _Machine_Inspect_Handler,
+		},
+		{
+			MethodName: "InspectService",
+			Handler:    _Machine_InspectService_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

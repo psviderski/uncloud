@@ -12,6 +12,7 @@ service Machine {
   rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
   rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
+  rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
 }
 
 message MachineInfo {
@@ -43,4 +44,24 @@ message JoinClusterRequest {
 
 message TokenResponse {
   string token = 1;
+}
+
+message Service {
+  string id = 1;
+  string name = 2;
+
+  message Container {
+    string machine_id = 1;
+    bytes container = 2;
+  }
+
+  repeated Container containers = 3;
+}
+
+message InspectServiceRequest {
+  string id = 1;
+}
+
+message InspectServiceResponse {
+  Service service = 1;
 }
