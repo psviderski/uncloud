@@ -2,10 +2,12 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"os"
 	"testing"
 	"time"
 	"uncloud/internal/cli/client"
@@ -19,6 +21,19 @@ func createTestCluster(t *testing.T, name string, opts ucind.CreateClusterOption
 
 	p := ucind.NewProvisioner(dockerCli, nil)
 	ctx := context.Background()
+
+	// Use the existing cluster if specified by the environment variable.
+	envName := os.Getenv("TEST_CLUSTER_NAME")
+	if envName != "" {
+		c, err := p.InspectCluster(ctx, envName)
+		if err == nil {
+			return c, p
+		}
+		if !errors.Is(err, ucind.ErrNotFound) {
+			require.NoError(t, err)
+		}
+	}
+
 	// Remove the cluster if it already exists. It could be left from a previous interrupted test run.
 	require.NoError(t, p.RemoveCluster(ctx, name))
 

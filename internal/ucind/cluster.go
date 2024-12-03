@@ -9,6 +9,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"net/netip"
 	"time"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/client/connector"
@@ -186,7 +187,39 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 	}
 
 	c.Name = name
-	// TODO: list containers (machines) with the cluster name label and include them in the cluster struct.
+	// Include all containers (machines) with the cluster name label.
+	opts := container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("label", ClusterNameLabel+"="+name),
+			filters.Arg("label", ManagedLabel),
+		),
+	}
+	containers, err := p.dockerCli.ContainerList(ctx, opts)
+	if err != nil {
+		return c, fmt.Errorf("list Docker containers with cluster name '%s': %w", name, err)
+	}
+	for _, ctr := range containers {
+		m := Machine{
+			ClusterName:   name,
+			ContainerName: ctr.Names[0],
+			Name:          ctr.Labels[MachineNameLabel],
+		}
+
+		for _, port := range ctr.Ports {
+			if port.PrivatePort == UncloudAPIPort {
+				if ip, err := netip.ParseAddr(port.IP); err == nil {
+					m.APIAddress = netip.AddrPortFrom(ip, port.PublicPort)
+					break
+				}
+			}
+		}
+		if !m.APIAddress.IsValid() {
+			return c, fmt.Errorf("API binding not found for container '%s'", m.ContainerName)
+		}
+
+		c.Machines = append(c.Machines, m)
+	}
 
 	return c, nil
 }
