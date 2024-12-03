@@ -60,6 +60,7 @@ func inspect(ctx context.Context, uncli *client.CLI, opts *inspectOptions) error
 
 	fmt.Printf("ID:    %s\n", svc.ID)
 	fmt.Printf("Name:  %s\n", svc.Name)
+	fmt.Printf("Mode:  %s\n", svc.Mode)
 	fmt.Println()
 
 	// Print the list of containers in a table format.

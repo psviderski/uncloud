@@ -14,6 +14,7 @@ const (
 type Service struct {
 	ID         string
 	Name       string
+	Mode       string
 	Containers []MachineContainer
 }
 
@@ -35,6 +36,7 @@ func FromProto(s *pb.Service) (Service, error) {
 	return Service{
 		ID:         s.Id,
 		Name:       s.Name,
+		Mode:       s.Mode,
 		Containers: containers,
 	}, nil
 }

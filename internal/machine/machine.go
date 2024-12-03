@@ -703,6 +703,8 @@ func (m *Machine) InspectService(
 	if len(records) == 0 {
 		return nil, status.Error(codes.NotFound, "service not found")
 	}
+	// TODO: handle multiple services with the same name but different IDs. This can happen when two services
+	//  with the same name are created concurrently on different machines.
 
 	containers := make([]*pb.Service_Container, len(records))
 	for i, r := range records {
@@ -719,6 +721,7 @@ func (m *Machine) InspectService(
 	svc := &pb.Service{
 		Id:         records[0].Container.ServiceID(),
 		Name:       records[0].Container.ServiceName(),
+		Mode:       records[0].Container.ServiceMode(),
 		Containers: containers,
 	}
 	return &pb.InspectServiceResponse{Service: svc}, nil

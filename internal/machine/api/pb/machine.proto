@@ -49,13 +49,15 @@ message TokenResponse {
 message Service {
   string id = 1;
   string name = 2;
+  string mode = 3;
 
   message Container {
     string machine_id = 1;
+    // JSON encoded Docker types.Container.
     bytes container = 2;
   }
 
-  repeated Container containers = 3;
+  repeated Container containers = 4;
 }
 
 message InspectServiceRequest {

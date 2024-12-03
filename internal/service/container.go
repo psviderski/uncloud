@@ -8,6 +8,7 @@ import (
 const (
 	LabelServiceID   = "uncloud.service.id"
 	LabelServiceName = "uncloud.service.name"
+	LabelServiceMode = "uncloud.service.mode"
 )
 
 type Container struct {
@@ -22,6 +23,11 @@ func (c *Container) ServiceID() string {
 // ServiceName returns the service name that the container is part of.
 func (c *Container) ServiceName() string {
 	return c.Labels[LabelServiceName]
+}
+
+// ServiceMode returns the replication mode of the service that the container is part of.
+func (c *Container) ServiceMode() string {
+	return c.Labels[LabelServiceMode]
 }
 
 // runningStatusRegex matches the status string of a running container.
