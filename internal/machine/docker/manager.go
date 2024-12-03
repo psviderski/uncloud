@@ -10,8 +10,8 @@ import (
 	"github.com/docker/docker/client"
 	"log/slog"
 	"time"
-	"uncloud/internal/docker"
 	"uncloud/internal/machine/store"
+	"uncloud/internal/service"
 )
 
 const (
@@ -152,8 +152,8 @@ func (m *Manager) syncContainersToStore(ctx context.Context) error {
 	// List only Uncloud service containers identified by their labels.
 	containers, err := m.client.ContainerList(ctx, dockercontainer.ListOptions{
 		Filters: filters.NewArgs(
-			filters.Arg("label", docker.LabelServiceID),
-			filters.Arg("label", docker.LabelServiceName),
+			filters.Arg("label", service.LabelServiceID),
+			filters.Arg("label", service.LabelServiceName),
 		),
 	})
 	if err != nil {
@@ -185,7 +185,7 @@ func (m *Manager) syncContainersToStore(ctx context.Context) error {
 
 	// Create or update the current Docker containers in the store.
 	for _, dc := range containers {
-		c := &docker.Container{Container: dc}
+		c := &service.Container{Container: dc}
 		if err = m.store.CreateOrUpdateContainer(ctx, c, m.machineID); err != nil {
 			storeErr = errors.Join(storeErr, fmt.Errorf("create or update container %q: %w", c.ID, err))
 		}

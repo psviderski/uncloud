@@ -9,6 +9,8 @@ import (
 	"uncloud/internal/machine/docker"
 )
 
+var NotFound = errors.New("not found")
+
 // Client is a client for the machine API.
 type Client struct {
 	connector Connector
@@ -46,6 +48,6 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) Close() error {
-	return errors.Join(c.conn.Close(), c.connector.Close())
+func (cli *Client) Close() error {
+	return errors.Join(cli.conn.Close(), cli.connector.Close())
 }

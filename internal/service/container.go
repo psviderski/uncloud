@@ -1,4 +1,4 @@
-package docker
+package service
 
 import (
 	"github.com/docker/docker/api/types"
@@ -12,6 +12,16 @@ const (
 
 type Container struct {
 	types.Container
+}
+
+// ServiceID returns the service ID that the container is part of.
+func (c *Container) ServiceID() string {
+	return c.Labels[LabelServiceID]
+}
+
+// ServiceName returns the service name that the container is part of.
+func (c *Container) ServiceName() string {
+	return c.Labels[LabelServiceName]
 }
 
 // runningStatusRegex matches the status string of a running container.

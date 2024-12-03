@@ -7,11 +7,12 @@ import (
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"slices"
 	"strings"
-	"uncloud/internal/docker"
 	"uncloud/internal/machine/api/pb"
 	machinedocker "uncloud/internal/machine/docker"
 	"uncloud/internal/secret"
@@ -34,7 +35,7 @@ type RunServiceResponse struct {
 	MachineName string
 }
 
-func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServiceResponse, error) {
+func (cli *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServiceResponse, error) {
 	var resp RunServiceResponse
 
 	image, err := reference.ParseDockerRef(opts.Image)
@@ -51,7 +52,7 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	}
 
 	// Find a machine to run the service on.
-	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
+	listResp, err := cli.ListMachines(ctx, &emptypb.Empty{})
 	if err != nil {
 		return resp, fmt.Errorf("list machines: %w", err)
 	}
@@ -114,8 +115,8 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 	config := &container.Config{
 		Image: opts.Image,
 		Labels: map[string]string{
-			docker.LabelServiceID:   serviceID,
-			docker.LabelServiceName: serviceName,
+			service.LabelServiceID:   serviceID,
+			service.LabelServiceName: serviceName,
 		},
 	}
 	netConfig := &network.NetworkingConfig{
@@ -124,11 +125,11 @@ func (c *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServi
 		},
 	}
 	// TODO: pull image if it doesn't exist on the machine.
-	createResp, err := c.CreateContainer(ctx, config, nil, netConfig, nil, containerName)
+	createResp, err := cli.CreateContainer(ctx, config, nil, netConfig, nil, containerName)
 	if err != nil {
 		return resp, fmt.Errorf("create container: %w", err)
 	}
-	if err = c.StartContainer(ctx, createResp.ID, container.StartOptions{}); err != nil {
+	if err = cli.StartContainer(ctx, createResp.ID, container.StartOptions{}); err != nil {
 		return resp, fmt.Errorf("start container: %w", err)
 	}
 
@@ -157,11 +158,23 @@ func firstAvailableMachine(machines []*pb.MachineMember) (*pb.MachineMember, err
 	return nil, errors.New("no available machine to run the service")
 }
 
-func (c *Client) InspectService(ctx context.Context, id string) error {
-	_, err := c.MachineClient.InspectService(ctx, &pb.InspectServiceRequest{Id: id})
+// InspectService returns detailed information about a service and its containers.
+func (cli *Client) InspectService(ctx context.Context, id string) (service.Service, error) {
+	var svc service.Service
+
+	resp, err := cli.MachineClient.InspectService(ctx, &pb.InspectServiceRequest{Id: id})
 	if err != nil {
-		return err
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.NotFound {
+				return svc, NotFound
+			}
+		}
+		return svc, err
 	}
 
-	return errors.New("not implemented")
+	svc, err = service.FromProto(resp.Service)
+	if err != nil {
+		return svc, fmt.Errorf("from proto: %w", err)
+	}
+	return svc, nil
 }

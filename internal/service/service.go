@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/docker/docker/api/types"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -15,19 +14,19 @@ const (
 type Service struct {
 	ID         string
 	Name       string
-	Containers []Container
+	Containers []MachineContainer
 }
 
-type Container struct {
+type MachineContainer struct {
 	MachineID string
-	Container types.Container
+	Container Container
 }
 
 func FromProto(s *pb.Service) (Service, error) {
 	var err error
-	containers := make([]Container, len(s.Containers))
-	for i, c := range s.Containers {
-		containers[i], err = containerFromProto(c)
+	containers := make([]MachineContainer, len(s.Containers))
+	for i, sc := range s.Containers {
+		containers[i], err = machineContainerFromProto(sc)
 		if err != nil {
 			return Service{}, err
 		}
@@ -40,14 +39,14 @@ func FromProto(s *pb.Service) (Service, error) {
 	}, nil
 }
 
-func containerFromProto(c *pb.Service_Container) (Container, error) {
-	var dockerCtr types.Container
-	if err := json.Unmarshal(c.Container, &dockerCtr); err != nil {
-		return Container{}, fmt.Errorf("unmarshal container: %w", err)
+func machineContainerFromProto(sc *pb.Service_Container) (MachineContainer, error) {
+	var c Container
+	if err := json.Unmarshal(sc.Container, &c); err != nil {
+		return MachineContainer{}, fmt.Errorf("unmarshal container: %w", err)
 	}
 
-	return Container{
-		MachineID: c.MachineId,
-		Container: dockerCtr,
+	return MachineContainer{
+		MachineID: sc.MachineId,
+		Container: c,
 	}, nil
 }

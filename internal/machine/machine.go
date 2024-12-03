@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/docker/docker/client"
@@ -686,6 +687,7 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 	}, nil
 }
 
+// InspectService returns detailed information about a service and its containers.
 func (m *Machine) InspectService(
 	ctx context.Context, req *pb.InspectServiceRequest,
 ) (*pb.InspectServiceResponse, error) {
@@ -698,11 +700,26 @@ func (m *Machine) InspectService(
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list containers: %v", err)
 	}
+	if len(records) == 0 {
+		return nil, status.Error(codes.NotFound, "service not found")
+	}
 
-	fmt.Println("## records: ", records)
-	return &pb.InspectServiceResponse{
-		Service: &pb.Service{
-			Id: req.Id,
-		},
-	}, nil
+	containers := make([]*pb.Service_Container, len(records))
+	for i, r := range records {
+		containerJSON, err := json.Marshal(r.Container)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "marshal container: %v", err)
+		}
+		containers[i] = &pb.Service_Container{
+			MachineId: r.MachineID,
+			Container: containerJSON,
+		}
+	}
+
+	svc := &pb.Service{
+		Id:         records[0].Container.ServiceID(),
+		Name:       records[0].Container.ServiceName(),
+		Containers: containers,
+	}
+	return &pb.InspectServiceResponse{Service: svc}, nil
 }

@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
 	"log/slog"
 	"strings"
 	"time"
-	"uncloud/internal/docker"
+	"uncloud/internal/service"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 )
 
 type ContainerRecord struct {
-	Container  *docker.Container
+	Container  *service.Container
 	MachineID  string
 	SyncStatus string
 	UpdatedAt  time.Time
@@ -46,7 +47,7 @@ type DeleteOptions struct {
 
 // CreateOrUpdateContainer creates a new container record or updates an existing one in the store database.
 // The container is associated with the given machine ID that indicates which machine the container is running on.
-func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *docker.Container, machineID string) error {
+func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *service.Container, machineID string) error {
 	cJSON, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("marshal container: %w", err)
@@ -75,34 +76,27 @@ func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *docker.Container
 
 // ListContainers returns a list of container records from the store database that match the given options.
 func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*ContainerRecord, error) {
-	query := "SELECT container, machine_id, sync_status, updated_at FROM containers"
-	var args []any
+	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers")
 
-	var whereConditions []string
 	if len(opts.MachineIDs) > 0 {
-		whereConditions = append(whereConditions, "machine_id IN (?"+strings.Repeat(", ?", len(opts.MachineIDs)-1)+")")
-		args = make([]any, len(opts.MachineIDs))
-		for i, id := range opts.MachineIDs {
-			args[i] = id
+		q = q.Where(sq.Eq{"machine_id": opts.MachineIDs})
+	}
+
+	if opts.ServiceIDOrName.ID != "" || opts.ServiceIDOrName.Name != "" {
+		var conditions []sq.Sqlizer
+		if opts.ServiceIDOrName.ID != "" {
+			conditions = append(conditions, sq.Eq{"service_id": opts.ServiceIDOrName.ID})
 		}
+		if opts.ServiceIDOrName.Name != "" {
+			conditions = append(conditions, sq.Eq{"service_name": opts.ServiceIDOrName.Name})
+		}
+		q = q.Where(sq.Or(conditions))
 	}
 
-	var serviceConditions []string
-	var serviceArgs []any
-	if opts.ServiceIDOrName.ID != "" {
-		serviceConditions = append(serviceConditions, "service_id = ?")
-		serviceArgs = append(serviceArgs, opts.ServiceIDOrName.ID)
+	query, args, err := q.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
 	}
-	if opts.ServiceIDOrName.Name != "" {
-		serviceConditions = append(serviceConditions, "service_name = ?")
-		serviceArgs = append(serviceArgs, opts.ServiceIDOrName.Name)
-	}
-	if len(serviceConditions) > 0 {
-		whereConditions = append(whereConditions, "("+strings.Join(serviceConditions, " OR ")+")")
-		args = append(args, serviceArgs...)
-	}
-
-	query += " WHERE " + strings.Join(whereConditions, " AND ")
 
 	rows, err := s.corro.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -119,7 +113,7 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*Contai
 			return nil, fmt.Errorf("scan container record: %w", err)
 		}
 
-		var c docker.Container
+		var c service.Container
 		if err = json.Unmarshal([]byte(cJSON), &c); err != nil {
 			return nil, fmt.Errorf("unmarshal container: %w", err)
 		}

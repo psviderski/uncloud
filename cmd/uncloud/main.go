@@ -43,6 +43,7 @@ func main() {
 	cmd.AddCommand(
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
+		service.NewInspectCommand(),
 		service.NewRunCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())
