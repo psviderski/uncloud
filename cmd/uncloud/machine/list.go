@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"os"
 	"strings"
@@ -39,7 +38,7 @@ func runList(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 	}
 	defer c.Close()
 
-	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
+	machines, err := c.ListMachines(ctx)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
@@ -51,7 +50,7 @@ func runList(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 		return fmt.Errorf("write header: %w", err)
 	}
 	// Print rows.
-	for _, member := range listResp.Machines {
+	for _, member := range machines {
 		m := member.Machine
 		subnet, _ := m.Network.Subnet.ToPrefix()
 		subnet = netip.PrefixFrom(network.MachineIP(subnet), subnet.Bits())

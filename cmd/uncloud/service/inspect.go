@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -50,12 +49,12 @@ func inspect(ctx context.Context, uncli *client.CLI, opts *inspectOptions) error
 		return fmt.Errorf("inspect service: %w", err)
 	}
 
-	resp, err := cli.ListMachines(ctx, &emptypb.Empty{})
+	machines, err := cli.ListMachines(ctx)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
 	machinesNamesByID := make(map[string]string)
-	for _, m := range resp.Machines {
+	for _, m := range machines {
 		machinesNamesByID[m.Machine.Id] = m.Machine.Name
 	}
 

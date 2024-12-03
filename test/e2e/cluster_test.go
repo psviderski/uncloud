@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"testing"
 	"time"
 	"uncloud/internal/cli/client"
@@ -58,7 +57,7 @@ func TestClusterLifecycle(t *testing.T) {
 		for i, cli := range clients {
 			// Wait for the machine to reconcile the cluster store.
 			require.Eventually(t, func() bool {
-				machines, err := cli.ListMachines(ctx, &emptypb.Empty{})
+				machines, err := cli.ListMachines(ctx)
 				if err != nil {
 					// FailedPrecondition "cluster is not initialised" is expected until the store is reconciled.
 					if s, ok := status.FromError(err); ok {
@@ -69,11 +68,11 @@ func TestClusterLifecycle(t *testing.T) {
 					require.NoError(t, err)
 				}
 
-				if len(machines.Machines) != 3 {
+				if len(machines) != 3 {
 					return false
 				}
 
-				for _, m := range machines.Machines {
+				for _, m := range machines {
 					if pb.MachineMember_UP != m.State {
 						return false
 					}

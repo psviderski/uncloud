@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"slices"
 	"strings"
 	"uncloud/internal/machine/api/pb"
@@ -52,7 +51,7 @@ func (cli *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunSer
 	}
 
 	// Find a machine to run the service on.
-	listResp, err := cli.ListMachines(ctx, &emptypb.Empty{})
+	machines, err := cli.ListMachines(ctx)
 	if err != nil {
 		return resp, fmt.Errorf("list machines: %w", err)
 	}
@@ -60,7 +59,7 @@ func (cli *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunSer
 	var machine *pb.MachineMember
 	if opts.Machine != "" {
 		// Check if the machine ID or name exists if it's explicitly specified.
-		for _, m := range listResp.Machines {
+		for _, m := range machines {
 			if m.Machine.Name == opts.Machine || m.Machine.Id == opts.Machine {
 				machine = m
 				break
@@ -70,7 +69,7 @@ func (cli *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunSer
 			return resp, fmt.Errorf("machine %q not found", opts.Machine)
 		}
 	} else {
-		machine, err = firstAvailableMachine(listResp.Machines)
+		machine, err = firstAvailableMachine(machines)
 		if err != nil {
 			return resp, err
 		}

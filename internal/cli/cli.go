@@ -225,12 +225,12 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 	}
 
 	// List other machines in the cluster to include them in the join request.
-	listResp, err := c.ListMachines(ctx, &emptypb.Empty{})
+	machines, err := c.ListMachines(ctx)
 	if err != nil {
 		return fmt.Errorf("list cluster machines: %w", err)
 	}
-	otherMachines := make([]*pb.MachineInfo, 0, len(listResp.Machines)-1)
-	for _, m := range listResp.Machines {
+	otherMachines := make([]*pb.MachineInfo, 0, len(machines)-1)
+	for _, m := range machines {
 		if m.Machine.Id != addResp.Machine.Id {
 			otherMachines = append(otherMachines, m.Machine)
 		}
