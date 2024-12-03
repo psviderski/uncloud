@@ -81,9 +81,9 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Server) PullImage(
-	ctx context.Context, req *pb.PullImageRequest, stream grpc.ServerStreamingServer[pb.JSONMessage],
-) error {
+func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreamingServer[pb.JSONMessage]) error {
+	ctx := stream.Context()
+
 	var opts image.PullOptions
 	if len(req.Options) > 0 {
 		if err := json.Unmarshal(req.Options, &opts); err != nil {
