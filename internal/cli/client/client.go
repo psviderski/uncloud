@@ -9,7 +9,7 @@ import (
 	"uncloud/internal/machine/docker"
 )
 
-var NotFound = errors.New("not found")
+var ErrNotFound = errors.New("not found")
 
 // Client is a client for the machine API.
 type Client struct {

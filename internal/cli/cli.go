@@ -17,10 +17,6 @@ import (
 
 const defaultClusterName = "default"
 
-var (
-	ErrNotFound = errors.New("not found")
-)
-
 type CLI struct {
 	config *config.Config
 }
@@ -47,7 +43,7 @@ func (cli *CLI) CreateCluster(name string) error {
 
 func (cli *CLI) SetCurrentCluster(name string) error {
 	if _, ok := cli.config.Clusters[name]; !ok {
-		return ErrNotFound
+		return client.ErrNotFound
 	}
 	cli.config.CurrentCluster = name
 	return cli.config.Save()
