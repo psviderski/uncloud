@@ -3,13 +3,17 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"io"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -47,6 +51,9 @@ func (s *Server) CreateContainer(ctx context.Context, req *pb.CreateContainerReq
 
 	resp, err := s.client.ContainerCreate(ctx, &config, &hostConfig, &networkConfig, &platform, req.Name)
 	if err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "create container: %v", err)
+		}
 		return nil, status.Errorf(codes.Internal, "create container: %v", err)
 	}
 
@@ -60,16 +67,65 @@ func (s *Server) CreateContainer(ctx context.Context, req *pb.CreateContainerReq
 
 // StartContainer starts a container with the given ID and options.
 func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerRequest) (*emptypb.Empty, error) {
-	var options container.StartOptions
+	var opts container.StartOptions
 	if len(req.Options) > 0 {
-		if err := json.Unmarshal(req.Options, &options); err != nil {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "unmarshal start options: %v", err)
 		}
 	}
 
-	if err := s.client.ContainerStart(ctx, req.Id, options); err != nil {
+	if err := s.client.ContainerStart(ctx, req.Id, opts); err != nil {
 		return nil, status.Errorf(codes.Internal, "start container: %v", err)
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func (s *Server) PullImage(
+	ctx context.Context, req *pb.PullImageRequest, stream grpc.ServerStreamingServer[pb.JSONMessage],
+) error {
+	var opts image.PullOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return status.Errorf(codes.InvalidArgument, "unmarshal pull options: %v", err)
+		}
+	}
+
+	respBody, err := s.client.ImagePull(ctx, req.Image, opts)
+	if err != nil {
+		return status.Errorf(codes.Internal, "pull image: %v", err)
+	}
+	defer respBody.Close()
+
+	decoder := json.NewDecoder(respBody)
+	errCh := make(chan error, 1)
+
+	go func() {
+		var raw json.RawMessage
+		for {
+			if err = decoder.Decode(&raw); err != nil {
+				if errors.Is(err, io.EOF) {
+					errCh <- nil
+					return
+				}
+				errCh <- status.Errorf(codes.Internal, "decode image pull message: %v", err)
+				return
+			}
+
+			if err = stream.Send(&pb.JSONMessage{Message: raw}); err != nil {
+				errCh <- status.Errorf(codes.Internal, "send image pull message to stream: %v", err)
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case err = <-errCh:
+			return err
+		case <-ctx.Done():
+			return status.Errorf(codes.Canceled, "pull image: %v", ctx.Err())
+		}
+	}
+
 }

@@ -22,6 +22,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Docker_CreateContainer_FullMethodName = "/api.Docker/CreateContainer"
 	Docker_StartContainer_FullMethodName  = "/api.Docker/StartContainer"
+	Docker_PullImage_FullMethodName       = "/api.Docker/PullImage"
 )
 
 // DockerClient is the client API for Docker service.
@@ -30,6 +31,7 @@ const (
 type DockerClient interface {
 	CreateContainer(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
 	StartContainer(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PullImage(ctx context.Context, in *PullImageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JSONMessage], error)
 }
 
 type dockerClient struct {
@@ -60,12 +62,32 @@ func (c *dockerClient) StartContainer(ctx context.Context, in *StartContainerReq
 	return out, nil
 }
 
+func (c *dockerClient) PullImage(ctx context.Context, in *PullImageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JSONMessage], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Docker_ServiceDesc.Streams[0], Docker_PullImage_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PullImageRequest, JSONMessage]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Docker_PullImageClient = grpc.ServerStreamingClient[JSONMessage]
+
 // DockerServer is the server API for Docker service.
 // All implementations must embed UnimplementedDockerServer
 // for forward compatibility.
 type DockerServer interface {
 	CreateContainer(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
 	StartContainer(context.Context, *StartContainerRequest) (*emptypb.Empty, error)
+	PullImage(*PullImageRequest, grpc.ServerStreamingServer[JSONMessage]) error
 	mustEmbedUnimplementedDockerServer()
 }
 
@@ -81,6 +103,9 @@ func (UnimplementedDockerServer) CreateContainer(context.Context, *CreateContain
 }
 func (UnimplementedDockerServer) StartContainer(context.Context, *StartContainerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartContainer not implemented")
+}
+func (UnimplementedDockerServer) PullImage(*PullImageRequest, grpc.ServerStreamingServer[JSONMessage]) error {
+	return status.Errorf(codes.Unimplemented, "method PullImage not implemented")
 }
 func (UnimplementedDockerServer) mustEmbedUnimplementedDockerServer() {}
 func (UnimplementedDockerServer) testEmbeddedByValue()                {}
@@ -139,6 +164,17 @@ func _Docker_StartContainer_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_PullImage_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(PullImageRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DockerServer).PullImage(m, &grpc.GenericServerStream[PullImageRequest, JSONMessage]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Docker_PullImageServer = grpc.ServerStreamingServer[JSONMessage]
+
 // Docker_ServiceDesc is the grpc.ServiceDesc for Docker service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -155,6 +191,12 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Docker_StartContainer_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "PullImage",
+			Handler:       _Docker_PullImage_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "internal/machine/api/pb/docker.proto",
 }

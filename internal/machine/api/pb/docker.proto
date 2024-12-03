@@ -9,6 +9,7 @@ import "google/protobuf/empty.proto";
 service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
   rpc StartContainer(StartContainerRequest) returns (google.protobuf.Empty);
+  rpc PullImage(PullImageRequest) returns (stream JSONMessage);
 }
 
 message CreateContainerRequest {
@@ -32,4 +33,15 @@ message StartContainerRequest {
   string id = 1;
   // JSON serialized container.StartOptions.
   bytes options = 2;
+}
+
+message PullImageRequest {
+  string image = 1;
+  // JSON serialized image.PullOptions.
+  bytes options = 2;
+}
+
+message JSONMessage {
+  // JSON serialized jsonmessage.JSONMessage.
+  bytes message = 1;
 }

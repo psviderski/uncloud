@@ -5,9 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/errdefs"
+	"github.com/docker/docker/pkg/jsonmessage"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"io"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -66,6 +72,11 @@ func (c *Client) CreateContainer(
 		Name:          name,
 	})
 	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.NotFound {
+				return resp, errdefs.NotFound(err)
+			}
+		}
 		return resp, err
 	}
 
@@ -76,15 +87,63 @@ func (c *Client) CreateContainer(
 }
 
 // StartContainer starts a container with the given ID and options.
-func (c *Client) StartContainer(ctx context.Context, id string, options container.StartOptions) error {
-	optionsBytes, err := json.Marshal(options)
+func (c *Client) StartContainer(ctx context.Context, id string, opts container.StartOptions) error {
+	optsBytes, err := json.Marshal(opts)
 	if err != nil {
 		return fmt.Errorf("marshal start options: %w", err)
 	}
 
 	_, err = c.grpcClient.StartContainer(ctx, &pb.StartContainerRequest{
 		Id:      id,
-		Options: optionsBytes,
+		Options: optsBytes,
 	})
 	return err
+}
+
+type PullImageMessage struct {
+	Message jsonmessage.JSONMessage
+	Err     error
+}
+
+func (c *Client) PullImage(
+	ctx context.Context, image string, opts image.PullOptions,
+) (<-chan PullImageMessage, error) {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal pull options: %w", err)
+	}
+
+	stream, err := c.grpcClient.PullImage(ctx, &pb.PullImageRequest{
+		Image:   image,
+		Options: optsBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan PullImageMessage)
+
+	go func() {
+		defer close(ch)
+
+		for {
+			msg, err := stream.Recv()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				ch <- PullImageMessage{Err: err}
+				return
+			}
+
+			var jm jsonmessage.JSONMessage
+			if err = json.Unmarshal(msg.Message, &jm); err != nil {
+				ch <- PullImageMessage{Err: fmt.Errorf("unmarshal JSON message: %w", err)}
+				return
+			}
+			ch <- PullImageMessage{Message: jm}
+		}
+	}()
+
+	return ch, nil
 }
