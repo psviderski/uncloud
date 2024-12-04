@@ -6,11 +6,13 @@ import (
 )
 
 const (
+	LabelManaged     = "uncloud.managed"
 	LabelServiceID   = "uncloud.service.id"
 	LabelServiceName = "uncloud.service.name"
 	LabelServiceMode = "uncloud.service.mode"
 )
 
+// TODO: move to api package.
 type Container struct {
 	types.Container
 }

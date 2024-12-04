@@ -192,5 +192,4 @@ func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreaming
 			return status.Errorf(codes.Canceled, "pull image: %v", ctx.Err())
 		}
 	}
-
 }
