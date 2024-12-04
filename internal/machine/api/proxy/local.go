@@ -9,8 +9,9 @@ import (
 	"sync"
 )
 
-// LocalBackend is a proxy.Backend implementation that proxies to a local gRPC server listening on a Unix socket.
+// LocalBackend is a proxy.One2ManyResponder implementation that proxies to a local gRPC server listening on a Unix socket.
 type LocalBackend struct {
+	One2ManyResponder
 	sockPath string
 
 	mu   sync.RWMutex
@@ -22,12 +23,15 @@ var _ proxy.Backend = (*LocalBackend)(nil)
 // NewLocalBackend returns a new LocalBackend for the given Unix socket path.
 func NewLocalBackend(sockPath string) *LocalBackend {
 	return &LocalBackend{
+		One2ManyResponder: One2ManyResponder{
+			machine: "local",
+		},
 		sockPath: sockPath,
 	}
 }
 
 func (b *LocalBackend) String() string {
-	return "local"
+	return b.machine
 }
 
 // GetConnection returns a gRPC connection to the local server listening on the Unix socket.
@@ -55,16 +59,6 @@ func (b *LocalBackend) GetConnection(ctx context.Context, _ string) (context.Con
 	)
 
 	return outCtx, b.conn, err
-}
-
-// AppendInfo is called to enhance response from the backend with additional data.
-func (b *LocalBackend) AppendInfo(_ bool, resp []byte) ([]byte, error) {
-	return resp, nil
-}
-
-// BuildError is called to convert error from upstream into response field.
-func (b *LocalBackend) BuildError(bool, error) ([]byte, error) {
-	return nil, nil
 }
 
 // Close closes the upstream gRPC connection.
