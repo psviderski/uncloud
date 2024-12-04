@@ -76,6 +76,9 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 	}
 
 	if err := s.client.ContainerStart(ctx, req.Id, opts); err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "start container: %v", err)
+		}
 		return nil, status.Errorf(codes.Internal, "start container: %v", err)
 	}
 
@@ -133,6 +136,9 @@ func (s *Server) RemoveContainer(ctx context.Context, req *pb.RemoveContainerReq
 	}
 
 	if err := s.client.ContainerRemove(ctx, req.Id, opts); err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "remove container: %v", err)
+		}
 		return nil, status.Errorf(codes.Internal, "remove container: %v", err)
 	}
 
