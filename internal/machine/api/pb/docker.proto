@@ -9,6 +9,8 @@ import "google/protobuf/empty.proto";
 service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
   rpc StartContainer(StartContainerRequest) returns (google.protobuf.Empty);
+  rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+  rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
   rpc PullImage(PullImageRequest) returns (stream JSONMessage);
 }
 
@@ -32,6 +34,22 @@ message CreateContainerResponse {
 message StartContainerRequest {
   string id = 1;
   // JSON serialized container.StartOptions.
+  bytes options = 2;
+}
+
+message ListContainersRequest {
+  // JSON serialized container.ListOptions.
+  bytes options = 1;
+}
+
+message ListContainersResponse {
+  // JSON serialized []container.Summary.
+  bytes containers = 1;
+}
+
+message RemoveContainerRequest {
+  string id = 1;
+  // JSON serialized container.RemoveOptions.
   bytes options = 2;
 }
 

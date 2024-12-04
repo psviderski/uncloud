@@ -70,7 +70,7 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 	var opts container.StartOptions
 	if len(req.Options) > 0 {
 		if err := json.Unmarshal(req.Options, &opts); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unmarshal start options: %v", err)
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
 		}
 	}
 
@@ -81,13 +81,53 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 	return &emptypb.Empty{}, nil
 }
 
+func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersRequest) (*pb.ListContainersResponse, error) {
+	var opts container.ListOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+	}
+
+	containers, err := s.client.ContainerList(ctx, opts)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list container: %v", err)
+	}
+
+	containersBytes, err := json.Marshal(containers)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal containers: %v", err)
+	}
+
+	return &pb.ListContainersResponse{
+		Containers: containersBytes,
+	}, nil
+}
+
+// RemoveContainer stops (kills after grace period) and removes a container with the given ID.
+func (s *Server) RemoveContainer(ctx context.Context, req *pb.RemoveContainerRequest) (*emptypb.Empty, error) {
+	var opts container.RemoveOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+	}
+
+	if err := s.client.ContainerRemove(ctx, req.Id, opts); err != nil {
+		return nil, status.Errorf(codes.Internal, "remove container: %v", err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreamingServer[pb.JSONMessage]) error {
 	ctx := stream.Context()
 
+	// TODO: replace with another JSON serializable type (PullOptions.PrivilegeFunc is not serializable).
 	var opts image.PullOptions
 	if len(req.Options) > 0 {
 		if err := json.Unmarshal(req.Options, &opts); err != nil {
-			return status.Errorf(codes.InvalidArgument, "unmarshal pull options: %v", err)
+			return status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
 		}
 	}
 

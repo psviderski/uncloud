@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -90,13 +90,60 @@ func (c *Client) CreateContainer(
 func (c *Client) StartContainer(ctx context.Context, id string, opts container.StartOptions) error {
 	optsBytes, err := json.Marshal(opts)
 	if err != nil {
-		return fmt.Errorf("marshal start options: %w", err)
+		return fmt.Errorf("marshal options: %w", err)
 	}
 
 	_, err = c.grpcClient.StartContainer(ctx, &pb.StartContainerRequest{
 		Id:      id,
 		Options: optsBytes,
 	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.NotFound {
+				return errdefs.NotFound(err)
+			}
+		}
+	}
+	return err
+}
+
+func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions) ([]types.Container, error) {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	resp, err := c.grpcClient.ListContainers(ctx, &pb.ListContainersRequest{Options: optsBytes})
+	if err != nil {
+		return nil, err
+	}
+
+	var containers []types.Container
+	if err = json.Unmarshal(resp.Containers, &containers); err != nil {
+		return nil, fmt.Errorf("unmarshal containers: %w", err)
+	}
+
+	return containers, nil
+}
+
+// RemoveContainer stops (kills after grace period) and removes a container with the given ID.
+func (c *Client) RemoveContainer(ctx context.Context, id string, opts container.RemoveOptions) error {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return fmt.Errorf("marshal options: %w", err)
+	}
+
+	_, err = c.grpcClient.RemoveContainer(ctx, &pb.RemoveContainerRequest{
+		Id:      id,
+		Options: optsBytes,
+	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.NotFound {
+				return errdefs.NotFound(err)
+			}
+		}
+	}
 	return err
 }
 
@@ -105,18 +152,8 @@ type PullImageMessage struct {
 	Err     error
 }
 
-func (c *Client) PullImage(
-	ctx context.Context, image string, opts image.PullOptions,
-) (<-chan PullImageMessage, error) {
-	optsBytes, err := json.Marshal(opts)
-	if err != nil {
-		return nil, fmt.Errorf("marshal pull options: %w", err)
-	}
-
-	stream, err := c.grpcClient.PullImage(ctx, &pb.PullImageRequest{
-		Image:   image,
-		Options: optsBytes,
-	})
+func (c *Client) PullImage(ctx context.Context, image string) (<-chan PullImageMessage, error) {
+	stream, err := c.grpcClient.PullImage(ctx, &pb.PullImageRequest{Image: image})
 	if err != nil {
 		return nil, err
 	}

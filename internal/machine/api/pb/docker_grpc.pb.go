@@ -22,6 +22,8 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Docker_CreateContainer_FullMethodName = "/api.Docker/CreateContainer"
 	Docker_StartContainer_FullMethodName  = "/api.Docker/StartContainer"
+	Docker_ListContainers_FullMethodName  = "/api.Docker/ListContainers"
+	Docker_RemoveContainer_FullMethodName = "/api.Docker/RemoveContainer"
 	Docker_PullImage_FullMethodName       = "/api.Docker/PullImage"
 )
 
@@ -31,6 +33,8 @@ const (
 type DockerClient interface {
 	CreateContainer(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
 	StartContainer(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error)
+	RemoveContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	PullImage(ctx context.Context, in *PullImageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JSONMessage], error)
 }
 
@@ -62,6 +66,26 @@ func (c *dockerClient) StartContainer(ctx context.Context, in *StartContainerReq
 	return out, nil
 }
 
+func (c *dockerClient) ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListContainersResponse)
+	err := c.cc.Invoke(ctx, Docker_ListContainers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dockerClient) RemoveContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Docker_RemoveContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dockerClient) PullImage(ctx context.Context, in *PullImageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JSONMessage], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Docker_ServiceDesc.Streams[0], Docker_PullImage_FullMethodName, cOpts...)
@@ -87,6 +111,8 @@ type Docker_PullImageClient = grpc.ServerStreamingClient[JSONMessage]
 type DockerServer interface {
 	CreateContainer(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
 	StartContainer(context.Context, *StartContainerRequest) (*emptypb.Empty, error)
+	ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error)
+	RemoveContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
 	PullImage(*PullImageRequest, grpc.ServerStreamingServer[JSONMessage]) error
 	mustEmbedUnimplementedDockerServer()
 }
@@ -103,6 +129,12 @@ func (UnimplementedDockerServer) CreateContainer(context.Context, *CreateContain
 }
 func (UnimplementedDockerServer) StartContainer(context.Context, *StartContainerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartContainer not implemented")
+}
+func (UnimplementedDockerServer) ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListContainers not implemented")
+}
+func (UnimplementedDockerServer) RemoveContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveContainer not implemented")
 }
 func (UnimplementedDockerServer) PullImage(*PullImageRequest, grpc.ServerStreamingServer[JSONMessage]) error {
 	return status.Errorf(codes.Unimplemented, "method PullImage not implemented")
@@ -164,6 +196,42 @@ func _Docker_StartContainer_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_ListContainers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListContainersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).ListContainers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_ListContainers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).ListContainers(ctx, req.(*ListContainersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Docker_RemoveContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).RemoveContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_RemoveContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).RemoveContainer(ctx, req.(*RemoveContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Docker_PullImage_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(PullImageRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -189,6 +257,14 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "StartContainer",
 			Handler:    _Docker_StartContainer_Handler,
+		},
+		{
+			MethodName: "ListContainers",
+			Handler:    _Docker_ListContainers_Handler,
+		},
+		{
+			MethodName: "RemoveContainer",
+			Handler:    _Docker_RemoveContainer_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
