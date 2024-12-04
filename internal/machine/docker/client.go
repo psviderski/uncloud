@@ -107,7 +107,12 @@ func (c *Client) StartContainer(ctx context.Context, id string, opts container.S
 	return err
 }
 
-func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions) ([]types.Container, error) {
+type MachineContainers struct {
+	Metadata   *pb.Metadata
+	Containers []types.Container
+}
+
+func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions) ([]MachineContainers, error) {
 	optsBytes, err := json.Marshal(opts)
 	if err != nil {
 		return nil, fmt.Errorf("marshal options: %w", err)
@@ -118,12 +123,15 @@ func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions)
 		return nil, err
 	}
 
-	var containers []types.Container
-	if err = json.Unmarshal(resp.Containers, &containers); err != nil {
-		return nil, fmt.Errorf("unmarshal containers: %w", err)
+	machineContainers := make([]MachineContainers, len(resp.Messages))
+	for i, msg := range resp.Messages {
+		machineContainers[i].Metadata = msg.Metadata
+		if err = json.Unmarshal(msg.Containers, &machineContainers[i].Containers); err != nil {
+			return nil, fmt.Errorf("unmarshal containers: %w", err)
+		}
 	}
 
-	return containers, nil
+	return machineContainers, nil
 }
 
 // RemoveContainer stops (kills after grace period) and removes a container with the given ID.

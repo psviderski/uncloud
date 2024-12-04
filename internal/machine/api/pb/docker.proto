@@ -5,6 +5,7 @@ package api;
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 import "google/protobuf/empty.proto";
+import "internal/machine/api/pb/common.proto";
 
 service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
@@ -42,9 +43,15 @@ message ListContainersRequest {
   bytes options = 1;
 }
 
+// ListContainersResponse structure allows broadcasting ListContainers requests to multiple machines.
 message ListContainersResponse {
+  repeated MachineContainers messages = 1;
+}
+
+message MachineContainers {
+  Metadata metadata = 1;
   // JSON serialized []container.Summary.
-  bytes containers = 1;
+  bytes containers = 2;
 }
 
 message RemoveContainerRequest {

@@ -100,7 +100,11 @@ func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersReque
 	}
 
 	return &pb.ListContainersResponse{
-		Containers: containersBytes,
+		Messages: []*pb.MachineContainers{
+			{
+				Containers: containersBytes,
+			},
+		},
 	}, nil
 }
 
