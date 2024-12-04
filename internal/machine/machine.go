@@ -703,6 +703,7 @@ func (m *Machine) InspectService(
 	if len(records) == 0 {
 		return nil, status.Error(codes.NotFound, "service not found")
 	}
+	// TODO: handle SyncStatus to return only trusted container statuses.
 	// TODO: handle multiple services with the same name but different IDs. This can happen when two services
 	//  with the same name are created concurrently on different machines.
 
