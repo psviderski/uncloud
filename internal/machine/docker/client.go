@@ -126,6 +126,10 @@ func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions)
 	machineContainers := make([]MachineContainers, len(resp.Messages))
 	for i, msg := range resp.Messages {
 		machineContainers[i].Metadata = msg.Metadata
+		if msg.Metadata != nil && msg.Metadata.Error != "" {
+			continue
+		}
+
 		if err = json.Unmarshal(msg.Containers, &machineContainers[i].Containers); err != nil {
 			return nil, fmt.Errorf("unmarshal containers: %w", err)
 		}

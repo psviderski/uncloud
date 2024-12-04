@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -86,6 +87,20 @@ func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersReque
 	if len(req.Options) > 0 {
 		if err := json.Unmarshal(req.Options, &opts); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+
+		// Handle filters separately because they implement custom JSON unmarshalling.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(req.Options, &raw); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options to raw map: %v", err)
+		}
+
+		if filtersBytes, ok := raw["Filters"]; ok {
+			args, err := filters.FromJSON(string(filtersBytes))
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
+			}
+			opts.Filters = args
 		}
 	}
 
