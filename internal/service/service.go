@@ -6,11 +6,6 @@ import (
 	"uncloud/internal/machine/api/pb"
 )
 
-const (
-	ModeReplicated = "replicated"
-	ModeGlobal     = "global"
-)
-
 type Service struct {
 	ID         string
 	Name       string

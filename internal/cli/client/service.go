@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
+	dockerclient "github.com/docker/docker/client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"slices"
 	"strings"
+	"sync"
+	"uncloud/internal/api"
 	"uncloud/internal/machine/api/pb"
 	machinedocker "uncloud/internal/machine/docker"
 	"uncloud/internal/secret"
@@ -19,6 +23,7 @@ import (
 )
 
 // ServiceOptions contains all the options for creating a service.
+// TODO: replace with ServiceSpec.
 type ServiceOptions struct {
 	Image   string
 	Name    string
@@ -29,70 +34,23 @@ type ServiceOptions struct {
 }
 
 type RunServiceResponse struct {
-	ID          string
-	Name        string
-	MachineName string
+	ID         string
+	Name       string
+	Containers []api.MachineContainerID
 }
 
-func (cli *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunServiceResponse, error) {
+func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
 	var resp RunServiceResponse
 
-	image, err := reference.ParseDockerRef(opts.Image)
+	img, err := reference.ParseDockerRef(spec.Container.Image)
 	if err != nil {
 		return resp, fmt.Errorf("invalid image: %w", err)
 	}
 
-	switch opts.Mode {
-	case service.ModeReplicated:
-	case service.ModeGlobal:
-		return resp, errors.New("global mode is not supported yet")
-	default:
-		return resp, fmt.Errorf("invalid mode: %q", opts.Mode)
-	}
-
-	// Find a machine to run the service on.
-	machines, err := cli.ListMachines(ctx)
-	if err != nil {
-		return resp, fmt.Errorf("list machines: %w", err)
-	}
-
-	var machine *pb.MachineMember
-	if opts.Machine != "" {
-		// Check if the machine ID or name exists if it's explicitly specified.
-		for _, m := range machines {
-			if m.Machine.Name == opts.Machine || m.Machine.Id == opts.Machine {
-				machine = m
-				break
-			}
-		}
-		if machine == nil {
-			return resp, fmt.Errorf("machine %q not found", opts.Machine)
-		}
-	} else {
-		machine, err = firstAvailableMachine(machines)
-		if err != nil {
-			return resp, err
-		}
-	}
-	if machine == nil { // This should never happen.
-		return resp, errors.New("no available machine to run the service")
-	}
-
-	// Proxy Docker gRPC requests to the selected machine.
-	machineIP, _ := machine.Machine.Network.ManagementIp.ToAddr()
-	md := metadata.Pairs("machines", machineIP.String())
-	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	serviceID, err := secret.NewID()
-	if err != nil {
-		return resp, fmt.Errorf("generate service ID: %w", err)
-	}
-
-	serviceName := opts.Name
-	// Generate a random service name if not specified.
-	if serviceName == "" {
+	if spec.Name == "" {
+		// Generate a random service name from the image if not specified.
 		// Get the image name without the repository and tag/digest parts.
-		imageName := reference.FamiliarName(image)
+		imageName := reference.FamiliarName(img)
 		// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
 		if i := strings.LastIndex(imageName, "/"); i != -1 {
 			imageName = imageName[i+1:]
@@ -102,39 +60,222 @@ func (cli *Client) RunService(ctx context.Context, opts *ServiceOptions) (RunSer
 		if err != nil {
 			return resp, fmt.Errorf("generate random suffix: %w", err)
 		}
-		serviceName = fmt.Sprintf("%s-%s", imageName, suffix)
+		spec.Name = fmt.Sprintf("%s-%s", imageName, suffix)
+	} else {
+		// Optimistically check if a service with the specified name already exists.
+		_, err := cli.InspectService(ctx, spec.Name)
+		if err == nil {
+			return resp, fmt.Errorf("service with name '%s' already exists", spec.Name)
+		}
+		if !errors.Is(err, ErrNotFound) {
+			return resp, fmt.Errorf("inspect service: %w", err)
+		}
 	}
+
+	serviceID, err := secret.NewID()
+	if err != nil {
+		return resp, fmt.Errorf("generate service ID: %w", err)
+	}
+
+	switch spec.Mode {
+	case "", api.ServiceModeReplicated:
+		return cli.runReplicatedService(ctx, serviceID, spec)
+	case api.ServiceModeGlobal:
+		return cli.runGlobalService(ctx, serviceID, spec)
+	default:
+		return resp, fmt.Errorf("invalid mode: %q", spec.Mode)
+	}
+}
+
+func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
+	resp := RunServiceResponse{
+		ID:   id,
+		Name: spec.Name,
+	}
+
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return resp, fmt.Errorf("list machines: %w", err)
+	}
+
+	for _, m := range machines {
+		// Run a service container on each available machine.
+		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
+			// TODO: run each machine in a goroutine.
+			createResp, err := cli.runContainer(ctx, id, spec, m.Machine)
+			// TODO: collect errors and return after trying all machines.
+			if err != nil {
+				return resp, fmt.Errorf("run container: %w", err)
+			}
+
+			resp.Containers = append(resp.Containers, api.MachineContainerID{
+				MachineID:   m.Machine.Id,
+				ContainerID: createResp.ID,
+			})
+		}
+	}
+
+	return resp, nil
+}
+
+func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
+	return RunServiceResponse{}, fmt.Errorf("replicated mode is not supported yet")
+	//
+	//// Find a machine to run the service on.
+	//machines, err := cli.ListMachines(ctx)
+	//if err != nil {
+	//	return resp, fmt.Errorf("list machines: %w", err)
+	//}
+	//
+	//var machine *pb.MachineMember
+	//if opts.Machine != "" {
+	//	// Check if the machine ID or name exists if it's explicitly specified.
+	//	for _, m := range machines {
+	//		if m.Machine.Name == opts.Machine || m.Machine.Id == opts.Machine {
+	//			machine = m
+	//			break
+	//		}
+	//	}
+	//	if machine == nil {
+	//		return resp, fmt.Errorf("machine %q not found", opts.Machine)
+	//	}
+	//} else {
+	//	machine, err = firstAvailableMachine(machines)
+	//	if err != nil {
+	//		return resp, err
+	//	}
+	//}
+	//if machine == nil { // This should never happen.
+	//	return resp, errors.New("no available machine to run the service")
+	//}
+	//
+	//// Proxy Docker gRPC requests to the selected machine.
+	//machineIP, _ := machine.Machine.Network.ManagementIp.ToAddr()
+	//md := metadata.Pairs("machines", machineIP.String())
+	//ctx = metadata.NewOutgoingContext(ctx, md)
+	//
+	//serviceID, err := secret.NewID()
+	//if err != nil {
+	//	return resp, fmt.Errorf("generate service ID: %w", err)
+	//}
+	//
+	//serviceName := opts.Name
+	//// Generate a random service name if not specified.
+	//if serviceName == "" {
+	//	// Get the image name without the repository and tag/digest parts.
+	//	imageName := reference.FamiliarName(image)
+	//	// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
+	//	if i := strings.LastIndex(imageName, "/"); i != -1 {
+	//		imageName = imageName[i+1:]
+	//	}
+	//	// Append a random suffix to the image name to generate an optimistically unique service name.
+	//	suffix, err := secret.RandomAlphaNumeric(4)
+	//	if err != nil {
+	//		return resp, fmt.Errorf("generate random suffix: %w", err)
+	//	}
+	//	serviceName = fmt.Sprintf("%s-%s", imageName, suffix)
+	//}
+	//
+	//suffix, err := secret.RandomAlphaNumeric(4)
+	//if err != nil {
+	//	return resp, fmt.Errorf("generate random suffix: %w", err)
+	//}
+	//containerName := fmt.Sprintf("%s-%s", serviceName, suffix)
+	//
+	//config := &container.Config{
+	//	Image: opts.Image,
+	//	Labels: map[string]string{
+	//		service.LabelServiceID:   serviceID,
+	//		service.LabelServiceName: serviceName,
+	//	},
+	//}
+	//netConfig := &network.NetworkingConfig{
+	//	EndpointsConfig: map[string]*network.EndpointSettings{
+	//		machinedocker.NetworkName: {},
+	//	},
+	//}
+	//// TODO: pull image if it doesn't exist on the machine.
+	//createResp, err := cli.CreateContainer(ctx, config, nil, netConfig, nil, containerName)
+	//if err != nil {
+	//	return resp, fmt.Errorf("create container: %w", err)
+	//}
+	//if err = cli.StartContainer(ctx, createResp.ID, container.StartOptions{}); err != nil {
+	//	return resp, fmt.Errorf("start container: %w", err)
+	//}
+	//
+	//resp.ID = serviceID
+	//resp.Name = serviceName
+	//resp.MachineName = machine.Machine.Name
+	//return resp, nil
+}
+
+func (cli *Client) runContainer(
+	ctx context.Context, serviceID string, spec api.ServiceSpec, machine *pb.MachineInfo,
+) (container.CreateResponse, error) {
+	var resp container.CreateResponse
+
+	// Proxy Docker gRPC requests to the selected machine.
+	machineIP, _ := machine.Network.ManagementIp.ToAddr()
+	md := metadata.Pairs("machines", machineIP.String())
+	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	suffix, err := secret.RandomAlphaNumeric(4)
 	if err != nil {
 		return resp, fmt.Errorf("generate random suffix: %w", err)
 	}
-	containerName := fmt.Sprintf("%s-%s", serviceName, suffix)
+	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
 
 	config := &container.Config{
-		Image: opts.Image,
+		Cmd:   spec.Container.Command,
+		Image: spec.Container.Image,
 		Labels: map[string]string{
 			service.LabelServiceID:   serviceID,
-			service.LabelServiceName: serviceName,
+			service.LabelServiceName: spec.Name,
+			service.LabelManaged:     "",
 		},
+	}
+	if spec.Mode == api.ServiceModeGlobal {
+		config.Labels[service.LabelServiceMode] = api.ServiceModeGlobal
+	}
+
+	hostConfig := &container.HostConfig{
+		Init: spec.Container.Init,
 	}
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			machinedocker.NetworkName: {},
 		},
 	}
-	// TODO: pull image if it doesn't exist on the machine.
-	createResp, err := cli.CreateContainer(ctx, config, nil, netConfig, nil, containerName)
+
+	resp, err = cli.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName)
 	if err != nil {
-		return resp, fmt.Errorf("create container: %w", err)
+		if !dockerclient.IsErrNotFound(err) {
+			return resp, fmt.Errorf("create container: %w", err)
+		}
+
+		// Pull the missing image and create the container again.
+		pullCh, err := cli.PullImage(ctx, config.Image)
+		if err != nil {
+			return resp, fmt.Errorf("pull image: %w", err)
+		}
+
+		// Wait for pull to complete by reading all progress messages.
+		for msg := range pullCh {
+			// TODO: report progress.
+			if msg.Err != nil {
+				return resp, fmt.Errorf("pull image: %w", msg.Err)
+			}
+		}
+
+		if resp, err = cli.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName); err != nil {
+			return resp, fmt.Errorf("create container: %w", err)
+		}
 	}
-	if err = cli.StartContainer(ctx, createResp.ID, container.StartOptions{}); err != nil {
+
+	if err = cli.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return resp, fmt.Errorf("start container: %w", err)
 	}
 
-	resp.ID = serviceID
-	resp.Name = serviceName
-	resp.MachineName = machine.Machine.Name
 	return resp, nil
 }
 
@@ -165,7 +306,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 	if err != nil {
 		if s, ok := status.FromError(err); ok {
 			if s.Code() == codes.NotFound {
-				return svc, NotFound
+				return svc, ErrNotFound
 			}
 		}
 		return svc, err
@@ -176,4 +317,94 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 		return svc, fmt.Errorf("from proto: %w", err)
 	}
 	return svc, nil
+}
+
+// RemoveService removes all containers on all machines that belong to the specified service.
+// The id parameter can be either a service ID or name.
+func (cli *Client) RemoveService(ctx context.Context, id string) error {
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return fmt.Errorf("list machines: %w", err)
+	}
+
+	// Broadcast the container list request to all available machines.
+	md := metadata.New(nil)
+	for _, m := range machines {
+		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
+			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
+			md.Append("machines", machineIP.String())
+		}
+		// TODO: warning about machines that are DOWN.
+	}
+	listCtx := metadata.NewOutgoingContext(ctx, md)
+
+	// List only uncloud-managed containers that belong to some service.
+	opts := container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("label", service.LabelServiceID),
+			filters.Arg("label", service.LabelManaged),
+		),
+	}
+	machineContainers, err := cli.ListContainers(listCtx, opts)
+	if err != nil {
+		return fmt.Errorf("list containers: %w", err)
+	}
+
+	wg := sync.WaitGroup{}
+	errCh := make(chan error)
+
+	// Remove all containers on all machines that belong to the specified service.
+	for _, mc := range machineContainers {
+		// Metadata can be nil if the request was broadcasted to only one machine.
+		if mc.Metadata == nil && len(machineContainers) > 1 {
+			return errors.New("something went wrong with gRPC proxy: metadata is missing for a machine response")
+		}
+		if mc.Metadata != nil && mc.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
+			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
+				mc.Metadata.Machine, mc.Metadata.Error)
+			continue
+		}
+		fmt.Println("### Machine containers:", mc.Metadata, mc.Containers)
+
+		// removeCtx proxies remove requests to the machine that owns mc.Containers.
+		var removeCtx context.Context
+		if mc.Metadata == nil {
+			// ListContainers was proxied to only one machine. Proxy the remove request to the same machine.
+			removeCtx = listCtx
+		} else {
+			removeCtx = metadata.NewOutgoingContext(ctx, metadata.Pairs("machines", mc.Metadata.Machine))
+		}
+
+		for _, c := range mc.Containers {
+			ctr := service.Container{Container: c}
+			if ctr.ServiceID() == id || ctr.ServiceName() == id {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					err := cli.RemoveContainer(removeCtx, ctr.ID, container.RemoveOptions{Force: true})
+					if err != nil {
+						if !dockerclient.IsErrNotFound(err) {
+							fmt.Println("not found:", ctr.ID)
+							errCh <- fmt.Errorf("remove container '%s': %w", ctr.ID, err)
+						}
+					}
+				}()
+			}
+		}
+	}
+
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	err = nil
+	for e := range errCh {
+		err = errors.Join(err, e)
+	}
+	return err
 }
