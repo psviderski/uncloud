@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"net"
 	"net/netip"
 	"sync"
 	"time"
@@ -29,22 +28,18 @@ type RemoteBackend struct {
 
 var _ proxy.Backend = (*RemoteBackend)(nil)
 
-// NewRemoteBackend creates a new instance of RemoteBackend for the given target which must have the format [IPv6]:port.
-func NewRemoteBackend(target string) (*RemoteBackend, error) {
-	host, _, err := net.SplitHostPort(target)
-	if err != nil {
-		return nil, fmt.Errorf("target must have the format [IPv6]:port: %s", target)
-	}
-	addr, err := netip.ParseAddr(host)
-	if err != nil || !addr.Is6() {
-		return nil, fmt.Errorf("target host must be a valid IPv6 address: %s", host)
+// NewRemoteBackend creates a new instance of RemoteBackend for the given IPv6 address and port.
+func NewRemoteBackend(addr string, port uint16) (*RemoteBackend, error) {
+	ip, err := netip.ParseAddr(addr)
+	if err != nil || !ip.Is6() {
+		return nil, fmt.Errorf("address must be a valid IPv6 address: %s", addr)
 	}
 
 	return &RemoteBackend{
 		One2ManyResponder: One2ManyResponder{
-			machine: target,
+			machine: addr,
 		},
-		target: target,
+		target: netip.AddrPortFrom(ip, port).String(),
 	}, nil
 }
 

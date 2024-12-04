@@ -6,24 +6,22 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"net"
-	"strconv"
 	"sync"
 )
 
 // Director manages routing of gRPC requests between local and remote backends.
 type Director struct {
 	localBackend   *LocalBackend
-	remotePort     int
+	remotePort     uint16
 	remoteBackends sync.Map
 	// mu synchronizes access to localAddress.
 	mu           sync.RWMutex
 	localAddress string
 }
 
-func NewDirector(localSockPath string, remotePort int) *Director {
+func NewDirector(localSockPath string, remotePort uint16) *Director {
 	return &Director{
-		localBackend: NewLocalBackend(localSockPath),
+		localBackend: NewLocalBackend(localSockPath, ""),
 		remotePort:   remotePort,
 	}
 }
@@ -35,6 +33,8 @@ func (d *Director) UpdateLocalAddress(addr string) {
 	defer d.mu.Unlock()
 
 	d.localAddress = addr
+	// Replace the local backend with the one that has local address set.
+	d.localBackend = NewLocalBackend(d.localBackend.sockPath, addr)
 }
 
 // Director implements proxy.StreamDirector for grpc-proxy, routing requests to local or remote backends based
@@ -60,17 +60,17 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 
 	d.mu.RLock()
 	localAddress := d.localAddress
+	localBackend := d.localBackend
 	d.mu.RUnlock()
 
 	backends := make([]proxy.Backend, len(machines))
 	for i, addr := range machines {
 		if addr == localAddress {
-			backends[i] = d.localBackend
+			backends[i] = localBackend
 			continue
 		}
 
-		target := net.JoinHostPort(addr, strconv.Itoa(d.remotePort))
-		backend, err := d.remoteBackend(target)
+		backend, err := d.remoteBackend(addr)
 		if err != nil {
 			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
 		}
@@ -83,18 +83,18 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 	return proxy.One2Many, backends, nil
 }
 
-// remoteBackend returns a RemoteBackend for the given target from the cache or creates a new one.
-func (d *Director) remoteBackend(target string) (*RemoteBackend, error) {
-	b, ok := d.remoteBackends.Load(target)
+// remoteBackend returns a RemoteBackend for the given address from the cache or creates a new one.
+func (d *Director) remoteBackend(addr string) (*RemoteBackend, error) {
+	b, ok := d.remoteBackends.Load(addr)
 	if ok {
 		return b.(*RemoteBackend), nil
 	}
 
-	backend, err := NewRemoteBackend(target)
+	backend, err := NewRemoteBackend(addr, d.remotePort)
 	if err != nil {
 		return nil, err
 	}
-	existing, loaded := d.remoteBackends.LoadOrStore(target, backend)
+	existing, loaded := d.remoteBackends.LoadOrStore(addr, backend)
 	if loaded {
 		// A concurrent remoteBackend call built a different backend.
 		backend.Close()
