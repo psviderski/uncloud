@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,7 +16,9 @@ import (
 	"uncloud/internal/ucind"
 )
 
-func createTestCluster(t *testing.T, name string, opts ucind.CreateClusterOptions) (ucind.Cluster, *ucind.Provisioner) {
+func createTestCluster(
+	t *testing.T, name string, opts ucind.CreateClusterOptions, waitReady bool,
+) (ucind.Cluster, *ucind.Provisioner) {
 	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 
@@ -39,12 +42,16 @@ func createTestCluster(t *testing.T, name string, opts ucind.CreateClusterOption
 
 	c, err := p.CreateCluster(ctx, name, opts)
 	require.NoError(t, err)
-	require.Equal(t, name, c.Name)
-	require.Len(t, c.Machines, opts.Machines)
+	assert.Equal(t, name, c.Name)
+	assert.Len(t, c.Machines, opts.Machines)
 
 	t.Cleanup(func() {
 		require.NoError(t, p.RemoveCluster(ctx, name))
 	})
+
+	if waitReady {
+		require.NoError(t, p.WaitClusterReady(ctx, c, 15*time.Second))
+	}
 
 	return c, p
 }
@@ -54,14 +61,14 @@ func TestClusterLifecycle(t *testing.T) {
 
 	name := "ucind-test.cluster-lifecycle"
 	ctx := context.Background()
-	c, p := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3})
+	c, p := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3}, false)
 
 	t.Run("each machine reconciled cluster store", func(t *testing.T) {
 		var err error
 		// Create a client for each machine and wait for it to be ready.
 		clients := make([]*client.Client, len(c.Machines))
 		for i, m := range c.Machines {
-			require.NoError(t, p.WaitMachineReady(ctx, m))
+			require.NoError(t, p.WaitMachineReady(ctx, m, 5*time.Second))
 			clients[i], err = m.Connect(ctx)
 			require.NoError(t, err)
 			//goland:noinspection GoDeferInLoop

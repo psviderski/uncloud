@@ -14,26 +14,29 @@ import (
 func TestRunService(t *testing.T) {
 	t.Parallel()
 
-	name := "ucind-test.run-service"
+	clusterName := "ucind-test.run-service"
 	ctx := context.Background()
-	c, _ := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3})
+	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
 
 	cli, err := c.Machines[0].Connect(ctx)
 	require.NoError(t, err)
 
 	t.Run("global mode", func(t *testing.T) {
+		t.Parallel()
+
+		name := "busybox-global"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, "busybox-global")
+			err := cli.RemoveService(ctx, name)
 			if !dockerclient.IsErrNotFound(err) {
 				require.NoError(t, err)
 			}
 
-			_, err = cli.InspectService(ctx, "busybox-global")
+			_, err = cli.InspectService(ctx, name)
 			require.ErrorIs(t, err, client.ErrNotFound)
 		})
 
 		resp, err := cli.RunService(ctx, api.ServiceSpec{
-			Name: "busybox-global",
+			Name: name,
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
 				Command: []string{"sleep", "infinity"},
@@ -43,14 +46,14 @@ func TestRunService(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, resp.ID)
-		assert.Equal(t, "busybox-global", resp.Name)
+		assert.Equal(t, name, resp.Name)
 		assert.Len(t, resp.Containers, 3, "expected 1 container on each machine")
 
-		svc, err := cli.InspectService(ctx, "busybox-global")
+		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
 
 		assert.Equal(t, resp.ID, svc.ID)
-		assert.Equal(t, "busybox-global", svc.Name)
+		assert.Equal(t, name, svc.Name)
 		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3, "expected 1 container on each machine")
 	})

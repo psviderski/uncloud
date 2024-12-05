@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
@@ -11,8 +12,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"time"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/cli/client/connector"
 	"uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/cluster"
@@ -90,13 +89,11 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 	// Init a new cluster on the first machine.
 	initMachine := machines[0]
 
-	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if err := p.WaitMachineReady(waitCtx, initMachine); err != nil {
+	if err := p.WaitMachineReady(ctx, initMachine, 5*time.Second); err != nil {
 		return fmt.Errorf("wait for machine %q to be ready: %w", initMachine.Name, err)
 	}
 
-	initClient, err := client.New(ctx, connector.NewTCPConnector(initMachine.APIAddress))
+	initClient, err := initMachine.Connect(ctx)
 	if err != nil {
 		return fmt.Errorf("create machine client over TCP '%s': %w", initMachine.APIAddress, err)
 	}
@@ -114,14 +111,11 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 
 	// Join the rest of the machines to the cluster.
 	for _, m := range machines[1:] {
-		waitCtx, cancel = context.WithTimeout(ctx, 5*time.Second)
-		//goland:noinspection GoDeferInLoop
-		defer cancel()
-		if err = p.WaitMachineReady(waitCtx, m); err != nil {
+		if err = p.WaitMachineReady(ctx, m, 5*time.Second); err != nil {
 			return fmt.Errorf("wait for machine %q to be ready: %w", m.Name, err)
 		}
 
-		cli, err := client.New(ctx, connector.NewTCPConnector(m.APIAddress))
+		cli, err := m.Connect(ctx)
 		if err != nil {
 			return fmt.Errorf("create machine client over TCP '%s': %w", m.APIAddress, err)
 		}
@@ -222,6 +216,45 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 	}
 
 	return c, nil
+}
+
+// WaitClusterReady waits for all machines in the cluster to be ready and UP.
+func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout time.Duration) error {
+	firstMachine := c.Machines[0]
+	if err := p.WaitMachineReady(ctx, firstMachine, timeout); err != nil {
+		return fmt.Errorf("wait for machine '%s' to be ready: %w", firstMachine.Name, err)
+	}
+
+	cli, err := firstMachine.Connect(ctx)
+	if err != nil {
+		return fmt.Errorf("connect to machine over TCP '%s': %w", firstMachine.APIAddress, err)
+	}
+	defer cli.Close()
+
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxElapsedTime(timeout),
+	), ctx)
+
+	checkMachinesUp := func() error {
+		machines, err := cli.ListMachines(ctx)
+		if err != nil {
+			return fmt.Errorf("list machines: %w", err)
+		}
+
+		if len(machines) != len(c.Machines) {
+			return fmt.Errorf("expected %d machines, got %d", len(c.Machines), len(machines))
+		}
+
+		for _, m := range machines {
+			if m.State != pb.MachineMember_UP {
+				return fmt.Errorf("machine '%s' state is not UP: %s", m.Machine.Name, m.State)
+			}
+		}
+		return nil
+	}
+	return backoff.Retry(checkMachinesUp, boff)
 }
 
 func (p *Provisioner) RemoveCluster(ctx context.Context, name string) error {

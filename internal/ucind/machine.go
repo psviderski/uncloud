@@ -185,17 +185,17 @@ func randomMachineName() (string, error) {
 }
 
 // WaitMachineReady waits for the machine API to respond.
-func (p *Provisioner) WaitMachineReady(ctx context.Context, m Machine) error {
-	cli, err := client.New(ctx, connector.NewTCPConnector(m.APIAddress))
+func (p *Provisioner) WaitMachineReady(ctx context.Context, m Machine, timeout time.Duration) error {
+	cli, err := m.Connect(ctx)
 	if err != nil {
-		return fmt.Errorf("create machine client over TCP '%s': %w", m.APIAddress, err)
+		return fmt.Errorf("connect to machine over TCP '%s': %w", m.APIAddress, err)
 	}
 	defer cli.Close()
 
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(100*time.Millisecond),
 		backoff.WithMaxInterval(1*time.Second),
-		backoff.WithMaxElapsedTime(0),
+		backoff.WithMaxElapsedTime(timeout),
 	), ctx)
 
 	inspect := func() error {

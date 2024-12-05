@@ -471,6 +471,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 				return
 			}
 			removeCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs("machines", machineIP))
+			// TODO: gracefully stop the container before removing it without force.
 			err := cli.RemoveContainer(removeCtx, mc.Container.ID, container.RemoveOptions{Force: true})
 			if err != nil {
 				if !dockerclient.IsErrNotFound(err) {
