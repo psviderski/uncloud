@@ -68,11 +68,11 @@ func runRun(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return fmt.Errorf("invalid replication mode: %q", opts.mode)
 	}
 
-	c, err := uncli.ConnectCluster(ctx, opts.cluster)
+	client, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer c.Close()
+	defer client.Close()
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
@@ -82,7 +82,7 @@ func runRun(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		Mode: opts.mode,
 		Name: opts.name,
 	}
-	resp, err := c.RunService(ctx, spec)
+	resp, err := client.RunService(ctx, spec)
 	if err != nil {
 		return fmt.Errorf("run service: %w", err)
 	}

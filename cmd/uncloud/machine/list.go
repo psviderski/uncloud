@@ -32,13 +32,13 @@ func NewListCommand() *cobra.Command {
 }
 
 func runList(ctx context.Context, uncli *cli.CLI, clusterName string) error {
-	c, err := uncli.ConnectCluster(ctx, clusterName)
+	client, err := uncli.ConnectCluster(ctx, clusterName)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer c.Close()
+	defer client.Close()
 
-	machines, err := c.ListMachines(ctx)
+	machines, err := client.ListMachines(ctx)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}

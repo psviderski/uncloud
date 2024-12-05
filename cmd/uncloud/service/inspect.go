@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	client "uncloud/internal/cli"
+	"uncloud/internal/cli"
 )
 
 type inspectOptions struct {
@@ -25,7 +25,7 @@ func NewInspectCommand() *cobra.Command {
 		Short: "Display detailed information on a service.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			uncli := cmd.Context().Value("cli").(*client.CLI)
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			opts.service = args[0]
 			return inspect(cmd.Context(), uncli, &opts)
 		},
@@ -37,19 +37,19 @@ func NewInspectCommand() *cobra.Command {
 	return cmd
 }
 
-func inspect(ctx context.Context, uncli *client.CLI, opts *inspectOptions) error {
-	cli, err := uncli.ConnectCluster(ctx, opts.cluster)
+func inspect(ctx context.Context, uncli *cli.CLI, opts *inspectOptions) error {
+	client, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer cli.Close()
+	defer client.Close()
 
-	svc, err := cli.InspectService(ctx, opts.service)
+	svc, err := client.InspectService(ctx, opts.service)
 	if err != nil {
 		return fmt.Errorf("inspect service: %w", err)
 	}
 
-	machines, err := cli.ListMachines(ctx)
+	machines, err := client.ListMachines(ctx)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}

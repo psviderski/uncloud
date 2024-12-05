@@ -56,6 +56,21 @@ func TestRunService(t *testing.T) {
 		assert.Equal(t, name, svc.Name)
 		assert.Equal(t, api.ServiceModeReplicated, svc.Mode)
 		assert.Len(t, svc.Containers, 1)
+
+		services, err := cli.ListServices(ctx)
+		require.NoError(t, err)
+
+		assert.GreaterOrEqual(t, len(services), 1)
+		found := false
+		for _, s := range services {
+			if s.ID == svc.ID {
+				assert.Equal(t, name, s.Name)
+				assert.Equal(t, api.ServiceModeReplicated, s.Mode)
+				assert.Len(t, s.Containers, 1)
+				found = true
+			}
+		}
+		assert.True(t, found)
 	})
 
 	t.Run("global mode", func(t *testing.T) {

@@ -437,3 +437,70 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 	}
 	return err
 }
+
+// ListServices returns a list of all services and their containers.
+func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list machines: %w", err)
+	}
+
+	// Broadcast the container list request to all available machines.
+	md := metadata.New(nil)
+	for _, m := range machines {
+		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
+			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
+			md.Append("machines", machineIP.String())
+		}
+		// TODO: warning about machines that are DOWN.
+	}
+	listCtx := metadata.NewOutgoingContext(ctx, md)
+
+	// List only uncloud-managed containers that belong to some service.
+	opts := container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("label", api.LabelServiceID),
+			filters.Arg("label", api.LabelManaged),
+		),
+	}
+	machineContainers, err := cli.ListContainers(listCtx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("list containers: %w", err)
+	}
+
+	// TODO: optimise by extracting services from the list of all containers instead of inspecting each service.
+	//  Most of the code can be reused in both InspectService and ListServices.
+	servicesByID := make(map[string]api.Service)
+	for _, mc := range machineContainers {
+		if mc.Metadata != nil && mc.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
+			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
+				mc.Metadata.Machine, mc.Metadata.Error)
+			continue
+		}
+
+		for _, c := range mc.Containers {
+			ctr := api.Container{Container: c}
+			if _, ok := servicesByID[ctr.ServiceID()]; ok {
+				continue
+			}
+
+			svc, err := cli.InspectService(ctx, ctr.ServiceID())
+			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					continue
+				}
+				return nil, fmt.Errorf("inspect service: %w", err)
+			}
+
+			servicesByID[ctr.ServiceID()] = svc
+		}
+	}
+
+	services := make([]api.Service, 0, len(servicesByID))
+	for _, svc := range servicesByID {
+		services = append(services, svc)
+	}
+	return services, nil
+}
