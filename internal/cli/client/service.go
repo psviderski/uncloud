@@ -299,6 +299,7 @@ func firstAvailableMachine(machines []*pb.MachineMember) (*pb.MachineMember, err
 }
 
 // InspectService returns detailed information about a service and its containers.
+// The id parameter can be either a service ID or name.
 func (cli *Client) InspectService(ctx context.Context, id string) (service.Service, error) {
 	var svc service.Service
 
@@ -415,6 +416,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 
 // InspectServiceFromStore returns detailed information about a service and its containers from the distributed store.
 // Due to eventual consistency of the store, the returned information may not reflect the most recent changes.
+// The id parameter can be either a service ID or name.
 func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (service.Service, error) {
 	var svc service.Service
 
@@ -438,77 +440,44 @@ func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (serv
 // RemoveService removes all containers on all machines that belong to the specified service.
 // The id parameter can be either a service ID or name.
 func (cli *Client) RemoveService(ctx context.Context, id string) error {
+	svc, err := cli.InspectService(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	machines, err := cli.ListMachines(ctx)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
-
-	// Broadcast the container list request to all available machines.
-	md := metadata.New(nil)
+	machineManagementIPByID := make(map[string]string)
 	for _, m := range machines {
-		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
-			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
-			md.Append("machines", machineIP.String())
-		}
-		// TODO: warning about machines that are DOWN.
-	}
-	listCtx := metadata.NewOutgoingContext(ctx, md)
-
-	// List only uncloud-managed containers that belong to some service.
-	opts := container.ListOptions{
-		All: true,
-		Filters: filters.NewArgs(
-			filters.Arg("label", service.LabelServiceID),
-			filters.Arg("label", service.LabelManaged),
-		),
-	}
-	machineContainers, err := cli.ListContainers(listCtx, opts)
-	if err != nil {
-		return fmt.Errorf("list containers: %w", err)
+		machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
+		machineManagementIPByID[m.Machine.Id] = machineIP.String()
 	}
 
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
 
-	// Remove all containers on all machines that belong to the specified service.
-	for _, mc := range machineContainers {
-		// Metadata can be nil if the request was broadcasted to only one machine.
-		if mc.Metadata == nil && len(machineContainers) > 1 {
-			return errors.New("something went wrong with gRPC proxy: metadata is missing for a machine response")
-		}
-		if mc.Metadata != nil && mc.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
-				mc.Metadata.Machine, mc.Metadata.Error)
-			continue
-		}
+	// Remove all containers on all machines that belong to the service.
+	for _, mc := range svc.Containers {
+		wg.Add(1)
 
-		// removeCtx proxies remove requests to the machine that owns mc.Containers.
-		var removeCtx context.Context
-		if mc.Metadata == nil {
-			// ListContainers was proxied to only one machine. Proxy the remove request to the same machine.
-			removeCtx = listCtx
-		} else {
-			removeCtx = metadata.NewOutgoingContext(ctx, metadata.Pairs("machines", mc.Metadata.Machine))
-		}
+		go func() {
+			defer wg.Done()
 
-		for _, c := range mc.Containers {
-			ctr := service.Container{Container: c}
-			if ctr.ServiceID() == id || ctr.ServiceName() == id {
-				wg.Add(1)
-
-				go func() {
-					defer wg.Done()
-
-					err := cli.RemoveContainer(removeCtx, ctr.ID, container.RemoveOptions{Force: true})
-					if err != nil {
-						if !dockerclient.IsErrNotFound(err) {
-							errCh <- fmt.Errorf("remove container '%s': %w", ctr.ID, err)
-						}
-					}
-				}()
+			machineIP, ok := machineManagementIPByID[mc.MachineID]
+			if !ok {
+				errCh <- fmt.Errorf("machine not found by ID: %s", mc.MachineID)
+				return
 			}
-		}
+			removeCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs("machines", machineIP))
+			err := cli.RemoveContainer(removeCtx, mc.Container.ID, container.RemoveOptions{Force: true})
+			if err != nil {
+				if !dockerclient.IsErrNotFound(err) {
+					errCh <- fmt.Errorf("remove container '%s': %w", mc.Container.ID, err)
+				}
+			}
+		}()
 	}
 
 	go func() {

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"testing"
 	"uncloud/internal/api"
+	"uncloud/internal/cli/client"
 	"uncloud/internal/ucind"
 )
 
@@ -26,6 +27,9 @@ func TestRunService(t *testing.T) {
 			if !dockerclient.IsErrNotFound(err) {
 				require.NoError(t, err)
 			}
+
+			_, err = cli.InspectService(ctx, "busybox-global")
+			require.ErrorIs(t, err, client.ErrNotFound)
 		})
 
 		resp, err := cli.RunService(ctx, api.ServiceSpec{
