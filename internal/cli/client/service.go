@@ -19,7 +19,6 @@ import (
 	"uncloud/internal/machine/api/pb"
 	machinedocker "uncloud/internal/machine/docker"
 	"uncloud/internal/secret"
-	"uncloud/internal/service"
 )
 
 // ServiceOptions contains all the options for creating a service.
@@ -36,7 +35,12 @@ type ServiceOptions struct {
 type RunServiceResponse struct {
 	ID         string
 	Name       string
-	Containers []api.MachineContainerID
+	Containers []MachineContainerID
+}
+
+type MachineContainerID struct {
+	MachineID   string
+	ContainerID string
 }
 
 func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
@@ -124,7 +128,7 @@ func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api
 		return resp, fmt.Errorf("run container: %w", err)
 	}
 
-	resp.Containers = append(resp.Containers, api.MachineContainerID{
+	resp.Containers = append(resp.Containers, MachineContainerID{
 		MachineID:   m.Machine.Id,
 		ContainerID: runResp.ID,
 	})
@@ -152,13 +156,13 @@ func (cli *Client) runContainer(
 		Cmd:   spec.Container.Command,
 		Image: spec.Container.Image,
 		Labels: map[string]string{
-			service.LabelServiceID:   serviceID,
-			service.LabelServiceName: spec.Name,
-			service.LabelManaged:     "",
+			api.LabelServiceID:   serviceID,
+			api.LabelServiceName: spec.Name,
+			api.LabelManaged:     "",
 		},
 	}
 	if spec.Mode == api.ServiceModeGlobal {
-		config.Labels[service.LabelServiceMode] = api.ServiceModeGlobal
+		config.Labels[api.LabelServiceMode] = api.ServiceModeGlobal
 	}
 
 	hostConfig := &container.HostConfig{
@@ -223,7 +227,7 @@ func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.Ser
 				return resp, fmt.Errorf("run container: %w", err)
 			}
 
-			resp.Containers = append(resp.Containers, api.MachineContainerID{
+			resp.Containers = append(resp.Containers, MachineContainerID{
 				MachineID:   m.Machine.Id,
 				ContainerID: runResp.ID,
 			})
@@ -252,8 +256,8 @@ func firstAvailableMachine(machines []*pb.MachineMember) *pb.MachineMember {
 
 // InspectService returns detailed information about a service and its containers.
 // The id parameter can be either a service ID or name.
-func (cli *Client) InspectService(ctx context.Context, id string) (service.Service, error) {
-	var svc service.Service
+func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, error) {
+	var svc api.Service
 
 	machines, err := cli.ListMachines(ctx)
 	if err != nil {
@@ -278,8 +282,8 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 	opts := container.ListOptions{
 		All: true,
 		Filters: filters.NewArgs(
-			filters.Arg("label", service.LabelServiceID),
-			filters.Arg("label", service.LabelManaged),
+			filters.Arg("label", api.LabelServiceID),
+			filters.Arg("label", api.LabelManaged),
 		),
 	}
 	machineContainers, err := cli.ListContainers(listCtx, opts)
@@ -289,7 +293,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 
 	// Collect all containers on all machines that belong to the specified service.
 	foundByID := false
-	var containers []service.MachineContainer
+	var containers []api.MachineContainer
 	for _, mc := range machineContainers {
 		// Metadata can be nil if the request was broadcasted to only one machine.
 		if mc.Metadata == nil && len(machineContainers) > 1 {
@@ -318,9 +322,9 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 		}
 
 		for _, c := range mc.Containers {
-			ctr := service.Container{Container: c}
+			ctr := api.Container{Container: c}
 			if ctr.ServiceID() == id || ctr.ServiceName() == id {
-				containers = append(containers, service.MachineContainer{
+				containers = append(containers, api.MachineContainer{
 					MachineID: machineID,
 					Container: ctr,
 				})
@@ -340,7 +344,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
 	// priority over matching by name.
 	if foundByID {
-		containers = slices.DeleteFunc(containers, func(mc service.MachineContainer) bool {
+		containers = slices.DeleteFunc(containers, func(mc api.MachineContainer) bool {
 			return mc.Container.ServiceID() != id
 		})
 	} else {
@@ -353,7 +357,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 		}
 	}
 
-	svc = service.Service{
+	svc = api.Service{
 		ID:         containers[0].Container.ServiceID(),
 		Name:       containers[0].Container.ServiceName(),
 		Mode:       containers[0].Container.ServiceMode(),
@@ -369,8 +373,8 @@ func (cli *Client) InspectService(ctx context.Context, id string) (service.Servi
 // InspectServiceFromStore returns detailed information about a service and its containers from the distributed store.
 // Due to eventual consistency of the store, the returned information may not reflect the most recent changes.
 // The id parameter can be either a service ID or name.
-func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (service.Service, error) {
-	var svc service.Service
+func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (api.Service, error) {
+	var svc api.Service
 
 	resp, err := cli.MachineClient.InspectService(ctx, &pb.InspectServiceRequest{Id: id})
 	if err != nil {
@@ -382,7 +386,7 @@ func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (serv
 		return svc, err
 	}
 
-	svc, err = service.FromProto(resp.Service)
+	svc, err = api.ServiceFromProto(resp.Service)
 	if err != nil {
 		return svc, fmt.Errorf("from proto: %w", err)
 	}

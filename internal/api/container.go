@@ -1,4 +1,4 @@
-package service
+package api
 
 import (
 	"github.com/docker/docker/api/types"
@@ -12,7 +12,6 @@ const (
 	LabelServiceMode = "uncloud.service.mode"
 )
 
-// TODO: move to api package.
 type Container struct {
 	types.Container
 }
