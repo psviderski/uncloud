@@ -302,6 +302,122 @@ func firstAvailableMachine(machines []*pb.MachineMember) (*pb.MachineMember, err
 func (cli *Client) InspectService(ctx context.Context, id string) (service.Service, error) {
 	var svc service.Service
 
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return svc, fmt.Errorf("list machines: %w", err)
+	}
+
+	// Broadcast the container list request to all available machines.
+	machineIDByManagementIP := make(map[string]string)
+	md := metadata.New(nil)
+	for _, m := range machines {
+		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
+			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
+			md.Append("machines", machineIP.String())
+
+			machineIDByManagementIP[machineIP.String()] = m.Machine.Id
+		}
+		// TODO: warning about machines that are DOWN.
+	}
+	listCtx := metadata.NewOutgoingContext(ctx, md)
+
+	// List only uncloud-managed containers that belong to some service.
+	opts := container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("label", service.LabelServiceID),
+			filters.Arg("label", service.LabelManaged),
+		),
+	}
+	machineContainers, err := cli.ListContainers(listCtx, opts)
+	if err != nil {
+		return svc, fmt.Errorf("list containers: %w", err)
+	}
+
+	// Collect all containers on all machines that belong to the specified service.
+	foundByID := false
+	var containers []service.MachineContainer
+	for _, mc := range machineContainers {
+		// Metadata can be nil if the request was broadcasted to only one machine.
+		if mc.Metadata == nil && len(machineContainers) > 1 {
+			return svc, errors.New("something went wrong with gRPC proxy: metadata is missing for a machine response")
+		}
+		if mc.Metadata != nil && mc.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
+			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
+				mc.Metadata.Machine, mc.Metadata.Error)
+			continue
+		}
+
+		machineID := ""
+		if mc.Metadata == nil {
+			// ListContainers was proxied to only one machine.
+			for _, v := range machineIDByManagementIP {
+				machineID = v
+				break
+			}
+		} else {
+			var ok bool
+			machineID, ok = machineIDByManagementIP[mc.Metadata.Machine]
+			if !ok {
+				return svc, fmt.Errorf("machine name not found for management IP: %s", mc.Metadata.Machine)
+			}
+		}
+
+		for _, c := range mc.Containers {
+			ctr := service.Container{Container: c}
+			if ctr.ServiceID() == id || ctr.ServiceName() == id {
+				containers = append(containers, service.MachineContainer{
+					MachineID: machineID,
+					Container: ctr,
+				})
+
+				if ctr.ServiceID() == id {
+					foundByID = true
+				}
+			}
+		}
+	}
+
+	if len(containers) == 0 {
+		return svc, ErrNotFound
+	}
+
+	// Containers from different services may share the same service name (distributed and eventually consistent store
+	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
+	// priority over matching by name.
+	if foundByID {
+		containers = slices.DeleteFunc(containers, func(mc service.MachineContainer) bool {
+			return mc.Container.ServiceID() != id
+		})
+	} else {
+		// Matched only by name but there could be multiple services with the same name.
+		serviceID := containers[0].Container.ServiceID()
+		for _, mc := range containers[1:] {
+			if mc.Container.ServiceID() != serviceID {
+				return svc, fmt.Errorf("multiple services found with name: %s", id)
+			}
+		}
+	}
+
+	svc = service.Service{
+		ID:         containers[0].Container.ServiceID(),
+		Name:       containers[0].Container.ServiceName(),
+		Mode:       containers[0].Container.ServiceMode(),
+		Containers: containers,
+	}
+	if svc.Mode == "" {
+		svc.Mode = api.ServiceModeReplicated
+	}
+
+	return svc, nil
+}
+
+// InspectServiceFromStore returns detailed information about a service and its containers from the distributed store.
+// Due to eventual consistency of the store, the returned information may not reflect the most recent changes.
+func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (service.Service, error) {
+	var svc service.Service
+
 	resp, err := cli.MachineClient.InspectService(ctx, &pb.InspectServiceRequest{Id: id})
 	if err != nil {
 		if s, ok := status.FromError(err); ok {
@@ -366,7 +482,6 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 				mc.Metadata.Machine, mc.Metadata.Error)
 			continue
 		}
-		fmt.Println("### Machine containers:", mc.Metadata, mc.Containers)
 
 		// removeCtx proxies remove requests to the machine that owns mc.Containers.
 		var removeCtx context.Context
@@ -388,7 +503,6 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 					err := cli.RemoveContainer(removeCtx, ctr.ID, container.RemoveOptions{Force: true})
 					if err != nil {
 						if !dockerclient.IsErrNotFound(err) {
-							fmt.Println("not found:", ctr.ID)
 							errCh <- fmt.Errorf("remove container '%s': %w", ctr.ID, err)
 						}
 					}
