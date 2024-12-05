@@ -21,17 +21,6 @@ import (
 	"uncloud/internal/secret"
 )
 
-// ServiceOptions contains all the options for creating a service.
-// TODO: replace with ServiceSpec.
-type ServiceOptions struct {
-	Image   string
-	Name    string
-	Machine string
-	// Mode is the replication mode of the service.
-	Mode    string
-	Publish []string
-}
-
 type RunServiceResponse struct {
 	ID         string
 	Name       string
