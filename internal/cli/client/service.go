@@ -87,46 +87,19 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 	}
 }
 
-func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
+func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
 	resp := RunServiceResponse{
 		ID:   id,
 		Name: spec.Name,
 	}
 
+	// Find a machine to run a service replica on.
 	machines, err := cli.ListMachines(ctx)
 	if err != nil {
 		return resp, fmt.Errorf("list machines: %w", err)
 	}
 
-	for _, m := range machines {
-		// Run a service container on each available machine.
-		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
-			// TODO: run each machine in a goroutine.
-			createResp, err := cli.runContainer(ctx, id, spec, m.Machine)
-			// TODO: collect errors and return after trying all machines.
-			if err != nil {
-				return resp, fmt.Errorf("run container: %w", err)
-			}
-
-			resp.Containers = append(resp.Containers, api.MachineContainerID{
-				MachineID:   m.Machine.Id,
-				ContainerID: createResp.ID,
-			})
-		}
-	}
-
-	return resp, nil
-}
-
-func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
-	return RunServiceResponse{}, fmt.Errorf("replicated mode is not supported yet")
-	//
-	//// Find a machine to run the service on.
-	//machines, err := cli.ListMachines(ctx)
-	//if err != nil {
-	//	return resp, fmt.Errorf("list machines: %w", err)
-	//}
-	//
+	// TODO: support selecting a particular machine by ID or name through the user options.
 	//var machine *pb.MachineMember
 	//if opts.Machine != "" {
 	//	// Check if the machine ID or name exists if it's explicitly specified.
@@ -139,74 +112,24 @@ func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api
 	//	if machine == nil {
 	//		return resp, fmt.Errorf("machine %q not found", opts.Machine)
 	//	}
-	//} else {
-	//	machine, err = firstAvailableMachine(machines)
-	//	if err != nil {
-	//		return resp, err
-	//	}
 	//}
-	//if machine == nil { // This should never happen.
-	//	return resp, errors.New("no available machine to run the service")
-	//}
-	//
-	//// Proxy Docker gRPC requests to the selected machine.
-	//machineIP, _ := machine.Machine.Network.ManagementIp.ToAddr()
-	//md := metadata.Pairs("machines", machineIP.String())
-	//ctx = metadata.NewOutgoingContext(ctx, md)
-	//
-	//serviceID, err := secret.NewID()
-	//if err != nil {
-	//	return resp, fmt.Errorf("generate service ID: %w", err)
-	//}
-	//
-	//serviceName := opts.Name
-	//// Generate a random service name if not specified.
-	//if serviceName == "" {
-	//	// Get the image name without the repository and tag/digest parts.
-	//	imageName := reference.FamiliarName(image)
-	//	// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
-	//	if i := strings.LastIndex(imageName, "/"); i != -1 {
-	//		imageName = imageName[i+1:]
-	//	}
-	//	// Append a random suffix to the image name to generate an optimistically unique service name.
-	//	suffix, err := secret.RandomAlphaNumeric(4)
-	//	if err != nil {
-	//		return resp, fmt.Errorf("generate random suffix: %w", err)
-	//	}
-	//	serviceName = fmt.Sprintf("%s-%s", imageName, suffix)
-	//}
-	//
-	//suffix, err := secret.RandomAlphaNumeric(4)
-	//if err != nil {
-	//	return resp, fmt.Errorf("generate random suffix: %w", err)
-	//}
-	//containerName := fmt.Sprintf("%s-%s", serviceName, suffix)
-	//
-	//config := &container.Config{
-	//	Image: opts.Image,
-	//	Labels: map[string]string{
-	//		service.LabelServiceID:   serviceID,
-	//		service.LabelServiceName: serviceName,
-	//	},
-	//}
-	//netConfig := &network.NetworkingConfig{
-	//	EndpointsConfig: map[string]*network.EndpointSettings{
-	//		machinedocker.NetworkName: {},
-	//	},
-	//}
-	//// TODO: pull image if it doesn't exist on the machine.
-	//createResp, err := cli.CreateContainer(ctx, config, nil, netConfig, nil, containerName)
-	//if err != nil {
-	//	return resp, fmt.Errorf("create container: %w", err)
-	//}
-	//if err = cli.StartContainer(ctx, createResp.ID, container.StartOptions{}); err != nil {
-	//	return resp, fmt.Errorf("start container: %w", err)
-	//}
-	//
-	//resp.ID = serviceID
-	//resp.Name = serviceName
-	//resp.MachineName = machine.Machine.Name
-	//return resp, nil
+
+	m := firstAvailableMachine(machines)
+	if m == nil {
+		return resp, errors.New("no available machine to run the service")
+	}
+
+	runResp, err := cli.runContainer(ctx, id, spec, m.Machine)
+	if err != nil {
+		return resp, fmt.Errorf("run container: %w", err)
+	}
+
+	resp.Containers = append(resp.Containers, api.MachineContainerID{
+		MachineID:   m.Machine.Id,
+		ContainerID: runResp.ID,
+	})
+
+	return resp, nil
 }
 
 func (cli *Client) runContainer(
@@ -279,23 +202,52 @@ func (cli *Client) runContainer(
 	return resp, nil
 }
 
-func firstAvailableMachine(machines []*pb.MachineMember) (*pb.MachineMember, error) {
-	// Find the first UP machine.
-	upIdx := slices.IndexFunc(machines, func(m *pb.MachineMember) bool {
-		return m.State == pb.MachineMember_UP
-	})
-	if upIdx != -1 {
-		return machines[upIdx], nil
-	}
-	// There is no UP machine, try to find the first SUSPECT machine.
-	suspectIdx := slices.IndexFunc(machines, func(m *pb.MachineMember) bool {
-		return m.State == pb.MachineMember_SUSPECT
-	})
-	if suspectIdx != -1 {
-		return machines[suspectIdx], nil
+func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
+	resp := RunServiceResponse{
+		ID:   id,
+		Name: spec.Name,
 	}
 
-	return nil, errors.New("no available machine to run the service")
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return resp, fmt.Errorf("list machines: %w", err)
+	}
+
+	for _, m := range machines {
+		// Run a service container on each available machine.
+		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
+			// TODO: run each machine in a goroutine.
+			runResp, err := cli.runContainer(ctx, id, spec, m.Machine)
+			// TODO: collect errors and return after trying all machines.
+			if err != nil {
+				return resp, fmt.Errorf("run container: %w", err)
+			}
+
+			resp.Containers = append(resp.Containers, api.MachineContainerID{
+				MachineID:   m.Machine.Id,
+				ContainerID: runResp.ID,
+			})
+		}
+	}
+
+	return resp, nil
+}
+
+func firstAvailableMachine(machines []*pb.MachineMember) *pb.MachineMember {
+	// Find the first UP machine.
+	for _, m := range machines {
+		if m.State == pb.MachineMember_UP {
+			return m
+		}
+	}
+	// There is no UP machine, try to find the first SUSPECT machine.
+	for _, m := range machines {
+		if m.State == pb.MachineMember_SUSPECT {
+			return m
+		}
+	}
+
+	return nil
 }
 
 // InspectService returns detailed information about a service and its containers.

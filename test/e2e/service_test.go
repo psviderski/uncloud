@@ -21,6 +21,43 @@ func TestRunService(t *testing.T) {
 	cli, err := c.Machines[0].Connect(ctx)
 	require.NoError(t, err)
 
+	t.Run("1 replica", func(t *testing.T) {
+		t.Parallel()
+
+		name := "busybox-1-replica"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !dockerclient.IsErrNotFound(err) {
+				require.NoError(t, err)
+			}
+
+			_, err = cli.InspectService(ctx, name)
+			require.ErrorIs(t, err, client.ErrNotFound)
+		})
+
+		resp, err := cli.RunService(ctx, api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Command: []string{"sleep", "infinity"},
+				Image:   "busybox:latest",
+			},
+		})
+		require.NoError(t, err)
+
+		assert.NotEmpty(t, resp.ID)
+		assert.Equal(t, name, resp.Name)
+		assert.Len(t, resp.Containers, 1)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		assert.Equal(t, resp.ID, svc.ID)
+		assert.Equal(t, name, svc.Name)
+		assert.Equal(t, api.ServiceModeReplicated, svc.Mode)
+		assert.Len(t, svc.Containers, 1)
+	})
+
 	t.Run("global mode", func(t *testing.T) {
 		t.Parallel()
 
