@@ -17,7 +17,7 @@ func NewListCommand() *cobra.Command {
 		Short:   "List services.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return runList(cmd.Context(), uncli, cluster)
+			return list(cmd.Context(), uncli, cluster)
 		},
 	}
 	cmd.Flags().StringVarP(
@@ -27,7 +27,7 @@ func NewListCommand() *cobra.Command {
 	return cmd
 }
 
-func runList(ctx context.Context, uncli *cli.CLI, clusterName string) error {
+func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 	client, err := uncli.ConnectCluster(ctx, clusterName)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)

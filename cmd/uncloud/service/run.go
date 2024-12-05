@@ -34,7 +34,7 @@ func NewRunCommand() *cobra.Command {
 				opts.command = args[1:]
 			}
 
-			return runRun(cmd.Context(), uncli, opts)
+			return run(cmd.Context(), uncli, opts)
 		},
 	}
 
@@ -61,7 +61,7 @@ func NewRunCommand() *cobra.Command {
 	return cmd
 }
 
-func runRun(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
+func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	switch opts.mode {
 	case "", api.ServiceModeReplicated, api.ServiceModeGlobal:
 	default:

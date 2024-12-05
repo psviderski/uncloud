@@ -27,7 +27,7 @@ func NewInspectCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			opts.service = args[0]
-			return inspect(cmd.Context(), uncli, &opts)
+			return inspect(cmd.Context(), uncli, opts)
 		},
 	}
 	cmd.Flags().StringVarP(
@@ -37,7 +37,7 @@ func NewInspectCommand() *cobra.Command {
 	return cmd
 }
 
-func inspect(ctx context.Context, uncli *cli.CLI, opts *inspectOptions) error {
+func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	client, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)

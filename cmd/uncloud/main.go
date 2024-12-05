@@ -45,6 +45,7 @@ func main() {
 		service.NewRootCommand(),
 		service.NewInspectCommand(),
 		service.NewListCommand(),
+		service.NewRmCommand(),
 		service.NewRunCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())
