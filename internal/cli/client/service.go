@@ -147,24 +147,48 @@ func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.Ser
 		return resp, fmt.Errorf("list machines: %w", err)
 	}
 
+	wg := sync.WaitGroup{}
+	errCh := make(chan error)
+	mu := sync.Mutex{}
+
+	// Run a service container on each available machine.
 	for _, m := range machines {
-		// Run a service container on each available machine.
-		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
-			// TODO: run each machine in a goroutine.
+		if m.State != pb.MachineMember_UP && m.State != pb.MachineMember_SUSPECT {
+			// TODO: return failed machines in the response.
+			fmt.Printf("WARNING: failed to run a service container on machine '%s' which is Down.\n", m.Machine.Name)
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
 			runResp, err := cli.runContainer(ctx, id, spec, m.Machine)
-			// TODO: collect errors and return after trying all machines.
 			if err != nil {
-				return resp, fmt.Errorf("run container: %w", err)
+				errCh <- fmt.Errorf("run container on machine '%s': %w", m.Machine.Name, err)
+				return
 			}
 
+			mu.Lock()
 			resp.Containers = append(resp.Containers, MachineContainerID{
 				MachineID:   m.Machine.Id,
 				ContainerID: runResp.ID,
 			})
-		}
+			mu.Unlock()
+		}()
 	}
 
-	return resp, nil
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	err = nil
+	for e := range errCh {
+		err = errors.Join(err, e)
+	}
+
+	return resp, err
 }
 
 func (cli *Client) runContainer(
