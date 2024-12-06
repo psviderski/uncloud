@@ -82,11 +82,9 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		Mode: opts.mode,
 		Name: opts.name,
 	}
-	resp, err := client.RunService(ctx, spec)
-	if err != nil {
+	if _, err = client.RunService(ctx, spec); err != nil {
 		return fmt.Errorf("run service: %w", err)
 	}
 
-	fmt.Printf("Service %q started.\n", resp.Name)
 	return nil
 }

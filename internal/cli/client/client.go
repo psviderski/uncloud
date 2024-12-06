@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/cli/cli/streams"
 	"google.golang.org/grpc"
+	"os"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/docker"
 )
@@ -50,4 +52,9 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 
 func (cli *Client) Close() error {
 	return errors.Join(cli.conn.Close(), cli.connector.Close())
+}
+
+// progressOut returns an output stream for progress writer.
+func (cli *Client) progressOut() *streams.Out {
+	return streams.NewOut(os.Stdout)
 }

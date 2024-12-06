@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/distribution/reference"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -18,11 +19,34 @@ type ServiceSpec struct {
 	Name string
 }
 
+func (s *ServiceSpec) Validate() error {
+	if err := s.Container.Validate(); err != nil {
+		return err
+	}
+
+	switch s.Mode {
+	case "", ServiceModeGlobal, ServiceModeReplicated:
+	default:
+		return fmt.Errorf("invalid mode: %q", s.Mode)
+	}
+
+	return nil
+}
+
 type ContainerSpec struct {
 	Command []string
 	Image   string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
+}
+
+func (s *ContainerSpec) Validate() error {
+	_, err := reference.ParseDockerRef(s.Image)
+	if err != nil {
+		return fmt.Errorf("invalid image: %w", err)
+	}
+
+	return nil
 }
 
 type Service struct {

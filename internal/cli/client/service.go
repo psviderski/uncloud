@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/distribution/reference"
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
@@ -34,6 +35,10 @@ type MachineContainerID struct {
 
 func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
 	var resp RunServiceResponse
+
+	if err := spec.Validate(); err != nil {
+		return resp, fmt.Errorf("invalid service spec: %w", err)
+	}
 
 	img, err := reference.ParseDockerRef(spec.Container.Image)
 	if err != nil {
@@ -70,14 +75,20 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 		return resp, fmt.Errorf("generate service ID: %w", err)
 	}
 
-	switch spec.Mode {
-	case "", api.ServiceModeReplicated:
-		return cli.runReplicatedService(ctx, serviceID, spec)
-	case api.ServiceModeGlobal:
-		return cli.runGlobalService(ctx, serviceID, spec)
-	default:
-		return resp, fmt.Errorf("invalid mode: %q", spec.Mode)
-	}
+	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+		switch spec.Mode {
+		case "", api.ServiceModeReplicated:
+			resp, err = cli.runReplicatedService(ctx, serviceID, spec)
+		case api.ServiceModeGlobal:
+			resp, err = cli.runGlobalService(ctx, serviceID, spec)
+		default:
+			return fmt.Errorf("invalid mode: %q", spec.Mode)
+		}
+
+		return err
+	}, cli.progressOut(), "Running service "+spec.Name)
+
+	return resp, err
 }
 
 func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
@@ -125,6 +136,37 @@ func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api
 	return resp, nil
 }
 
+func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
+	resp := RunServiceResponse{
+		ID:   id,
+		Name: spec.Name,
+	}
+
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return resp, fmt.Errorf("list machines: %w", err)
+	}
+
+	for _, m := range machines {
+		// Run a service container on each available machine.
+		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
+			// TODO: run each machine in a goroutine.
+			runResp, err := cli.runContainer(ctx, id, spec, m.Machine)
+			// TODO: collect errors and return after trying all machines.
+			if err != nil {
+				return resp, fmt.Errorf("run container: %w", err)
+			}
+
+			resp.Containers = append(resp.Containers, MachineContainerID{
+				MachineID:   m.Machine.Id,
+				ContainerID: runResp.ID,
+			})
+		}
+	}
+
+	return resp, nil
+}
+
 func (cli *Client) runContainer(
 	ctx context.Context, serviceID string, spec api.ServiceSpec, machine *pb.MachineInfo,
 ) (container.CreateResponse, error) {
@@ -163,6 +205,10 @@ func (cli *Client) runContainer(
 		},
 	}
 
+	pw := progress.ContextWriter(ctx)
+	eventID := fmt.Sprintf("Container %s on %s", containerName, machine.Name)
+
+	pw.Event(progress.CreatingEvent(eventID))
 	resp, err = cli.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName)
 	if err != nil {
 		if !dockerclient.IsErrNotFound(err) {
@@ -187,41 +233,13 @@ func (cli *Client) runContainer(
 			return resp, fmt.Errorf("create container: %w", err)
 		}
 	}
+	pw.Event(progress.CreatedEvent(eventID))
 
+	pw.Event(progress.StartingEvent(eventID))
 	if err = cli.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return resp, fmt.Errorf("start container: %w", err)
 	}
-
-	return resp, nil
-}
-
-func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
-	resp := RunServiceResponse{
-		ID:   id,
-		Name: spec.Name,
-	}
-
-	machines, err := cli.ListMachines(ctx)
-	if err != nil {
-		return resp, fmt.Errorf("list machines: %w", err)
-	}
-
-	for _, m := range machines {
-		// Run a service container on each available machine.
-		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
-			// TODO: run each machine in a goroutine.
-			runResp, err := cli.runContainer(ctx, id, spec, m.Machine)
-			// TODO: collect errors and return after trying all machines.
-			if err != nil {
-				return resp, fmt.Errorf("run container: %w", err)
-			}
-
-			resp.Containers = append(resp.Containers, MachineContainerID{
-				MachineID:   m.Machine.Id,
-				ContainerID: runResp.ID,
-			})
-		}
-	}
+	pw.Event(progress.StartedEvent(eventID))
 
 	return resp, nil
 }
