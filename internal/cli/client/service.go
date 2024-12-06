@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/jsonmessage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -136,6 +137,23 @@ func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api
 	return resp, nil
 }
 
+func firstAvailableMachine(machines []*pb.MachineMember) *pb.MachineMember {
+	// Find the first UP machine.
+	for _, m := range machines {
+		if m.State == pb.MachineMember_UP {
+			return m
+		}
+	}
+	// There is no UP machine, try to find the first SUSPECT machine.
+	for _, m := range machines {
+		if m.State == pb.MachineMember_SUSPECT {
+			return m
+		}
+	}
+
+	return nil
+}
+
 func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
 	resp := RunServiceResponse{
 		ID:   id,
@@ -240,19 +258,9 @@ func (cli *Client) runContainer(
 		}
 
 		// Pull the missing image and create the container again.
-		pullCh, err := cli.PullImage(ctx, config.Image)
-		if err != nil {
-			return resp, fmt.Errorf("pull image: %w", err)
+		if err = cli.pullImageWithProgress(ctx, config.Image, machine.Name, eventID); err != nil {
+			return resp, err
 		}
-
-		// Wait for pull to complete by reading all progress messages.
-		for msg := range pullCh {
-			// TODO: report progress.
-			if msg.Err != nil {
-				return resp, fmt.Errorf("pull image: %w", msg.Err)
-			}
-		}
-
 		if resp, err = cli.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName); err != nil {
 			return resp, fmt.Errorf("create container: %w", err)
 		}
@@ -268,21 +276,112 @@ func (cli *Client) runContainer(
 	return resp, nil
 }
 
-func firstAvailableMachine(machines []*pb.MachineMember) *pb.MachineMember {
-	// Find the first UP machine.
-	for _, m := range machines {
-		if m.State == pb.MachineMember_UP {
-			return m
-		}
-	}
-	// There is no UP machine, try to find the first SUSPECT machine.
-	for _, m := range machines {
-		if m.State == pb.MachineMember_SUSPECT {
-			return m
-		}
+func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName, parentEventID string) error {
+	pw := progress.ContextWriter(ctx)
+	eventID := fmt.Sprintf("Image %s on %s", image, machineName)
+	pw.Event(progress.Event{
+		ID:         eventID,
+		ParentID:   parentEventID,
+		Status:     progress.Working,
+		StatusText: "Pulling",
+	})
+
+	pullCh, err := cli.PullImage(ctx, image)
+	if err != nil {
+		pw.Event(progress.Event{
+			ID:         eventID,
+			ParentID:   parentEventID,
+			Text:       "Error",
+			Status:     progress.Error,
+			StatusText: errors.Unwrap(err).Error(),
+		})
+		return fmt.Errorf("pull image: %w", err)
 	}
 
+	// Wait for pull to complete by reading all progress messages and converting them to events.
+	for msg := range pullCh {
+		if msg.Err != nil {
+			err = msg.Err
+		} else {
+			if msg.Message.Error != nil {
+				err = errors.New(msg.Message.Error.Message)
+			}
+		}
+		if err != nil {
+			pw.Event(progress.Event{
+				ID:         eventID,
+				ParentID:   parentEventID,
+				Text:       "Error",
+				Status:     progress.Error,
+				StatusText: errors.Unwrap(err).Error(),
+			})
+			return fmt.Errorf("pull image: %w", err)
+		}
+
+		// TODO: add like in compose: --quiet-pull Pull without printing progress information
+		e := toPullProgressEvent(msg.Message)
+		if e != nil {
+			e.ID = fmt.Sprintf("%s on %s", e.ID, machineName)
+			e.ParentID = eventID
+			// Grand children events are not printed by the tty progress writer but they are still required
+			// to calculate the progress line of their parent.
+			pw.Event(*e)
+		}
+	}
+	pw.Event(progress.Event{
+		ID:         eventID,
+		ParentID:   parentEventID,
+		Status:     progress.Done,
+		StatusText: "Pulled",
+	})
+
 	return nil
+}
+
+// toPullProgressEvent converts a JSON progress message from the Docker API to a progress event.
+// It's based on toPullProgressEvent from Docker Compose.
+func toPullProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
+	if jm.ID == "" || jm.Progress == nil {
+		return nil
+	}
+
+	var (
+		total   int64
+		percent int
+		current int64
+	)
+	text := jm.Progress.String()
+	stat := progress.Working
+
+	switch jm.Status {
+	case "Preparing", "Waiting", "Pulling fs layer":
+		percent = 0
+	case "Downloading", "Extracting", "Verifying Checksum":
+		current = jm.Progress.Current
+		total = jm.Progress.Total
+		if jm.Progress.Total > 0 {
+			percent = int(jm.Progress.Current * 100 / jm.Progress.Total)
+		}
+	case "Download complete", "Already exists", "Pull complete":
+		stat = progress.Done
+		percent = 100
+	}
+
+	if strings.Contains(jm.Status, "Image is up to date") ||
+		strings.Contains(jm.Status, "Downloaded newer image") {
+		stat = progress.Done
+		percent = 100
+	}
+
+	return &progress.Event{
+		ID:         jm.ID,
+		Current:    current,
+		Total:      total,
+		Percent:    percent,
+		Text:       jm.Status,
+		Status:     stat,
+		StatusText: text,
+	}
 }
 
 // InspectService returns detailed information about a service and its containers.
