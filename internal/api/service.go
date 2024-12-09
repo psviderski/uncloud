@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/distribution/reference"
+	"net/netip"
+
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -38,6 +40,8 @@ type ContainerSpec struct {
 	Image   string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
+	// Ports to publish from the container.
+	Ports []PortSpec
 }
 
 func (s *ContainerSpec) Validate() error {
@@ -47,6 +51,15 @@ func (s *ContainerSpec) Validate() error {
 	}
 
 	return nil
+}
+
+type PortSpec struct {
+	Hostname      string
+	HostIP        netip.Addr
+	PublishedPort uint16
+	ContainerPort uint16
+	Protocol      string
+	Mode          string
 }
 
 type Service struct {
