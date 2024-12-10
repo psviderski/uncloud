@@ -45,12 +45,17 @@ func (p *PortSpec) Validate() error {
 	}
 
 	switch p.Mode {
-	case PortModeIngress:
+	case "", PortModeIngress: // Default mode is ingress if not specified.
 		if p.HostIP.IsValid() {
 			return fmt.Errorf("host IP cannot be specified in %s mode", PortModeIngress)
 		}
-		if p.Hostname != "" && p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
-			return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
+		if p.Hostname != "" {
+			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
+				return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
+			}
+			if err := validateHostname(p.Hostname); err != nil {
+				return fmt.Errorf("invalid hostname '%s': %w", p.Hostname, err)
+			}
 		}
 		if p.Hostname == "" && (p.Protocol == ProtocolHTTP || p.Protocol == ProtocolHTTPS) {
 			return fmt.Errorf("hostname is required with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
@@ -136,7 +141,6 @@ func ParsePortSpec(port string) (PortSpec, error) {
 			if parts[0] == "" {
 				return spec, fmt.Errorf("hostname must not be empty")
 			}
-			// TODO: validate hostname?
 			spec.Hostname = parts[0]
 		}
 
@@ -170,7 +174,6 @@ func ParsePortSpec(port string) (PortSpec, error) {
 			if parts[0] == "" {
 				return spec, fmt.Errorf("hostname must not be empty")
 			}
-			// TODO: validate hostname?
 			spec.Hostname = parts[0]
 		}
 
@@ -207,4 +210,14 @@ func parsePort(s string) (uint16, error) {
 		return 0, err
 	}
 	return uint16(port), nil
+}
+
+func validateHostname(hostname string) error {
+	if hostname == "" {
+		return fmt.Errorf("must not be empty")
+	}
+	if !strings.Contains(hostname, ".") {
+		return fmt.Errorf("must be a valid domain name containing at least one dot")
+	}
+	return nil
 }

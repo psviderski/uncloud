@@ -214,7 +214,7 @@ func TestParsePortSpec(t *testing.T) {
 		},
 		{
 			name:    "invalid published port",
-			port:    "test:invalid:8080",
+			port:    "app.example.com:invalid:8080",
 			wantErr: "invalid published port",
 		},
 		{
@@ -231,6 +231,11 @@ func TestParsePortSpec(t *testing.T) {
 			name:    "missing hostname with published https port",
 			port:    "8000:8080/https",
 			wantErr: "hostname is required",
+		},
+		{
+			name:    "invalid hostname",
+			port:    "app:8080/http",
+			wantErr: "invalid hostname 'app': must be a valid domain name containing at least one dot",
 		},
 		{
 			name:    "hostname with tcp protocol",
@@ -325,12 +330,18 @@ func TestPortSpec_Validate(t *testing.T) {
 			},
 		},
 		{
+			name: "ingress mode tcp",
+			spec: PortSpec{
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+			},
+		},
+		{
 			name: "ingress mode with published tcp port",
 			spec: PortSpec{
 				PublishedPort: 80,
 				ContainerPort: 8080,
 				Protocol:      ProtocolTCP,
-				Mode:          PortModeIngress,
 			},
 		},
 		{
@@ -338,7 +349,6 @@ func TestPortSpec_Validate(t *testing.T) {
 			spec: PortSpec{
 				ContainerPort: 8080,
 				Protocol:      ProtocolUDP,
-				Mode:          PortModeIngress,
 			},
 		},
 		{
@@ -347,7 +357,6 @@ func TestPortSpec_Validate(t *testing.T) {
 				PublishedPort: 80,
 				ContainerPort: 8080,
 				Protocol:      ProtocolUDP,
-				Mode:          PortModeIngress,
 			},
 		},
 		{
@@ -356,7 +365,6 @@ func TestPortSpec_Validate(t *testing.T) {
 				Hostname:      "app.example.com",
 				ContainerPort: 8080,
 				Protocol:      ProtocolHTTP,
-				Mode:          PortModeIngress,
 			},
 		},
 		{
@@ -365,7 +373,6 @@ func TestPortSpec_Validate(t *testing.T) {
 				Hostname:      "app.example.com",
 				ContainerPort: 8080,
 				Protocol:      ProtocolHTTPS,
-				Mode:          PortModeIngress,
 			},
 		},
 		{
@@ -375,7 +382,6 @@ func TestPortSpec_Validate(t *testing.T) {
 				PublishedPort: 6443,
 				ContainerPort: 8080,
 				Protocol:      ProtocolHTTPS,
-				Mode:          PortModeIngress,
 			},
 		},
 
@@ -415,7 +421,6 @@ func TestPortSpec_Validate(t *testing.T) {
 			name: "missing container port",
 			spec: PortSpec{
 				Protocol: ProtocolTCP,
-				Mode:     PortModeIngress,
 			},
 			wantErr: "container port must be non-zero",
 		},
@@ -424,7 +429,6 @@ func TestPortSpec_Validate(t *testing.T) {
 			spec: PortSpec{
 				ContainerPort: 8080,
 				Protocol:      "invalid",
-				Mode:          PortModeIngress,
 			},
 			wantErr: "invalid protocol: 'invalid'",
 		},
@@ -443,16 +447,23 @@ func TestPortSpec_Validate(t *testing.T) {
 				Hostname:      "app.example.com",
 				ContainerPort: 8080,
 				Protocol:      ProtocolTCP,
-				Mode:          PortModeIngress,
 			},
 			wantErr: "hostname is only valid with 'http' or 'https' protocols",
+		},
+		{
+			name: "invalid hostname",
+			spec: PortSpec{
+				Hostname:      "app",
+				ContainerPort: 8080,
+				Protocol:      ProtocolHTTPS,
+			},
+			wantErr: "invalid hostname 'app': must be a valid domain name containing at least one dot",
 		},
 		{
 			name: "missing hostname with http",
 			spec: PortSpec{
 				ContainerPort: 8080,
 				Protocol:      ProtocolHTTP,
-				Mode:          PortModeIngress,
 			},
 			wantErr: "hostname is required with 'http' or 'https' protocols",
 		},
@@ -461,7 +472,6 @@ func TestPortSpec_Validate(t *testing.T) {
 			spec: PortSpec{
 				ContainerPort: 8080,
 				Protocol:      ProtocolHTTPS,
-				Mode:          PortModeIngress,
 			},
 			wantErr: "hostname is required with 'http' or 'https' protocols",
 		},
@@ -471,7 +481,6 @@ func TestPortSpec_Validate(t *testing.T) {
 				HostIP:        netip.MustParseAddr("127.0.0.1"),
 				ContainerPort: 8080,
 				Protocol:      ProtocolTCP,
-				Mode:          PortModeIngress,
 			},
 			wantErr: "host IP cannot be specified in ingress mode",
 		},
