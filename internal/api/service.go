@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/distribution/reference"
-	"net/netip"
-
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -19,6 +17,8 @@ type ServiceSpec struct {
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
 	Mode string
 	Name string
+	// Ports defines what service ports to publish to make the service accessible outside the cluster.
+	Ports []PortSpec
 }
 
 func (s *ServiceSpec) Validate() error {
@@ -40,8 +40,6 @@ type ContainerSpec struct {
 	Image   string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
-	// Ports to publish from the container.
-	Ports []PortSpec
 }
 
 func (s *ContainerSpec) Validate() error {
@@ -51,15 +49,6 @@ func (s *ContainerSpec) Validate() error {
 	}
 
 	return nil
-}
-
-type PortSpec struct {
-	Hostname      string
-	HostIP        netip.Addr
-	PublishedPort uint16
-	ContainerPort uint16
-	Protocol      string
-	Mode          string
 }
 
 type Service struct {
