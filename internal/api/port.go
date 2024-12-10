@@ -33,6 +33,46 @@ type PortSpec struct {
 	Mode string
 }
 
+func (p *PortSpec) Validate() error {
+	if p.ContainerPort == 0 {
+		return fmt.Errorf("container port must be non-zero")
+	}
+
+	switch p.Protocol {
+	case ProtocolHTTP, ProtocolHTTPS, ProtocolTCP, ProtocolUDP:
+	default:
+		return fmt.Errorf("invalid protocol: '%s'", p.Protocol)
+	}
+
+	switch p.Mode {
+	case PortModeIngress:
+		if p.HostIP.IsValid() {
+			return fmt.Errorf("host IP cannot be specified in %s mode", PortModeIngress)
+		}
+		if p.Hostname != "" && p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
+			return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
+		}
+		if p.Hostname == "" && (p.Protocol == ProtocolHTTP || p.Protocol == ProtocolHTTPS) {
+			return fmt.Errorf("hostname is required with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
+		}
+	case PortModeHost:
+		if p.PublishedPort == 0 {
+			return fmt.Errorf("published port is required in %s mode", PortModeHost)
+		}
+		if p.Protocol != ProtocolTCP && p.Protocol != ProtocolUDP {
+			return fmt.Errorf("unsupported protocol '%s' in %s mode, only '%s' and '%s' are supported",
+				p.Protocol, PortModeHost, ProtocolTCP, ProtocolUDP)
+		}
+		if p.Hostname != "" {
+			return fmt.Errorf("hostname cannot be specified in %s mode", PortModeHost)
+		}
+	default:
+		return fmt.Errorf("invalid mode: '%s'", p.Mode)
+	}
+
+	return nil
+}
+
 func ParsePortSpec(port string) (PortSpec, error) {
 	spec := PortSpec{
 		Protocol: ProtocolTCP,     // Default protocol.
@@ -147,7 +187,7 @@ func ParsePortSpec(port string) (PortSpec, error) {
 		}
 	}
 
-	return spec, nil
+	return spec, spec.Validate()
 }
 
 // splitPortParts splits a port specification [hostname|host_ip:][published_port:]container_port into its parts.
