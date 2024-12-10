@@ -39,6 +39,8 @@ func (p *PortSpec) Validate() error {
 	}
 
 	switch p.Protocol {
+	case "":
+		return fmt.Errorf("protocol must be specified")
 	case ProtocolHTTP, ProtocolHTTPS, ProtocolTCP, ProtocolUDP:
 	default:
 		return fmt.Errorf("invalid protocol '%s', supported protocols: '%s', '%s', '%s', '%s'",
@@ -46,7 +48,9 @@ func (p *PortSpec) Validate() error {
 	}
 
 	switch p.Mode {
-	case "", PortModeIngress: // Default mode is ingress if not specified.
+	case "":
+		return fmt.Errorf("mode must be specified")
+	case PortModeIngress:
 		if p.HostIP.IsValid() {
 			return fmt.Errorf("host IP cannot be specified in %s mode", PortModeIngress)
 		}
@@ -77,6 +81,45 @@ func (p *PortSpec) Validate() error {
 	}
 
 	return nil
+}
+
+// String returns the port specification in the -p/--publish flag format.
+// Format:
+// [hostname:][load_balancer_port:]container_port/protocol for ingress mode (default) or
+// [host_ip:]:host_port:container_port/protocol@host for host mode.
+func (p *PortSpec) String() (string, error) {
+	if err := p.Validate(); err != nil {
+		return "", err
+	}
+
+	var parts []string
+
+	switch p.Mode {
+	case "", PortModeIngress: // [hostname:][load_balancer_port:]container_port/protocol
+		if p.Hostname != "" {
+			parts = append(parts, p.Hostname)
+		}
+		if p.PublishedPort != 0 {
+			parts = append(parts, fmt.Sprint(p.PublishedPort))
+		}
+		parts = append(parts, fmt.Sprint(p.ContainerPort))
+
+		return fmt.Sprintf("%s/%s", strings.Join(parts, ":"), p.Protocol), nil
+	case PortModeHost: // [host_ip:]:host_port:container_port/protocol@host
+		if p.HostIP.IsValid() {
+			if p.HostIP.Is6() {
+				parts = append(parts, fmt.Sprintf("[%s]", p.HostIP))
+			} else {
+				parts = append(parts, p.HostIP.String())
+			}
+		}
+		parts = append(parts, fmt.Sprint(p.PublishedPort))
+		parts = append(parts, fmt.Sprint(p.ContainerPort))
+
+		return fmt.Sprintf("%s/%s@host", strings.Join(parts, ":"), p.Protocol), nil
+	default:
+		return "", fmt.Errorf("not implemented for mode: '%s'", p.Mode)
+	}
 }
 
 func ParsePortSpec(port string) (PortSpec, error) {

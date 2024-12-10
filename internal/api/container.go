@@ -3,32 +3,54 @@ package api
 import (
 	"github.com/docker/docker/api/types"
 	"regexp"
+	"strings"
 )
 
 const (
-	LabelManaged     = "uncloud.managed"
-	LabelServiceID   = "uncloud.service.id"
-	LabelServiceName = "uncloud.service.name"
-	LabelServiceMode = "uncloud.service.mode"
+	LabelManaged      = "uncloud.managed"
+	LabelServiceID    = "uncloud.service.id"
+	LabelServiceName  = "uncloud.service.name"
+	LabelServiceMode  = "uncloud.service.mode"
+	LabelServicePorts = "uncloud.service.ports"
 )
 
 type Container struct {
 	types.Container
 }
 
-// ServiceID returns the service ID that the container is part of.
+// ServiceID returns the ID of the service this container belongs to.
 func (c *Container) ServiceID() string {
 	return c.Labels[LabelServiceID]
 }
 
-// ServiceName returns the service name that the container is part of.
+// ServiceName returns the name of the service this container belongs to.
 func (c *Container) ServiceName() string {
 	return c.Labels[LabelServiceName]
 }
 
-// ServiceMode returns the replication mode of the service that the container is part of.
+// ServiceMode returns the replication mode of the service this container belongs to.
 func (c *Container) ServiceMode() string {
 	return c.Labels[LabelServiceMode]
+}
+
+// ServicePorts returns the ports this container publishes as part of its service.
+func (c *Container) ServicePorts() ([]PortSpec, error) {
+	encoded, ok := c.Labels[LabelServicePorts]
+	if !ok {
+		return nil, nil
+	}
+
+	publishPorts := strings.Split(encoded, ",")
+	ports := make([]PortSpec, len(publishPorts))
+	for i, p := range publishPorts {
+		port, err := ParsePortSpec(strings.TrimSpace(p))
+		if err != nil {
+			return nil, err
+		}
+		ports[i] = port
+	}
+
+	return ports, nil
 }
 
 // runningStatusRegex matches the status string of a running container.
