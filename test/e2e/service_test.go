@@ -73,6 +73,61 @@ func TestRunService(t *testing.T) {
 		assert.True(t, found)
 	})
 
+	t.Run("1 replica with ports", func(t *testing.T) {
+		t.Parallel()
+
+		name := "busybox-1-replica-ports"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !dockerclient.IsErrNotFound(err) {
+				require.NoError(t, err)
+			}
+
+			_, err = cli.InspectService(ctx, name)
+			require.ErrorIs(t, err, client.ErrNotFound)
+		})
+
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Command: []string{"sleep", "infinity"},
+				Image:   "busybox:latest",
+			},
+			Ports: []api.PortSpec{
+				{
+					Hostname:      "https.example.com",
+					ContainerPort: 8080,
+					Protocol:      api.ProtocolHTTPS,
+					Mode:          api.PortModeIngress,
+				},
+				{
+					PublishedPort: 8000,
+					ContainerPort: 8080,
+					Protocol:      api.ProtocolTCP,
+					Mode:          api.PortModeIngress,
+				},
+				{
+					PublishedPort: 8000,
+					ContainerPort: 8000,
+					Protocol:      api.ProtocolUDP,
+					Mode:          api.PortModeHost,
+				},
+			},
+		}
+		resp, err := cli.RunService(ctx, spec)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, resp.ID)
+		require.NoError(t, err)
+		require.Len(t, svc.Containers, 1)
+		ctr := svc.Containers[0].Container
+
+		ports, err := ctr.ServicePorts()
+		require.NoError(t, err)
+		assert.Equal(t, spec.Ports, ports)
+	})
+
 	t.Run("global mode", func(t *testing.T) {
 		t.Parallel()
 

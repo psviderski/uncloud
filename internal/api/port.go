@@ -27,9 +27,9 @@ type PortSpec struct {
 	PublishedPort uint16
 	// ContainerPort is the port inside the container that the service listens on.
 	ContainerPort uint16
-	// Protocol specifies the network protocol. Default is ProtocolHTTPS if Hostname is set, ProtocolTCP otherwise.
+	// Protocol specifies the network protocol.
 	Protocol string
-	// Mode specifies how the port is published. Default is PortModeIngress.
+	// Mode specifies how the port is published.
 	Mode string
 }
 

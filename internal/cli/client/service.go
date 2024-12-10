@@ -238,6 +238,18 @@ func (cli *Client) runContainer(
 		config.Labels[api.LabelServiceMode] = api.ServiceModeGlobal
 	}
 
+	if len(spec.Ports) > 0 {
+		encodedPorts := make([]string, len(spec.Ports))
+		for i, p := range spec.Ports {
+			encodedPorts[i], err = p.String()
+			if err != nil {
+				return resp, fmt.Errorf("encode service port spec: %w", err)
+			}
+		}
+
+		config.Labels[api.LabelServicePorts] = strings.Join(encodedPorts, ",")
+	}
+
 	hostConfig := &container.HostConfig{
 		Init: spec.Container.Init,
 	}
