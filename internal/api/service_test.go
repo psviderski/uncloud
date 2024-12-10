@@ -430,7 +430,7 @@ func TestPortSpec_Validate(t *testing.T) {
 				ContainerPort: 8080,
 				Protocol:      "invalid",
 			},
-			wantErr: "invalid protocol: 'invalid'",
+			wantErr: "invalid protocol 'invalid'",
 		},
 		{
 			name: "invalid mode",

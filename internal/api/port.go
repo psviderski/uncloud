@@ -41,7 +41,8 @@ func (p *PortSpec) Validate() error {
 	switch p.Protocol {
 	case ProtocolHTTP, ProtocolHTTPS, ProtocolTCP, ProtocolUDP:
 	default:
-		return fmt.Errorf("invalid protocol: '%s'", p.Protocol)
+		return fmt.Errorf("invalid protocol '%s', supported protocols: '%s', '%s', '%s', '%s'",
+			p.Protocol, ProtocolHTTP, ProtocolHTTPS, ProtocolTCP, ProtocolUDP)
 	}
 
 	switch p.Mode {

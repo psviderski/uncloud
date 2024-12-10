@@ -32,6 +32,8 @@ func (s *ServiceSpec) Validate() error {
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
 
+	// TODO: validate there is no conflict between ports.
+
 	return nil
 }
 

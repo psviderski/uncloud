@@ -74,20 +74,34 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return fmt.Errorf("invalid replication mode: %q", opts.mode)
 	}
 
-	client, err := uncli.ConnectCluster(ctx, opts.cluster)
-	if err != nil {
-		return fmt.Errorf("connect to cluster: %w", err)
+	ports := make([]api.PortSpec, len(opts.publish))
+	for i, publishPort := range opts.publish {
+		port, err := api.ParsePortSpec(publishPort)
+		if err != nil {
+			return fmt.Errorf("invalid service port '%s': %w", publishPort, err)
+		}
+		ports[i] = port
 	}
-	defer client.Close()
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command: opts.command,
 			Image:   opts.image,
 		},
-		Mode: opts.mode,
-		Name: opts.name,
+		Mode:  opts.mode,
+		Name:  opts.name,
+		Ports: ports,
 	}
+	if err := spec.Validate(); err != nil {
+		return fmt.Errorf("invalid service configuration: %w", err)
+	}
+
+	client, err := uncli.ConnectCluster(ctx, opts.cluster)
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
+	}
+	defer client.Close()
+
 	if _, err = client.RunService(ctx, spec); err != nil {
 		return fmt.Errorf("run service: %w", err)
 	}
