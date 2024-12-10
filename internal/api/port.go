@@ -130,6 +130,10 @@ func ParsePortSpec(port string) (PortSpec, error) {
 			return spec, fmt.Errorf("invalid container port '%s': %w", parts[1], err)
 		}
 
+		if parts[0] == "" {
+			return spec, fmt.Errorf("hostname or published port must be specified, format: " +
+				"hostname:container_port or published_port:container_port")
+		}
 		// Try to parse the first part as port.
 		if publishedPort, err := parsePort(parts[0]); err == nil {
 			spec.PublishedPort = publishedPort
@@ -137,9 +141,6 @@ func ParsePortSpec(port string) (PortSpec, error) {
 			// It's a hostname.
 			if spec.Mode == PortModeHost {
 				return spec, fmt.Errorf("hostname cannot be specified in host mode")
-			}
-			if parts[0] == "" {
-				return spec, fmt.Errorf("hostname must not be empty")
 			}
 			spec.Hostname = parts[0]
 		}
