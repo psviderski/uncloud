@@ -184,7 +184,6 @@ func (m *Manager) syncContainersToStore(ctx context.Context) error {
 	}
 
 	// Create or update the current Docker containers in the store.
-	// TODO: update only the changed containers to reduce unnecessary gossip traffic and not trigger other controllers.
 	for _, dc := range containers {
 		c := &api.Container{Container: dc}
 		if err = m.store.CreateOrUpdateContainer(ctx, c, m.machineID); err != nil {
