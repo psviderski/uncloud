@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 	"uncloud/internal/machine/api/pb"
+	"uncloud/internal/machine/caddyfile"
 	"uncloud/internal/machine/corroservice"
 	"uncloud/internal/machine/docker"
 	"uncloud/internal/machine/network"
@@ -32,16 +33,22 @@ type networkController struct {
 	wgnet           *network.WireGuardNetwork
 	endpointChanges <-chan network.EndpointChangeEvent
 
-	server       *grpc.Server
-	corroService corroservice.Service
-	dockerCli    *client.Client
+	server        *grpc.Server
+	corroService  corroservice.Service
+	dockerCli     *client.Client
+	caddyfileCtrl *caddyfile.Controller
 
 	// TODO: DNS server/resolver listening on the machine IP, e.g. 10.210.0.1:53. It can't listen on 127.0.X.X
 	//  like resolved does because it needs to be reachable from both the host and the containers.
 }
 
 func newNetworkController(
-	state *State, store *store.Store, server *grpc.Server, corroService corroservice.Service, dockerCli *client.Client,
+	state *State,
+	store *store.Store,
+	server *grpc.Server,
+	corroService corroservice.Service,
+	dockerCli *client.Client,
+	caddyfileCtrl *caddyfile.Controller,
 ) (
 	*networkController, error,
 ) {
@@ -60,6 +67,7 @@ func newNetworkController(
 		server:          server,
 		corroService:    corroService,
 		dockerCli:       dockerCli,
+		caddyfileCtrl:   caddyfileCtrl,
 	}, nil
 }
 
@@ -139,7 +147,7 @@ func (nc *networkController) Run(ctx context.Context) error {
 							break
 						}
 					}
-					if err = nc.state.Save(); err != nil {
+					if err := nc.state.Save(); err != nil {
 						slog.Error("Failed to save machine state.", "err", err)
 					}
 					nc.state.mu.Unlock()
@@ -155,12 +163,21 @@ func (nc *networkController) Run(ctx context.Context) error {
 
 	errGroup.Go(
 		func() error {
-			if err = nc.wgnet.Run(ctx); err != nil {
+			if err := nc.wgnet.Run(ctx); err != nil {
 				return fmt.Errorf("WireGuard network failed: %w", err)
 			}
 			return nil
 		},
 	)
+
+	errGroup.Go(func() error {
+		slog.Info("Starting Caddyfile controller.")
+		if err := nc.caddyfileCtrl.Run(ctx); err != nil {
+			//goland:noinspection GoErrorStringFormat
+			return fmt.Errorf("Caddyfile controller failed: %w", err)
+		}
+		return nil
+	})
 
 	// Wait for the context to be done and stop the network API server.
 	errGroup.Go(
@@ -214,7 +231,8 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 	return nil
 }
 
-// handleMachineChanges subscribes to machine changes in the cluster and reconfigures the network peers accordingly.
+// handleMachineChanges subscribes to machine changes in the cluster and reconfigures the network peers accordingly
+// when changes occur.
 func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 	for {
 		// Retry to subscribe to machine changes indefinitely until the context is done.

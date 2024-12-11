@@ -25,6 +25,7 @@ import (
 	"uncloud/internal/fs"
 	"uncloud/internal/machine/api/pb"
 	apiproxy "uncloud/internal/machine/api/proxy"
+	"uncloud/internal/machine/caddyfile"
 	"uncloud/internal/machine/cluster"
 	"uncloud/internal/machine/corroservice"
 	machinedocker "uncloud/internal/machine/docker"
@@ -39,7 +40,7 @@ const (
 )
 
 type Config struct {
-	// DataDir is the directory where the machine stores its persistent state.
+	// DataDir is the directory where the machine stores its persistent state. Default is /var/lib/uncloud.
 	DataDir         string
 	MachineSockPath string
 	UncloudSockPath string
@@ -54,6 +55,10 @@ type Config struct {
 
 	// DockerClient manages system and user containers using the local Docker daemon.
 	DockerClient *client.Client
+
+	// CaddyfilePath specifies where the machine generates the Caddy reverse proxy configuration file for routing
+	// external traffic to service containers across the internal network. Default is DataDir/caddy/Caddyfile.
+	CaddyfilePath string
 }
 
 // SetDefaults returns a new Config with default values set where not provided.
@@ -115,6 +120,11 @@ func (c *Config) SetDefaults() (*Config, error) {
 			cfg.CorrosionService = corroservice.DefaultSystemdService(cfg.CorrosionDir)
 		}
 	}
+
+	if cfg.CaddyfilePath == "" {
+		cfg.CaddyfilePath = filepath.Join(cfg.DataDir, "caddy", "Caddyfile")
+	}
+
 	return &cfg, nil
 }
 
@@ -347,12 +357,18 @@ func (m *Machine) Run(ctx context.Context) error {
 						),
 					)
 
+					caddyfileCtrl, err := caddyfile.NewController(m.store, m.config.CaddyfilePath)
+					if err != nil {
+						return fmt.Errorf("create Caddyfile controller: %w", err)
+					}
+
 					ctrl, err = newNetworkController(
 						m.state,
 						m.store,
 						proxyServer,
 						m.config.CorrosionService,
 						m.config.DockerClient,
+						caddyfileCtrl,
 					)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
