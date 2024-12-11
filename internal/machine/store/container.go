@@ -76,7 +76,8 @@ func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *api.Container, m
 
 // ListContainers returns a list of container records from the store database that match the given options.
 func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*ContainerRecord, error) {
-	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers")
+	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers").
+		Where(sq.Eq{"sync_status": SyncStatusSynced})
 
 	if len(opts.MachineIDs) > 0 {
 		q = q.Where(sq.Eq{"machine_id": opts.MachineIDs})
@@ -153,4 +154,67 @@ func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error 
 	}
 
 	return nil
+}
+
+// SubscribeContainers returns a list of containers and a channel that signals changes to the list. The channel doesn't
+// receive any values, it just signals when a container(s) has been added, updated, or deleted in the database.
+func (s *Store) SubscribeContainers(ctx context.Context) ([]*ContainerRecord, <-chan struct{}, error) {
+	// TODO: figure out whether we need sync_status at all.
+	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers").
+		Where(sq.Eq{"sync_status": SyncStatusSynced})
+	query, args, err := q.ToSql()
+	if err != nil {
+		return nil, nil, fmt.Errorf("build query: %w", err)
+	}
+
+	sub, err := s.corro.SubscribeContext(ctx, query, args, false)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var containers []*ContainerRecord
+	var cJSON, updatedAtStr string
+
+	rows := sub.Rows()
+	for rows.Next() {
+		var cr ContainerRecord
+		if err = rows.Scan(&cJSON, &cr.MachineID, &cr.SyncStatus, &updatedAtStr); err != nil {
+			return nil, nil, err
+		}
+
+		if err = json.Unmarshal([]byte(cJSON), &cr.Container); err != nil {
+			return nil, nil, fmt.Errorf("unmarshal container: %w", err)
+		}
+		if cr.UpdatedAt, err = time.Parse(time.DateTime, updatedAtStr); err != nil {
+			return nil, nil, fmt.Errorf("parse updated_at: %w", err)
+		}
+		containers = append(containers, &cr)
+	}
+	events, err := sub.Changes()
+	if err != nil {
+		return nil, nil, fmt.Errorf("get subscription changes: %w", err)
+	}
+
+	changes := make(chan struct{})
+	go func() {
+		defer close(changes)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-events:
+				if !ok {
+					// events channel has been closed.
+					if sub.Err() != nil {
+						slog.Error("Containers subscription failed.", "id", sub.ID(), "err", sub.Err())
+					}
+					return
+				}
+				// Just signal that there is a change in the containers list.
+				changes <- struct{}{}
+			}
+		}
+	}()
+
+	return containers, changes, nil
 }

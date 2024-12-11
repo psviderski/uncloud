@@ -120,7 +120,14 @@ func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-cha
 			select {
 			case <-ctx.Done():
 				return
-			case <-events:
+			case _, ok := <-events:
+				if !ok {
+					// events channel has been closed.
+					if sub.Err() != nil {
+						slog.Error("Machines subscription failed.", "id", sub.ID(), "err", sub.Err())
+					}
+					return
+				}
 				// Just signal that there is a change in the machines list.
 				changes <- struct{}{}
 			}

@@ -19,7 +19,7 @@ CREATE TABLE machines
 CREATE TABLE containers
 (
     id           TEXT NOT NULL PRIMARY KEY,
-    -- container is a JSON-serialized Docker container.Summary struct.
+    -- container is a JSON-serialized api.Container struct.
     container    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(container)),
     machine_id   TEXT NOT NULL DEFAULT '',
     service_id   TEXT AS (json_extract(container, '$.Labels."uncloud.service.id"')),
