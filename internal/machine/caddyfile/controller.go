@@ -2,7 +2,9 @@ package caddyfile
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/caddyserver/caddy/v2"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -88,6 +90,14 @@ func (c *Controller) filterAvailableContainers(containerRecords []*store.Contain
 }
 
 func (c *Controller) generateConfig(containers []*api.Container) error {
-	// TODO
+	config := &caddy.Config{
+		AppsRaw: make(caddy.ModuleMap),
+	}
+
+	_, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal Caddy configuration: %w", err)
+	}
+
 	return nil
 }
