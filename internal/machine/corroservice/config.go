@@ -53,7 +53,7 @@ func (c *Config) Write(path, owner string) error {
 	if err := os.WriteFile(path, data.Bytes(), 0600); err != nil {
 		return err
 	}
-	if err := fs.Chown(path, owner); err != nil {
+	if err := fs.Chown(path, owner, owner); err != nil {
 		return err
 	}
 	return nil
@@ -72,7 +72,7 @@ func MkDataDir(dir, owner string) error {
 	}
 
 	if owner != "" {
-		if err := fs.Chown(dir, owner); err != nil {
+		if err := fs.Chown(dir, owner, owner); err != nil {
 			return err
 		}
 	}

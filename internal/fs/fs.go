@@ -27,12 +27,31 @@ func LookupUIDGID(username string) (uid, gid int, err error) {
 	return
 }
 
-func Chown(path, owner string) error {
-	uid, gid, err := LookupUIDGID(owner)
-	if err != nil {
-		return err
+func Chown(path, username, group string) error {
+	uid, gid := -1, -1
+	if username != "" {
+		usr, err := user.Lookup(username)
+		if err != nil {
+			return fmt.Errorf("lookup user %q: %w", username, err)
+		}
+		uid, err = strconv.Atoi(usr.Uid)
+		if err != nil {
+			return fmt.Errorf("parse %q user ID (UID) %q: %w", username, usr.Uid, err)
+		}
 	}
-	if err = os.Chown(path, uid, gid); err != nil {
+
+	if group != "" {
+		grp, err := user.LookupGroup(group)
+		if err != nil {
+			return fmt.Errorf("lookup group %q: %w", group, err)
+		}
+		gid, err = strconv.Atoi(grp.Gid)
+		if err != nil {
+			return fmt.Errorf("parse %q group ID (GID) %q: %w", group, grp.Gid, err)
+		}
+	}
+
+	if err := os.Chown(path, uid, gid); err != nil {
 		return fmt.Errorf("chown %q: %w", path, err)
 	}
 	return nil

@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sync"
 	"uncloud/internal/api"
+	"uncloud/internal/fs"
 	"uncloud/internal/machine/store"
 )
+
+const CaddyGroup = "uncloud"
 
 // Controller monitors container changes in the cluster store and generates a configuration file for Caddy reverse
 // proxy. The generated Caddyfile allows Caddy to route external traffic to service containers across the internal
@@ -19,13 +23,15 @@ import (
 type Controller struct {
 	store *store.Store
 	path  string
-	mu    sync.Mutex
 }
 
 func NewController(store *store.Store, path string) (*Controller, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("create parent directory for Caddyfile '%s': %w", dir, err)
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return nil, fmt.Errorf("create parent directory for Caddy configuration '%s': %w", dir, err)
+	}
+	if err := fs.Chown(dir, "", CaddyGroup); err != nil {
+		return nil, fmt.Errorf("change owner of parent directory for Caddy configuration '%s': %w", dir, err)
 	}
 
 	return &Controller{
@@ -90,13 +96,40 @@ func (c *Controller) filterAvailableContainers(containerRecords []*store.Contain
 }
 
 func (c *Controller) generateConfig(containers []*api.Container) error {
+	servers := make(map[string]*caddyhttp.Server)
+	servers["http"] = &caddyhttp.Server{
+		Listen: []string{fmt.Sprintf(":%d", caddyhttp.DefaultHTTPPort)},
+	}
+	servers["https"] = &caddyhttp.Server{
+		Listen: []string{fmt.Sprintf(":%d", caddyhttp.DefaultHTTPSPort)},
+	}
+
+	httpApp := caddyhttp.App{
+		Servers: servers,
+	}
+
 	config := &caddy.Config{
 		AppsRaw: make(caddy.ModuleMap),
 	}
+	var warnings []caddyconfig.Warning
+	config.AppsRaw["http"] = caddyconfig.JSON(httpApp, &warnings)
 
-	_, err := json.MarshalIndent(config, "", "  ")
+	if len(warnings) > 0 {
+		for _, w := range warnings {
+			slog.Warn("Generate Caddy configuration warning.", "warn", w.String())
+		}
+	}
+
+	configBytes, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
 		return fmt.Errorf("marshal Caddy configuration: %w", err)
+	}
+
+	if err = os.WriteFile(c.path, configBytes, 0640); err != nil {
+		return fmt.Errorf("write Caddy configuration to file '%s': %w", c.path, err)
+	}
+	if err = fs.Chown(c.path, "", CaddyGroup); err != nil {
+		return fmt.Errorf("change owner of Caddy configuration file '%s': %w", c.path, err)
 	}
 
 	return nil

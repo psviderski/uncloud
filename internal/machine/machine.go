@@ -122,7 +122,7 @@ func (c *Config) SetDefaults() (*Config, error) {
 	}
 
 	if cfg.CaddyfilePath == "" {
-		cfg.CaddyfilePath = filepath.Join(cfg.DataDir, "caddy", "Caddyfile")
+		cfg.CaddyfilePath = filepath.Join(cfg.DataDir, "caddy", "caddy.json")
 	}
 
 	return &cfg, nil
