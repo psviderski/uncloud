@@ -54,10 +54,9 @@ func NewRunCommand() *cobra.Command {
 			"Format: [hostname:][load_balancer_port:]container_port[/protocol] or [host_ip:]:host_port:container_port[/protocol]@host\n"+
 			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified, a random hostname is generated.\n"+
 			"Examples:\n"+
-			"  -p 8080/https            Publish port 8080 as HTTPS via load balancer with random hostname\n"+
-			"  -p app.example.com:8080  Publish port 8080 as HTTPS via load balancer with custom hostname\n"+
-			"  -p 9000:8080             Publish port 8080 as TCP port 9000 via load balancer\n"+
-			"  -p 53:5353/udp@host      Bind UDP port 5353 to host port 53")
+			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via load balancer with custom hostname\n"+
+			"  -p 9000:8080             	  Publish port 8080 as TCP port 9000 via load balancer\n"+
+			"  -p 53:5353/udp@host      	  Bind UDP port 5353 to host port 53")
 
 	cmd.Flags().StringVarP(
 		&opts.cluster, "cluster", "c", "",
