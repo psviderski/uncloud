@@ -8,11 +8,15 @@ import (
 	"os/signal"
 	"syscall"
 	"uncloud/internal/daemon"
+	"uncloud/internal/log"
 	"uncloud/internal/machine"
 )
 
 func main() {
-	slog.SetLogLoggerLevel(slog.LevelDebug)
+	logger := slog.New(log.NewSlogTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	slog.SetDefault(logger)
 
 	var dataDir string
 	cmd := &cobra.Command{
