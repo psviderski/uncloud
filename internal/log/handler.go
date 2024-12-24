@@ -16,8 +16,9 @@ import (
 // LEVEL MESSAGE key1=value1 key2=value2
 type SlogTextHandler struct {
 	*slog.TextHandler
-	mu sync.Mutex
-	w  io.Writer
+	opts slog.HandlerOptions
+	mu   sync.Mutex
+	w    io.Writer
 }
 
 func NewSlogTextHandler(w io.Writer, opts *slog.HandlerOptions) *SlogTextHandler {
@@ -34,6 +35,7 @@ func NewSlogTextHandler(w io.Writer, opts *slog.HandlerOptions) *SlogTextHandler
 
 	return &SlogTextHandler{
 		TextHandler: slog.NewTextHandler(w, opts),
+		opts:        *opts,
 		w:           w,
 	}
 }
@@ -51,6 +53,15 @@ func (h *SlogTextHandler) WithGroup(name string) slog.Handler {
 }
 
 func (h *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
+	// Only log entries that are at or above the minimum level (INFO by default).
+	minLevel := slog.LevelInfo
+	if h.opts.Level != nil {
+		minLevel = h.opts.Level.Level()
+	}
+	if r.Level < minLevel {
+		return nil
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
