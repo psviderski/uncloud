@@ -11,10 +11,12 @@ import (
 	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
+	"github.com/docker/go-connections/nat"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"uncloud/internal/api"
@@ -250,8 +252,24 @@ func (cli *Client) runContainer(
 		config.Labels[api.LabelServicePorts] = strings.Join(encodedPorts, ",")
 	}
 
+	portBindings := make(nat.PortMap)
+	for _, p := range spec.Ports {
+		if p.Mode != api.PortModeHost {
+			continue
+		}
+		port := nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, p.Protocol))
+		portBindings[port] = []nat.PortBinding{
+			{
+				HostPort: strconv.Itoa(int(p.PublishedPort)),
+			},
+		}
+		if p.HostIP.IsValid() {
+			portBindings[port][0].HostIP = p.HostIP.String()
+		}
+	}
 	hostConfig := &container.HostConfig{
-		Init: spec.Container.Init,
+		Init:         spec.Container.Init,
+		PortBindings: portBindings,
 	}
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
