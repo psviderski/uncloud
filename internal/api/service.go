@@ -42,6 +42,8 @@ type ContainerSpec struct {
 	Image   string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
+	// List of volumes to bind mount into the container.
+	Volumes []string
 }
 
 func (s *ContainerSpec) Validate() error {

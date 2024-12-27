@@ -268,6 +268,7 @@ func (cli *Client) runContainer(
 		}
 	}
 	hostConfig := &container.HostConfig{
+		Binds:        spec.Container.Volumes,
 		Init:         spec.Container.Init,
 		PortBindings: portBindings,
 	}

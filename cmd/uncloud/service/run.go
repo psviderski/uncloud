@@ -15,6 +15,7 @@ type runOptions struct {
 	mode    string
 	name    string
 	publish []string
+	volumes []string
 
 	cluster string
 }
@@ -55,8 +56,11 @@ func NewRunCommand() *cobra.Command {
 			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified, a random hostname is generated.\n"+
 			"Examples:\n"+
 			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via load balancer with custom hostname\n"+
-			"  -p 9000:8080             	  Publish port 8080 as TCP port 9000 via load balancer\n"+
-			"  -p 53:5353/udp@host      	  Bind UDP port 5353 to host port 53")
+			"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via load balancer\n"+
+			"  -p 53:5353/udp@host            Bind UDP port 5353 to host port 53")
+	cmd.Flags().StringSliceVarP(&opts.volumes, "volume", "v", nil,
+		"Bind mount a host file or directory into a service container using the format "+
+			"/host/path:/container/path[:ro]. Can be specified multiple times.")
 
 	cmd.Flags().StringVarP(
 		&opts.cluster, "cluster", "c", "",
@@ -81,11 +85,13 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		}
 		ports[i] = port
 	}
+	// TODO: parse and validate opts.volumes to fail fast if invalid.
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command: opts.command,
 			Image:   opts.image,
+			Volumes: opts.volumes,
 		},
 		Mode:  opts.mode,
 		Name:  opts.name,
