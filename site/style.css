@@ -1343,6 +1343,14 @@ input[type="search"]::-webkit-search-results-decoration {
   margin-top: 2rem;
 }
 
+.mr-1{
+  margin-right: 0.25rem;
+}
+
+.mr-14{
+  margin-right: 3.5rem;
+}
+
 .box-content{
   box-sizing: content-box;
 }
@@ -1453,6 +1461,10 @@ input[type="search"]::-webkit-search-results-decoration {
 
 .w-full{
   width: 100%;
+}
+
+.w-28{
+  width: 7rem;
 }
 
 .max-w-2xl{
@@ -1700,6 +1712,10 @@ input[type="search"]::-webkit-search-results-decoration {
 
 .gap-8{
   gap: 2rem;
+}
+
+.gap-3{
+  gap: 0.75rem;
 }
 
 .space-x-3 > :not([hidden]) ~ :not([hidden]){
@@ -2028,6 +2044,11 @@ input[type="search"]::-webkit-search-results-decoration {
   padding-bottom: 2rem;
 }
 
+.py-1{
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
 .pb-12{
   padding-bottom: 3rem;
 }
@@ -2141,6 +2162,10 @@ input[type="search"]::-webkit-search-results-decoration {
 
 .tracking-tight{
   letter-spacing: -0.025em;
+}
+
+.tracking-normal{
+  letter-spacing: 0em;
 }
 
 .text-black{
@@ -2288,6 +2313,12 @@ input[type="search"]::-webkit-search-results-decoration {
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
+.shadow-xl{
+  --tw-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --tw-shadow-colored: 0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
 .shadow-black\/5{
   --tw-shadow-color: rgb(0 0 0 / 0.05);
   --tw-shadow: var(--tw-shadow-colored);
@@ -2295,6 +2326,11 @@ input[type="search"]::-webkit-search-results-decoration {
 
 .shadow-zinc-950\/20{
   --tw-shadow-color: rgb(9 9 11 / 0.2);
+  --tw-shadow: var(--tw-shadow-colored);
+}
+
+.shadow-zinc-950{
+  --tw-shadow-color: #09090b;
   --tw-shadow: var(--tw-shadow-colored);
 }
 
@@ -2670,6 +2706,11 @@ input[type="search"]::-webkit-search-results-decoration {
   background-color: rgb(39 39 42 / var(--tw-bg-opacity));
 }
 
+.hover\:bg-zinc-600:hover{
+  --tw-bg-opacity: 1;
+  background-color: rgb(82 82 91 / var(--tw-bg-opacity));
+}
+
 .hover\:from-zinc-900:hover{
   --tw-gradient-from: #18181b var(--tw-gradient-from-position);
   --tw-gradient-to: rgb(24 24 27 / 0) var(--tw-gradient-to-position);
@@ -2690,8 +2731,21 @@ input[type="search"]::-webkit-search-results-decoration {
   color: rgb(24 24 27 / var(--tw-text-opacity));
 }
 
+.hover\:text-black:hover{
+  --tw-text-opacity: 1;
+  color: rgb(0 0 0 / var(--tw-text-opacity));
+}
+
+.hover\:underline:hover{
+  text-decoration-line: underline;
+}
+
 .hover\:no-underline:hover{
   text-decoration-line: none;
+}
+
+.hover\:decoration-zinc-500:hover{
+  text-decoration-color: #71717a;
 }
 
 .hover\:opacity-100:hover{
@@ -2904,6 +2958,10 @@ input[type="search"]::-webkit-search-results-decoration {
     margin-bottom: 0px;
   }
 
+  .md\:block{
+    display: block;
+  }
+
   .md\:max-w-4xl{
     max-width: 56rem;
   }
@@ -2998,6 +3056,11 @@ input[type="search"]::-webkit-search-results-decoration {
 
   .lg\:col-span-6{
     grid-column: span 6 / span 6;
+  }
+
+  .lg\:mx-1{
+    margin-left: 0.25rem;
+    margin-right: 0.25rem;
   }
 
   .lg\:mb-16{
