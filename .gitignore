@@ -8,6 +8,9 @@
 *.so
 *.dylib
 
+# OS X
+.DS_Store
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -26,3 +29,6 @@ go.work.sum
 
 data
 dist/
+
+# Web
+node_modules/
