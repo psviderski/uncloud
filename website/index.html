@@ -312,152 +312,105 @@
             </div>
         </section>
 
-        <!-- Features #3 -->
+        <!-- How it works + Features -->
         <section
-                class="relative bg-zinc-800 after:absolute after:top-0 after:right-0 after:h-full after:w-96 after:pointer-events-none after:bg-gradient-to-l after:from-zinc-800 max-lg:after:hidden">
+                class="relative bg-zinc-800 text-zinc-400 after:absolute after:top-0 after:right-0 after:h-full after:w-96 after:pointer-events-none after:bg-gradient-to-l after:from-zinc-800 max-lg:after:hidden">
             <div class="py-12 md:py-20">
 
-                <!-- Carousel -->
                 <div class="max-w-xl lg:max-w-6xl mx-auto px-4 sm:px-6">
-                    <div class="lg:flex space-y-12 lg:space-y-0 lg:space-x-12 xl:space-x-24" x-data="{ tab: '1' }">
+                    <div class="lg:flex space-y-12 lg:space-y-0 lg:space-x-12 2xl:space-x-24">
 
                         <!-- Content -->
                         <div class="lg:max-w-none lg:min-w-[524px]">
                             <div class="mb-8">
                                 <div class="inline-flex text-sm font-medium text-zinc-400 px-4 py-0.5 border border-transparent [background:linear-gradient(theme(colors.zinc.800),theme(colors.zinc.800))_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box] rounded-full mb-4">
-                                    Scale Your Team
+                                    How it works
                                 </div>
-                                <h3 class="font-inter-tight text-3xl font-bold text-zinc-200 mb-4">Design-powered
-                                    workflows for teams of any size</h3>
-                                <p class="text-lg text-zinc-500">Gray can understand what you are designing, learn from
-                                    your feedback to take your creativity further, and turn it instantly into beautiful
-                                    images.</p>
+                                <h3 class="font-inter-tight text-3xl font-bold text-zinc-100 mb-4">
+                                    Simple by design,<br>
+                                    powerful in practice
+                                </h3>
+                                <p class="text-lg">
+                                    Uncloud replaces complex clusters with a simple network of machines working
+                                    seamlessly together — no maintenance overhead, just reliable infrastructure.
+                                </p>
                             </div>
-                            <!-- Tabs buttons -->
+
+                            <!-- Items -->
                             <div class="mb-8 md:mb-0 space-y-2">
-                                <button
-                                        :class="tab !== '1' ? '' : '[background:linear-gradient(#2E2E32,#2E2E32)_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box]'"
-                                        class="text-left flex items-center px-6 py-4 rounded border border-transparent"
-                                        @click.prevent="tab = '1'"
-                                >
+                                <!-- Secure private network -->
+                                <div class="text-left flex items-center px-6 py-4 rounded border border-transparent">
                                     <svg class="shrink-0 fill-zinc-400 mr-3" xmlns="http://www.w3.org/2000/svg"
                                          width="24" height="24">
-                                        <path d="m7.951 14.537 6.296-7.196 1.506 1.318-7.704 8.804-3.756-3.756 1.414-1.414 2.244 2.244Zm11.296-7.196 1.506 1.318-7.704 8.804-1.756-1.756 1.414-1.414.244.244 6.296-7.196Z"/>
+                                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
                                     </svg>
                                     <div>
-                                        <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">Make
-                                            designs feel real
+                                        <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">
+                                            Secure private network
                                         </div>
-                                        <div class="text-zinc-500">Save time and keep things consistent with reusable
-                                            images, and 3D assets in shared libraries.
+                                        <div>
+                                            Each machine joins a WireGuard mesh network with automatic peer discovery
+                                            and NAT traversal. Containers get unique IPs and can communicate directly
+                                            across machines.
                                         </div>
                                     </div>
-                                </button>
-                                <button
-                                        :class="tab !== '2' ? '' : '[background:linear-gradient(#2E2E32,#2E2E32)_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box]'"
-                                        class="text-left flex items-center px-6 py-4 rounded border border-transparent"
-                                        @click.prevent="tab = '2'"
-                                >
+                                </div>
+
+                                <!-- Fully decentralized -->
+                                <div class="text-left flex items-center px-6 py-4 rounded border border-transparent">
+                                    <svg class="shrink-0 fill-zinc-400 stroke-zinc-400 mr-3" xmlns="http://www.w3.org/2000/svg"
+                                         width="24" height="24">
+                                        <path d="M4 4h16M4 4v16M4 4L20 20M20 4v16M20 4L4 20M4 20h16 M4 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5M20 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5M4 17.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5M20 17.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5"/>
+                                    <div>
+                                        <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">
+                                            Fully decentralized
+                                        </div>
+                                        <div>
+                                            Unlike traditional orchestrators, there's no central control plane to
+                                            maintain. Each machine maintains a synchronized copy of the cluster state
+                                            through peer-to-peer communication, keeping cluster operations functional
+                                            even if some machines go offline.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Smart CLI -->
+                                <div class="text-left flex items-center px-6 py-4 rounded border border-transparent">
                                     <svg class="shrink-0 fill-zinc-400 mr-3" xmlns="http://www.w3.org/2000/svg"
                                          width="24" height="24">
-                                        <path d="m16.997 19.056-1.78-.912A13.91 13.91 0 0 0 16.75 11.8c0-2.206-.526-4.38-1.533-6.344l1.78-.912A15.91 15.91 0 0 1 18.75 11.8c0 2.524-.602 5.01-1.753 7.256Zm-3.616-1.701-1.77-.93A9.944 9.944 0 0 0 12.75 11.8c0-1.611-.39-3.199-1.14-4.625l1.771-.93c.9 1.714 1.37 3.62 1.369 5.555 0 1.935-.47 3.841-1.369 5.555Zm-3.626-1.693-1.75-.968c.49-.885.746-1.881.745-2.895a5.97 5.97 0 0 0-.745-2.893l1.75-.968a7.968 7.968 0 0 1 .995 3.861 7.97 7.97 0 0 1-.995 3.863Zm-3.673-1.65-1.664-1.11c.217-.325.333-.709.332-1.103 0-.392-.115-.776-.332-1.102L6.082 9.59c.437.655.67 1.425.668 2.21a3.981 3.981 0 0 1-.668 2.212Z"/>
+                                        <path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2zM7.5 17l-1.41-1.41L8.67 13l-2.58-2.59L7.5 9l4 4-4 4z"/>
                                     </svg>
                                     <div>
-                                        <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">Bring
-                                            creatives closer
+                                        <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">
+                                            Smart CLI
                                         </div>
-                                        <div class="text-zinc-500">Save time and keep things consistent with reusable
-                                            images, and 3D assets in shared libraries.
-                                        </div>
-                                    </div>
-                                </button>
-                                <button
-                                        :class="tab !== '3' ? '' : '[background:linear-gradient(#2E2E32,#2E2E32)_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box]'"
-                                        class="text-left flex items-center px-6 py-4 rounded border border-transparent"
-                                        @click.prevent="tab = '3'"
-                                >
-                                    <svg class="shrink-0 fill-zinc-400 mr-3" xmlns="http://www.w3.org/2000/svg"
-                                         width="24" height="24">
-                                        <path d="m11.293 5.293 1.414 1.414-8 8-1.414-1.414 8-8Zm7-1 1.414 1.414-8 8-1.414-1.414 8-8Zm0 6 1.414 1.414-8 8-1.414-1.414 8-8Z"/>
-                                    </svg>
-                                    <div>
-                                        <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">Scale and
-                                            align your design team
-                                        </div>
-                                        <div class="text-zinc-500">Save time and keep things consistent with reusable
-                                            images, and 3D assets in shared libraries.
+                                        <div>
+                                            Control your entire infrastructure using intuitive Docker-like commands from
+                                            anywhere. Deploy, monitor, and scale applications across all your machines
+                                            through a single SSH connection to any of them.
                                         </div>
                                     </div>
-                                </button>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Tabs items -->
+                        <!-- Diagram -->
                         <div class="relative lg:max-w-none">
                             <div class="relative flex flex-col">
-                                <!-- Item 1 -->
-                                <div
-                                        class="w-full"
-                                        x-show="tab === '1'"
-                                        x-transition:enter="transition ease-in-out duration-700 transform order-first"
-                                        x-transition:enter-start="opacity-0 translate-x-8"
-                                        x-transition:enter-end="opacity-100 translate-x-0"
-                                        x-transition:leave="transition ease-in-out duration-300 transform absolute"
-                                        x-transition:leave-start="opacity-100 translate-x-0"
-                                        x-transition:leave-end="opacity-0 -translate-x-8"
-                                >
-                                    <div>
-                                        <img class="lg:max-w-none mx-auto rounded-lg shadow-2xl"
-                                             src="./images/carousel-illustration-01.jpg" width="800" height="620"
-                                             alt="Carousel 01"/>
-                                    </div>
-                                </div>
-                                <!-- Item 2 -->
-                                <div
-                                        class="w-full"
-                                        x-show="tab === '2'"
-                                        x-transition:enter="transition ease-in-out duration-700 transform order-first"
-                                        x-transition:enter-start="opacity-0 translate-x-8"
-                                        x-transition:enter-end="opacity-100 translate-x-0"
-                                        x-transition:leave="transition ease-in-out duration-300 transform absolute"
-                                        x-transition:leave-start="opacity-100 translate-x-0"
-                                        x-transition:leave-end="opacity-0 -translate-x-8"
-                                >
-                                    <div>
-                                        <img class="lg:max-w-none mx-auto rounded-lg shadow-2xl"
-                                             src="./images/carousel-illustration-01.jpg" width="800" height="620"
-                                             alt="Carousel 02"/>
-                                    </div>
-                                </div>
-                                <!-- Item 3 -->
-                                <div
-                                        class="w-full"
-                                        x-show="tab === '3'"
-                                        x-transition:enter="transition ease-in-out duration-700 transform order-first"
-                                        x-transition:enter-start="opacity-0 translate-x-8"
-                                        x-transition:enter-end="opacity-100 translate-x-0"
-                                        x-transition:leave="transition ease-in-out duration-300 transform absolute"
-                                        x-transition:leave-start="opacity-100 translate-x-0"
-                                        x-transition:leave-end="opacity-0 -translate-x-8"
-                                >
-                                    <div>
-                                        <img class="lg:max-w-none mx-auto rounded-lg shadow-2xl"
-                                             src="./images/carousel-illustration-01.jpg" width="800" height="620"
-                                             alt="Carousel 03"/>
-                                    </div>
-                                </div>
+                                <figure class="w-full lg:mt-36">
+                                    <img class="lg:max-w-none mx-auto rounded-xl shadow-2xl"
+                                         src="./images/diagram.webp" width="700" alt="Uncloud cluster diagram"/>
+                                    <figcaption class="text-center text-sm mt-2">
+                                        Multi-provider cluster of 3 machines
+                                    </figcaption>
+                                </figure>
                             </div>
-                            <!-- Gear illustration -->
-                            <img class="absolute left-0 bottom-0 -translate-x-1/2 translate-y-1/3 mix-blend-exclusion max-lg:w-32"
-                                 src="./images/features-illustration.png" alt="Features 02 illustration" width="173"
-                                 height="167" aria-hidden="true">
                         </div>
-
                     </div>
                 </div>
 
                 <!-- Features blocks -->
-                <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-24 lg:mt-32">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-12 lg:mt-24">
                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-16">
                         <!-- Block #1 -->
                         <div>
