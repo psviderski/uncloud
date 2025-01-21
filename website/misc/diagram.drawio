@@ -1,0 +1,138 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0" version="26.0.6">
+  <diagram id="l8hXMBHkgcEJcSW0mbfh" name="Page-1">
+    <mxGraphModel dx="2522" dy="1435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="anjOE1Lszn3xuFwhIM3--51" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;curved=1;startArrow=classic;startFill=1;strokeColor=#871619;strokeWidth=2;" edge="1" parent="1" source="anjOE1Lszn3xuFwhIM3--15" target="anjOE1Lszn3xuFwhIM3--47">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--15" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=1;glass=0;shadow=0;sketch=1;curveFitting=1;jiggle=2;strokeColor=#71717A;" vertex="1" parent="1">
+          <mxGeometry x="40" y="110" width="200" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--16" value="&lt;font face=&quot;Indie Flower&quot;&gt;Virtual machine&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="40" y="73" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--30" value="" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;strokeWidth=1;strokeColor=#71717A;" vertex="1" parent="1">
+          <mxGeometry x="540" y="110" width="200" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--31" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://cdn.worldvectorlogo.com/logos/digitalocean-2.svg;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="177.34" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--32" value="&lt;font face=&quot;Indie Flower&quot;&gt;Dedicated server&lt;br&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="540" y="73" width="170" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--35" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Logo_Hetzner.svg/512px-Logo_Hetzner.svg.png;" vertex="1" parent="1">
+          <mxGeometry x="540" y="43.5" width="186.92" height="23" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--36" value="&lt;div&gt;&lt;font face=&quot;Indie Flower&quot; style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;Office / Homelab&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Indie Flower&quot;&gt;Mac mini / PC&lt;br&gt;&lt;/font&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="500" y="555" width="170" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--37" value="$ &lt;font face=&quot;JetBrains Mono&quot; data-font-src=&quot;https://fonts.googleapis.com/css?family=JetBrains+Mono&quot;&gt;uc CLI&lt;br&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;strokeWidth=1;fontColor=#FFFFFF;fillColor=#27272A;fillStyle=solid;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="42" y="470" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--50" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;curved=1;startArrow=classic;startFill=1;strokeColor=#871619;strokeWidth=2;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="anjOE1Lszn3xuFwhIM3--47" target="anjOE1Lszn3xuFwhIM3--30">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--47" value="" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;strokeWidth=1;strokeColor=#71717A;" vertex="1" parent="1">
+          <mxGeometry x="290" y="300" width="200" height="290" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--52" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://cdn.icon-icons.com/icons2/2699/PNG/512/wireguard_logo_icon_167956.png;" vertex="1" parent="1">
+          <mxGeometry x="324" y="163" width="148" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--53" value="&lt;font face=&quot;Indie Flower&quot;&gt;Private network&lt;br&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="338" y="230" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--74" value="https://app.example.com" style="text;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;html=1;fontFamily=Indie Flower;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIndie%2BFlower;spacing=2;spacingTop=0;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="295.89" y="80" width="194.23" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--76" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=1;dashed=1;shadow=0;glass=0;strokeColor=#71717A;" vertex="1" parent="1">
+          <mxGeometry x="52.11" y="122" width="175.77" height="138" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--78" value="containers" style="shape=image;verticalLabelPosition=middle;labelBackgroundColor=default;verticalAlign=middle;aspect=fixed;imageAspect=0;image=https://static-00.iconduck.com/assets.00/docker-icon-1024x739-rivf80b4.png;labelPosition=right;align=left;fontFamily=Indie Flower;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIndie%2BFlower;fontSize=16;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="84.99999999999994" y="127.55000000000001" width="34" height="24.55" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--79" value="&lt;font face=&quot;Indie Flower&quot;&gt;app&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;sketch=1;curveFitting=1;jiggle=2;fillColor=#e1d5e7;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;strokeColor=#9673a6;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="74.99999999999994" y="210" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--80" value="&lt;font face=&quot;Indie Flower&quot;&gt;caddy&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;fillColor=#d5e8d4;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;sketch=1;curveFitting=1;jiggle=2;strokeColor=#82b366;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="74.99999999999994" y="170" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--83" value="&lt;font face=&quot;Indie Flower&quot;&gt;uncloud daemon&lt;br&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=cross-hatch;sketch=1;curveFitting=1;jiggle=2;fillColor=#D6D6D6;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;strokeColor=#27272A;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="328" y="545" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--92" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;sketch=1;curveFitting=1;jiggle=2;exitX=0.407;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;strokeColor=#18181B;" edge="1" parent="1" source="anjOE1Lszn3xuFwhIM3--74" target="anjOE1Lszn3xuFwhIM3--80">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--69" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;curved=1;sketch=1;curveFitting=1;jiggle=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeColor=#18181B;" edge="1" parent="1" source="anjOE1Lszn3xuFwhIM3--37" target="anjOE1Lszn3xuFwhIM3--83">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150.0000000000001" y="560.03" as="sourcePoint" />
+            <mxPoint x="316.12" y="606" as="targetPoint" />
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--94" value="&lt;div&gt;Control the cluster and services&lt;/div&gt;&lt;div&gt;through the closest machine&lt;/div&gt;" style="edgeLabel;html=1;align=left;verticalAlign=middle;resizable=0;points=[];fontFamily=Indie Flower;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIndie%2BFlower;fontSize=16;fontColor=#18181B;" vertex="1" connectable="0" parent="anjOE1Lszn3xuFwhIM3--69">
+          <mxGeometry x="0.312" y="-2" relative="1" as="geometry">
+            <mxPoint x="-212" y="8" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--114" value="&lt;div&gt;&lt;font face=&quot;Indie Flower&quot; data-font-src=&quot;https://fonts.googleapis.com/css?family=Indie+Flower&quot;&gt;RPC over SSH&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;rotation=13;fontSize=14;fontColor=#18181B;" vertex="1" connectable="0" parent="anjOE1Lszn3xuFwhIM3--69">
+          <mxGeometry x="-0.0843" y="-4" relative="1" as="geometry">
+            <mxPoint x="-11" y="-20" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--97" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=1;dashed=1;shadow=0;glass=0;strokeColor=#71717A;" vertex="1" parent="1">
+          <mxGeometry x="552.69" y="122" width="175.77" height="178" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--98" value="containers" style="shape=image;verticalLabelPosition=middle;labelBackgroundColor=default;verticalAlign=middle;aspect=fixed;imageAspect=0;image=https://static-00.iconduck.com/assets.00/docker-icon-1024x739-rivf80b4.png;labelPosition=right;align=left;fontFamily=Indie Flower;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIndie%2BFlower;fontSize=16;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="585.5799999999999" y="129.55" width="34" height="24.55" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--99" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.01;entryY=0.422;entryDx=0;entryDy=0;curved=1;startArrow=classic;startFill=1;strokeColor=#871619;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryPerimeter=0;" edge="1" parent="1" source="anjOE1Lszn3xuFwhIM3--15" target="anjOE1Lszn3xuFwhIM3--30">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="323.75" y="183" as="sourcePoint" />
+            <mxPoint x="473.75" y="307" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--102" value="&lt;font face=&quot;Indie Flower&quot;&gt;uncloud daemon&lt;br&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=cross-hatch;sketch=1;curveFitting=1;jiggle=2;fillColor=#D6D6D6;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;strokeColor=#27272A;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="575" y="330" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--103" value="&lt;font face=&quot;Indie Flower&quot;&gt;uncloud daemon&lt;br&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=cross-hatch;sketch=1;curveFitting=1;jiggle=2;fillColor=#D6D6D6;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;strokeColor=#27272A;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="75" y="290" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--104" value="&lt;font face=&quot;Indie Flower&quot;&gt;caddy&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;fillColor=#d5e8d4;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;sketch=1;curveFitting=1;jiggle=2;strokeColor=#82b366;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="574.9999999999999" y="170" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--105" value="&lt;font face=&quot;Indie Flower&quot;&gt;app&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;sketch=1;curveFitting=1;jiggle=2;fillColor=#e1d5e7;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;strokeColor=#9673a6;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="575" y="210" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--106" value="&lt;font face=&quot;Indie Flower&quot;&gt;app-db&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;sketch=1;curveFitting=1;jiggle=2;fillColor=#e1d5e7;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;strokeColor=#9673a6;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="575" y="250" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--107" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=1;dashed=1;shadow=0;glass=0;strokeColor=#71717A;" vertex="1" parent="1">
+          <mxGeometry x="302.12" y="312" width="175.77" height="218" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--108" value="containers" style="shape=image;verticalLabelPosition=middle;labelBackgroundColor=default;verticalAlign=middle;aspect=fixed;imageAspect=0;image=https://static-00.iconduck.com/assets.00/docker-icon-1024x739-rivf80b4.png;labelPosition=right;align=left;fontFamily=Indie Flower;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIndie%2BFlower;fontSize=16;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="335.00999999999993" y="319.55" width="34" height="24.55" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--109" value="&lt;font face=&quot;Indie Flower&quot;&gt;caddy&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;fillColor=#d5e8d4;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;sketch=1;curveFitting=1;jiggle=2;strokeColor=#82b366;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="324.4299999999999" y="360" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--110" value="&lt;font face=&quot;Indie Flower&quot;&gt;app-staging&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;sketch=1;curveFitting=1;jiggle=2;fillColor=#ffe6cc;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;strokeColor=#d79b00;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="324.43" y="400" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--111" value="&lt;font face=&quot;Indie Flower&quot;&gt;app-db-staging&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;sketch=1;curveFitting=1;jiggle=2;fillColor=#ffe6cc;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;strokeColor=#d79b00;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="324.43" y="440" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--112" value="&lt;font face=&quot;Indie Flower&quot;&gt;monitoring stack&lt;br&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=1;fillStyle=hachure;sketch=1;curveFitting=1;jiggle=2;fillColor=#dae8fc;labelBackgroundColor=none;labelBorderColor=none;textShadow=0;fontSize=14;align=center;verticalAlign=middle;strokeColor=#6c8ebf;fontColor=#18181B;" vertex="1" parent="1">
+          <mxGeometry x="325" y="480" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anjOE1Lszn3xuFwhIM3--93" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;sketch=1;curveFitting=1;jiggle=2;exitX=0.608;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;strokeColor=#18181B;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="anjOE1Lszn3xuFwhIM3--74" target="anjOE1Lszn3xuFwhIM3--104">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="481" y="200" as="sourcePoint" />
+            <mxPoint x="470" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
