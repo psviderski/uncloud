@@ -358,20 +358,23 @@
 
                                 <!-- Fully decentralized -->
                                 <div class="text-left flex items-center px-6 py-4 rounded border border-transparent">
-                                    <svg class="shrink-0 fill-zinc-400 stroke-zinc-400 mr-3" xmlns="http://www.w3.org/2000/svg"
+                                    <svg class="shrink-0 fill-zinc-400 stroke-zinc-400 mr-3"
+                                         xmlns="http://www.w3.org/2000/svg"
                                          width="24" height="24">
                                         <path d="M4 4h16M4 4v16M4 4L20 20M20 4v16M20 4L4 20M4 20h16 M4 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5M20 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5M4 17.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5M20 17.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5"/>
-                                    <div>
-                                        <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">
-                                            Fully decentralized
-                                        </div>
                                         <div>
-                                            Unlike traditional orchestrators, there's no central control plane to
-                                            maintain. Each machine maintains a synchronized copy of the cluster state
-                                            through peer-to-peer communication, keeping cluster operations functional
-                                            even if some machines go offline.
+                                            <div class="font-inter-tight text-lg font-semibold text-zinc-200 mb-1">
+                                                Fully decentralized
+                                            </div>
+                                            <div>
+                                                Unlike traditional orchestrators, there's no central control plane to
+                                                maintain. Each machine maintains a synchronized copy of the cluster
+                                                state
+                                                through peer-to-peer communication, keeping cluster operations
+                                                functional
+                                                even if some machines go offline.
+                                            </div>
                                         </div>
-                                    </div>
                                 </div>
 
                                 <!-- Smart CLI -->
@@ -387,7 +390,7 @@
                                         <div>
                                             Control your entire infrastructure using intuitive Docker-like commands from
                                             anywhere. Deploy, monitor, and scale applications across all your machines
-                                            through a single SSH connection to any of them.
+                                            while the CLI only needs SSH access to a single machine.
                                         </div>
                                     </div>
                                 </div>
@@ -412,77 +415,87 @@
                 <!-- Features blocks -->
                 <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-12 lg:mt-24">
                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-16">
-                        <!-- Block #1 -->
+                        <!-- Deploy anywhere -->
                         <div>
                             <div class="flex items-center mb-1">
                                 <svg class="fill-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="16"
                                      height="16">
-                                    <path d="M15 9a1 1 0 0 1 0 2c-.441 0-1.243.92-1.89 1.716.319 1.005.529 1.284.89 1.284a1 1 0 0 1 0 2 2.524 2.524 0 0 1-2.339-1.545A3.841 3.841 0 0 1 9 16a1 1 0 0 1 0-2c.441 0 1.243-.92 1.89-1.716C10.57 11.279 10.361 11 10 11a1 1 0 0 1 0-2 2.524 2.524 0 0 1 2.339 1.545A3.841 3.841 0 0 1 15 9Zm-5-1H7.51l-.02.142C6.964 11.825 6.367 16 3 16a3 3 0 0 1-3-3 1 1 0 0 1 2 0 1 1 0 0 0 1 1c1.49 0 1.984-2.48 2.49-6H3a1 1 0 1 1 0-2h2.793c.52-3.1 1.4-6 4.207-6a3 3 0 0 1 3 3 1 1 0 0 1-2 0 1 1 0 0 0-1-1C8.808 2 8.257 3.579 7.825 6H10a1 1 0 0 1 0 2Z"/>
+                                    <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm5.9 7H12c-.1-1.5-.4-2.9-.8-4.1 1.4.9 2.3 2.4 2.7 4.1zM8 14c-.6 0-1.8-1.9-2-5h4c-.2 3.1-1.4 5-2 5zM6 7c.2-3.1 1.3-5 2-5s1.8 1.9 2 5H6zM4.9 2.9C4.4 4.1 4.1 5.5 4 7H2.1c.4-1.7 1.3-3.2 2.8-4.1zM2.1 9H4c.1 1.5.4 2.9.8 4.1-1.4-.9-2.3-2.4-2.7-4.1zm9 4.1c.5-1.2.7-2.6.8-4.1h1.9c-.4 1.7-1.3 3.2-2.7 4.1z"/>
                                 </svg>
-                                <h3 class="font-inter-tight font-semibold text-zinc-200">Discussions</h3>
+                                <h3 class="font-inter-tight font-semibold text-zinc-200">Deploy anywhere</h3>
                             </div>
-                            <p class="text-sm text-zinc-500">Keep workflows efficient with tools that give teams
-                                visibility throughout the process.</p>
+                            <p class="text-sm text-zinc-500">Run your apps on any Linux machine — from cloud VMs and
+                                dedicated servers to bare metal at your office or home.</p>
                         </div>
-                        <!-- Block #2 -->
+
+                        <!-- Automatic HTTPS -->
                         <div>
                             <div class="flex items-center mb-1">
                                 <svg class="fill-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="16"
                                      height="16">
-                                    <path d="M13 16c-.153 0-.306-.035-.447-.105l-3.851-1.926c-.231.02-.465.031-.702.031-4.411 0-8-3.14-8-7s3.589-7 8-7 8 3.14 8 7c0 1.723-.707 3.351-2 4.63V15a1.003 1.003 0 0 1-1 1Zm-4.108-4.054c.155 0 .308.036.447.105L12 13.382v-2.187c0-.288.125-.562.341-.752C13.411 9.506 14 8.284 14 7c0-2.757-2.691-5-6-5S2 4.243 2 7s2.691 5 6 5c.266 0 .526-.02.783-.048a1.01 1.01 0 0 1 .109-.006Z"/>
+                                    <path d="M13 7.5V6c0-2.76-2.24-5-5-5S3 3.24 3 6v1.5H2v7h12v-7h-1zM6 6c0-1.1.9-2 2-2s2 .9 2 2H6zm3 6H7v-2h2v2z"/>
                                 </svg>
-                                <h3 class="font-inter-tight font-semibold text-zinc-200">Team views</h3>
+                                <h3 class="font-inter-tight font-semibold text-zinc-200">Automatic HTTPS</h3>
                             </div>
-                            <p class="text-sm text-zinc-500">Keep workflows efficient with tools that give teams
-                                visibility throughout the process.</p>
+                            <p class="text-sm text-zinc-500">Get free TLS certificates and automatic HTTPS for your
+                                domains with zero configuration using built-in Caddy reverse proxy.</p>
                         </div>
-                        <!-- Block #3 -->
+
+                        <!-- Load balancing -->
                         <div>
                             <div class="flex items-center mb-1">
-                                <svg class="fill-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="14"
-                                     height="16">
-                                    <path d="M13 0H1C.4 0 0 .4 0 1v14c0 .6.4 1 1 1h8l5-5V1c0-.6-.4-1-1-1ZM2 2h10v8H8v4H2V2Z"/>
+                                <svg class="fill-zinc-400 stroke-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg"
+                                     width="16"
+                                     height="16" stroke-linejoin="round" stroke-linecap="round" stroke-width="1.5"
+                                     fill="none">
+                                    <circle cy="4.334" cx="8.175" r="2.162"/>
+                                    <path d="M6.657 6.44l-4.268 7.108m.056.195l-1.189-3.498m1.245 3.484l3.736-1.273m3.442-6.072l3.932 7.22m.056.097l1.259-3.4m-1.287 3.414l-3.652-1.231"/>
                                 </svg>
-                                <h3 class="font-inter-tight font-semibold text-zinc-200">Powerful search</h3>
+                                <h3 class="font-inter-tight font-semibold text-zinc-200">Load balancing</h3>
                             </div>
-                            <p class="text-sm text-zinc-500">Keep workflows efficient with tools that give teams
-                                visibility throughout the process.</p>
+                            <p class="text-sm text-zinc-500">Distribute traffic across container replicas running on
+                                different machines for improved reliability and performance.</p>
                         </div>
-                        <!-- Block #4 -->
+
+                        <!-- Service discovery -->
                         <div>
                             <div class="flex items-center mb-1">
                                 <svg class="fill-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="16"
                                      height="16">
                                     <path d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7ZM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5Zm8.707 12.293a.999.999 0 1 1-1.414 1.414L11.9 13.314a8.019 8.019 0 0 0 1.414-1.414l2.393 2.393Z"/>
                                 </svg>
-                                <h3 class="font-inter-tight font-semibold text-zinc-200">Enhancing</h3>
+                                <h3 class="font-inter-tight font-semibold text-zinc-200">Service discovery</h3>
                             </div>
-                            <p class="text-sm text-zinc-500">Keep workflows efficient with tools that give teams
-                                visibility throughout the process.</p>
+                            <p class="text-sm text-zinc-500">Access any service by its name from any container using the
+                                built-in DNS that automatically tracks services across your network.</p>
                         </div>
-                        <!-- Block #5 -->
+
+                        <!-- Infrastructure as Code -->
                         <div>
                             <div class="flex items-center mb-1">
                                 <svg class="fill-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="16"
                                      height="16">
-                                    <path d="M14.6.085 8 2.885 1.4.085c-.5-.2-1.4-.1-1.4.9v11c0 .4.2.8.6.9l7 3c.3.1.5.1.8 0l7-3c.4-.2.6-.5.6-.9v-11c0-1-.9-1.1-1.4-.9ZM2 2.485l5 2.1v8.8l-5-2.1v-8.8Zm12 8.8-5 2.1v-8.7l5-2.1v8.7Z"/>
+                                    <path d="M5 3L0 8l5 5 1.5-1.5L3 8l3.5-3.5L5 3zm6 0l-1.5 1.5L13 8l-3.5 3.5L11 13l5-5-5-5z"/>
                                 </svg>
-                                <h3 class="font-inter-tight font-semibold text-zinc-200">Powerful search</h3>
+                                <h3 class="font-inter-tight font-semibold text-zinc-200">Infrastructure as Code</h3>
                             </div>
-                            <p class="text-sm text-zinc-500">Keep workflows efficient with tools that give teams
-                                visibility throughout the process.</p>
+                            <p class="text-sm text-zinc-500">Define your entire app stack in a familiar Docker Compose
+                                file. No need to learn a new config format.</p>
                         </div>
-                        <!-- Block #6 -->
+
+                        <!-- No vendor lock-in -->
                         <div>
                             <div class="flex items-center mb-1">
-                                <svg class="fill-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="14"
-                                     height="16">
-                                    <path d="M13 14a1 1 0 0 1 0 2H1a1 1 0 0 1 0-2h12Zm-6.707-2.293-5-5a1 1 0 0 1 1.414-1.414L6 8.586V1a1 1 0 1 1 2 0v7.586l3.293-3.293a1 1 0 1 1 1.414 1.414l-5 5a1 1 0 0 1-1.414 0Z"/>
+                                <svg class="stroke-zinc-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="16"
+                                     height="16" stroke-width="1.8" fill="none" stroke-linecap="round"
+                                     stroke-linejoin="round">
+                                    <path d="M4.5 11.5h-0.7a2.8 2.8 0 0 1 0-5.6 3.7 3.7 0 0 1 7.4 0 2.8 2.8 0 0 1 0 5.6h-6.7"/>
+                                    <path d="M2 2L14 13"/>
                                 </svg>
-                                <h3 class="font-inter-tight font-semibold text-zinc-200">Team views</h3>
+                                <h3 class="font-inter-tight font-semibold text-zinc-200">No vendor lock-in</h3>
                             </div>
-                            <p class="text-sm text-zinc-500">Keep workflows efficient with tools that give teams
-                                visibility throughout the process.</p>
+                            <p class="text-sm text-zinc-500">Mix cloud providers and your own hardware freely to
+                                optimize costs and performance, without changing how you deploy or manage apps.</p>
                         </div>
                     </div>
                 </div>
