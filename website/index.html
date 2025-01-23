@@ -525,20 +525,30 @@
                             first to know when it's ready for production use.
                         <p>
 
-                            <!-- CTAs -->
-                        <div class="flex flex-col sm:flex-row justify-center gap-4 items-stretch">
                             <!-- Subscribe form -->
-                            <form class="w-full max-w-sm mx-auto flex">
-                                <input type="email"
-                                       class="flex-1 min-w-0 form-input px-4 py-2 text-sm text-zinc-900 bg-white border border-zinc-200 rounded-l border-r-0 rounded-r-none shadow-sm focus:border-zinc-900"
-                                       placeholder="Your email address"
-                                       required/>
-                                <button type="submit"
-                                        class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 rounded-l-none shadow">
-                                    Subscribe
-                                </button>
+                        <div class="flex flex-col sm:flex-row justify-center gap-4 items-stretch text-zinc-900">
+                            <form action="https://app.kit.com/forms/7595321/subscriptions"
+                                  class="w-full max-w-sm mx-auto"
+                                  method="post" data-sv-form="7595321" data-uid="a6c3ce5004" data-format="inline"
+                                  data-version="5"
+                                  data-options="{&quot;settings&quot;:{&quot;after_subscribe&quot;:{&quot;action&quot;:&quot;message&quot;,&quot;success_message&quot;:&quot;Success! Please check your email to confirm your subscription.&quot;,&quot;redirect_url&quot;:&quot;&quot;},&quot;analytics&quot;:{&quot;google&quot;:null,&quot;fathom&quot;:null,&quot;facebook&quot;:null,&quot;segment&quot;:null,&quot;pinterest&quot;:null,&quot;sparkloop&quot;:null,&quot;googletagmanager&quot;:null},&quot;modal&quot;:{&quot;trigger&quot;:&quot;timer&quot;,&quot;scroll_percentage&quot;:null,&quot;timer&quot;:5,&quot;devices&quot;:&quot;all&quot;,&quot;show_once_every&quot;:15},&quot;powered_by&quot;:{&quot;show&quot;:true,&quot;url&quot;:&quot;https://kit.com/features/forms?utm_campaign=poweredby&amp;utm_content=form&amp;utm_medium=referral&amp;utm_source=dynamic&quot;},&quot;recaptcha&quot;:{&quot;enabled&quot;:false},&quot;return_visitor&quot;:{&quot;action&quot;:&quot;show&quot;,&quot;custom_content&quot;:&quot;&quot;},&quot;slide_in&quot;:{&quot;display_in&quot;:&quot;bottom_right&quot;,&quot;trigger&quot;:&quot;timer&quot;,&quot;scroll_percentage&quot;:null,&quot;timer&quot;:5,&quot;devices&quot;:&quot;all&quot;,&quot;show_once_every&quot;:15},&quot;sticky_bar&quot;:{&quot;display_in&quot;:&quot;top&quot;,&quot;trigger&quot;:&quot;timer&quot;,&quot;scroll_percentage&quot;:null,&quot;timer&quot;:5,&quot;devices&quot;:&quot;all&quot;,&quot;show_once_every&quot;:15}},&quot;version&quot;:&quot;5&quot;}"
+                            >
+                                <div data-element="fields" class="flex">
+                                    <input class="flex-1 min-w-0 form-input px-4 py-2 text-sm text-zinc-900 bg-white border border-zinc-200 rounded-l border-r-0 rounded-r-none shadow-sm focus:border-zinc-900"
+                                           name="email_address"
+                                           aria-label="Your email address"
+                                           placeholder="Your email address"
+                                           type="email"
+                                           required>
+                                    <button class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 rounded-l-none shadow"
+                                            data-element="submit">
+                                        Subscribe
+                                    </button>
+                                </div>
+                                <ul class="text-sm text-rose-700 mt-2" data-element="errors" data-group="alert"></ul>
                             </form>
                         </div>
+
                         <div class="mt-6 text-sm text-zinc-500">
                             <p>
                                 Want to contribute? Check out the
@@ -569,6 +579,8 @@
     </footer>
 
 </div>
+
+<script src="https://f.convertkit.com/ckjs/ck.5.js"></script>
 
 </body>
 
