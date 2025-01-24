@@ -45,7 +45,7 @@ archives:
       {{ .Binary }}_
       {{- if eq .Os "darwin"}}macos
       {{- else}}{{.Os}}{{end}}_
-      {{- .Arch }}"
+      {{- .Arch }}
     # use zip for windows archives
     format_overrides:
       - goos: windows
