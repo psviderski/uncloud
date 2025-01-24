@@ -10,7 +10,7 @@
 1. Install Uncloud CLI:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/psviderski/uncloud/main/scripts/install_cli.sh | sh
+curl -fsS https://get.uncloud.run | sh
 ```
 
 2. Initialize your first machine:
