@@ -30,7 +30,6 @@ operational complexity of Kubernetes.
   Encrypt.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
-* **Sustainable computing**: Only 120 MB of memory overhead per machine, the rest is for your apps.
 
 Coming soon:
 
