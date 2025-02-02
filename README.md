@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./website/images/logo.svg" height="100" alt="Uncloud logo"/>
   <h1>Uncloud</h1>
-  <strong>Docker simplicity. Multi-machine power.</strong>
+  <p><strong>Docker simplicity. Multi-machine power.</strong></p>
 </div>
 
 Uncloud is a lightweight clustering and container orchestration tool that lets you deploy and manage web apps across
