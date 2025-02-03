@@ -97,8 +97,7 @@ I'd love your input:
 
 ## 📫 Stay updated
 
-* [Subscribe](https://uncloud.run/#subsribe) to my newsletter to follow the progress, get early insights into new
+* [Subscribe](https://uncloud.run/#subscribe) to my newsletter to follow the progress, get early insights into new
   features, and be the first to know when it's ready for production use.
 * Watch this repository for releases.
 * Follow [@psviderski](https://github.com/psviderski) on GitHub.
-
