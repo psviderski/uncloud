@@ -80,10 +80,71 @@ uc machine init root@your-server-ip
    HTTPS:
 
 ```bash
-uc run --name my-app -p app.example.com:8000/https registry/app
+uc run -p app.example.com:8000/https my-app-image
 ```
 
 That's it! Your app is now running and accessible at https://app.example.com ✨
+
+## ⚙️ How it works
+
+Let's peek under the hood of an Uncloud cluster to understand what actually happens when you run certain commands.
+
+**When you initialize a new cluster on a machine:**
+
+```bash
+uc machine init root@your-server-ip
+```
+
+1. The CLI SSHs into the machine and installs Docker, the `uncloudd` machine daemon and
+   [corrosion](https://github.com/superfly/corrosion) service, managed by systemd.
+2. Generates a unique WireGuard key pair, allocates a dedicated subnet `10.210.0.0/24` for the machine and its
+   containers, and configures `uncloudd` accordingly. All subsequent communication happens with `uncloudd`
+   through its gRPC API over SSH.
+3. Configures and starts `corrosion`, a CRDT-based distributed SQLite database to share cluster state between machines.
+4. Creates a Docker bridge network connected to the WireGuard interface.
+5. This machine becomes an entry point for the newly created cluster which is stored in the cluster config under
+   `~/.config/uncloud` on your local machine.
+
+**When you add another machine:**
+
+```bash
+uc machine add ubuntu@second-server-ip
+```
+
+1. The second machine gets provisioned just like the first. A non-root SSH user will need `sudo` access.
+2. Allocates a new subnet `10.210.1.0/24` for the second machine and its containers.
+3. Registers the second machine in the cluster state and exchanges WireGuard keys with the first machine.
+4. Both machines establish a WireGuard tunnel between each other, allowing Docker containers connected to the bridge
+   network to communicate directly across machines.
+5. Configures and starts `corrosion` on the second machine to sync the cluster state.
+6. The second machine is added as an alternative entry point in the cluster config.
+7. If one of the machines goes offline, the other machine can still serve cluster operations.
+
+If one more machine is added, the process repeats with a new subnet. The new machine needs to establish a WireGuard
+connection with only one of the existing machines. Other machines will learn about it through the shared cluster state
+and automatically establish a WireGuard tunnel with it.
+
+**When you run a service:**
+
+```bash
+uc run -p app.example.com:8000/https my-app-image
+```
+
+1. CLI picks a machine to run your container.
+2. `uncloudd` that the CLI communicates with uses [`grpc-proxy`](https://github.com/siderolabs/grpc-proxy) to forward
+   the request to the target machine to launch a container there.
+3. `uncloudd` on the target machine starts the Docker container in the bridge network and stores its info in the
+   cluster's distributed state.
+4. The container gets a cluster-unique IP address from the bridge network (in the `10.210.X.2-254` range) and becomes
+   accessible from other machines in the cluster.
+5. Caddy reverse proxy which runs in [`global`](https://github.com/compose-spec/compose-spec/blob/main/deploy.md#mode)
+   mode on each machine watches the cluster state for new services and updates its configuration to route traffic to the
+   new container.
+
+Look ma, no control plane or master nodes to maintain! Just a simple overlay network and eventually consistent state
+sync that lets machines work together. Want to check on things or make changes? Connect to any machine either implicitly
+using the CLI or directly over SSH. They all have the complete cluster state and can control everything. It's like each
+machine is a full backup of your control plane.
 
 ## 🏗 Project status
 
