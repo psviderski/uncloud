@@ -151,7 +151,7 @@ machine is a full backup of your control plane.
 Uncloud is currently in active development and is **not ready for production use**. Features may change significantly
 and there may be breaking changes between releases.
 
-I'd love your input:
+I'd love your input! Here's how you can contribute:
 
 * 🐛 Found a bug? [Open an issue](https://github.com/psviderski/uncloud/issues)
 * 💡 Have ideas? [Join the discussion](https://github.com/psviderski/uncloud/discussions)
