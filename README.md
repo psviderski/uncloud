@@ -76,8 +76,9 @@ curl -fsS https://get.uncloud.run/install.sh | sh
 uc machine init root@your-server-ip
 ```
 
-3. Create a DNS A record pointing `app.example.com` to your server's IP address, then deploy your app with automatic
-   HTTPS:
+3. Create a DNS A record in your domain registrar that points `app.example.com` to your server's IP address. Allow a few
+   minutes for DNS propagation.
+4. Deploy your app from a Docker image:
 
 ```bash
 uc run -p app.example.com:8000/https my-app-image
