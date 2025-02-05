@@ -87,7 +87,8 @@ That's it! Your app is now running and accessible at https://app.example.com ✨
 
 ## ⚙️ How it works
 
-Let's peek under the hood of an Uncloud cluster to understand what actually happens when you run certain commands.
+Check out the [design document](docs/design.md) to understand Uncloud's design philosophy and goals. Here, let's peek
+under the hood to see what happens when you run certain commands.
 
 **When you initialize a new cluster on a machine:**
 
