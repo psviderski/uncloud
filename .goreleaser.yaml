@@ -75,6 +75,8 @@ brews:
   - name: uncloud
     description: "Uncloud CLI"
     homepage: "https://uncloud.run"
+    ids:
+      - uncloud
     install: |
       bin.install "uncloud"
     skip_upload: false
