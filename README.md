@@ -67,6 +67,9 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
 1. Install Uncloud CLI:
 
 ```bash
+brew install psviderski/tap/uncloud
+
+# or using curl (macOS/Linux)
 curl -fsS https://get.uncloud.run/install.sh | sh
 ```
 
