@@ -8,25 +8,25 @@ INSTALL_DIR=${INSTALL_DIR:-/usr/local/bin}
 VERSION=${VERSION:-latest}
 
 print_manual_install() {
-    # TODO: review
-    echo "You can manually install uncloud by:"
-    echo "1. Opening $RELEASES_URL"
-    echo "2. Downloading uncloud_*_${OS}_${ARCH}.tar.gz for your platform"
-    echo "3. Verifying the checksum from checksums.txt"
-    echo "4. Extracting the archive: tar xzf uncloud_*_${OS}_${ARCH}.tar.gz"
-    echo "5. Installing the binary: sudo install -m 755 uncloud /usr/local/bin/"
-    echo "6. Creating symlink: sudo ln -sf /usr/local/bin/uncloud /usr/local/bin/uc"
+    RELEASES_URL="https://github.com/${GITHUB_REPO}/releases/${VERSION}"
+    echo "Failed while attempting to install uncloud CLI. You can install it manually:"
+    echo "  1. Open your web browser and go to ${RELEASES_URL}"
+    echo "  2. Download uncloud_<OS>_<ARCH>.tar.gz for your platform (OS: linux/macos, ARCH: amd64/arm64)."
+    echo "  3. Extract the 'uncloud' binary from the archive: tar -xvf uncloud_*.tar.gz"
+    echo "  4. Install the binary to /usr/local/bin: sudo install ./uncloud ${INSTALL_DIR}/uncloud"
+    echo "  5. Optionally create a 'uc' symlink: sudo ln -sf ${INSTALL_DIR}/uncloud ${INSTALL_DIR}/uc"
+    echo "  6. Delete the downloaded archive and extracted binary: rm uncloud*"
+    echo "  7. Run 'uncloud --help' to verify the installation. Enjoy! ✨"
 }
 
-latest_version() {
+fetch_latest_version() {
     api_url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
-    version=$(curl -fsSL "$api_url" | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
-    if [ -z "$version" ]; then
+    VERSION=$(curl -fsSL "$api_url" | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
+    if [ -z "$VERSION" ]; then
         echo "Failed to fetch the latest version from GitHub."
         print_manual_install
         exit 1
     fi
-    echo "$version"
 }
 
 # Check if not running as root and need to use sudo to write to INSTALL_DIR.
@@ -62,7 +62,7 @@ esac
 
 # Use the latest version if not specified explicitly.
 if [ "$VERSION" = "latest" ]; then
-    VERSION=$(latest_version)
+    fetch_latest_version
 fi
 BINARY_NAME="uncloud_${BINARY_OS}_${BINARY_ARCH}.tar.gz"
 BINARY_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${BINARY_NAME}"
