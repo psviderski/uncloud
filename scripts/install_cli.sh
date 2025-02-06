@@ -96,7 +96,7 @@ if [ -z "${SUDO}" ]; then
 else
     echo "Installing uncloud binary to ${INSTALL_DIR} using sudo. You may be prompted for your password."
 fi
-if ! $SUDO install "${BINARY_NAME%.tar.gz}" "${INSTALL_DIR}/uncloud"; then
+if ! $SUDO install ./uncloud "${INSTALL_DIR}/uncloud"; then
     echo "Failed to install uncloud binary to ${INSTALL_DIR}"
     print_manual_install
     exit 1
