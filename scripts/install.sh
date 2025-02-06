@@ -112,17 +112,17 @@ install_uncloud_binaries() {
 
     local uncloudd_url
     if [ "${UNCLOUD_VERSION}" == "latest" ]; then
-        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.gz"
+        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.tar.gz"
     else
-        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.gz"
+        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.tar.gz"
     fi
-    local uncloudd_download_path="${tmp_dir}/uncloudd.gz"
+    local uncloudd_download_path="${tmp_dir}/uncloudd.tar.gz"
 
     log "⏳ Downloading uncloudd binary: ${uncloudd_url}"
     if ! curl -fsSL -o "${uncloudd_download_path}" "${uncloudd_url}"; then
         error "Failed to download uncloudd binary."
     fi
-    gzip -d "${uncloudd_download_path}"
+    tar -xf "${uncloudd_download_path}"
     if ! install "${uncloudd_download_path%.gz}" "${uncloudd_install_path}"; then
         error "Failed to install uncloud binary to ${uncloudd_install_path}"
     fi
@@ -196,7 +196,7 @@ install_corrosion() {
     if ! curl -fsSL -o "${corrosion_download_path}" "${corrosion_url}"; then
         error "Failed to download uncloud-corrosion binary."
     fi
-    tar -xzf "${corrosion_download_path}" -C "${tmp_dir}"
+    tar -xf "${corrosion_download_path}" -C "${tmp_dir}"
     if ! install "${tmp_dir}/corrosion" "${corrosion_install_path}"; then
         error "Failed to install uncloud-corrosion binary to ${corrosion_install_path}"
     fi

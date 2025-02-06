@@ -40,7 +40,9 @@ archives:
   - id: uncloud
     builds:
       - uncloud
-    format: gz
+    formats:
+      # gz is not compatible with homebrew releases, so we use tar.gz
+      - tar.gz
     name_template: >-
       {{ .Binary }}_
       {{- if eq .Os "darwin"}}macos
@@ -49,14 +51,16 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     files:
       - none*
 
   - id: uncloudd
     builds:
       - uncloudd
-    format: gz
+    formats:
+      - tar.gz
     name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
     files:
       - none*
@@ -79,6 +83,7 @@ brews:
       - uncloud
     install: |
       bin.install "uncloud"
+      bin.install_symlink "uncloud" => "uc"
     skip_upload: false
     repository:
       owner: psviderski

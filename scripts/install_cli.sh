@@ -64,7 +64,7 @@ esac
 if [ "$VERSION" = "latest" ]; then
     VERSION=$(latest_version)
 fi
-BINARY_NAME="uncloud_${BINARY_OS}_${BINARY_ARCH}.gz"
+BINARY_NAME="uncloud_${BINARY_OS}_${BINARY_ARCH}.tar.gz"
 BINARY_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${BINARY_NAME}"
 CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/$VERSION/checksums.txt"
 
@@ -89,14 +89,14 @@ cd "$TMP_DIR"
 #echo "Checksum is valid."
 
 # Decompress and install the binary.
-gzip -d "${BINARY_NAME}"
+tar -xf "${BINARY_NAME}"
 
 if [ -z "${SUDO}" ]; then
     echo "Installing uncloud binary to ${INSTALL_DIR}"
 else
     echo "Installing uncloud binary to ${INSTALL_DIR} using sudo. You may be prompted for your password."
 fi
-if ! $SUDO install "${BINARY_NAME%.gz}" "${INSTALL_DIR}/uncloud"; then
+if ! $SUDO install "${BINARY_NAME%.tar.gz}" "${INSTALL_DIR}/uncloud"; then
     echo "Failed to install uncloud binary to ${INSTALL_DIR}"
     print_manual_install
     exit 1
