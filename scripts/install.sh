@@ -123,7 +123,7 @@ install_uncloud_binaries() {
         error "Failed to download uncloudd binary."
     fi
     tar -xf "${uncloudd_download_path}"
-    if ! install "${uncloudd_download_path%.gz}" "${uncloudd_install_path}"; then
+    if ! install ./uncloudd "${uncloudd_install_path}"; then
         error "Failed to install uncloud binary to ${uncloudd_install_path}"
     fi
     log "✓ uncloudd binary installed: ${uncloudd_install_path}"
