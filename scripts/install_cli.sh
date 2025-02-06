@@ -78,15 +78,14 @@ curl -fsSL "$BINARY_URL" -o "${TMP_DIR}/${BINARY_NAME}"
 curl -fsSL "$CHECKSUM_URL" -o "${TMP_DIR}/checksums.txt"
 echo "Download complete."
 
-# TODO: fix name_template in goreleaser config.
-#echo "Verifying checksum..."
+echo "Verifying checksum..."
 cd "$TMP_DIR"
-#if ! sha256sum --check --ignore-missing "checksums.txt"; then
-#    echo "Checksum verification failed."
-#    print_manual_install
-#    exit 1
-#fi
-#echo "Checksum is valid."
+if ! sha256sum --check --ignore-missing "checksums.txt"; then
+    echo "Checksum verification failed."
+    print_manual_install
+    exit 1
+fi
+echo "Checksum is valid."
 
 # Decompress and install the binary.
 tar -xf "${BINARY_NAME}"
