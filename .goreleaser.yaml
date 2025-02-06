@@ -80,4 +80,5 @@ brews:
     skip_upload: false
     repository:
       owner: psviderski
-      name: homebrew-uncloud
+      name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN_HOMEBREW_TAP }}"
