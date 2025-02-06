@@ -70,3 +70,14 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+
+brews:
+  - name: uncloud
+    description: "Uncloud CLI"
+    homepage: "https://uncloud.run"
+    install: |
+      bin.install "uncloud"
+    skip_upload: false
+    repository:
+      owner: psviderski
+      name: homebrew-uncloud
