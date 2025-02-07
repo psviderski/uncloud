@@ -79,8 +79,8 @@ curl -fsS https://get.uncloud.run/install.sh | sh
 uc machine init root@your-server-ip
 ```
 
-3. Create a DNS A record in your domain registrar that points `app.example.com` to your server's IP address. Allow a few
-   minutes for DNS propagation.
+3. Create a DNS A record in your DNS provider (Cloudflare, Namecheap, etc.) that points `app.example.com` to your
+   server's IP address. Allow a few minutes for DNS propagation.
 4. Deploy your app from a Docker image:
 
 ```bash
@@ -88,6 +88,14 @@ uc run -p app.example.com:8000/https my-app-image
 ```
 
 That's it! Your app is now running and accessible at https://app.example.com ✨
+
+5. Clean up when you're done:
+
+```bash
+uc ls
+# Copy the service ID from the output and remove it:
+uc rm my-app-id
+```
 
 ## ⚙️ How it works
 
