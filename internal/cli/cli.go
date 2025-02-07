@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/charmbracelet/huh"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/client/connector"
 	"uncloud/internal/cli/config"
+	"uncloud/internal/fs"
 	"uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/sshexec"
+
+	"github.com/charmbracelet/huh"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const defaultClusterName = "default"
@@ -89,10 +91,14 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 		if err != nil {
 			return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
 		}
+
+		keyPath := fs.ExpandHomeDir(conn.IdentityFile)
+
 		sshConfig := &connector.SSHConnectorConfig{
-			User: user,
-			Host: host,
-			Port: port,
+			User:    user,
+			Host:    host,
+			Port:    port,
+			KeyPath: keyPath,
 		}
 		return client.New(ctx, connector.NewSSHConnector(sshConfig))
 	} else if conn.TCP.IsValid() {

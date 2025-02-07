@@ -2,12 +2,13 @@ package sshexec
 
 import (
 	"fmt"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 func Connect(user, host string, port int, sshKeyPath string) (*ssh.Client, error) {
@@ -34,6 +35,9 @@ func Connect(user, host string, port int, sshKeyPath string) (*ssh.Client, error
 	}
 
 	keyAuth, err := privateKeyAuth(sshKeyPath)
+	if err != nil {
+		return nil, err
+	}
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{keyAuth},
