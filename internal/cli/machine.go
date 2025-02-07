@@ -17,24 +17,36 @@ type RemoteMachine struct {
 	KeyPath string
 }
 
+func installCmd(user string) string {
+	sudoPrefix := "sudo"
+	// Add the SSH user (non-root) to the uncloud group to allow access to the Uncloud daemon unix socket.
+	env := "UNCLOUD_GROUP_ADD_USER=" + user
+
+	curlBashCmd := fmt.Sprintf(
+		"curl -fsSL %s | %s %s bash", sshexec.Quote(installScriptURL), sudoPrefix, sshexec.Quote(env),
+	)
+
+	if user == "root" {
+		curlBashCmd = fmt.Sprintf(
+			"curl -fsSL %s | bash", sshexec.Quote(installScriptURL),
+		)
+	}
+
+	return curlBashCmd
+}
+
 // provisionMachine provisions the remote machine by downloading the Uncloud install script from GitHub and running it.
 func provisionMachine(ctx context.Context, exec sshexec.Executor) error {
 	user, err := exec.Run(ctx, "whoami")
 	if err != nil {
 		return fmt.Errorf("run whoami: %w", err)
 	}
-	sudoPrefix, env := "", ""
-	if user != "root" {
-		sudoPrefix = "sudo"
-		// Add the SSH user (non-root) to the uncloud group to allow access to the Uncloud daemon unix socket.
-		env = "UNCLOUD_GROUP_ADD_USER=" + user
-	}
+
+	installCmd := installCmd(user)
 
 	fmt.Println("Downloading Uncloud install script:", installScriptURL)
-	curlBashCmd := fmt.Sprintf(
-		"curl -fsSL %s | %s %s bash", sshexec.Quote(installScriptURL), sudoPrefix, sshexec.Quote(env),
-	)
-	cmd := sshexec.QuoteCommand("bash", "-c", "set -o pipefail; "+curlBashCmd)
+
+	cmd := sshexec.QuoteCommand("bash", "-c", "set -o pipefail; "+installCmd)
 	if err = exec.Stream(ctx, cmd, os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("download and run install script: %w", err)
 	}
