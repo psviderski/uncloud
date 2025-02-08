@@ -163,9 +163,11 @@ func (cli *CLI) initRemoteMachine(
 			return fmt.Errorf("set current cluster: %w", err)
 		}
 	}
+
 	// Save the machine's SSH connection details in the cluster config.
 	connCfg := config.MachineConnection{
-		SSH: config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+		SSH:          config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+		IdentityFile: remoteMachine.KeyPath,
 	}
 	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {
