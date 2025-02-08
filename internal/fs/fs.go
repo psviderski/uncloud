@@ -13,9 +13,11 @@ func ExpandHomeDir(path string) string {
 		return path
 	}
 	if path[0] == '~' {
-		// TODO: Improve compat with other OSes
-		path = strings.Replace(path, "~", "${HOME}", 1)
-		return os.ExpandEnv(path)
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return strings.Replace(path, "~", home, 1)
 	}
 	return path
 }
