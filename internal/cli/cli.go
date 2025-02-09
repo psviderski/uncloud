@@ -253,7 +253,8 @@ func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clu
 
 	// Save the machine's SSH connection details in the cluster config.
 	connCfg := config.MachineConnection{
-		SSH: config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+		SSH:        config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+		SSHKeyFile: remoteMachine.KeyPath,
 	}
 	if clusterName == "" {
 		clusterName = cli.config.CurrentCluster
