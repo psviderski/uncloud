@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/charmbracelet/huh"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/client/connector"
 	"uncloud/internal/cli/config"
+	"uncloud/internal/fs"
 	"uncloud/internal/machine"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/sshexec"
+
+	"github.com/charmbracelet/huh"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const defaultClusterName = "default"
@@ -89,10 +91,14 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 		if err != nil {
 			return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
 		}
+
+		keyPath := fs.ExpandHomeDir(conn.SSHKeyFile)
+
 		sshConfig := &connector.SSHConnectorConfig{
-			User: user,
-			Host: host,
-			Port: port,
+			User:    user,
+			Host:    host,
+			Port:    port,
+			KeyPath: keyPath,
 		}
 		return client.New(ctx, connector.NewSSHConnector(sshConfig))
 	} else if conn.TCP.IsValid() {
@@ -157,9 +163,11 @@ func (cli *CLI) initRemoteMachine(
 			return fmt.Errorf("set current cluster: %w", err)
 		}
 	}
+
 	// Save the machine's SSH connection details in the cluster config.
 	connCfg := config.MachineConnection{
-		SSH: config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+		SSH:        config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+		SSHKeyFile: remoteMachine.KeyPath,
 	}
 	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {

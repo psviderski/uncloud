@@ -5,7 +5,22 @@ import (
 	"os"
 	"os/user"
 	"strconv"
+	"strings"
 )
+
+func ExpandHomeDir(path string) string {
+	if len(path) == 0 {
+		return path
+	}
+	if path[0] == '~' {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return strings.Replace(path, "~", home, 1)
+	}
+	return path
+}
 
 // LookupUIDGID returns the user and group IDs for the given username.
 func LookupUIDGID(username string) (uid, gid int, err error) {
