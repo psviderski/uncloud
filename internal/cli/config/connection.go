@@ -14,11 +14,11 @@ const (
 )
 
 type MachineConnection struct {
-	SSH          SSHDestination `toml:"ssh,omitempty"`
-	TCP          netip.AddrPort `toml:"tcp,omitempty"`
-	Host         string         `toml:"host,omitempty"`
-	PublicKey    secret.Secret  `toml:"public_key,omitempty"`
-	IdentityFile string         `toml:"identity_file,omitempty"`
+	SSH        SSHDestination `toml:"ssh,omitempty"`
+	TCP        netip.AddrPort `toml:"tcp,omitempty"`
+	Host       string         `toml:"host,omitempty"`
+	PublicKey  secret.Secret  `toml:"public_key,omitempty"`
+	SSHKeyFile string         `toml:"ssh_key_file,omitempty"`
 }
 
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".

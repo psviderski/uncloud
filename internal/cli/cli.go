@@ -92,7 +92,7 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 			return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
 		}
 
-		keyPath := fs.ExpandHomeDir(conn.IdentityFile)
+		keyPath := fs.ExpandHomeDir(conn.SSHKeyFile)
 
 		sshConfig := &connector.SSHConnectorConfig{
 			User:    user,
@@ -166,8 +166,8 @@ func (cli *CLI) initRemoteMachine(
 
 	// Save the machine's SSH connection details in the cluster config.
 	connCfg := config.MachineConnection{
-		SSH:          config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
-		IdentityFile: remoteMachine.KeyPath,
+		SSH:        config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
+		SSHKeyFile: remoteMachine.KeyPath,
 	}
 	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {
