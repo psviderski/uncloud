@@ -11,6 +11,28 @@ import (
 	"uncloud/internal/ucind"
 )
 
+func TestService(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "ucind-test.service"
+	ctx := context.Background()
+	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 1}, true)
+
+	cli, err := c.Machines[0].Connect(ctx)
+	require.NoError(t, err)
+
+	t.Run("container lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		name := "busybox-container-lifecycle"
+		svc, err := cli.NewService(ctx, name)
+		require.NoError(t, err)
+
+		assert.NotEmpty(t, svc.ID)
+		assert.Equal(t, name, svc.Name)
+	})
+}
+
 func TestRunService(t *testing.T) {
 	t.Parallel()
 

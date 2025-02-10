@@ -36,6 +36,35 @@ type MachineContainerID struct {
 	ContainerID string
 }
 
+type Service struct {
+	ID   string
+	Name string
+}
+
+// NewService creates a new Service object with the specified name that can be used to run service containers.
+// It doesn't create  anything in the cluster yet.
+func (cli *Client) NewService(ctx context.Context, name string) (*Service, error) {
+	// Optimistically check if a service with the specified name already exists.
+	// TODO: introduce a distributed lock to hold for all service related operations.
+	_, err := cli.InspectService(ctx, name)
+	if err == nil {
+		return nil, fmt.Errorf("service with name '%s' already exists", name)
+	}
+	if !errors.Is(err, ErrNotFound) {
+		return nil, fmt.Errorf("inspect service: %w", err)
+	}
+
+	id, err := secret.NewID()
+	if err != nil {
+		return nil, fmt.Errorf("generate service ID: %w", err)
+	}
+
+	return &Service{
+		ID:   id,
+		Name: name,
+	}, nil
+}
+
 func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
 	var resp RunServiceResponse
 

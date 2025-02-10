@@ -10,6 +10,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "Manage services in an Uncloud cluster.",
 	}
 	cmd.AddCommand(
+		NewInspectCommand(),
 		NewListCommand(),
 		NewRmCommand(),
 		NewRunCommand(),
