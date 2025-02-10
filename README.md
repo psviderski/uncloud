@@ -175,3 +175,11 @@ I'd love your input! Here's how you can contribute:
   features, and be the first to know when it's ready for production use.
 * Watch this repository for releases.
 * Follow [@psviderski](https://github.com/psviderski) on GitHub.
+
+## ❤️ Contributors
+
+Thank you [@cedws](https://github.com/cedws) for being the first contributor to Uncloud! 🎉
+
+<a href="https://github.com/psviderski/uncloud/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=psviderski/uncloud" />
+</a>
