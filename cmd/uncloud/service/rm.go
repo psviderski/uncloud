@@ -3,7 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/docker/cli/cli/streams"
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
+	"os"
 	"uncloud/internal/cli"
 )
 
@@ -40,10 +43,12 @@ func rm(ctx context.Context, uncli *cli.CLI, opts rmOptions) error {
 	defer client.Close()
 
 	for _, s := range opts.services {
-		if err = client.RemoveService(ctx, s); err != nil {
-			return fmt.Errorf("remove service %q: %w", s, err)
-		}
-		fmt.Printf("Service %q removed.\n", s)
+		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+			if err = client.RemoveService(ctx, s); err != nil {
+				return fmt.Errorf("remove service '%s': %w", s, err)
+			}
+			return nil
+		}, streams.NewOut(os.Stdout), "Removing service "+s)
 	}
 
 	return nil

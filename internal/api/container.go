@@ -18,6 +18,10 @@ type Container struct {
 	types.Container
 }
 
+func (c *Container) Name() string {
+	return c.Names[0][1:] // Remove leading slash.
+}
+
 // ServiceID returns the ID of the service this container belongs to.
 func (c *Container) ServiceID() string {
 	return c.Labels[LabelServiceID]

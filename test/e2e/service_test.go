@@ -13,12 +13,12 @@ import (
 	"uncloud/internal/ucind"
 )
 
-func TestService(t *testing.T) {
+func TestRunService(t *testing.T) {
 	t.Parallel()
 
-	clusterName := "ucind-test.service"
+	clusterName := "ucind-test.run-service"
 	ctx := context.Background()
-	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 1}, true)
+	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
 
 	cli, err := c.Machines[0].Connect(ctx)
 	require.NoError(t, err)
@@ -59,17 +59,6 @@ func TestService(t *testing.T) {
 		err = cli.RemoveContainer(ctx, svcName, ctr.ID, container.RemoveOptions{})
 		require.ErrorIs(t, err, client.ErrNotFound)
 	})
-}
-
-func TestRunService(t *testing.T) {
-	t.Parallel()
-
-	clusterName := "ucind-test.run-service"
-	ctx := context.Background()
-	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
-
-	cli, err := c.Machines[0].Connect(ctx)
-	require.NoError(t, err)
 
 	t.Run("1 replica", func(t *testing.T) {
 		t.Parallel()

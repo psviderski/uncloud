@@ -229,7 +229,7 @@ func (cli *Client) InspectContainer(ctx context.Context, serviceID, containerID 
 	}
 
 	for _, c := range svc.Containers {
-		if c.Container.ID == containerID || c.Container.Names[0] == containerID {
+		if c.Container.ID == containerID || c.Container.Name() == containerID {
 			ctr = c
 		}
 	}
@@ -254,7 +254,7 @@ func (cli *Client) StartContainer(ctx context.Context, serviceID, containerID st
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Names[0], machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name(), machine.Machine.Name)
 
 	pw.Event(progress.StartingEvent(eventID))
 	if err = cli.Docker.StartContainer(ctx, ctr.Container.ID, container.StartOptions{}); err != nil {
@@ -281,7 +281,7 @@ func (cli *Client) StopContainer(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Names[0], machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name(), machine.Machine.Name)
 
 	pw.Event(progress.StoppingEvent(eventID))
 	if err = cli.Docker.StopContainer(ctx, ctr.Container.ID, opts); err != nil {
@@ -308,7 +308,7 @@ func (cli *Client) RemoveContainer(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Names[0], machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name(), machine.Machine.Name)
 
 	pw.Event(progress.RemovingEvent(eventID))
 	if err = cli.Docker.RemoveContainer(ctx, ctr.Container.ID, opts); err != nil {
