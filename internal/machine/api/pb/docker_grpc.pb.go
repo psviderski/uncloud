@@ -20,11 +20,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Docker_CreateContainer_FullMethodName = "/api.Docker/CreateContainer"
-	Docker_StartContainer_FullMethodName  = "/api.Docker/StartContainer"
-	Docker_ListContainers_FullMethodName  = "/api.Docker/ListContainers"
-	Docker_RemoveContainer_FullMethodName = "/api.Docker/RemoveContainer"
-	Docker_PullImage_FullMethodName       = "/api.Docker/PullImage"
+	Docker_CreateContainer_FullMethodName  = "/api.Docker/CreateContainer"
+	Docker_InspectContainer_FullMethodName = "/api.Docker/InspectContainer"
+	Docker_StartContainer_FullMethodName   = "/api.Docker/StartContainer"
+	Docker_ListContainers_FullMethodName   = "/api.Docker/ListContainers"
+	Docker_RemoveContainer_FullMethodName  = "/api.Docker/RemoveContainer"
+	Docker_PullImage_FullMethodName        = "/api.Docker/PullImage"
 )
 
 // DockerClient is the client API for Docker service.
@@ -32,6 +33,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DockerClient interface {
 	CreateContainer(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
+	InspectContainer(ctx context.Context, in *InspectContainerRequest, opts ...grpc.CallOption) (*InspectContainerResponse, error)
 	StartContainer(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error)
 	RemoveContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -50,6 +52,16 @@ func (c *dockerClient) CreateContainer(ctx context.Context, in *CreateContainerR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateContainerResponse)
 	err := c.cc.Invoke(ctx, Docker_CreateContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dockerClient) InspectContainer(ctx context.Context, in *InspectContainerRequest, opts ...grpc.CallOption) (*InspectContainerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InspectContainerResponse)
+	err := c.cc.Invoke(ctx, Docker_InspectContainer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +122,7 @@ type Docker_PullImageClient = grpc.ServerStreamingClient[JSONMessage]
 // for forward compatibility.
 type DockerServer interface {
 	CreateContainer(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
+	InspectContainer(context.Context, *InspectContainerRequest) (*InspectContainerResponse, error)
 	StartContainer(context.Context, *StartContainerRequest) (*emptypb.Empty, error)
 	ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error)
 	RemoveContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
@@ -126,6 +139,9 @@ type UnimplementedDockerServer struct{}
 
 func (UnimplementedDockerServer) CreateContainer(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateContainer not implemented")
+}
+func (UnimplementedDockerServer) InspectContainer(context.Context, *InspectContainerRequest) (*InspectContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectContainer not implemented")
 }
 func (UnimplementedDockerServer) StartContainer(context.Context, *StartContainerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartContainer not implemented")
@@ -174,6 +190,24 @@ func _Docker_CreateContainer_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DockerServer).CreateContainer(ctx, req.(*CreateContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Docker_InspectContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InspectContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).InspectContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_InspectContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).InspectContainer(ctx, req.(*InspectContainerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -253,6 +287,10 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateContainer",
 			Handler:    _Docker_CreateContainer_Handler,
+		},
+		{
+			MethodName: "InspectContainer",
+			Handler:    _Docker_InspectContainer_Handler,
 		},
 		{
 			MethodName: "StartContainer",

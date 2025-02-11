@@ -9,6 +9,7 @@ import "internal/machine/api/pb/common.proto";
 
 service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
+  rpc InspectContainer(InspectContainerRequest) returns (InspectContainerResponse);
   rpc StartContainer(StartContainerRequest) returns (google.protobuf.Empty);
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
@@ -29,6 +30,15 @@ message CreateContainerRequest {
 
 message CreateContainerResponse {
   // JSON serialized container.CreateResponse.
+  bytes response = 1;
+}
+
+message InspectContainerRequest {
+  string id = 1;
+}
+
+message InspectContainerResponse {
+  // JSON serialized container.InspectResponse.
   bytes response = 1;
 }
 

@@ -86,6 +86,26 @@ func (c *Client) CreateContainer(
 	return resp, nil
 }
 
+// InspectContainer returns the container information for the given container ID.
+func (c *Client) InspectContainer(ctx context.Context, id string) (types.ContainerJSON, error) {
+	var resp types.ContainerJSON
+
+	grpcResp, err := c.grpcClient.InspectContainer(ctx, &pb.InspectContainerRequest{Id: id})
+	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.NotFound {
+				return resp, errdefs.NotFound(err)
+			}
+		}
+		return resp, err
+	}
+
+	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
+		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
+	}
+	return resp, nil
+}
+
 // StartContainer starts a container with the given ID and options.
 func (c *Client) StartContainer(ctx context.Context, id string, opts container.StartOptions) error {
 	optsBytes, err := json.Marshal(opts)

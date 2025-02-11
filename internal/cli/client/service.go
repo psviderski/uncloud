@@ -8,20 +8,15 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/go-connections/nat"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"uncloud/internal/api"
 	"uncloud/internal/machine/api/pb"
-	machinedocker "uncloud/internal/machine/docker"
 	"uncloud/internal/secret"
 )
 
@@ -34,35 +29,6 @@ type RunServiceResponse struct {
 type MachineContainerID struct {
 	MachineID   string
 	ContainerID string
-}
-
-type Service struct {
-	ID   string
-	Name string
-}
-
-// NewService creates a new Service object with the specified name that can be used to run service containers.
-// It doesn't create  anything in the cluster yet.
-func (cli *Client) NewService(ctx context.Context, name string) (*Service, error) {
-	// Optimistically check if a service with the specified name already exists.
-	// TODO: introduce a distributed lock to hold for all service related operations.
-	_, err := cli.InspectService(ctx, name)
-	if err == nil {
-		return nil, fmt.Errorf("service with name '%s' already exists", name)
-	}
-	if !errors.Is(err, ErrNotFound) {
-		return nil, fmt.Errorf("inspect service: %w", err)
-	}
-
-	id, err := secret.NewID()
-	if err != nil {
-		return nil, fmt.Errorf("generate service ID: %w", err)
-	}
-
-	return &Service{
-		ID:   id,
-		Name: name,
-	}, nil
 }
 
 func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
@@ -243,205 +209,16 @@ func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.Ser
 func (cli *Client) runContainer(
 	ctx context.Context, serviceID string, spec api.ServiceSpec, machine *pb.MachineInfo,
 ) (container.CreateResponse, error) {
-	var resp container.CreateResponse
-
-	// Proxy Docker gRPC requests to the selected machine.
-	machineIP, _ := machine.Network.ManagementIp.ToAddr()
-	md := metadata.Pairs("machines", machineIP.String())
-	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	suffix, err := secret.RandomAlphaNumeric(4)
+	resp, err := cli.CreateContainer(ctx, serviceID, spec, machine.Name)
 	if err != nil {
-		return resp, fmt.Errorf("generate random suffix: %w", err)
-	}
-	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
-
-	config := &container.Config{
-		Cmd:   spec.Container.Command,
-		Image: spec.Container.Image,
-		Labels: map[string]string{
-			api.LabelServiceID:   serviceID,
-			api.LabelServiceName: spec.Name,
-			api.LabelManaged:     "",
-		},
-	}
-	if spec.Mode == api.ServiceModeGlobal {
-		config.Labels[api.LabelServiceMode] = api.ServiceModeGlobal
+		return resp, fmt.Errorf("create container: %w", err)
 	}
 
-	if len(spec.Ports) > 0 {
-		encodedPorts := make([]string, len(spec.Ports))
-		for i, p := range spec.Ports {
-			encodedPorts[i], err = p.String()
-			if err != nil {
-				return resp, fmt.Errorf("encode service port spec: %w", err)
-			}
-		}
-
-		config.Labels[api.LabelServicePorts] = strings.Join(encodedPorts, ",")
-	}
-
-	portBindings := make(nat.PortMap)
-	for _, p := range spec.Ports {
-		if p.Mode != api.PortModeHost {
-			continue
-		}
-		port := nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, p.Protocol))
-		portBindings[port] = []nat.PortBinding{
-			{
-				HostPort: strconv.Itoa(int(p.PublishedPort)),
-			},
-		}
-		if p.HostIP.IsValid() {
-			portBindings[port][0].HostIP = p.HostIP.String()
-		}
-	}
-	hostConfig := &container.HostConfig{
-		Binds:        spec.Container.Volumes,
-		Init:         spec.Container.Init,
-		PortBindings: portBindings,
-	}
-	netConfig := &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{
-			machinedocker.NetworkName: {},
-		},
-	}
-
-	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", containerName, machine.Name)
-
-	pw.Event(progress.CreatingEvent(eventID))
-	resp, err = cli.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName)
-	if err != nil {
-		if !dockerclient.IsErrNotFound(err) {
-			return resp, fmt.Errorf("create container: %w", err)
-		}
-
-		// Pull the missing image and create the container again.
-		if err = cli.pullImageWithProgress(ctx, config.Image, machine.Name, eventID); err != nil {
-			return resp, err
-		}
-		if resp, err = cli.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName); err != nil {
-			return resp, fmt.Errorf("create container: %w", err)
-		}
-	}
-	pw.Event(progress.CreatedEvent(eventID))
-
-	pw.Event(progress.StartingEvent(eventID))
-	if err = cli.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
+	if err = cli.StartContainer(ctx, resp.ID, machine.Name); err != nil {
 		return resp, fmt.Errorf("start container: %w", err)
 	}
-	pw.Event(progress.StartedEvent(eventID))
 
 	return resp, nil
-}
-
-func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName, parentEventID string) error {
-	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Image %s on %s", image, machineName)
-	pw.Event(progress.Event{
-		ID:         eventID,
-		ParentID:   parentEventID,
-		Status:     progress.Working,
-		StatusText: "Pulling",
-	})
-
-	pullCh, err := cli.PullImage(ctx, image)
-	if err != nil {
-		pw.Event(progress.Event{
-			ID:         eventID,
-			ParentID:   parentEventID,
-			Text:       "Error",
-			Status:     progress.Error,
-			StatusText: errors.Unwrap(err).Error(),
-		})
-		return fmt.Errorf("pull image: %w", err)
-	}
-
-	// Wait for pull to complete by reading all progress messages and converting them to events.
-	for msg := range pullCh {
-		if msg.Err != nil {
-			err = msg.Err
-		} else {
-			if msg.Message.Error != nil {
-				err = errors.New(msg.Message.Error.Message)
-			}
-		}
-		if err != nil {
-			pw.Event(progress.Event{
-				ID:         eventID,
-				ParentID:   parentEventID,
-				Text:       "Error",
-				Status:     progress.Error,
-				StatusText: errors.Unwrap(err).Error(),
-			})
-			return fmt.Errorf("pull image: %w", err)
-		}
-
-		// TODO: add like in compose: --quiet-pull Pull without printing progress information
-		e := toPullProgressEvent(msg.Message)
-		if e != nil {
-			e.ID = fmt.Sprintf("%s on %s", e.ID, machineName)
-			e.ParentID = eventID
-			// Grand children events are not printed by the tty progress writer but they are still required
-			// to calculate the progress line of their parent.
-			pw.Event(*e)
-		}
-	}
-	pw.Event(progress.Event{
-		ID:         eventID,
-		ParentID:   parentEventID,
-		Status:     progress.Done,
-		StatusText: "Pulled",
-	})
-
-	return nil
-}
-
-// toPullProgressEvent converts a JSON progress message from the Docker API to a progress event.
-// It's based on toPullProgressEvent from Docker Compose.
-func toPullProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
-	if jm.ID == "" || jm.Progress == nil {
-		return nil
-	}
-
-	var (
-		total   int64
-		percent int
-		current int64
-	)
-	text := jm.Progress.String()
-	stat := progress.Working
-
-	switch jm.Status {
-	case "Preparing", "Waiting", "Pulling fs layer":
-		percent = 0
-	case "Downloading", "Extracting", "Verifying Checksum":
-		current = jm.Progress.Current
-		total = jm.Progress.Total
-		if jm.Progress.Total > 0 {
-			percent = int(jm.Progress.Current * 100 / jm.Progress.Total)
-		}
-	case "Download complete", "Already exists", "Pull complete":
-		stat = progress.Done
-		percent = 100
-	}
-
-	if strings.Contains(jm.Status, "Image is up to date") ||
-		strings.Contains(jm.Status, "Downloaded newer image") {
-		stat = progress.Done
-		percent = 100
-	}
-
-	return &progress.Event{
-		ID:         jm.ID,
-		Current:    current,
-		Total:      total,
-		Percent:    percent,
-		Text:       jm.Status,
-		Status:     stat,
-		StatusText: text,
-	}
 }
 
 // InspectService returns detailed information about a service and its containers.
@@ -476,7 +253,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, 
 			filters.Arg("label", api.LabelManaged),
 		),
 	}
-	machineContainers, err := cli.ListContainers(listCtx, opts)
+	machineContainers, err := cli.Docker.ListContainers(listCtx, opts)
 	if err != nil {
 		return svc, fmt.Errorf("list containers: %w", err)
 	}
@@ -618,7 +395,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 			}
 			removeCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs("machines", machineIP))
 			// TODO: gracefully stop the container before removing it without force.
-			err := cli.RemoveContainer(removeCtx, mc.Container.ID, container.RemoveOptions{Force: true})
+			err := cli.Docker.RemoveContainer(removeCtx, mc.Container.ID, container.RemoveOptions{Force: true})
 			if err != nil {
 				if !dockerclient.IsErrNotFound(err) {
 					errCh <- fmt.Errorf("remove container '%s': %w", mc.Container.ID, err)
@@ -665,7 +442,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 			filters.Arg("label", api.LabelManaged),
 		),
 	}
-	machineContainers, err := cli.ListContainers(listCtx, opts)
+	machineContainers, err := cli.Docker.ListContainers(listCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}

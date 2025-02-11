@@ -66,6 +66,24 @@ func (s *Server) CreateContainer(ctx context.Context, req *pb.CreateContainerReq
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
 }
 
+// InspectContainer returns the container information for the given container ID.
+func (s *Server) InspectContainer(ctx context.Context, req *pb.InspectContainerRequest) (*pb.InspectContainerResponse, error) {
+	resp, err := s.client.ContainerInspect(ctx, req.Id)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "inspect container: %v", err)
+		}
+		return nil, status.Errorf(codes.Internal, "inspect container: %v", err)
+	}
+
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+	}
+
+	return &pb.InspectContainerResponse{Response: respBytes}, nil
+}
+
 // StartContainer starts a container with the given ID and options.
 func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerRequest) (*emptypb.Empty, error) {
 	var opts container.StartOptions

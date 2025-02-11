@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/docker/cli/cli/streams"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"os"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/docker"
@@ -20,11 +21,10 @@ type Client struct {
 
 	pb.MachineClient
 	pb.ClusterClient
-	*DockerClient
+	// Docker is a namespaced client for the Docker service to distinguish Uncloud-specific service container operations
+	// from generic Docker operations.
+	Docker *docker.Client
 }
-
-// DockerClient is a type alias for the Docker client to embed it in Client with a more specific name.
-type DockerClient = docker.Client
 
 // Connector is an interface for establishing a connection to the machine API.
 type Connector interface {
@@ -46,7 +46,7 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 
 	c.MachineClient = pb.NewMachineClient(c.conn)
 	c.ClusterClient = pb.NewClusterClient(c.conn)
-	c.DockerClient = docker.NewClient(c.conn)
+	c.Docker = docker.NewClient(c.conn)
 	return c, nil
 }
 
@@ -57,4 +57,11 @@ func (cli *Client) Close() error {
 // progressOut returns an output stream for progress writer.
 func (cli *Client) progressOut() *streams.Out {
 	return streams.NewOut(os.Stdout)
+}
+
+// proxyToMachine returns a new context that proxies gRPC requests to the specified machine.
+func proxyToMachine(ctx context.Context, machine *pb.MachineInfo) context.Context {
+	machineIP, _ := machine.Network.ManagementIp.ToAddr()
+	md := metadata.Pairs("machines", machineIP.String())
+	return metadata.NewOutgoingContext(ctx, md)
 }
