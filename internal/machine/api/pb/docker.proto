@@ -11,6 +11,7 @@ service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
   rpc InspectContainer(InspectContainerRequest) returns (InspectContainerResponse);
   rpc StartContainer(StartContainerRequest) returns (google.protobuf.Empty);
+  rpc StopContainer(StopContainerRequest) returns (google.protobuf.Empty);
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
   rpc PullImage(PullImageRequest) returns (stream JSONMessage);
@@ -45,6 +46,12 @@ message InspectContainerResponse {
 message StartContainerRequest {
   string id = 1;
   // JSON serialized container.StartOptions.
+  bytes options = 2;
+}
+
+message StopContainerRequest {
+  string id = 1;
+  // JSON serialized container.StopOptions.
   bytes options = 2;
 }
 

@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"context"
+	"errors"
+	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,12 +26,11 @@ func TestService(t *testing.T) {
 	t.Run("container lifecycle", func(t *testing.T) {
 		t.Parallel()
 
-		svcName := "busybox-container-lifecycle"
+		svcName := "pause-container-lifecycle"
 		spec := api.ServiceSpec{
 			Name: svcName,
 			Container: api.ContainerSpec{
-				Command: []string{"sleep", "infinity"},
-				Image:   "busybox:latest",
+				Image: "portainer/pause:latest",
 			},
 		}
 		machineID := c.Machines[0].Name
@@ -38,8 +39,25 @@ func TestService(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, ctr.ID)
 
+		t.Cleanup(func() {
+			err := cli.RemoveContainer(ctx, svcName, ctr.ID, container.RemoveOptions{Force: true})
+			if !errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
 		err = cli.StartContainer(ctx, svcName, ctr.ID)
 		require.NoError(t, err)
+
+		timeout := 1
+		err = cli.StopContainer(ctx, svcName, ctr.ID, container.StopOptions{Timeout: &timeout})
+		require.NoError(t, err)
+
+		err = cli.RemoveContainer(ctx, svcName, ctr.ID, container.RemoveOptions{})
+		require.NoError(t, err)
+
+		err = cli.RemoveContainer(ctx, svcName, ctr.ID, container.RemoveOptions{})
+		require.ErrorIs(t, err, client.ErrNotFound)
 	})
 }
 
@@ -56,7 +74,7 @@ func TestRunService(t *testing.T) {
 	t.Run("1 replica", func(t *testing.T) {
 		t.Parallel()
 
-		name := "busybox-1-replica"
+		name := "pause-1-replica"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if !dockerclient.IsErrNotFound(err) {
@@ -71,8 +89,7 @@ func TestRunService(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
-				Command: []string{"sleep", "infinity"},
-				Image:   "busybox:latest",
+				Image: "portainer/pause:latest",
 			},
 		})
 		require.NoError(t, err)
@@ -108,7 +125,7 @@ func TestRunService(t *testing.T) {
 	t.Run("1 replica with ports", func(t *testing.T) {
 		t.Parallel()
 
-		name := "busybox-1-replica-ports"
+		name := "pause-1-replica-ports"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if !dockerclient.IsErrNotFound(err) {
@@ -123,8 +140,7 @@ func TestRunService(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
-				Command: []string{"sleep", "infinity"},
-				Image:   "busybox:latest",
+				Image: "portainer/pause:latest",
 			},
 			Ports: []api.PortSpec{
 				{
@@ -163,7 +179,7 @@ func TestRunService(t *testing.T) {
 	t.Run("global mode", func(t *testing.T) {
 		t.Parallel()
 
-		name := "busybox-global"
+		name := "pause-global"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if !dockerclient.IsErrNotFound(err) {
@@ -178,8 +194,7 @@ func TestRunService(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
-				Command: []string{"sleep", "infinity"},
-				Image:   "busybox:latest",
+				Image: "portainer/pause:latest",
 			},
 		})
 		require.NoError(t, err)

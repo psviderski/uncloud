@@ -53,9 +53,9 @@ func (s *Server) CreateContainer(ctx context.Context, req *pb.CreateContainerReq
 	resp, err := s.client.ContainerCreate(ctx, &config, &hostConfig, &networkConfig, &platform, req.Name)
 	if err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "create container: %v", err)
+			return nil, status.Errorf(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, "create container: %v", err)
+		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
 	respBytes, err := json.Marshal(resp)
@@ -71,9 +71,9 @@ func (s *Server) InspectContainer(ctx context.Context, req *pb.InspectContainerR
 	resp, err := s.client.ContainerInspect(ctx, req.Id)
 	if err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "inspect container: %v", err)
+			return nil, status.Errorf(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, "inspect container: %v", err)
+		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
 	respBytes, err := json.Marshal(resp)
@@ -95,9 +95,28 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 
 	if err := s.client.ContainerStart(ctx, req.Id, opts); err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "start container: %v", err)
+			return nil, status.Errorf(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, "start container: %v", err)
+		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// StopContainer stops a container with the given ID and options.
+func (s *Server) StopContainer(ctx context.Context, req *pb.StopContainerRequest) (*emptypb.Empty, error) {
+	var opts container.StopOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+	}
+
+	if err := s.client.ContainerStop(ctx, req.Id, opts); err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
 	return &emptypb.Empty{}, nil
@@ -127,7 +146,7 @@ func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersReque
 
 	containers, err := s.client.ContainerList(ctx, opts)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list container: %v", err)
+		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
 	containersBytes, err := json.Marshal(containers)
@@ -155,9 +174,9 @@ func (s *Server) RemoveContainer(ctx context.Context, req *pb.RemoveContainerReq
 
 	if err := s.client.ContainerRemove(ctx, req.Id, opts); err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "remove container: %v", err)
+			return nil, status.Errorf(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, "remove container: %v", err)
+		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
 	return &emptypb.Empty{}, nil
@@ -176,7 +195,7 @@ func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreaming
 
 	respBody, err := s.client.ImagePull(ctx, req.Image, opts)
 	if err != nil {
-		return status.Errorf(codes.Internal, "pull image: %v", err)
+		return status.Errorf(codes.Internal, err.Error())
 	}
 	defer respBody.Close()
 
@@ -207,7 +226,7 @@ func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreaming
 		case err = <-errCh:
 			return err
 		case <-ctx.Done():
-			return status.Errorf(codes.Canceled, "pull image: %v", ctx.Err())
+			return status.Errorf(codes.Canceled, ctx.Err().Error())
 		}
 	}
 }

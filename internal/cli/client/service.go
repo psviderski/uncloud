@@ -8,7 +8,6 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
-	dockerclient "github.com/docker/docker/client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -388,18 +387,15 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 		go func() {
 			defer wg.Done()
 
-			machineIP, ok := machineManagementIPByID[mc.MachineID]
-			if !ok {
-				errCh <- fmt.Errorf("machine not found by ID: %s", mc.MachineID)
+			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, container.StopOptions{})
+			if err != nil {
+				errCh <- fmt.Errorf("stop container '%s': %w", mc.Container.ID, err)
 				return
 			}
-			removeCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs("machines", machineIP))
-			// TODO: gracefully stop the container before removing it without force.
-			err := cli.Docker.RemoveContainer(removeCtx, mc.Container.ID, container.RemoveOptions{Force: true})
-			if err != nil {
-				if !dockerclient.IsErrNotFound(err) {
-					errCh <- fmt.Errorf("remove container '%s': %w", mc.Container.ID, err)
-				}
+
+			err = cli.RemoveContainer(ctx, svc.ID, mc.Container.ID, container.RemoveOptions{})
+			if err != nil && !errors.Is(err, ErrNotFound) {
+				errCh <- fmt.Errorf("remove container '%s': %w", mc.Container.ID, err)
 			}
 		}()
 	}

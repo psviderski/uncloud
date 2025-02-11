@@ -127,6 +127,27 @@ func (c *Client) StartContainer(ctx context.Context, id string, opts container.S
 	return err
 }
 
+// StopContainer stops a container with the given ID and options.
+func (c *Client) StopContainer(ctx context.Context, id string, opts container.StopOptions) error {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return fmt.Errorf("marshal options: %w", err)
+	}
+
+	_, err = c.grpcClient.StopContainer(ctx, &pb.StopContainerRequest{
+		Id:      id,
+		Options: optsBytes,
+	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.NotFound {
+				return errdefs.NotFound(err)
+			}
+		}
+	}
+	return err
+}
+
 type MachineContainers struct {
 	Metadata   *pb.Metadata
 	Containers []types.Container

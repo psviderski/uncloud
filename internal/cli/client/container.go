@@ -219,39 +219,102 @@ func toPullProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
 	}
 }
 
-// StartContainer starts the specified container within the service.
-func (cli *Client) StartContainer(ctx context.Context, serviceID, containerID string) error {
+// InspectContainer returns the information about the specified container within the service.
+func (cli *Client) InspectContainer(ctx context.Context, serviceID, containerID string) (api.MachineContainer, error) {
+	var ctr api.MachineContainer
+
 	svc, err := cli.InspectService(ctx, serviceID)
 	if err != nil {
-		return fmt.Errorf("inspect service: %w", err)
+		return ctr, fmt.Errorf("inspect service: %w", err)
 	}
 
-	var ctr api.Container
-	var machineID string
 	for _, c := range svc.Containers {
 		if c.Container.ID == containerID || c.Container.Names[0] == containerID {
-			ctr = c.Container
-			machineID = c.MachineID
+			ctr = c
 		}
 	}
-	if ctr.ID == "" {
-		return ErrNotFound
+	if ctr.MachineID == "" {
+		return ctr, ErrNotFound
 	}
 
-	machine, err := cli.InspectMachine(ctx, machineID)
+	return ctr, nil
+}
+
+// StartContainer starts the specified container within the service.
+func (cli *Client) StartContainer(ctx context.Context, serviceID, containerID string) error {
+	ctr, err := cli.InspectContainer(ctx, serviceID, containerID)
 	if err != nil {
-		return fmt.Errorf("inspect machine '%s': %w", machineID, err)
+		return err
+	}
+
+	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
+	if err != nil {
+		return fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
 	}
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Names[0], machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Names[0], machine.Machine.Name)
 
 	pw.Event(progress.StartingEvent(eventID))
-	if err = cli.Docker.StartContainer(ctx, ctr.ID, container.StartOptions{}); err != nil {
+	if err = cli.Docker.StartContainer(ctx, ctr.Container.ID, container.StartOptions{}); err != nil {
 		return err
 	}
 	pw.Event(progress.StartedEvent(eventID))
+
+	return nil
+}
+
+// StopContainer stops the specified container within the service.
+func (cli *Client) StopContainer(
+	ctx context.Context, serviceID, containerID string, opts container.StopOptions,
+) error {
+	ctr, err := cli.InspectContainer(ctx, serviceID, containerID)
+	if err != nil {
+		return err
+	}
+
+	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
+	if err != nil {
+		return fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
+	}
+	ctx = proxyToMachine(ctx, machine.Machine)
+
+	pw := progress.ContextWriter(ctx)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Names[0], machine.Machine.Name)
+
+	pw.Event(progress.StoppingEvent(eventID))
+	if err = cli.Docker.StopContainer(ctx, ctr.Container.ID, opts); err != nil {
+		return err
+	}
+	pw.Event(progress.StoppedEvent(eventID))
+
+	return nil
+}
+
+// RemoveContainer removes the specified container within the service.
+func (cli *Client) RemoveContainer(
+	ctx context.Context, serviceID, containerID string, opts container.RemoveOptions,
+) error {
+	ctr, err := cli.InspectContainer(ctx, serviceID, containerID)
+	if err != nil {
+		return err
+	}
+
+	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
+	if err != nil {
+		return fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
+	}
+	ctx = proxyToMachine(ctx, machine.Machine)
+
+	pw := progress.ContextWriter(ctx)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Names[0], machine.Machine.Name)
+
+	pw.Event(progress.RemovingEvent(eventID))
+	if err = cli.Docker.RemoveContainer(ctx, ctr.Container.ID, opts); err != nil {
+		return err
+	}
+	pw.Event(progress.RemovedEvent(eventID))
 
 	return nil
 }
