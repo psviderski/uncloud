@@ -24,9 +24,9 @@ func TestService(t *testing.T) {
 	t.Run("container lifecycle", func(t *testing.T) {
 		t.Parallel()
 
-		name := "busybox-container-lifecycle"
+		svcName := "busybox-container-lifecycle"
 		spec := api.ServiceSpec{
-			Name: name,
+			Name: svcName,
 			Container: api.ContainerSpec{
 				Command: []string{"sleep", "infinity"},
 				Image:   "busybox:latest",
@@ -34,11 +34,11 @@ func TestService(t *testing.T) {
 		}
 		machineID := c.Machines[0].Name
 
-		ctr, err := cli.CreateContainer(ctx, name, spec, machineID)
+		ctr, err := cli.CreateContainer(ctx, svcName, spec, machineID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, ctr.ID)
 
-		err = cli.StartContainer(ctx, ctr.ID, machineID)
+		err = cli.StartContainer(ctx, svcName, ctr.ID)
 		require.NoError(t, err)
 	})
 }

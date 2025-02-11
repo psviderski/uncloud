@@ -17,6 +17,7 @@ import (
 	"uncloud/internal/secret"
 )
 
+// CreateContainer creates a new container for the given service on the specified machine.
 func (cli *Client) CreateContainer(
 	ctx context.Context, serviceID string, spec api.ServiceSpec, machineID string,
 ) (container.CreateResponse, error) {
@@ -218,20 +219,33 @@ func toPullProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
 	}
 }
 
-func (cli *Client) StartContainer(ctx context.Context, id string, machineID string) error {
+// StartContainer starts the specified container within the service.
+func (cli *Client) StartContainer(ctx context.Context, serviceID, containerID string) error {
+	svc, err := cli.InspectService(ctx, serviceID)
+	if err != nil {
+		return fmt.Errorf("inspect service: %w", err)
+	}
+
+	var ctr api.Container
+	var machineID string
+	for _, c := range svc.Containers {
+		if c.Container.ID == containerID || c.Container.Names[0] == containerID {
+			ctr = c.Container
+			machineID = c.MachineID
+		}
+	}
+	if ctr.ID == "" {
+		return ErrNotFound
+	}
+
 	machine, err := cli.InspectMachine(ctx, machineID)
 	if err != nil {
 		return fmt.Errorf("inspect machine '%s': %w", machineID, err)
 	}
 	ctx = proxyToMachine(ctx, machine.Machine)
 
-	ctr, err := cli.Docker.InspectContainer(ctx, id)
-	if err != nil {
-		return err
-	}
-
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Name, machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Names[0], machine.Machine.Name)
 
 	pw.Event(progress.StartingEvent(eventID))
 	if err = cli.Docker.StartContainer(ctx, ctr.ID, container.StartOptions{}); err != nil {

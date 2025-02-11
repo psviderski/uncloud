@@ -214,7 +214,7 @@ func (cli *Client) runContainer(
 		return resp, fmt.Errorf("create container: %w", err)
 	}
 
-	if err = cli.StartContainer(ctx, resp.ID, machine.Name); err != nil {
+	if err = cli.StartContainer(ctx, serviceID, resp.ID); err != nil {
 		return resp, fmt.Errorf("start container: %w", err)
 	}
 
@@ -319,7 +319,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, 
 		serviceID := containers[0].Container.ServiceID()
 		for _, mc := range containers[1:] {
 			if mc.Container.ServiceID() != serviceID {
-				return svc, fmt.Errorf("multiple services found with name: %s", id)
+				return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", id)
 			}
 		}
 	}
