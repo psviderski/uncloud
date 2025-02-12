@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/docker/docker/api/types/container"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -66,7 +65,7 @@ func TestRunService(t *testing.T) {
 		name := "pause-1-replica"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !dockerclient.IsErrNotFound(err) {
+			if errors.Is(err, client.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
@@ -117,7 +116,7 @@ func TestRunService(t *testing.T) {
 		name := "pause-1-replica-ports"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !dockerclient.IsErrNotFound(err) {
+			if errors.Is(err, client.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
@@ -171,7 +170,7 @@ func TestRunService(t *testing.T) {
 		name := "pause-global"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !dockerclient.IsErrNotFound(err) {
+			if errors.Is(err, client.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
