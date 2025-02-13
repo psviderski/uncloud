@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/distribution/reference"
+	"reflect"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -35,6 +36,10 @@ func (s *ServiceSpec) Validate() error {
 	// TODO: validate there is no conflict between ports.
 
 	return nil
+}
+
+func (s *ServiceSpec) Equals(spec ServiceSpec) bool {
+	return reflect.DeepEqual(*s, spec)
 }
 
 type ContainerSpec struct {

@@ -23,6 +23,10 @@ func (cli *Client) CreateContainer(
 ) (container.CreateResponse, error) {
 	var resp container.CreateResponse
 
+	if serviceID == "" {
+		return resp, errors.New("service ID is required")
+	}
+
 	machine, err := cli.InspectMachine(ctx, machineID)
 	if err != nil {
 		return resp, fmt.Errorf("inspect machine '%s': %w", machineID, err)

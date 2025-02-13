@@ -210,9 +210,13 @@ func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListM
 		state := pb.MachineMember_DOWN
 		addr, _ := m.Network.ManagementIp.ToAddr()
 		for _, s := range states {
-			if s.Addr.Addr().Compare(addr) == 0 &&
-				(s.State == corrosion.MembershipStateAlive || s.State == corrosion.MembershipStateSuspect) {
-				state = pb.MachineMember_UP
+			if s.Addr.Addr().Compare(addr) == 0 {
+				switch s.State {
+				case corrosion.MembershipStateAlive:
+					state = pb.MachineMember_UP
+				case corrosion.MembershipStateSuspect:
+					state = pb.MachineMember_SUSPECT
+				}
 				break
 			}
 		}

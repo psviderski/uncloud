@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,147 @@ import (
 	"uncloud/internal/cli/client"
 	"uncloud/internal/ucind"
 )
+
+func TestDeployment(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "ucind-test.deployment"
+	ctx := context.Background()
+	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
+
+	cli, err := c.Machines[0].Connect(ctx)
+	require.NoError(t, err)
+
+	t.Run("global", func(t *testing.T) {
+		t.Parallel()
+
+		name := "global-deployment"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+
+			_, err = cli.InspectService(ctx, name)
+			require.ErrorIs(t, err, client.ErrNotFound)
+		})
+
+		deploy, err := cli.NewDeployment(api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+		}, nil)
+		require.NoError(t, err)
+
+		err = deploy.Validate(ctx)
+		require.NoError(t, err)
+
+		plan, err := deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.IsType(t, &client.SequenceOperation{}, plan)
+		assert.Len(t, plan.(*client.SequenceOperation).Operations, 3) // 3 run
+		fmt.Println("# First plan:", plan)
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assert.Equal(t, name, svc.Name)
+		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
+		assert.Len(t, svc.Containers, 3)
+
+		// Deploy a published port.
+		deploy, err = cli.NewDeployment(api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+			Ports: []api.PortSpec{
+				{
+					PublishedPort: 8000,
+					ContainerPort: 8000,
+					Protocol:      api.ProtocolTCP,
+					Mode:          api.PortModeHost,
+				},
+			},
+		}, nil)
+		require.NoError(t, err)
+
+		plan, err = deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.IsType(t, &client.SequenceOperation{}, plan)
+		assert.Len(t, plan.(*client.SequenceOperation).Operations, 6) // 3 run + 3 remove
+		fmt.Println("# Second plan:", plan)
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err = cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assert.Equal(t, name, svc.Name)
+		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
+		assert.Len(t, svc.Containers, 3)
+
+		// Deploy the same conflicting port but with container spec changes
+		init := true
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				Init:  &init,
+			},
+			Ports: []api.PortSpec{
+				{
+					PublishedPort: 8000,
+					ContainerPort: 8000,
+					Protocol:      api.ProtocolTCP,
+					Mode:          api.PortModeHost,
+				},
+			},
+		}
+		deploy, err = cli.NewDeployment(spec, nil)
+		require.NoError(t, err)
+
+		plan, err = deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.IsType(t, &client.SequenceOperation{}, plan)
+		assert.Len(t, plan.(*client.SequenceOperation).Operations, 9) // 3 stop + 3 run + 3 remove
+		fmt.Println("# Third plan:", plan)
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err = cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assert.Equal(t, name, svc.Name)
+		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
+		assert.Len(t, svc.Containers, 3)
+
+		// Deploying the same spec should be a no-op.
+		//deploy, err = cli.NewDeployment(spec, nil)
+		//require.NoError(t, err)
+		//
+		//plan, err = deploy.Plan(ctx)
+		//require.NoError(t, err)
+		//assert.IsType(t, &client.SequenceOperation{}, plan)
+		//assert.Len(t, plan.(*client.SequenceOperation).Operations, 0) // no-op
+		//fmt.Println("# Forth plan:", plan)
+		//
+		//err = deploy.Run(ctx)
+		//require.NoError(t, err)
+		//
+		//svc, err = cli.InspectService(ctx, name)
+		//require.NoError(t, err)
+		//assert.Equal(t, name, svc.Name)
+		//assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
+		//assert.Len(t, svc.Containers, 3)
+	})
+}
 
 func TestRunService(t *testing.T) {
 	t.Parallel()

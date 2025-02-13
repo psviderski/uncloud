@@ -69,6 +69,12 @@ func (c *Container) ServicePorts() ([]PortSpec, error) {
 	return ports, nil
 }
 
+func (c *Container) ServiceSpec() ServiceSpec {
+	// TODO: migrate api.Container type to use ContainerJSON to make it possible to construct
+	// a ServiceSpec from a Container.
+	return ServiceSpec{}
+}
+
 // runningStatusRegex matches the status string of a running container.
 // - "Up 3 minutes (healthy)" -> groups: ["Up 3 minutes (healthy)", "healthy"]
 // - "Up 5 seconds" -> groups: ["Up 5 seconds", ""]
