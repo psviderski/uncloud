@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"github.com/docker/docker/api/types"
 	"regexp"
 	"strings"
@@ -12,6 +13,14 @@ const (
 	LabelServiceName  = "uncloud.service.name"
 	LabelServiceMode  = "uncloud.service.mode"
 	LabelServicePorts = "uncloud.service.ports"
+
+	StateCreated    = "created"
+	StateDead       = "dead"
+	StateExited     = "exited"
+	StatePaused     = "paused"
+	StateRemoving   = "removing"
+	StateRestarting = "restarting"
+	StateRunning    = "running"
 )
 
 type Container struct {
@@ -43,6 +52,9 @@ func (c *Container) ServicePorts() ([]PortSpec, error) {
 	if !ok {
 		return nil, nil
 	}
+	if strings.TrimSpace(encoded) == "" {
+		return nil, nil
+	}
 
 	publishPorts := strings.Split(encoded, ",")
 	ports := make([]PortSpec, len(publishPorts))
@@ -70,7 +82,7 @@ var runningStatusRegex = regexp.MustCompile(`^Up [^(]+(?:\(([^)]+)\))?$`)
 // Healthy determines if the container is running and healthy based on its status string.
 // A running container with no health check configured is considered healthy.
 func (c *Container) Healthy() bool {
-	if c.State != "running" {
+	if c.State != StateRunning {
 		return false
 	}
 
@@ -87,4 +99,41 @@ func (c *Container) Healthy() bool {
 
 	// If the health status in parentheses is "healthy", the container is considered healthy.
 	return matches[1] == types.Healthy
+}
+
+// Stopped determines if the container is stopped and doesn't try to restart.
+func (c *Container) Stopped() bool {
+	return c.State == StateCreated || c.State == StateDead || c.State == StateExited
+}
+
+// ConflictingServicePorts returns a list of service ports that conflict with the given ports.
+func (c *Container) ConflictingServicePorts(ports []PortSpec) ([]PortSpec, error) {
+	svcPorts, err := c.ServicePorts()
+	if err != nil {
+		return nil, fmt.Errorf("get service ports: %w", err)
+	}
+
+	var conflicting []PortSpec
+	for _, p := range ports {
+		if p.Mode != PortModeHost {
+			continue
+		}
+
+		// Two host ports conflict if they have the same published port number and protocol, and either:
+		//   * At least one host IP is not set (meaning it uses all interfaces)
+		//   * Both host IPs are identical
+		for _, svcPort := range svcPorts {
+			if svcPort.Mode != PortModeHost ||
+				svcPort.PublishedPort != p.PublishedPort ||
+				svcPort.Protocol != p.Protocol {
+				continue
+			}
+
+			if !svcPort.HostIP.IsValid() || !p.HostIP.IsValid() || svcPort.HostIP.Compare(p.HostIP) == 0 {
+				conflicting = append(conflicting, p)
+			}
+		}
+	}
+
+	return conflicting, nil
 }
