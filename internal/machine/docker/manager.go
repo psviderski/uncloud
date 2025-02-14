@@ -149,8 +149,9 @@ func (m *Manager) syncContainersToStore(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list containers from store: %w", err)
 	}
+
 	// List only Uncloud service containers identified by their labels.
-	containers, err := m.client.ContainerList(ctx, dockercontainer.ListOptions{
+	containerSummaries, err := m.client.ContainerList(ctx, dockercontainer.ListOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("label", api.LabelServiceID),
 			filters.Arg("label", api.LabelServiceName),
@@ -161,11 +162,21 @@ func (m *Manager) syncContainersToStore(ctx context.Context) error {
 		return fmt.Errorf("list Docker containers: %w", err)
 	}
 
-	// Delete containers that are not present in the Docker daemon from the store.
+	// Inspect each container to get the full container details.
+	containers := make([]api.Container, len(containerSummaries))
+	for i, cs := range containerSummaries {
+		ctr, err := m.client.ContainerInspect(ctx, cs.ID)
+		if err != nil {
+			return fmt.Errorf("inspect container '%s': %w", cs.ID, err)
+		}
+		containers[i] = api.Container{ContainerJSON: ctr}
+	}
+
+	// Delete containers from the store that are no longer present in the Docker daemon.
 	var deleteIDs []string
 	for _, sc := range storeContainers {
 		found := false
-		for i, _ := range containers {
+		for i := range containers {
 			if containers[i].ID == sc.Container.ID {
 				found = true
 				break
@@ -184,8 +195,7 @@ func (m *Manager) syncContainersToStore(ctx context.Context) error {
 	}
 
 	// Create or update the current Docker containers in the store.
-	for _, dc := range containers {
-		c := &api.Container{Container: dc}
+	for _, c := range containers {
 		if err = m.store.CreateOrUpdateContainer(ctx, c, m.machineID); err != nil {
 			storeErr = errors.Join(storeErr, fmt.Errorf("create or update container %q: %w", c.ID, err))
 		}

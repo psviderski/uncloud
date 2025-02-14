@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -144,9 +145,17 @@ func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersReque
 		}
 	}
 
-	containers, err := s.client.ContainerList(ctx, opts)
+	containerSummaries, err := s.client.ContainerList(ctx, opts)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+	containers := make([]types.ContainerJSON, len(containerSummaries))
+	for i, cs := range containerSummaries {
+		c, err := s.client.ContainerInspect(ctx, cs.ID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "inspect container %s: %v", cs.ID, err)
+		}
+		containers[i] = c
 	}
 
 	containersBytes, err := json.Marshal(containers)

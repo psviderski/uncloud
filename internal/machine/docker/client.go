@@ -150,7 +150,7 @@ func (c *Client) StopContainer(ctx context.Context, id string, opts container.St
 
 type MachineContainers struct {
 	Metadata   *pb.Metadata
-	Containers []types.Container
+	Containers []types.ContainerJSON
 }
 
 func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions) ([]MachineContainers, error) {

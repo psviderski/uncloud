@@ -22,7 +22,7 @@ const (
 )
 
 type ContainerRecord struct {
-	Container  *api.Container
+	Container  api.Container
 	MachineID  string
 	SyncStatus string
 	UpdatedAt  time.Time
@@ -47,8 +47,11 @@ type DeleteOptions struct {
 
 // CreateOrUpdateContainer creates a new container record or updates an existing one in the store database.
 // The container is associated with the given machine ID that indicates which machine the container is running on.
-func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *api.Container, machineID string) error {
-	cJSON, err := json.Marshal(c)
+func (s *Store) CreateOrUpdateContainer(ctx context.Context, ctr api.Container, machineID string) error {
+	// Remove the environment variables from the container record before storing it in the database
+	// to avoid leaking secrets.
+	ctr.Config.Env = nil
+	cJSON, err := json.Marshal(ctr)
 	if err != nil {
 		return fmt.Errorf("marshal container: %w", err)
 	}
@@ -63,19 +66,19 @@ func (s *Store) CreateOrUpdateContainer(ctx context.Context, c *api.Container, m
 									   updated_at  = excluded.updated_at
 		WHERE containers.container != excluded.container
 		  OR containers.machine_id != excluded.machine_id`,
-		c.ID, string(cJSON), machineID, SyncStatusSynced)
+		ctr.ID, string(cJSON), machineID, SyncStatusSynced)
 	if err != nil {
 		return fmt.Errorf("upsert query: %w", err)
 	}
 	if res.RowsAffected > 0 {
-		slog.Debug("Container record updated in store DB.", "id", c.ID, "machine_id", machineID)
+		slog.Debug("Container record updated in store DB.", "id", ctr.ID, "machine_id", machineID)
 	}
 
 	return nil
 }
 
 // ListContainers returns a list of container records from the store database that match the given options.
-func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*ContainerRecord, error) {
+func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]ContainerRecord, error) {
 	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers").
 		Where(sq.Eq{"sync_status": SyncStatusSynced})
 
@@ -105,7 +108,7 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*Contai
 	}
 	defer rows.Close()
 
-	var containers []*ContainerRecord
+	var containers []ContainerRecord
 	var cJSON, machineID, syncStatus, updatedAtStr string
 	var updatedAt time.Time
 
@@ -121,8 +124,8 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]*Contai
 		if updatedAt, err = time.Parse(time.DateTime, updatedAtStr); err != nil {
 			return nil, fmt.Errorf("parse updated_at: %w", err)
 		}
-		containers = append(containers, &ContainerRecord{
-			Container:  &c,
+		containers = append(containers, ContainerRecord{
+			Container:  c,
 			MachineID:  machineID,
 			SyncStatus: syncStatus,
 			UpdatedAt:  updatedAt,
@@ -158,7 +161,7 @@ func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error 
 
 // SubscribeContainers returns a list of containers and a channel that signals changes to the list. The channel doesn't
 // receive any values, it just signals when a container(s) has been added, updated, or deleted in the database.
-func (s *Store) SubscribeContainers(ctx context.Context) ([]*ContainerRecord, <-chan struct{}, error) {
+func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-chan struct{}, error) {
 	// TODO: figure out whether we need sync_status at all.
 	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers").
 		Where(sq.Eq{"sync_status": SyncStatusSynced})
@@ -172,7 +175,7 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]*ContainerRecord, <-
 		return nil, nil, err
 	}
 
-	var containers []*ContainerRecord
+	var containers []ContainerRecord
 	var cJSON, updatedAtStr string
 
 	rows := sub.Rows()
@@ -188,7 +191,7 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]*ContainerRecord, <-
 		if cr.UpdatedAt, err = time.Parse(time.DateTime, updatedAtStr); err != nil {
 			return nil, nil, fmt.Errorf("parse updated_at: %w", err)
 		}
-		containers = append(containers, &cr)
+		containers = append(containers, cr)
 	}
 	events, err := sub.Changes()
 	if err != nil {

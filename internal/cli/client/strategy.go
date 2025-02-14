@@ -74,6 +74,7 @@ func (s *RollingStrategy) planGlobal(
 	}
 
 	plan := &SequenceOperation{}
+	// TODO: figure out how to return a warning if there are machines down.
 	var machinesDown []*pb.MachineInfo
 	for _, m := range machines {
 		// Skip machines that are down but collect them to report a warning later.
@@ -93,6 +94,9 @@ func (s *RollingStrategy) planGlobal(
 	return plan, nil
 }
 
+// reconcileGlobalContainer returns a sequence of operations to reconcile containers on a machine for a global service.
+// It ensures exactly one container with the desired spec is running on the machine by creating a new container and
+// removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
 	containers []api.MachineContainer, spec api.ServiceSpec, serviceID, machineID string,
 ) ([]Operation, error) {
@@ -111,7 +115,7 @@ func reconcileGlobalContainer(
 	// Check if there is a container with the same spec already running. If so, remove the rest.
 	upToDate := false
 	for i, c := range containers {
-		if c.Container.State != api.StateRunning && c.Container.State != api.StateRestarting {
+		if !c.Container.State.Running || c.Container.State.Paused {
 			// Skip containers that are not running.
 			continue
 		}
@@ -138,9 +142,9 @@ func reconcileGlobalContainer(
 	}
 
 	// The machine has containers but none of them match the new spec.
-	// Stop the old non-stopped containers that have conflicting ports with the new spec before running a new one.
+	// Stop the old running containers that have conflicting ports with the new spec before running a new one.
 	for _, c := range containers {
-		if !c.Container.Stopped() {
+		if c.Container.State.Running {
 			conflictingPorts, err := c.Container.ConflictingServicePorts(spec.Ports)
 			if err != nil {
 				return nil, fmt.Errorf("check conflicting ports: %w", err)

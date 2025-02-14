@@ -22,8 +22,8 @@ CREATE TABLE containers
     -- container is a JSON-serialized api.Container struct.
     container    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(container)),
     machine_id   TEXT NOT NULL DEFAULT '',
-    service_id   TEXT AS (json_extract(container, '$.Labels."uncloud.service.id"')),
-    service_name TEXT AS (json_extract(container, '$.Labels."uncloud.service.name"')),
+    service_id   TEXT AS (json_extract(container, '$.Config.Labels."uncloud.service.id"')),
+    service_name TEXT AS (json_extract(container, '$.Config.Labels."uncloud.service.name"')),
     -- sync_status indicates if the record reflects the actual Docker state of the container.
     sync_status  TEXT NOT NULL DEFAULT '',
     -- updated_at is the last time the record was updated.

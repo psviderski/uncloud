@@ -288,7 +288,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, 
 		}
 
 		for _, c := range mc.Containers {
-			ctr := api.Container{Container: c}
+			ctr := api.Container{ContainerJSON: c}
 			if ctr.ServiceID() == id || ctr.ServiceName() == id {
 				containers = append(containers, api.MachineContainer{
 					MachineID: machineID,
@@ -455,7 +455,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		}
 
 		for _, c := range mc.Containers {
-			ctr := api.Container{Container: c}
+			ctr := api.Container{ContainerJSON: c}
 			if _, ok := servicesByID[ctr.ServiceID()]; ok {
 				continue
 			}

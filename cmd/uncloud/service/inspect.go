@@ -70,12 +70,19 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	}
 
 	for _, ctr := range svc.Containers {
-		createdAt := time.Unix(ctr.Container.Created, 0)
+		createdAt, err := time.Parse(time.RFC3339Nano, ctr.Container.Created)
+		if err != nil {
+			return fmt.Errorf("parse created time: %w", err)
+		}
 		created := units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
 
 		machine := machinesNamesByID[ctr.MachineID]
 		if machine == "" {
 			machine = ctr.MachineID
+		}
+		state, err := ctr.Container.HumanState()
+		if err != nil {
+			return fmt.Errorf("get human state: %w", err)
 		}
 
 		_, err = fmt.Fprintf(
@@ -84,7 +91,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 			stringid.TruncateID(ctr.Container.ID),
 			ctr.Container.Image,
 			created,
-			ctr.Container.Status,
+			state,
 			machine,
 		)
 		if err != nil {

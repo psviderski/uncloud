@@ -461,7 +461,7 @@ type MachineContainers struct {
 	unknownFields protoimpl.UnknownFields
 
 	Metadata *Metadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// JSON serialized []container.Summary.
+	// JSON serialized []container.ContainerJSON.
 	Containers []byte `protobuf:"bytes,2,opt,name=containers,proto3" json:"containers,omitempty"`
 }
 

@@ -14,10 +14,10 @@ import (
 // EnsureUncloudNetwork creates the Docker bridge network NetworkName with the provided machine subnet
 // if it doesn't exist. If the network exists but has a different subnet, it removes and recreates the network.
 // It also configures iptables to allow container access from the WireGuard network.
-func (d *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix) error {
+func (m *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix) error {
 	// Ensure the Docker network 'uncloud' is created with the correct subnet.
 	needsCreation := false
-	nw, err := d.client.NetworkInspect(ctx, NetworkName, dnetwork.InspectOptions{})
+	nw, err := m.client.NetworkInspect(ctx, NetworkName, dnetwork.InspectOptions{})
 	if err != nil {
 		if !client.IsErrNotFound(err) {
 			return fmt.Errorf("inspect Docker network %q: %w", NetworkName, err)
@@ -29,7 +29,7 @@ func (d *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix)
 		slog.Info(
 			"Removing Docker network with old subnet.", "name", NetworkName, "subnet", nw.IPAM.Config[0].Subnet,
 		)
-		if err = d.client.NetworkRemove(ctx, NetworkName); err != nil {
+		if err = m.client.NetworkRemove(ctx, NetworkName); err != nil {
 			// It can still fail if the network is in use by a container. Leave it to the user to resolve the issue.
 			return fmt.Errorf("remove Docker network %q: %w", NetworkName, err)
 		}
@@ -37,7 +37,7 @@ func (d *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix)
 	}
 
 	if needsCreation {
-		if _, err = d.client.NetworkCreate(
+		if _, err = m.client.NetworkCreate(
 			ctx, NetworkName, dnetwork.CreateOptions{
 				Driver: "bridge",
 				Scope:  "local",
@@ -54,7 +54,7 @@ func (d *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix)
 		}
 		slog.Info("Docker network created.", "name", NetworkName, "subnet", subnet.String())
 
-		if nw, err = d.client.NetworkInspect(ctx, NetworkName, dnetwork.InspectOptions{}); err != nil {
+		if nw, err = m.client.NetworkInspect(ctx, NetworkName, dnetwork.InspectOptions{}); err != nil {
 			return fmt.Errorf("inspect Docker network %q: %w", NetworkName, err)
 		}
 	}

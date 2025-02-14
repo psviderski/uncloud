@@ -67,7 +67,7 @@ message ListContainersResponse {
 
 message MachineContainers {
   Metadata metadata = 1;
-  // JSON serialized []container.Summary.
+  // JSON serialized []container.ContainerJSON.
   bytes containers = 2;
 }
 

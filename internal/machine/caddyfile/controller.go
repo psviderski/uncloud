@@ -89,18 +89,18 @@ func (c *Controller) Run(ctx context.Context) error {
 	}
 }
 
-// filterAvailableContainers filters out containers that are likely unavailable from this machine. The availability
+// filterAvailableContainers filters out containers from this machine that are likely unavailable. The availability
 // is determined by the cluster membership state of the machine that the container is running on.
 // TODO: implement machine membership check using Corrossion Admin client.
-func (c *Controller) filterAvailableContainers(containerRecords []*store.ContainerRecord) ([]*api.Container, error) {
-	containers := make([]*api.Container, len(containerRecords))
+func (c *Controller) filterAvailableContainers(containerRecords []store.ContainerRecord) ([]api.Container, error) {
+	containers := make([]api.Container, len(containerRecords))
 	for i, cr := range containerRecords {
 		containers[i] = cr.Container
 	}
 	return containers, nil
 }
 
-func (c *Controller) generateConfig(containers []*api.Container) error {
+func (c *Controller) generateConfig(containers []api.Container) error {
 	// Maps hostnames to lists of upstreams (container IP:port pairs).
 	httpHostUpstreams := make(map[string][]string)
 	httpsHostUpstreams := make(map[string][]string)

@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/netip"
@@ -13,81 +14,111 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("exited", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "exited",
-			Status: "Exited (0) 2 minutes ago",
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Running:  false,
+					Dead:     false,
+					ExitCode: 0,
+				},
+			},
 		}}
 		assert.False(t, c.Healthy())
 	})
 
 	t.Run("running with no health check", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Up 5 minutes",
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Running: true,
+				},
+			},
 		}}
 		assert.True(t, c.Healthy())
 	})
 
 	t.Run("running and healthy", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Up 3 minutes (healthy)",
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Running: true,
+					Health: &types.Health{
+						Status: types.Healthy,
+					},
+				},
+			},
 		}}
 		assert.True(t, c.Healthy())
 	})
 
 	t.Run("running but unhealthy", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Up 2 hours (unhealthy)",
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Running: true,
+					Health: &types.Health{
+						Status: types.Unhealthy,
+					},
+				},
+			},
 		}}
 		assert.False(t, c.Healthy())
 	})
 
 	t.Run("running with health starting", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Up 1 minute (health: starting)",
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Running: true,
+					Health: &types.Health{
+						Status: "starting",
+					},
+				},
+			},
 		}}
 		assert.False(t, c.Healthy())
 	})
 
-	t.Run("invalid up format no time", func(t *testing.T) {
+	t.Run("dead", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Up",
-		}}
-		assert.False(t, c.Healthy())
-	})
-
-	t.Run("invalid up format empty parentheses", func(t *testing.T) {
-		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Up 5 minutes ()",
-		}}
-		assert.False(t, c.Healthy())
-	})
-
-	t.Run("malformed status", func(t *testing.T) {
-		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Invalid status",
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Dead:    true,
+					Running: false,
+				},
+			},
 		}}
 		assert.False(t, c.Healthy())
 	})
 
 	t.Run("restarting", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{Container: types.Container{
-			State:  "running",
-			Status: "Restarting (0) 5 seconds ago",
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Restarting: true,
+					Running:    true,
+					ExitCode:   1,
+				},
+			},
+		}}
+		assert.False(t, c.Healthy())
+	})
+
+	t.Run("paused", func(t *testing.T) {
+		t.Parallel()
+		c := &Container{ContainerJSON: types.ContainerJSON{
+			ContainerJSONBase: &types.ContainerJSONBase{
+				State: &types.ContainerState{
+					Paused:  true,
+					Running: true,
+				},
+			},
 		}}
 		assert.False(t, c.Healthy())
 	})
@@ -248,15 +279,15 @@ func TestContainer_ConflictingServicePorts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			container := &Container{
-				Container: types.Container{
+			ctr := &Container{ContainerJSON: types.ContainerJSON{
+				Config: &container.Config{
 					Labels: map[string]string{
 						LabelServicePorts: tt.containerPorts,
 					},
 				},
-			}
+			}}
 
-			got, err := container.ConflictingServicePorts(tt.checkPorts)
+			got, err := ctr.ConflictingServicePorts(tt.checkPorts)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
