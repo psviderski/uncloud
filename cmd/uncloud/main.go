@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"strings"
+	"uncloud/cmd/uncloud/caddy"
 	"uncloud/cmd/uncloud/machine"
 	"uncloud/cmd/uncloud/service"
 	"uncloud/internal/cli"
@@ -41,6 +42,7 @@ func main() {
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "toml")
 
 	cmd.AddCommand(
+		caddy.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
 		service.NewInspectCommand(),
