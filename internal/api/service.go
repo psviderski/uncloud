@@ -39,6 +39,7 @@ func (s *ServiceSpec) Validate() error {
 }
 
 func (s *ServiceSpec) Equals(spec ServiceSpec) bool {
+	// TODO: ignore order of ports.
 	return reflect.DeepEqual(*s, spec)
 }
 

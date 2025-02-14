@@ -58,10 +58,24 @@ func (c *Container) ServicePorts() ([]PortSpec, error) {
 	return ports, nil
 }
 
-func (c *Container) ServiceSpec() ServiceSpec {
-	// TODO: migrate api.Container type to use ContainerJSON to make it possible to construct
-	// a ServiceSpec from a Container.
-	return ServiceSpec{}
+// ServiceSpec constructs a service spec from the container's configuration.
+func (c *Container) ServiceSpec() (ServiceSpec, error) {
+	ports, err := c.ServicePorts()
+	if err != nil {
+		return ServiceSpec{}, fmt.Errorf("get service ports: %w", err)
+	}
+
+	return ServiceSpec{
+		Container: ContainerSpec{
+			Command: c.Config.Cmd,
+			Image:   c.Config.Image,
+			Init:    c.HostConfig.Init,
+			Volumes: c.HostConfig.Binds,
+		},
+		Mode:  c.ServiceMode(),
+		Name:  c.ServiceName(),
+		Ports: ports,
+	}, nil
 }
 
 // Healthy determines if the container is running and healthy.

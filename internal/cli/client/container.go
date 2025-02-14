@@ -47,8 +47,8 @@ func (cli *Client) CreateContainer(
 			api.LabelManaged:     "",
 		},
 	}
-	if spec.Mode == api.ServiceModeGlobal {
-		config.Labels[api.LabelServiceMode] = api.ServiceModeGlobal
+	if spec.Mode != "" {
+		config.Labels[api.LabelServiceMode] = spec.Mode
 	}
 
 	if len(spec.Ports) > 0 {

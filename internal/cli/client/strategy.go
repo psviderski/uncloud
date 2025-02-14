@@ -120,7 +120,10 @@ func reconcileGlobalContainer(
 			continue
 		}
 
-		svcSpec := c.Container.ServiceSpec()
+		svcSpec, err := c.Container.ServiceSpec()
+		if err != nil {
+			return nil, fmt.Errorf("get service spec: %w", err)
+		}
 		if svcSpec.Equals(spec) {
 			// The container is already running with the same spec.
 			upToDate = true

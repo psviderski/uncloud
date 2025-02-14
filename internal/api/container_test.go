@@ -6,8 +6,54 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/netip"
+	"reflect"
 	"testing"
 )
+
+func TestContainer_ServiceSpec(t *testing.T) {
+	t.Parallel()
+
+	init := true
+	ctr := &Container{ContainerJSON: types.ContainerJSON{
+		ContainerJSONBase: &types.ContainerJSONBase{
+			HostConfig: &container.HostConfig{
+				Binds: []string{"/host/path:/container/path"},
+				Init:  &init,
+			},
+		},
+		Config: &container.Config{
+			Cmd:   []string{"/app/server"},
+			Image: "app:latest",
+			Labels: map[string]string{
+				LabelServiceID:    "test-service-id",
+				LabelServiceName:  "test-service-name",
+				LabelServicePorts: "app.example.com:8000/https",
+			},
+		},
+	}}
+
+	expectedSpec := ServiceSpec{
+		Container: ContainerSpec{
+			Command: []string{"/app/server"},
+			Image:   "app:latest",
+			Init:    &init,
+			Volumes: []string{"/host/path:/container/path"},
+		},
+		Name: "test-service-name",
+		Ports: []PortSpec{
+			{
+				Hostname:      "app.example.com",
+				ContainerPort: 8000,
+				Protocol:      ProtocolHTTPS,
+				Mode:          PortModeIngress,
+			},
+		},
+	}
+
+	spec, err := ctr.ServiceSpec()
+	require.NoError(t, err)
+	assert.True(t, reflect.DeepEqual(spec, expectedSpec))
+}
 
 func TestContainer_Healthy(t *testing.T) {
 	t.Parallel()

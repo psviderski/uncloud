@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,13 +36,14 @@ func TestDeployment(t *testing.T) {
 			require.ErrorIs(t, err, client.ErrNotFound)
 		})
 
-		deploy, err := cli.NewDeployment(api.ServiceSpec{
+		spec := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
-		}, nil)
+		}
+		deploy, err := cli.NewDeployment(spec, nil)
 		require.NoError(t, err)
 
 		err = deploy.Validate(ctx)
@@ -53,7 +53,6 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.IsType(t, &client.SequenceOperation{}, plan)
 		assert.Len(t, plan.(*client.SequenceOperation).Operations, 3) // 3 run
-		fmt.Println("# First plan:", plan)
 
 		err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -64,8 +63,12 @@ func TestDeployment(t *testing.T) {
 		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3)
 
+		svcSpec, err := svc.Containers[0].Container.ServiceSpec()
+		require.NoError(t, err)
+		assert.True(t, svcSpec.Equals(spec))
+
 		// Deploy a published port.
-		deploy, err = cli.NewDeployment(api.ServiceSpec{
+		specWithPort := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
@@ -79,14 +82,14 @@ func TestDeployment(t *testing.T) {
 					Mode:          api.PortModeHost,
 				},
 			},
-		}, nil)
+		}
+		deploy, err = cli.NewDeployment(specWithPort, nil)
 		require.NoError(t, err)
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
 		assert.IsType(t, &client.SequenceOperation{}, plan)
 		assert.Len(t, plan.(*client.SequenceOperation).Operations, 6) // 3 run + 3 remove
-		fmt.Println("# Second plan:", plan)
 
 		err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -97,9 +100,13 @@ func TestDeployment(t *testing.T) {
 		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3)
 
+		svcSpec, err = svc.Containers[0].Container.ServiceSpec()
+		require.NoError(t, err)
+		assert.True(t, svcSpec.Equals(specWithPort))
+
 		// Deploy the same conflicting port but with container spec changes
 		init := true
-		spec := api.ServiceSpec{
+		specWithPortAndInit := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
@@ -115,14 +122,13 @@ func TestDeployment(t *testing.T) {
 				},
 			},
 		}
-		deploy, err = cli.NewDeployment(spec, nil)
+		deploy, err = cli.NewDeployment(specWithPortAndInit, nil)
 		require.NoError(t, err)
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
 		assert.IsType(t, &client.SequenceOperation{}, plan)
 		assert.Len(t, plan.(*client.SequenceOperation).Operations, 9) // 3 stop + 3 run + 3 remove
-		fmt.Println("# Third plan:", plan)
 
 		err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -133,24 +139,27 @@ func TestDeployment(t *testing.T) {
 		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3)
 
+		svcSpec, err = svc.Containers[0].Container.ServiceSpec()
+		require.NoError(t, err)
+		assert.True(t, svcSpec.Equals(specWithPortAndInit))
+
 		// Deploying the same spec should be a no-op.
-		//deploy, err = cli.NewDeployment(spec, nil)
-		//require.NoError(t, err)
-		//
-		//plan, err = deploy.Plan(ctx)
-		//require.NoError(t, err)
-		//assert.IsType(t, &client.SequenceOperation{}, plan)
-		//assert.Len(t, plan.(*client.SequenceOperation).Operations, 0) // no-op
-		//fmt.Println("# Forth plan:", plan)
-		//
-		//err = deploy.Run(ctx)
-		//require.NoError(t, err)
-		//
-		//svc, err = cli.InspectService(ctx, name)
-		//require.NoError(t, err)
-		//assert.Equal(t, name, svc.Name)
-		//assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
-		//assert.Len(t, svc.Containers, 3)
+		deploy, err = cli.NewDeployment(specWithPortAndInit, nil)
+		require.NoError(t, err)
+
+		plan, err = deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.IsType(t, &client.SequenceOperation{}, plan)
+		assert.Len(t, plan.(*client.SequenceOperation).Operations, 0) // no-op
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err = cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assert.Equal(t, name, svc.Name)
+		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
+		assert.Len(t, svc.Containers, 3)
 	})
 }
 
