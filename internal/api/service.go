@@ -53,8 +53,7 @@ type ContainerSpec struct {
 }
 
 func (s *ContainerSpec) Validate() error {
-	_, err := reference.ParseDockerRef(s.Image)
-	if err != nil {
+	if _, err := reference.ParseDockerRef(s.Image); err != nil {
 		return fmt.Errorf("invalid image: %w", err)
 	}
 

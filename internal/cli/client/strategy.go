@@ -14,7 +14,7 @@ import (
 type Strategy interface {
 	// Plan returns the operation to reconcile the service to the desired state.
 	// If the service does not exist (new deployment), svc will be nil.
-	Plan(ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec) (Operation, error)
+	Plan(ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec) (Plan, error)
 }
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
@@ -23,22 +23,22 @@ type RollingStrategy struct{}
 
 func (s *RollingStrategy) Plan(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
-) (Operation, error) {
+) (Plan, error) {
 	switch spec.Mode {
 	case "", api.ServiceModeReplicated:
 		return s.planReplicated(ctx, cli, svc, spec)
 	case api.ServiceModeGlobal:
 		return s.planGlobal(ctx, cli, svc, spec)
 	default:
-		return nil, fmt.Errorf("unsupported service mode: %s", spec.Mode)
+		return Plan{}, fmt.Errorf("unsupported service mode: %s", spec.Mode)
 	}
 }
 
 // planReplicated creates a plan for a replicated service deployment.
 func (s *RollingStrategy) planReplicated(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
-) (Operation, error) {
-	return nil, errors.New("not implemented")
+) (Plan, error) {
+	return Plan{}, errors.New("not implemented")
 }
 
 // planGlobal creates a plan for a global service deployment, ensuring one container runs on each available machine.
@@ -48,33 +48,34 @@ func (s *RollingStrategy) planReplicated(
 // that are down.
 func (s *RollingStrategy) planGlobal(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
-) (Operation, error) {
-	serviceID := ""
+) (Plan, error) {
+	var plan Plan
 	// Map machineID to service containers on that machine. For the global mode, there should be at most one
 	// container per machine but we use a slice to handle multiple containers that may exist due to a bug
 	// or interruption in the previous deployment.
 	containersOnMachine := make(map[string][]api.MachineContainer)
 	if svc != nil {
-		serviceID = svc.ID
+		plan.ServiceID = svc.ID
 		for _, c := range svc.Containers {
 			containersOnMachine[c.MachineID] = append(containersOnMachine[c.MachineID], c)
 		}
 	} else {
 		// Generate a new service ID for the first service deployment.
 		var err error
-		serviceID, err = secret.NewID()
+		plan.ServiceID, err = secret.NewID()
 		if err != nil {
-			return nil, fmt.Errorf("generate service ID: %w", err)
+			return plan, fmt.Errorf("generate service ID: %w", err)
 		}
 	}
 
 	machines, err := cli.ListMachines(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list machines: %w", err)
+		return plan, fmt.Errorf("list machines: %w", err)
 	}
 
-	plan := &SequenceOperation{}
-	// TODO: figure out how to return a warning if there are machines down.
+	seqOp := &SequenceOperation{}
+	// TODO: figure out how to return a warning if there are machines down. Embed the machinesDown in the plan?
+	//  WARNING: failed to run a service container on machine '%s' which is Down.
 	var machinesDown []*pb.MachineInfo
 	for _, m := range machines {
 		// Skip machines that are down but collect them to report a warning later.
@@ -84,12 +85,13 @@ func (s *RollingStrategy) planGlobal(
 		}
 
 		containers := containersOnMachine[m.Machine.Id]
-		ops, err := reconcileGlobalContainer(containers, spec, serviceID, m.Machine.Id)
+		ops, err := reconcileGlobalContainer(containers, spec, plan.ServiceID, m.Machine.Id)
 		if err != nil {
-			return nil, err
+			return plan, err
 		}
-		plan.Operations = append(plan.Operations, ops...)
+		seqOp.Operations = append(seqOp.Operations, ops...)
 	}
+	plan.Operation = seqOp
 
 	return plan, nil
 }

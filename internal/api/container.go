@@ -20,6 +20,11 @@ type Container struct {
 	types.ContainerJSON
 }
 
+// NameWithoutSlash returns the container name without the leading slash.
+func (c *Container) NameWithoutSlash() string {
+	return c.Name[1:]
+}
+
 // ServiceID returns the ID of the service this container belongs to.
 func (c *Container) ServiceID() string {
 	return c.Config.Labels[LabelServiceID]

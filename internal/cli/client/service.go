@@ -20,14 +20,8 @@ import (
 )
 
 type RunServiceResponse struct {
-	ID         string
-	Name       string
-	Containers []MachineContainerID
-}
-
-type MachineContainerID struct {
-	MachineID   string
-	ContainerID string
+	ID   string
+	Name string
 }
 
 func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
@@ -77,7 +71,21 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 		case "", api.ServiceModeReplicated:
 			resp, err = cli.runReplicatedService(ctx, serviceID, spec)
 		case api.ServiceModeGlobal:
-			resp, err = cli.runGlobalService(ctx, serviceID, spec)
+			deploy, err := cli.NewDeployment(spec, &RollingStrategy{})
+			if err != nil {
+				return fmt.Errorf("create deployment: %w", err)
+			}
+
+			serviceID, err = deploy.Run(ctx)
+			if err != nil {
+				return err
+			}
+
+			resp.ID = serviceID
+			// TODO: get the service name from the plan when it's available.
+			resp.Name = spec.Name
+
+			return nil
 		default:
 			return fmt.Errorf("invalid mode: %q", spec.Mode)
 		}
@@ -120,15 +128,9 @@ func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api
 		return resp, errors.New("no available machine to run the service")
 	}
 
-	runResp, err := cli.runContainer(ctx, id, spec, m.Machine)
-	if err != nil {
+	if _, err = cli.runContainer(ctx, id, spec, m.Machine); err != nil {
 		return resp, fmt.Errorf("run container: %w", err)
 	}
-
-	resp.Containers = append(resp.Containers, MachineContainerID{
-		MachineID:   m.Machine.Id,
-		ContainerID: runResp.ID,
-	})
 
 	return resp, nil
 }
@@ -148,61 +150,6 @@ func firstAvailableMachine(machines []*pb.MachineMember) *pb.MachineMember {
 	}
 
 	return nil
-}
-
-func (cli *Client) runGlobalService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
-	resp := RunServiceResponse{
-		ID:   id,
-		Name: spec.Name,
-	}
-
-	machines, err := cli.ListMachines(ctx)
-	if err != nil {
-		return resp, fmt.Errorf("list machines: %w", err)
-	}
-
-	wg := sync.WaitGroup{}
-	errCh := make(chan error)
-	mu := sync.Mutex{}
-
-	// Run a service container on each available machine.
-	for _, m := range machines {
-		if m.State != pb.MachineMember_UP && m.State != pb.MachineMember_SUSPECT {
-			// TODO: return failed machines in the response.
-			fmt.Printf("WARNING: failed to run a service container on machine '%s' which is Down.\n", m.Machine.Name)
-			continue
-		}
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			runResp, err := cli.runContainer(ctx, id, spec, m.Machine)
-			if err != nil {
-				errCh <- fmt.Errorf("run container on machine '%s': %w", m.Machine.Name, err)
-				return
-			}
-
-			mu.Lock()
-			resp.Containers = append(resp.Containers, MachineContainerID{
-				MachineID:   m.Machine.Id,
-				ContainerID: runResp.ID,
-			})
-			mu.Unlock()
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(errCh)
-	}()
-
-	err = nil
-	for e := range errCh {
-		err = errors.Join(err, e)
-	}
-
-	return resp, err
 }
 
 func (cli *Client) runContainer(

@@ -51,11 +51,12 @@ func TestDeployment(t *testing.T) {
 
 		plan, err := deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan)
-		assert.Len(t, plan.(*client.SequenceOperation).Operations, 3) // 3 run
+		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
+		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 3) // 3 run
 
-		err = deploy.Run(ctx)
+		svcID, err := deploy.Run(ctx)
 		require.NoError(t, err)
+		assert.NotEmpty(t, svcID)
 
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -88,11 +89,12 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan)
-		assert.Len(t, plan.(*client.SequenceOperation).Operations, 6) // 3 run + 3 remove
+		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
+		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 6) // 3 run + 3 remove
 
-		err = deploy.Run(ctx)
+		svcID, err = deploy.Run(ctx)
 		require.NoError(t, err)
+		assert.NotEmpty(t, svcID)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -127,11 +129,12 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan)
-		assert.Len(t, plan.(*client.SequenceOperation).Operations, 9) // 3 stop + 3 run + 3 remove
+		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
+		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 9) // 3 stop + 3 run + 3 remove
 
-		err = deploy.Run(ctx)
+		svcID, err = deploy.Run(ctx)
 		require.NoError(t, err)
+		assert.NotEmpty(t, svcID)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -149,11 +152,12 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan)
-		assert.Len(t, plan.(*client.SequenceOperation).Operations, 0) // no-op
+		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
+		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 0) // no-op
 
-		err = deploy.Run(ctx)
+		svcID, err = deploy.Run(ctx)
 		require.NoError(t, err)
+		assert.NotEmpty(t, svcID)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -235,7 +239,6 @@ func TestRunService(t *testing.T) {
 
 		assert.NotEmpty(t, resp.ID)
 		assert.Equal(t, name, resp.Name)
-		assert.Len(t, resp.Containers, 1)
 
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -340,7 +343,6 @@ func TestRunService(t *testing.T) {
 
 		assert.NotEmpty(t, resp.ID)
 		assert.Equal(t, name, resp.Name)
-		assert.Len(t, resp.Containers, 3, "expected 1 container on each machine")
 
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
