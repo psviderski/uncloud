@@ -22,7 +22,7 @@ type Deployment struct {
 
 type Plan struct {
 	ServiceID string
-	Operation
+	SequenceOperation
 }
 
 // NewDeployment creates a new deployment for the given service specification.

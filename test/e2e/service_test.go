@@ -51,8 +51,7 @@ func TestDeployment(t *testing.T) {
 
 		plan, err := deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
-		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 3) // 3 run
+		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 run
 
 		svcID, err := deploy.Run(ctx)
 		require.NoError(t, err)
@@ -89,8 +88,7 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
-		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 6) // 3 run + 3 remove
+		assert.Len(t, plan.SequenceOperation.Operations, 6) // 3 run + 3 remove
 
 		svcID, err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -129,8 +127,7 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
-		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 9) // 3 stop + 3 run + 3 remove
+		assert.Len(t, plan.SequenceOperation.Operations, 9) // 3 stop + 3 run + 3 remove
 
 		svcID, err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -152,8 +149,7 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.IsType(t, &client.SequenceOperation{}, plan.Operation)
-		assert.Len(t, plan.Operation.(*client.SequenceOperation).Operations, 0) // no-op
+		assert.Len(t, plan.SequenceOperation.Operations, 0) // no-op
 
 		svcID, err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -164,6 +160,51 @@ func TestDeployment(t *testing.T) {
 		assert.Equal(t, name, svc.Name)
 		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3)
+	})
+
+	t.Run("caddy", func(t *testing.T) {
+		t.Parallel()
+
+		name := "caddy"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		deploy, err := cli.NewCaddyDeployment("")
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assert.Equal(t, name, svc.Name)
+		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
+		assert.Len(t, svc.Containers, 3)
+
+		ctr := svc.Containers[0].Container
+		assert.Equal(t, "caddy:latest", ctr.Config.Image)
+
+		ports, err := ctr.ServicePorts()
+		require.NoError(t, err)
+		expectedPorts := []api.PortSpec{
+			{
+				PublishedPort: 80,
+				ContainerPort: 80,
+				Protocol:      api.ProtocolTCP,
+				Mode:          api.PortModeHost,
+			},
+			{
+				PublishedPort: 443,
+				ContainerPort: 443,
+				Protocol:      api.ProtocolTCP,
+				Mode:          api.PortModeHost,
+			},
+		}
+		assert.Equal(t, expectedPorts, ports)
 	})
 }
 

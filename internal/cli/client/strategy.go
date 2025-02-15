@@ -73,7 +73,6 @@ func (s *RollingStrategy) planGlobal(
 		return plan, fmt.Errorf("list machines: %w", err)
 	}
 
-	seqOp := &SequenceOperation{}
 	// TODO: figure out how to return a warning if there are machines down. Embed the machinesDown in the plan?
 	//  WARNING: failed to run a service container on machine '%s' which is Down.
 	var machinesDown []*pb.MachineInfo
@@ -89,9 +88,8 @@ func (s *RollingStrategy) planGlobal(
 		if err != nil {
 			return plan, err
 		}
-		seqOp.Operations = append(seqOp.Operations, ops...)
+		plan.SequenceOperation.Operations = append(plan.SequenceOperation.Operations, ops...)
 	}
-	plan.Operation = seqOp
 
 	return plan, nil
 }

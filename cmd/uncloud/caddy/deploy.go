@@ -3,6 +3,7 @@ package caddy
 import (
 	"context"
 	"fmt"
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
 	"uncloud/internal/cli"
 )
@@ -43,9 +44,25 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 	defer client.Close()
 
-	if err = client.DeployCaddy(ctx, opts.image); err != nil {
-		return fmt.Errorf("deploy caddy: %w", err)
+	d, err := client.NewCaddyDeployment(opts.image)
+	if err != nil {
+		return fmt.Errorf("create caddy deployment: %w", err)
 	}
 
-	return nil
+	plan, err := d.Plan(ctx)
+	if err != nil {
+		return fmt.Errorf("plan caddy deployment: %w", err)
+	}
+
+	if len(plan.SequenceOperation.Operations) == 0 {
+		fmt.Println("caddy service is up to date.")
+		return nil
+	}
+
+	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
+		if _, err = d.Run(ctx); err != nil {
+			return fmt.Errorf("deploy caddy: %w", err)
+		}
+		return nil
+	}, uncli.ProgressOut(), "Deploying service "+d.Spec.Name)
 }

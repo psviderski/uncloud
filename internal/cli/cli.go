@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/cli/cli/streams"
 	"net/netip"
+	"os"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/client/connector"
 	"uncloud/internal/cli/config"
@@ -327,4 +329,9 @@ func (cli *CLI) promptResetMachine() error {
 	}
 	// TODO: implement resetting the remote machine.
 	return fmt.Errorf("resetting the remote machine is not implemented yet")
+}
+
+// ProgressOut returns an output stream for progress writer.
+func (cli *CLI) ProgressOut() *streams.Out {
+	return streams.NewOut(os.Stdout)
 }
