@@ -186,7 +186,7 @@ func TestDeployment(t *testing.T) {
 		assert.Len(t, svc.Containers, 3)
 
 		ctr := svc.Containers[0].Container
-		assert.Equal(t, "caddy:latest", ctr.Config.Image)
+		assert.Regexp(t, `^caddy:2\.\d+\.\d+$`, ctr.Config.Image)
 
 		ports, err := ctr.ServicePorts()
 		require.NoError(t, err)
