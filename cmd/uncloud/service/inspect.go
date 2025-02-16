@@ -89,7 +89,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 			tw,
 			"%s\t%s\t%s\t%s\t%s\n",
 			stringid.TruncateID(ctr.Container.ID),
-			ctr.Container.Image,
+			ctr.Container.Config.Image,
 			created,
 			state,
 			machine,
