@@ -2,10 +2,16 @@ package caddy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/charmbracelet/huh"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
+	"maps"
+	"slices"
+	"strings"
 	"uncloud/internal/cli"
+	"uncloud/internal/cli/client"
 )
 
 type deployOptions struct {
@@ -38,15 +44,64 @@ func NewDeployCommand() *cobra.Command {
 }
 
 func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer client.Close()
+	defer clusterClient.Close()
 
-	d, err := client.NewCaddyDeployment(opts.image)
+	svc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
+	if err != nil {
+		if !errors.Is(err, client.ErrNotFound) {
+			return fmt.Errorf("inspect caddy service: %w", err)
+		}
+		fmt.Printf("Service: %s (not running)\n", client.CaddyServiceName)
+	} else {
+		fmt.Printf("Service: %s (%s mode)\n", svc.Name, svc.Mode)
+
+		// Collect unique images of all containers in the running caddy service.
+		images := make(map[string]struct{}, len(svc.Containers))
+		for _, c := range svc.Containers {
+			images[c.Container.Config.Image] = struct{}{}
+		}
+		currentImages := slices.Collect(maps.Keys(images))
+
+		if len(currentImages) > 1 {
+			commaSeparatedImages := strings.Join(currentImages, ", ")
+			fmt.Printf("Current images (multiple versions detected): %s\n", commaSeparatedImages)
+		} else {
+			fmt.Printf("Current image: %s\n", currentImages[0])
+		}
+	}
+
+	if opts.image != "" {
+		fmt.Printf("Target image: %s\n", opts.image)
+	}
+
+	fmt.Println()
+	fmt.Println("Preparing a deployment plan...")
+	d, err := clusterClient.NewCaddyDeployment(opts.image)
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
+	}
+
+	// Initialize a machine and container name resolver to properly format the plan output.
+	machines, err := clusterClient.ListMachines(ctx)
+	if err != nil {
+		return fmt.Errorf("list machines: %w", err)
+	}
+	machineNames := make(map[string]string, len(machines))
+	for _, m := range machines {
+		machineNames[m.Machine.Id] = m.Machine.Name
+	}
+	containerNames := make(map[string]string, len(svc.Containers))
+	for _, c := range svc.Containers {
+		containerNames[c.Container.ID] = c.Container.NameWithoutSlash()
+	}
+	resolver := client.NewNameResolver(machineNames, containerNames)
+
+	if opts.image == "" {
+		fmt.Printf("Target image: %s (latest stable)\n", d.Spec.Container.Image)
 	}
 
 	plan, err := d.Plan(ctx)
@@ -55,7 +110,27 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	if len(plan.SequenceOperation.Operations) == 0 {
-		fmt.Println("caddy service is up to date.")
+		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
+		return nil
+	}
+
+	if svc.ID == "" {
+		fmt.Println("This will run a Caddy container on each machine.")
+	} else {
+		fmt.Println("This will perform a rolling update of Caddy containers on each machine.")
+	}
+	fmt.Println()
+
+	fmt.Println("Deployment plan:")
+	fmt.Println(plan.Format(resolver))
+	fmt.Println()
+
+	confirmed, err := confirm()
+	if err != nil {
+		return fmt.Errorf("confirm deployment: %w", err)
+	}
+	if !confirmed {
+		fmt.Println("Cancelled. No changes were made.")
 		return nil
 	}
 
@@ -64,5 +139,25 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 			return fmt.Errorf("deploy caddy: %w", err)
 		}
 		return nil
-	}, uncli.ProgressOut(), "Deploying service "+d.Spec.Name)
+	}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s (%s mode)", d.Spec.Name, d.Spec.Mode))
+}
+
+func confirm() (bool, error) {
+	var confirmed bool
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(
+					"Do you want to continue?",
+				).
+				Affirmative("Yes!").
+				Negative("No").
+				Value(&confirmed),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return false, err
+	}
+
+	return confirmed, nil
 }

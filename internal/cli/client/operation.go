@@ -12,7 +12,14 @@ import (
 // Operations can be composed to form complex deployment strategies.
 type Operation interface {
 	Execute(ctx context.Context, cli *Client) error
+	// Format returns a human-readable representation of the operation.
+	Format(resolver NameResolver) string
 	String() string
+}
+
+type NameResolver interface {
+	MachineName(machineID string) string
+	ContainerName(containerID string) string
 }
 
 // RunContainerOperation creates and starts a new container on a specific machine.
@@ -36,8 +43,14 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli *Client) error 
 	return nil
 }
 
+func (o *RunContainerOperation) Format(resolver NameResolver) string {
+	machineName := resolver.MachineName(o.MachineID)
+	return fmt.Sprintf("%s: Run container [image=%s]", machineName, o.Spec.Container.Image)
+}
+
 func (o *RunContainerOperation) String() string {
-	return fmt.Sprintf("RunContainerOperation[%s, %s, %s]", o.ServiceID, o.Spec.Name, o.MachineID)
+	return fmt.Sprintf("RunContainerOperation[service_id=%s, image=%s, machine_id=%s]",
+		o.ServiceID, o.Spec.Container.Image, o.MachineID)
 }
 
 // StopContainerOperation stops a container on a specific machine.
@@ -54,8 +67,14 @@ func (o *StopContainerOperation) Execute(ctx context.Context, cli *Client) error
 	return nil
 }
 
+func (o *StopContainerOperation) Format(resolver NameResolver) string {
+	machineName := resolver.MachineName(o.MachineID)
+	return fmt.Sprintf("%s: Stop container [name=%s]", machineName, resolver.ContainerName(o.ContainerID))
+}
+
 func (o *StopContainerOperation) String() string {
-	return fmt.Sprintf("StopContainerOperation[%s, %s, %s]", o.ServiceID, o.ContainerID, o.MachineID)
+	return fmt.Sprintf("StopContainerOperation[service_id=%s, container_id=%s, machine_id=%s]",
+		o.ServiceID, o.ContainerID, o.MachineID)
 }
 
 // RemoveContainerOperation stops and removes a container from a specific machine.
@@ -76,8 +95,14 @@ func (o *RemoveContainerOperation) Execute(ctx context.Context, cli *Client) err
 	return nil
 }
 
+func (o *RemoveContainerOperation) Format(resolver NameResolver) string {
+	machineName := resolver.MachineName(o.MachineID)
+	return fmt.Sprintf("%s: Remove container [name=%s]", machineName, resolver.ContainerName(o.ContainerID))
+}
+
 func (o *RemoveContainerOperation) String() string {
-	return fmt.Sprintf("RemoveContainerOperation[%s, %s, %s]", o.ServiceID, o.ContainerID, o.MachineID)
+	return fmt.Sprintf("RemoveContainerOperation[service_id=%s, container_id=%s, machine_id=%s]",
+		o.ServiceID, o.ContainerID, o.MachineID)
 }
 
 // SequenceOperation is a composite operation that executes a sequence of operations in order.
@@ -94,6 +119,15 @@ func (o *SequenceOperation) Execute(ctx context.Context, cli *Client) error {
 	return nil
 }
 
+func (o *SequenceOperation) Format(resolver NameResolver) string {
+	ops := make([]string, len(o.Operations))
+	for i, op := range o.Operations {
+		ops[i] = "- " + op.Format(resolver)
+	}
+
+	return strings.Join(ops, "\n")
+}
+
 func (o *SequenceOperation) String() string {
 	ops := make([]string, len(o.Operations))
 	for i, op := range o.Operations {
@@ -101,4 +135,31 @@ func (o *SequenceOperation) String() string {
 	}
 
 	return fmt.Sprintf("SequenceOperation[%s]", strings.Join(ops, ", "))
+}
+
+// MapNameResolver resolves machine and container IDs to their names using a static map.
+type MapNameResolver struct {
+	machines   map[string]string
+	containers map[string]string
+}
+
+func NewNameResolver(machines, containers map[string]string) *MapNameResolver {
+	return &MapNameResolver{
+		machines:   machines,
+		containers: containers,
+	}
+}
+
+func (r *MapNameResolver) MachineName(machineID string) string {
+	if name, ok := r.machines[machineID]; ok {
+		return name
+	}
+	return machineID
+}
+
+func (r *MapNameResolver) ContainerName(containerID string) string {
+	if name, ok := r.containers[containerID]; ok {
+		return name
+	}
+	return containerID
 }
