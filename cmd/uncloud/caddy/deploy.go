@@ -28,7 +28,7 @@ func NewDeployCommand() *cobra.Command {
 		Use:   "deploy",
 		Short: "Deploy or upgrade Caddy reverse proxy across all machines in the cluster.",
 		Long: "Deploy or upgrade Caddy reverse proxy across all machines in the cluster.\n" +
-			"It performs a rolling update if Caddy is already running.",
+			"A rolling update is performed when updating existing containers to minimise disruption.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return deploy(cmd.Context(), uncli, opts)
@@ -120,18 +120,33 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 	plan, err := d.Plan(ctx)
 	if err != nil {
+		if errors.Is(err, client.ErrNoMatchingMachines) {
+			return fmt.Errorf("no machines found matching: %s", opts.machine)
+		}
 		return fmt.Errorf("plan caddy deployment: %w", err)
 	}
 
 	if len(plan.SequenceOperation.Operations) == 0 {
-		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
+		if opts.machine != "" {
+			fmt.Printf("%s service is up to date on selected machines.\n", client.CaddyServiceName)
+		} else {
+			fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
+		}
 		return nil
 	}
 
 	if svc.ID == "" {
-		fmt.Println("This will run a Caddy container on each machine.")
+		if opts.machine != "" {
+			fmt.Println("This will run a Caddy container on selected machines.")
+		} else {
+			fmt.Println("This will run a Caddy container on each machine.")
+		}
 	} else {
-		fmt.Println("This will perform a rolling update of Caddy containers on each machine.")
+		if opts.machine != "" {
+			fmt.Println("This will perform a rolling update of Caddy containers on selected machines.")
+		} else {
+			fmt.Println("This will perform a rolling update of Caddy containers on each machine.")
+		}
 	}
 	fmt.Println()
 

@@ -30,6 +30,8 @@ type Plan struct {
 // machines that should be included.
 type MachineFilter func(m *pb.MachineInfo) bool
 
+var ErrNoMatchingMachines = errors.New("no machines match the filter")
+
 // NewDeployment creates a new deployment for the given service specification.
 // If strategy is nil, a default RollingStrategy will be used.
 func (cli *Client) NewDeployment(spec api.ServiceSpec, strategy Strategy) (*Deployment, error) {
@@ -81,7 +83,7 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 
 	plan, err := d.Strategy.Plan(ctx, d.cli, d.Service, d.Spec)
 	if err != nil {
-		return Plan{}, fmt.Errorf("create plan using %T: %w", d.Strategy, err)
+		return Plan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
 	}
 	d.plan = &plan
 

@@ -13,6 +13,8 @@ import (
 // Strategy defines how a service should be deployed or updated. Different implementations can provide various
 // deployment patterns such as rolling updates, blue/green deployments, etc.
 type Strategy interface {
+	// Type returns the type of the deployment strategy, e.g. "rolling", "blue-green".
+	Type() string
 	// Plan returns the operation to reconcile the service to the desired state.
 	// If the service does not exist (new deployment), svc will be nil.
 	Plan(ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec) (Plan, error)
@@ -23,6 +25,10 @@ type Strategy interface {
 type RollingStrategy struct {
 	// MachineFilter optionally restricts which machines participate in this deployment.
 	MachineFilter MachineFilter
+}
+
+func (s *RollingStrategy) Type() string {
+	return "rolling"
 }
 
 func (s *RollingStrategy) Plan(
@@ -81,6 +87,9 @@ func (s *RollingStrategy) planGlobal(
 		machines = slices.DeleteFunc(machines, func(m *pb.MachineMember) bool {
 			return !s.MachineFilter(m.Machine)
 		})
+		if len(machines) == 0 {
+			return plan, ErrNoMatchingMachines
+		}
 	}
 
 	// TODO: figure out how to return a warning if there are machines down. Embed the machinesDown in the plan?
