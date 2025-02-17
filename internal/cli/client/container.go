@@ -10,6 +10,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
+	"google.golang.org/grpc/status"
 	"strconv"
 	"strings"
 	"uncloud/internal/api"
@@ -127,14 +128,15 @@ func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName
 
 	pullCh, err := cli.Docker.PullImage(ctx, image)
 	if err != nil {
+		statusErr := status.Convert(err)
 		pw.Event(progress.Event{
 			ID:         eventID,
 			ParentID:   parentEventID,
 			Text:       "Error",
 			Status:     progress.Error,
-			StatusText: errors.Unwrap(err).Error(),
+			StatusText: statusErr.Message(),
 		})
-		return fmt.Errorf("pull image: %w", err)
+		return fmt.Errorf("pull image: %w", errors.New(statusErr.Message()))
 	}
 
 	// Wait for pull to complete by reading all progress messages and converting them to events.
@@ -147,14 +149,15 @@ func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName
 			}
 		}
 		if err != nil {
+			statusErr := status.Convert(err)
 			pw.Event(progress.Event{
 				ID:         eventID,
 				ParentID:   parentEventID,
 				Text:       "Error",
 				Status:     progress.Error,
-				StatusText: errors.Unwrap(err).Error(),
+				StatusText: statusErr.Message(),
 			})
-			return fmt.Errorf("pull image: %w", err)
+			return fmt.Errorf("pull image: %w", errors.New(statusErr.Message()))
 		}
 
 		// TODO: add like in compose: --quiet-pull Pull without printing progress information
