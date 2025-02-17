@@ -12,10 +12,12 @@ import (
 	"strings"
 	"uncloud/internal/cli"
 	"uncloud/internal/cli/client"
+	"uncloud/internal/machine/api/pb"
 )
 
 type deployOptions struct {
 	image   string
+	machine string
 	cluster string
 }
 
@@ -35,6 +37,8 @@ func NewDeployCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.image, "image", "",
 		"Caddy Docker image to deploy. (default caddy:LATEST_VERSION)")
+	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
+		"Machine names to deploy to (comma-separated). (default is all machines)")
 	cmd.Flags().StringVarP(
 		&opts.cluster, "cluster", "c", "",
 		"Name of the cluster to deploy to. (default is the current cluster)",
@@ -80,7 +84,17 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 	fmt.Println()
 	fmt.Println("Preparing a deployment plan...")
-	d, err := clusterClient.NewCaddyDeployment(opts.image)
+
+	var filter client.MachineFilter
+	if opts.machine != "" {
+		machines := strings.Split(opts.machine, ",")
+		for i, m := range machines {
+			machines[i] = strings.TrimSpace(m)
+		}
+		filter = machineFilter(machines)
+	}
+
+	d, err := clusterClient.NewCaddyDeployment(opts.image, filter)
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}
@@ -160,4 +174,13 @@ func confirm() (bool, error) {
 	}
 
 	return confirmed, nil
+}
+
+func machineFilter(machines []string) client.MachineFilter {
+	if len(machines) == 0 {
+		return nil
+	}
+	return func(m *pb.MachineInfo) bool {
+		return slices.Contains(machines, m.Name)
+	}
 }

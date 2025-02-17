@@ -15,7 +15,7 @@ func TestClient_NewCaddyDeployment(t *testing.T) {
 	t.Run("latest image from Docker Hub", func(t *testing.T) {
 		t.Parallel()
 
-		deploy, err := cli.NewCaddyDeployment("")
+		deploy, err := cli.NewCaddyDeployment("", nil)
 		require.NoError(t, err)
 
 		assert.Equal(t, "caddy", deploy.Spec.Name)
@@ -42,7 +42,7 @@ func TestClient_NewCaddyDeployment(t *testing.T) {
 		t.Parallel()
 
 		image := "my-caddy:1.2.3"
-		deploy, err := cli.NewCaddyDeployment(image)
+		deploy, err := cli.NewCaddyDeployment(image, nil)
 		require.NoError(t, err)
 
 		assert.Equal(t, "caddy", deploy.Spec.Name)

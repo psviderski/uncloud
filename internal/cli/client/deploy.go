@@ -7,6 +7,7 @@ import (
 	"github.com/distribution/reference"
 	"strings"
 	"uncloud/internal/api"
+	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/secret"
 )
 
@@ -24,6 +25,10 @@ type Plan struct {
 	ServiceID string
 	SequenceOperation
 }
+
+// MachineFilter determines which machines participate in a deployment operation by returning true for
+// machines that should be included.
+type MachineFilter func(m *pb.MachineInfo) bool
 
 // NewDeployment creates a new deployment for the given service specification.
 // If strategy is nil, a default RollingStrategy will be used.

@@ -22,7 +22,7 @@ var caddyImageTagRegex = regexp.MustCompile(`^2\.\d+\.\d+$`)
 // NewCaddyDeployment creates a new deployment for a Caddy reverse proxy service.
 // The service is deployed in global mode to all machines in the cluster. If the image is not provided, the latest
 // version of the official Caddy Docker image is used.
-func (cli *Client) NewCaddyDeployment(image string) (*Deployment, error) {
+func (cli *Client) NewCaddyDeployment(image string, filter MachineFilter) (*Deployment, error) {
 	latest, err := latestCaddyImage()
 	if err != nil {
 		return nil, fmt.Errorf("look up latest Caddy image: %w", err)
@@ -56,7 +56,7 @@ func (cli *Client) NewCaddyDeployment(image string) (*Deployment, error) {
 		},
 	}
 
-	return cli.NewDeployment(spec, &RollingStrategy{})
+	return cli.NewDeployment(spec, &RollingStrategy{MachineFilter: filter})
 }
 
 // latestCaddyImage returns the latest image of the official Caddy Docker image on Docker Hub.

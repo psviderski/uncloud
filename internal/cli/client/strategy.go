@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"uncloud/internal/api"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/secret"
@@ -19,7 +20,10 @@ type Strategy interface {
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
 // to minimize service disruption.
-type RollingStrategy struct{}
+type RollingStrategy struct {
+	// MachineFilter optionally restricts which machines participate in this deployment.
+	MachineFilter MachineFilter
+}
 
 func (s *RollingStrategy) Plan(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
@@ -71,6 +75,12 @@ func (s *RollingStrategy) planGlobal(
 	machines, err := cli.ListMachines(ctx)
 	if err != nil {
 		return plan, fmt.Errorf("list machines: %w", err)
+	}
+	// Filter machines if a machine filter is provided.
+	if s.MachineFilter != nil {
+		machines = slices.DeleteFunc(machines, func(m *pb.MachineMember) bool {
+			return !s.MachineFilter(m.Machine)
+		})
 	}
 
 	// TODO: figure out how to return a warning if there are machines down. Embed the machinesDown in the plan?

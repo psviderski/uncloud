@@ -9,6 +9,7 @@ import (
 	"testing"
 	"uncloud/internal/api"
 	"uncloud/internal/cli/client"
+	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/ucind"
 )
 
@@ -66,6 +67,12 @@ func TestDeployment(t *testing.T) {
 		svcSpec, err := svc.Containers[0].Container.ServiceSpec()
 		require.NoError(t, err)
 		assert.True(t, svcSpec.Equals(spec))
+
+		machines := make(map[string]struct{})
+		for _, ctr := range svc.Containers {
+			machines[ctr.MachineID] = struct{}{}
+		}
+		assert.Len(t, machines, 3, "expected 1 container on each machine")
 
 		// Deploy a published port.
 		specWithPort := api.ServiceSpec{
@@ -162,10 +169,10 @@ func TestDeployment(t *testing.T) {
 		assert.Len(t, svc.Containers, 3)
 	})
 
-	t.Run("caddy", func(t *testing.T) {
+	t.Run("global with machine filter", func(t *testing.T) {
 		t.Parallel()
 
-		name := "caddy"
+		name := "global-deployment-filtered"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if errors.Is(err, client.ErrNotFound) {
@@ -173,7 +180,16 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
-		deploy, err := cli.NewCaddyDeployment("")
+		// First deploy globally without filter to get containers on all machines.
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+		}
+
+		deploy, err := cli.NewDeployment(spec, nil)
 		require.NoError(t, err)
 
 		_, err = deploy.Run(ctx)
@@ -181,7 +197,113 @@ func TestDeployment(t *testing.T) {
 
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
-		assert.Equal(t, name, svc.Name)
+		assert.Len(t, svc.Containers, 3, "expected 1 container on each machine")
+
+		// Store initial container IDs by machine.
+		initialContainers := make(map[string]string) // machineID -> containerID
+		for _, ctr := range svc.Containers {
+			initialContainers[ctr.MachineID] = ctr.Container.ID
+		}
+
+		// Update spec with Init=true, but only deploy to machines #0 and #2.
+		init := true
+		specWithInit := spec
+		specWithInit.Container.Init = &init
+
+		filter := func(m *pb.MachineInfo) bool {
+			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
+		}
+		strategy := &client.RollingStrategy{MachineFilter: filter}
+
+		deploy, err = cli.NewDeployment(specWithInit, strategy)
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err = cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assert.Len(t, svc.Containers, 3, "still 1 container on each machine")
+
+		// Verify:
+		// 1. Containers on machines #0 and #2 were updated (new IDs, init enabled)
+		// 2. Container on machine #1 remains unchanged (same ID, no init)
+		for _, ctr := range svc.Containers {
+			machine, err := cli.InspectMachine(ctx, ctr.MachineID)
+			require.NoError(t, err)
+
+			oldContainerID := initialContainers[ctr.MachineID]
+			switch machine.Machine.Name {
+			case c.Machines[0].Name, c.Machines[2].Name:
+				// These containers should be updated.
+				assert.NotEqual(t, oldContainerID, ctr.Container.ID,
+					"Container on machine %s should have been updated", machine.Machine.Name)
+
+				svcSpec, err := ctr.Container.ServiceSpec()
+				require.NoError(t, err)
+				assert.NotNil(t, svcSpec.Container.Init)
+				assert.True(t, *svcSpec.Container.Init,
+					"Container on machine %s should have init enabled", machine.Machine.Name)
+			case c.Machines[1].Name:
+				// This container should remain unchanged.
+				assert.Equal(t, oldContainerID, ctr.Container.ID,
+					"Container on machine %s should not have been updated", machine.Machine.Name)
+			}
+		}
+
+		// Now deploy another update without filter - should affect all machines.
+		init = false
+		specWithPort := spec
+		specWithPort.Ports = []api.PortSpec{
+			{
+				PublishedPort: 8001,
+				ContainerPort: 8001,
+				Protocol:      api.ProtocolTCP,
+				Mode:          api.PortModeHost,
+			},
+		}
+
+		deploy, err = cli.NewDeployment(specWithPort, nil)
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err = cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assert.Len(t, svc.Containers, 3)
+
+		// Verify all containers are updated with a published port.
+		for _, ctr := range svc.Containers {
+			svcSpec, err := ctr.Container.ServiceSpec()
+			require.NoError(t, err)
+			assert.Nil(t, svcSpec.Container.Init,
+				"Container on machine %s should have init disabled", ctr.MachineID)
+
+			ports, err := ctr.Container.ServicePorts()
+			require.NoError(t, err)
+			assert.Equal(t, specWithPort.Ports, ports,
+				"Container on machine %s should have updated port", ctr.MachineID)
+		}
+	})
+
+	t.Run("caddy", func(t *testing.T) {
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, client.CaddyServiceName)
+			if errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		deploy, err := cli.NewCaddyDeployment("", nil)
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
+		require.NoError(t, err)
+		assert.Equal(t, client.CaddyServiceName, svc.Name)
 		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3)
 
@@ -205,6 +327,63 @@ func TestDeployment(t *testing.T) {
 			},
 		}
 		assert.Equal(t, expectedPorts, ports)
+	})
+
+	t.Run("caddy with machine filter", func(t *testing.T) {
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, client.CaddyServiceName)
+			if errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		// Deploy to machine #0
+		filter := func(m *pb.MachineInfo) bool {
+			return m.Name == c.Machines[0].Name
+		}
+
+		deploy, err := cli.NewCaddyDeployment("", filter)
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
+		require.NoError(t, err)
+		assert.Len(t, svc.Containers, 1)
+		ctr0 := svc.Containers[0]
+
+		machine0, err := cli.InspectMachine(ctx, ctr0.MachineID)
+		require.NoError(t, err)
+		assert.Equal(t, c.Machines[0].Name, machine0.Machine.Name)
+
+		// Deploy to machines #0 and #2
+		filter = func(m *pb.MachineInfo) bool {
+			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
+		}
+
+		deploy, err = cli.NewCaddyDeployment("", filter)
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err = cli.InspectService(ctx, client.CaddyServiceName)
+		require.NoError(t, err)
+		assert.Len(t, svc.Containers, 2)
+
+		// Existing container ctr0 on machine #0 should be left unchanged.
+		var ctr2 api.MachineContainer
+		if ctr0.Container.ID == svc.Containers[0].Container.ID {
+			ctr2 = svc.Containers[1]
+		} else {
+			assert.Equal(t, ctr0.Container.ID, svc.Containers[1].Container.ID)
+			ctr2 = svc.Containers[0]
+		}
+
+		machine2, err := cli.InspectMachine(ctx, ctr2.MachineID)
+		require.NoError(t, err)
+		assert.Equal(t, c.Machines[2].Name, machine2.Machine.Name)
 	})
 }
 
