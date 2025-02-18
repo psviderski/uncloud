@@ -129,7 +129,7 @@ func (d *Deployment) Validate(ctx context.Context) error {
 func (d *Deployment) Run(ctx context.Context) (string, error) {
 	plan, err := d.Plan(ctx)
 	if err != nil {
-		return "", fmt.Errorf("plan: %w", err)
+		return "", fmt.Errorf("create plan: %w", err)
 	}
 
 	return plan.ServiceID, plan.Execute(ctx, d.cli)

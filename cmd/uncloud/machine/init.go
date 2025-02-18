@@ -1,7 +1,9 @@
 package machine
 
 import (
+	"context"
 	"fmt"
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
 	"net/netip"
 	"uncloud/internal/cli"
@@ -12,6 +14,7 @@ import (
 type initOptions struct {
 	name    string
 	network string
+	noCaddy bool
 	sshKey  string
 	cluster string
 }
@@ -39,18 +42,21 @@ func NewInitCommand() *cobra.Command {
 					KeyPath: opts.sshKey,
 				}
 			}
-			netPrefix, err := netip.ParsePrefix(opts.network)
-			if err != nil {
-				return fmt.Errorf("parse network CIDR: %w", err)
-			}
 
-			return uncli.InitCluster(cmd.Context(), remoteMachine, opts.cluster, opts.name, netPrefix)
+			return initCluster(cmd.Context(), uncli, remoteMachine, opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Assign a name to the machine.")
+	cmd.Flags().StringVarP(
+		&opts.name, "name", "n", "",
+		"Assign a name to the machine.",
+	)
 	cmd.Flags().StringVar(
 		&opts.network, "network", cluster.DefaultNetwork.String(),
 		"IPv4 network CIDR to use for machines and services.",
+	)
+	cmd.Flags().BoolVar(
+		&opts.noCaddy, "no-caddy", false,
+		"Don't deploy Caddy reverse proxy service to the machine.",
 	)
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "",
@@ -62,4 +68,38 @@ func NewInitCommand() *cobra.Command {
 	)
 
 	return cmd
+}
+
+func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, opts initOptions) error {
+	netPrefix, err := netip.ParsePrefix(opts.network)
+	if err != nil {
+		return fmt.Errorf("parse network CIDR: %w", err)
+	}
+
+	client, err := uncli.InitCluster(ctx, remoteMachine, opts.cluster, opts.name, netPrefix)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if opts.noCaddy {
+		return nil
+	}
+
+	// Deploy the Caddy service to the initialised machine.
+	// The creation of a deployment plan talks to cluster API. Since the API needs a few moments to become available
+	// after cluster initialisation, we keep the user informed during this wait.
+	fmt.Println("Waiting for the cluster to be ready...")
+
+	d, err := client.NewCaddyDeployment("", nil)
+	if err != nil {
+		return fmt.Errorf("create caddy deployment: %w", err)
+	}
+
+	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
+		if _, err = d.Run(ctx); err != nil {
+			return fmt.Errorf("deploy caddy: %w", err)
+		}
+		return nil
+	}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s", d.Spec.Name))
 }

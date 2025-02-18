@@ -109,40 +109,47 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 	return nil, errors.New("no valid connection configuration found for the cluster")
 }
 
+// InitCluster initialises a new cluster on a remote machine and returns a client to interact with the cluster.
+// The client should be closed after use by the caller.
 func (cli *CLI) InitCluster(
 	ctx context.Context, remoteMachine *RemoteMachine, clusterName, machineName string, netPrefix netip.Prefix,
-) error {
+) (*client.Client, error) {
 	if remoteMachine != nil {
 		return cli.initRemoteMachine(ctx, *remoteMachine, clusterName, machineName, netPrefix)
 	}
 	// TODO: implement local machine initialisation
-	return fmt.Errorf("local machine initialisation is not implemented yet")
+	return nil, fmt.Errorf("local machine initialisation is not implemented yet")
 }
 
 func (cli *CLI) initRemoteMachine(
 	ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string, netPrefix netip.Prefix,
-) error {
+) (*client.Client, error) {
 	if clusterName == "" {
 		clusterName = defaultClusterName
 	}
 	if _, ok := cli.config.Clusters[clusterName]; ok {
-		return fmt.Errorf("cluster %q already exists", clusterName)
+		return nil, fmt.Errorf("cluster %q already exists", clusterName)
 	}
 
 	machineClient, err := cli.provisionRemoteMachine(ctx, remoteMachine)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer machineClient.Close()
+	// Ensure machineClient is closed on error.
+	defer func() {
+		if err != nil {
+			machineClient.Close()
+		}
+	}()
 
 	// Check if the machine is already initialised as a cluster member and prompt the user to reset it first.
 	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
 	if err != nil {
-		return fmt.Errorf("inspect machine: %w", err)
+		return nil, fmt.Errorf("inspect machine: %w", err)
 	}
 	if minfo.Id != "" {
 		if err = cli.promptResetMachine(); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -152,17 +159,17 @@ func (cli *CLI) initRemoteMachine(
 	}
 	resp, err := machineClient.InitCluster(ctx, req)
 	if err != nil {
-		return fmt.Errorf("init cluster: %w", err)
+		return nil, fmt.Errorf("init cluster: %w", err)
 	}
 	fmt.Printf("Cluster %q initialised with machine %q\n", clusterName, resp.Machine.Name)
 
 	if err = cli.CreateCluster(clusterName); err != nil {
-		return fmt.Errorf("save cluster to config: %w", err)
+		return nil, fmt.Errorf("save cluster to config: %w", err)
 	}
 	// Set the current cluster to the just created one if it is the only cluster in the config.
 	if len(cli.config.Clusters) == 1 {
 		if err = cli.SetCurrentCluster(clusterName); err != nil {
-			return fmt.Errorf("set current cluster: %w", err)
+			return nil, fmt.Errorf("set current cluster: %w", err)
 		}
 	}
 
@@ -173,9 +180,9 @@ func (cli *CLI) initRemoteMachine(
 	}
 	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {
-		return fmt.Errorf("save config: %w", err)
+		return nil, fmt.Errorf("save config: %w", err)
 	}
-	return nil
+	return machineClient, nil
 }
 
 func (cli *CLI) AddMachine(ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string) error {

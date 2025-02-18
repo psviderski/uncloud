@@ -32,6 +32,7 @@ func (cli *Client) NewCaddyDeployment(image string, filter MachineFilter) (*Depl
 		image = reference.FamiliarString(latest)
 	}
 
+	// TODO: set restart policy to always. https://github.com/psviderski/uncloud/issues/26
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command: []string{"caddy", "run", "-c", "/config/caddy.json", "--watch"},
