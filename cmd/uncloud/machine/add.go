@@ -1,14 +1,25 @@
 package machine
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"time"
 	"uncloud/internal/cli"
+	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/config"
+	"uncloud/internal/machine/api/pb"
 )
 
 type addOptions struct {
 	name    string
+	noCaddy bool
 	sshKey  string
 	cluster string
 }
@@ -33,10 +44,14 @@ func NewAddCommand() *cobra.Command {
 				KeyPath: opts.sshKey,
 			}
 
-			return uncli.AddMachine(cmd.Context(), remoteMachine, opts.cluster, opts.name)
+			return add(cmd.Context(), uncli, remoteMachine, opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Assign a name to the machine.")
+	cmd.Flags().BoolVar(
+		&opts.noCaddy, "no-caddy", false,
+		"Don't deploy Caddy reverse proxy service to the machine.",
+	)
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "",
 		"path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
@@ -46,4 +61,88 @@ func NewAddCommand() *cobra.Command {
 		"Name of the cluster to add the machine to. (default is the current cluster)",
 	)
 	return cmd
+}
+
+func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, opts addOptions) error {
+	machineClient, err := uncli.AddMachine(ctx, remoteMachine, opts.cluster, opts.name)
+	if err != nil {
+		return err
+	}
+	defer machineClient.Close()
+
+	if opts.noCaddy {
+		return nil
+	}
+
+	// Wait for the cluster to be initialised to be able to deploy the Caddy service.
+	fmt.Println("Waiting for the machine to be ready...")
+	if err = waitClusterInitialised(ctx, machineClient); err != nil {
+		return fmt.Errorf("wait for cluster to be initialised on machine: %w", err)
+	}
+
+	// Inspect the added machine to get its ID to create a filter for the Caddy deployment.
+	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("inspect machine: %w", err)
+	}
+	filter := func(m *pb.MachineInfo) bool {
+		return m.Id == minfo.Id
+	}
+	// Deploy a Caddy service container to the added machine. If caddy service is already deployed on other machines,
+	// use the deployed image version. Otherwise, use the latest version.
+	caddyImage := ""
+	caddySvc, err := machineClient.InspectService(ctx, client.CaddyServiceName)
+	if err != nil {
+		if !errors.Is(err, client.ErrNotFound) {
+			return fmt.Errorf("inspect caddy service: %w", err)
+		}
+	} else {
+		caddyImage = caddySvc.Containers[0].Container.Config.Image
+		// Find the latest created container and use its image.
+		var latestCreated time.Time
+		for _, c := range caddySvc.Containers[1:] {
+			created, err := time.Parse(time.RFC3339Nano, c.Container.Created)
+			if err != nil {
+				continue
+			}
+			if created.After(latestCreated) {
+				latestCreated = created
+				caddyImage = c.Container.Config.Image
+			}
+		}
+	}
+
+	d, err := machineClient.NewCaddyDeployment(caddyImage, filter)
+	if err != nil {
+		return fmt.Errorf("create caddy deployment: %w", err)
+	}
+
+	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
+		if _, err = d.Run(ctx); err != nil {
+			return fmt.Errorf("deploy caddy: %w", err)
+		}
+		return nil
+	}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s", d.Spec.Name))
+}
+
+func waitClusterInitialised(ctx context.Context, client *client.Client) error {
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxElapsedTime(30*time.Second),
+	), ctx)
+
+	check := func() error {
+		_, err := client.ListMachines(ctx)
+		if err == nil {
+			return nil
+		}
+
+		statusErr := status.Convert(err)
+		if statusErr.Code() == codes.FailedPrecondition {
+			return err
+		}
+		return backoff.Permanent(err)
+	}
+
+	return backoff.Retry(check, boff)
 }

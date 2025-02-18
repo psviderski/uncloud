@@ -232,24 +232,3 @@ func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListM
 
 	return &pb.ListMachinesResponse{Machines: members}, nil
 }
-
-//func (c *Cluster) ListServices(ctx context.Context, _ *emptypb.Empty) (*pb.ListServicesResponse, error) {
-//	if err := c.checkInitialised(ctx); err != nil {
-//		return nil, err
-//	}
-//
-//	return &pb.ListServicesResponse{
-//		Messages: []*pb.Services{
-//			{
-//				Services: []*pb.Service{
-//					{
-//						Name: "service1",
-//					},
-//					{
-//						Name: "service2",
-//					},
-//				},
-//			},
-//		},
-//	}, nil
-//}
