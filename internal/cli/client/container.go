@@ -85,6 +85,11 @@ func (cli *Client) CreateContainer(
 		Binds:        spec.Container.Volumes,
 		Init:         spec.Container.Init,
 		PortBindings: portBindings,
+		// Always restart service containers if they exit or a machine restarts.
+		// For one-off containers and batch jobs we plan to use a different service type/mode.
+		RestartPolicy: container.RestartPolicy{
+			Name: container.RestartPolicyAlways,
+		},
 	}
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{

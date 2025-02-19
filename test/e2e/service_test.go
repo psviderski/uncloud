@@ -340,6 +340,11 @@ func TestDeployment(t *testing.T) {
 			},
 		}
 		assert.Equal(t, expectedPorts, ports)
+
+		assert.Equal(t, container.RestartPolicy{
+			Name:              container.RestartPolicyAlways,
+			MaximumRetryCount: 0,
+		}, ctr.HostConfig.RestartPolicy)
 	})
 
 	t.Run("caddy with machine filter", func(t *testing.T) {
@@ -446,6 +451,10 @@ func TestRunService(t *testing.T) {
 		assert.Nil(t, ctr.HostConfig.Init)
 		assert.Empty(t, ctr.HostConfig.Binds)
 		assert.Empty(t, ctr.HostConfig.PortBindings)
+		assert.Equal(t, container.RestartPolicy{
+			Name:              container.RestartPolicyAlways,
+			MaximumRetryCount: 0,
+		}, ctr.HostConfig.RestartPolicy)
 
 		// Verify labels.
 		assert.Equal(t, serviceID, ctr.Config.Labels[api.LabelServiceID])
@@ -514,14 +523,6 @@ func TestRunService(t *testing.T) {
 		assert.Len(t, ctr.HostConfig.Binds, 1)
 		assert.Contains(t, ctr.HostConfig.Binds, spec.Container.Volumes[0])
 
-		// Verify labels.
-		assert.Equal(t, serviceID, ctr.Config.Labels[api.LabelServiceID])
-		assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
-		assert.Equal(t, api.ServiceModeGlobal, ctr.Config.Labels[api.LabelServiceMode])
-		assert.Equal(t, "127.0.0.1:80:8080/tcp@host,app.example.com:8000/https", ctr.Config.Labels[api.LabelServicePorts])
-		assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
-
-		// Verify port bindings.
 		assert.Len(t, ctr.HostConfig.PortBindings, 1)
 		expectedPort := []nat.PortBinding{
 			{
@@ -530,6 +531,18 @@ func TestRunService(t *testing.T) {
 			},
 		}
 		assert.Equal(t, expectedPort, ctr.HostConfig.PortBindings[nat.Port("8080/tcp")])
+
+		assert.Equal(t, container.RestartPolicy{
+			Name:              container.RestartPolicyAlways,
+			MaximumRetryCount: 0,
+		}, ctr.HostConfig.RestartPolicy)
+
+		// Verify labels.
+		assert.Equal(t, serviceID, ctr.Config.Labels[api.LabelServiceID])
+		assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
+		assert.Equal(t, api.ServiceModeGlobal, ctr.Config.Labels[api.LabelServiceMode])
+		assert.Equal(t, "127.0.0.1:80:8080/tcp@host,app.example.com:8000/https", ctr.Config.Labels[api.LabelServicePorts])
+		assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
 
 		// Verify network settings.
 		assert.Len(t, ctr.NetworkSettings.Networks, 1)
