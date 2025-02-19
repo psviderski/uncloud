@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/distribution/reference"
 	"reflect"
+	"regexp"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -41,6 +42,12 @@ func (s *ServiceSpec) Validate() error {
 func (s *ServiceSpec) Equals(spec ServiceSpec) bool {
 	// TODO: ignore order of ports.
 	return reflect.DeepEqual(*s, spec)
+}
+
+var serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
+
+func ValidateServiceID(id string) bool {
+	return serviceIDRegexp.MatchString(id)
 }
 
 type ContainerSpec struct {

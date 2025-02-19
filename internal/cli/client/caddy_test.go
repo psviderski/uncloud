@@ -36,6 +36,8 @@ func TestClient_NewCaddyDeployment(t *testing.T) {
 			},
 		}
 		assert.Equal(t, expectedPorts, deploy.Spec.Ports)
+		// TODO:
+		//assert.Equal(t, alwaysPullImage, deploy.Spec.Container.PullPolicy)
 	})
 
 	t.Run("custom image", func(t *testing.T) {

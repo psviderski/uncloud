@@ -4,14 +4,27 @@ import (
 	"context"
 	"errors"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"net/netip"
+	"strings"
 	"testing"
 	"uncloud/internal/api"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/machine/api/pb"
+	machinedocker "uncloud/internal/machine/docker"
+	"uncloud/internal/secret"
 	"uncloud/internal/ucind"
 )
+
+func newServiceID() string {
+	id, err := secret.NewID()
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
 
 func TestDeployment(t *testing.T) {
 	t.Parallel()
@@ -397,50 +410,178 @@ func TestRunService(t *testing.T) {
 	cli, err := c.Machines[0].Connect(ctx)
 	require.NoError(t, err)
 
-	t.Run("container lifecycle", func(t *testing.T) {
+	t.Run("create container with spec defaults", func(t *testing.T) {
 		t.Parallel()
 
-		svcName := "pause-container-lifecycle"
+		serviceID := newServiceID()
+		// Only required fields.
 		spec := api.ServiceSpec{
-			Name: svcName,
+			Name: "container-spec-defaults",
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
 		}
-		machineID := c.Machines[0].Name
 
-		ctr, err := cli.CreateContainer(ctx, svcName, spec, machineID)
+		resp, err := cli.CreateContainer(ctx, serviceID, spec, c.Machines[0].Name)
 		require.NoError(t, err)
-		assert.NotEmpty(t, ctr.ID)
+		assert.NotEmpty(t, resp.ID)
 
 		t.Cleanup(func() {
-			err := cli.RemoveContainer(ctx, svcName, ctr.ID, container.RemoveOptions{Force: true})
+			err := cli.RemoveContainer(ctx, serviceID, resp.ID, container.RemoveOptions{Force: true})
 			if !errors.Is(err, client.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
 
-		err = cli.StartContainer(ctx, svcName, ctr.ID)
+		// Verify container configuration.
+		mc, err := cli.InspectContainer(ctx, serviceID, resp.ID)
+		require.NoError(t, err)
+		ctr := mc.Container
+
+		assert.True(t, strings.HasPrefix(ctr.Name, "/container-spec-defaults-"))
+		assert.Equal(t, "portainer/pause:latest", ctr.Config.Image)
+
+		// Verify default settings.
+		assert.Empty(t, ctr.Config.Cmd)
+		assert.Nil(t, ctr.HostConfig.Init)
+		assert.Empty(t, ctr.HostConfig.Binds)
+		assert.Empty(t, ctr.HostConfig.PortBindings)
+
+		// Verify labels.
+		assert.Equal(t, serviceID, ctr.Config.Labels[api.LabelServiceID])
+		assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
+		assert.Equal(t, api.ServiceModeReplicated, ctr.Config.Labels[api.LabelServiceMode])
+		assert.NotContains(t, ctr.Config.Labels, api.LabelServicePorts) // No ports set.
+		assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
+
+		// Verify network settings.
+		assert.Len(t, ctr.NetworkSettings.Networks, 1)
+		assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
+	})
+
+	t.Run("create container with full spec", func(t *testing.T) {
+		t.Parallel()
+
+		serviceID := newServiceID()
+		init := true
+		spec := api.ServiceSpec{
+			Name: "container-spec-full",
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Command: []string{"sleep", "infinity"},
+				Image:   "portainer/pause:latest",
+				Init:    &init,
+				Volumes: []string{"/host/path:/container/path:ro"},
+			},
+			Ports: []api.PortSpec{
+				{
+					HostIP:        netip.MustParseAddr("127.0.0.1"),
+					PublishedPort: 80,
+					ContainerPort: 8080,
+					Protocol:      api.ProtocolTCP,
+					Mode:          api.PortModeHost,
+				},
+				{
+					Hostname:      "app.example.com",
+					ContainerPort: 8000,
+					Protocol:      api.ProtocolHTTPS,
+					Mode:          api.PortModeIngress,
+				},
+			},
+		}
+
+		resp, err := cli.CreateContainer(ctx, serviceID, spec, c.Machines[0].Name)
+		require.NoError(t, err)
+		assert.NotEmpty(t, resp.ID)
+
+		t.Cleanup(func() {
+			err := cli.RemoveContainer(ctx, serviceID, resp.ID, container.RemoveOptions{Force: true})
+			if !errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		// Verify container configuration.
+		mc, err := cli.InspectContainer(ctx, serviceID, resp.ID)
+		require.NoError(t, err)
+		ctr := mc.Container
+
+		assert.True(t, strings.HasPrefix(ctr.Name, "/container-spec-full-"))
+		assert.Equal(t, "portainer/pause:latest", ctr.Config.Image)
+
+		assert.EqualValues(t, spec.Container.Command, ctr.Config.Cmd)
+		assert.True(t, *ctr.HostConfig.Init)
+		assert.Len(t, ctr.HostConfig.Binds, 1)
+		assert.Contains(t, ctr.HostConfig.Binds, spec.Container.Volumes[0])
+
+		// Verify labels.
+		assert.Equal(t, serviceID, ctr.Config.Labels[api.LabelServiceID])
+		assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
+		assert.Equal(t, api.ServiceModeGlobal, ctr.Config.Labels[api.LabelServiceMode])
+		assert.Equal(t, "127.0.0.1:80:8080/tcp@host,app.example.com:8000/https", ctr.Config.Labels[api.LabelServicePorts])
+		assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
+
+		// Verify port bindings.
+		assert.Len(t, ctr.HostConfig.PortBindings, 1)
+		expectedPort := []nat.PortBinding{
+			{
+				HostIP:   "127.0.0.1",
+				HostPort: "80",
+			},
+		}
+		assert.Equal(t, expectedPort, ctr.HostConfig.PortBindings[nat.Port("8080/tcp")])
+
+		// Verify network settings.
+		assert.Len(t, ctr.NetworkSettings.Networks, 1)
+		assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
+	})
+
+	// TODO: create container invalid spec.
+	//  - service Name is required
+
+	t.Run("container lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		serviceID := newServiceID()
+		spec := api.ServiceSpec{
+			Name: "container-lifecycle",
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+		}
+
+		ctr, err := cli.CreateContainer(ctx, serviceID, spec, c.Machines[0].Name)
+		require.NoError(t, err)
+		assert.NotEmpty(t, ctr.ID)
+
+		t.Cleanup(func() {
+			err := cli.RemoveContainer(ctx, serviceID, ctr.ID, container.RemoveOptions{Force: true})
+			if !errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		err = cli.StartContainer(ctx, serviceID, ctr.ID)
 		require.NoError(t, err)
 
 		timeout := 1
-		err = cli.StopContainer(ctx, svcName, ctr.ID, container.StopOptions{Timeout: &timeout})
+		err = cli.StopContainer(ctx, serviceID, ctr.ID, container.StopOptions{Timeout: &timeout})
 		require.NoError(t, err)
 
-		err = cli.RemoveContainer(ctx, svcName, ctr.ID, container.RemoveOptions{})
+		err = cli.RemoveContainer(ctx, serviceID, ctr.ID, container.RemoveOptions{})
 		require.NoError(t, err)
 
-		err = cli.RemoveContainer(ctx, svcName, ctr.ID, container.RemoveOptions{})
+		err = cli.RemoveContainer(ctx, serviceID, ctr.ID, container.RemoveOptions{})
 		require.ErrorIs(t, err, client.ErrNotFound)
 	})
 
 	t.Run("1 replica", func(t *testing.T) {
 		t.Parallel()
 
-		name := "pause-1-replica"
+		name := "1-replica"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, client.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
@@ -487,7 +628,7 @@ func TestRunService(t *testing.T) {
 	t.Run("1 replica with ports", func(t *testing.T) {
 		t.Parallel()
 
-		name := "pause-1-replica-ports"
+		name := "1-replica-ports"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if errors.Is(err, client.ErrNotFound) {
@@ -541,7 +682,7 @@ func TestRunService(t *testing.T) {
 	t.Run("global mode", func(t *testing.T) {
 		t.Parallel()
 
-		name := "pause-global"
+		name := "global"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if errors.Is(err, client.ErrNotFound) {

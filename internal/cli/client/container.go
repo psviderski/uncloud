@@ -24,9 +24,10 @@ func (cli *Client) CreateContainer(
 ) (container.CreateResponse, error) {
 	var resp container.CreateResponse
 
-	if serviceID == "" {
-		return resp, errors.New("service ID is required")
+	if !api.ValidateServiceID(serviceID) {
+		return resp, fmt.Errorf("invalid service ID: '%s'", serviceID)
 	}
+	// TODO: validate spec.Name is consistent with serviceID if this is not the first container in the service.
 
 	machine, err := cli.InspectMachine(ctx, machineID)
 	if err != nil {
@@ -45,11 +46,12 @@ func (cli *Client) CreateContainer(
 		Labels: map[string]string{
 			api.LabelServiceID:   serviceID,
 			api.LabelServiceName: spec.Name,
+			api.LabelServiceMode: spec.Mode,
 			api.LabelManaged:     "",
 		},
 	}
-	if spec.Mode != "" {
-		config.Labels[api.LabelServiceMode] = spec.Mode
+	if spec.Mode == "" {
+		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
 	}
 
 	if len(spec.Ports) > 0 {
