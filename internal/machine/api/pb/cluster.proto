@@ -10,6 +10,8 @@ import "internal/machine/api/pb/machine.proto";
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachines(google.protobuf.Empty) returns (ListMachinesResponse);
+  rpc GetDomain(google.protobuf.Empty) returns (Domain);
+  rpc UpdateDomainRecords(UpdateDomainRecordsRequest) returns (google.protobuf.Empty);
 }
 
 message AddMachineRequest {
@@ -40,4 +42,24 @@ message MachineMember {
 
 message ListMachinesResponse {
   repeated MachineMember machines = 1;
+}
+
+message Domain {
+  string name = 1;
+}
+
+message UpdateDomainRecordsRequest {
+  repeated DNSRecord records = 1;
+}
+
+message DNSRecord {
+  string name = 1;
+
+  enum RecordType {
+    UNSPECIFIED = 0;
+    A = 1;
+    AAAA = 2;
+  }
+  RecordType type = 2;
+  repeated string values = 3;
 }
