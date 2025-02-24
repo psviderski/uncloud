@@ -16,10 +16,10 @@ require (
 	github.com/distribution/reference v0.6.0
 	github.com/docker/cli v27.5.0+incompatible
 	github.com/docker/compose/v2 v2.31.0
-	github.com/docker/docker v27.5.0+incompatible
+	github.com/docker/docker v27.4.0-rc.2+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/docker/go-units v0.5.0
-	github.com/google/go-containerregistry v0.20.3
+	github.com/google/go-containerregistry v0.20.2
 	github.com/hashicorp/memberlist v0.5.1
 	github.com/hashicorp/serf v0.10.1
 	github.com/ipfs/boxo v0.21.0

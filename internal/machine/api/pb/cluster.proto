@@ -10,7 +10,10 @@ import "internal/machine/api/pb/machine.proto";
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachines(google.protobuf.Empty) returns (ListMachinesResponse);
+
+  rpc ReserveDomain(ReserveDomainRequest) returns (Domain);
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
+  rpc ReleaseDomain(google.protobuf.Empty) returns (Domain);
   rpc UpdateDomainRecords(UpdateDomainRecordsRequest) returns (google.protobuf.Empty);
 }
 
@@ -46,6 +49,10 @@ message ListMachinesResponse {
 
 message Domain {
   string name = 1;
+}
+
+message ReserveDomainRequest {
+  string api_endpoint = 1;
 }
 
 message UpdateDomainRecordsRequest {

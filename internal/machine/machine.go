@@ -703,7 +703,7 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 	}, nil
 }
 
-// InspectService returns detailed information about a service and its containers.
+// InspectService returns detailed information about a service and its containers stored in the cluster store.
 func (m *Machine) InspectService(
 	ctx context.Context, req *pb.InspectServiceRequest,
 ) (*pb.InspectServiceResponse, error) {

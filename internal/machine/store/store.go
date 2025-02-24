@@ -49,6 +49,11 @@ func (s *Store) Put(ctx context.Context, key string, value any) error {
 	return err
 }
 
+func (s *Store) Delete(ctx context.Context, key string) error {
+	_, err := s.corro.ExecContext(ctx, "DELETE FROM cluster WHERE key = ?", key)
+	return err
+}
+
 func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {
 	mJSON, err := protojson.Marshal(m)
 	if err != nil {
