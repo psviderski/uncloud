@@ -14,7 +14,7 @@ service Cluster {
   rpc ReserveDomain(ReserveDomainRequest) returns (Domain);
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
   rpc ReleaseDomain(google.protobuf.Empty) returns (Domain);
-  rpc UpdateDomainRecords(UpdateDomainRecordsRequest) returns (google.protobuf.Empty);
+  rpc CreateDomainRecords(CreateDomainRecordsRequest) returns (CreateDomainRecordsResponse);
 }
 
 message AddMachineRequest {
@@ -52,10 +52,14 @@ message Domain {
 }
 
 message ReserveDomainRequest {
-  string api_endpoint = 1;
+  string endpoint = 1;
 }
 
-message UpdateDomainRecordsRequest {
+message CreateDomainRecordsRequest {
+  repeated DNSRecord records = 1;
+}
+
+message CreateDomainRecordsResponse {
   repeated DNSRecord records = 1;
 }
 

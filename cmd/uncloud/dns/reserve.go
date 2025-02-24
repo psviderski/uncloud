@@ -47,7 +47,7 @@ func reserve(ctx context.Context, uncli *cli.CLI, opts reserveOptions) error {
 	}
 	defer client.Close()
 
-	domain, err := client.ReserveDomain(ctx, &pb.ReserveDomainRequest{ApiEndpoint: opts.endpoint})
+	domain, err := client.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.endpoint})
 	if err != nil {
 		if status.Convert(err).Code() == codes.AlreadyExists {
 			return errors.New("domain already reserved")

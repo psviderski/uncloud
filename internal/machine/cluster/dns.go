@@ -16,7 +16,9 @@ import (
 const uncloudDNSKey = "uncloud_dns"
 
 type uncloudDNSDomain struct {
-	Name string
+	// Endpoint is the API endpoint of the Uncloud DNS service where the domain is reserved.
+	Endpoint string
+	Name     string
 	// TODO: encrypt the token in the store.
 	Token string
 }
@@ -26,7 +28,7 @@ func (c *Cluster) ReserveDomain(ctx context.Context, req *pb.ReserveDomainReques
 		return nil, err
 	}
 
-	if req.ApiEndpoint == "" {
+	if req.Endpoint == "" {
 		return nil, status.Error(codes.InvalidArgument, "API endpoint not set")
 	}
 
@@ -39,14 +41,15 @@ func (c *Cluster) ReserveDomain(ctx context.Context, req *pb.ReserveDomainReques
 	}
 
 	dnsClient := dns.NewClient()
-	name, token, err := dnsClient.ReserveDomain(req.ApiEndpoint)
+	name, token, err := dnsClient.ReserveDomain(req.Endpoint)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
 	domain := uncloudDNSDomain{
-		Name:  name,
-		Token: token,
+		Endpoint: req.Endpoint,
+		Name:     name,
+		Token:    token,
 	}
 	domainJSON, err := json.Marshal(domain)
 	if err != nil {
@@ -106,4 +109,51 @@ func (c *Cluster) ReleaseDomain(ctx context.Context, _ *emptypb.Empty) (*pb.Doma
 	// TODO: implement and call Uncloud DNS endpoint to release/delete the domain.
 
 	return &pb.Domain{Name: domain.Name}, nil
+}
+
+func (c *Cluster) CreateDomainRecords(
+	ctx context.Context, req *pb.CreateDomainRecordsRequest,
+) (*pb.CreateDomainRecordsResponse, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+
+	domain, err := c.storedDomain(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	dnsClient := dns.NewClient()
+	recordsReq := make([]dns.RecordRequest, len(req.Records))
+	for i, r := range req.Records {
+		recordsReq[i] = dns.RecordRequest{
+			Name:   r.Name,
+			Type:   dns.RecordType(r.Type.String()),
+			Values: r.Values,
+		}
+	}
+
+	recordsResp, err := dnsClient.CreateRecords(domain.Endpoint, domain.Name, domain.Token, recordsReq)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &pb.CreateDomainRecordsResponse{
+		Records: make([]*pb.DNSRecord, len(recordsResp)),
+	}
+	for i, r := range recordsResp {
+		resp.Records[i] = &pb.DNSRecord{
+			Name:   r.FQDN,
+			Values: r.Values,
+		}
+
+		switch r.Type {
+		case dns.RecordTypeA:
+			resp.Records[i].Type = pb.DNSRecord_A
+		case dns.RecordTypeAAAA:
+			resp.Records[i].Type = pb.DNSRecord_AAAA
+		}
+	}
+
+	return resp, nil
 }
