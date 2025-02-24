@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,10 @@ type Client interface {
 	// ReserveDomain calls Uncloud DNS to reserve a new domain. It returns the domain, a token for authentication,
 	// and an error.
 	ReserveDomain(endpoint string) (string, string, error)
+
+	// CreateRecords calls Uncloud DNS to create or update DNS records based on the supplied RecordRequests
+	// for the specified domain.
+	CreateRecords(endpoint, domain, token string, records []RecordRequest) ([]RecordResponse, error)
 }
 
 // ErrAuthNoDomain indicates that a request failed authentication because the domain was not found.
@@ -53,6 +58,35 @@ func (c *client) ReserveDomain(endpoint string) (string, string, error) {
 		domain = domain[1:]
 	}
 	return domain, resp.Token, nil
+}
+
+func (c *client) CreateRecords(endpoint, domain, token string, records []RecordRequest) ([]RecordResponse, error) {
+	// TODO: update Uncloud DNS service to not use a leading dot for domain names.
+	if !strings.HasPrefix(domain, ".") {
+		domain = "." + domain
+	}
+	url := fmt.Sprintf("%s/domains/%s/records", endpoint, domain)
+
+	var resp []RecordResponse
+	for _, recordRequest := range records {
+		body, err := jsonBody(recordRequest)
+		if err != nil {
+			return resp, err
+		}
+
+		req, err := c.request(http.MethodPost, url, body, token)
+		if err != nil {
+			return resp, err
+		}
+
+		var recordResp RecordResponse
+		if err = c.do(req, &recordResp); err != nil {
+			return resp, err
+		}
+		resp = append(resp, recordResp)
+	}
+
+	return resp, nil
 }
 
 func (c *client) request(method string, url string, body io.Reader, token string) (*http.Request, error) {
@@ -115,4 +149,13 @@ func (c *client) do(req *http.Request, responseBody any) error {
 	}
 
 	return nil
+}
+
+func jsonBody(payload any) (io.Reader, error) {
+	buf := &bytes.Buffer{}
+	err := json.NewEncoder(buf).Encode(payload)
+	if err != nil {
+		return nil, err
+	}
+	return buf, nil
 }
