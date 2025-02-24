@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"uncloud/cmd/uncloud/caddy"
+	"uncloud/cmd/uncloud/dns"
 	"uncloud/cmd/uncloud/machine"
 	"uncloud/cmd/uncloud/service"
 	"uncloud/internal/cli"
@@ -43,6 +44,7 @@ func main() {
 
 	cmd.AddCommand(
 		caddy.NewRootCommand(),
+		dns.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
 		service.NewInspectCommand(),
