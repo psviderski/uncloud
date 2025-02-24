@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"github.com/Masterminds/semver"
 	"github.com/distribution/reference"
-	"regexp"
-	"uncloud/internal/api"
-
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"regexp"
+	"uncloud/internal/api"
 )
 
 const (

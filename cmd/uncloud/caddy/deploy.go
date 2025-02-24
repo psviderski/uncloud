@@ -7,6 +7,8 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"maps"
 	"slices"
 	"strings"
@@ -132,43 +134,68 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		} else {
 			fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
 		}
-		return nil
-	}
-
-	if svc.ID == "" {
-		if opts.machine != "" {
-			fmt.Println("This will run a Caddy container on selected machines.")
-		} else {
-			fmt.Println("This will run a Caddy container on each machine.")
-		}
 	} else {
-		if opts.machine != "" {
-			fmt.Println("This will perform a rolling update of Caddy containers on selected machines.")
+		if svc.ID == "" {
+			if opts.machine != "" {
+				fmt.Println("This will run a Caddy container on selected machines.")
+			} else {
+				fmt.Println("This will run a Caddy container on each machine.")
+			}
 		} else {
-			fmt.Println("This will perform a rolling update of Caddy containers on each machine.")
+			if opts.machine != "" {
+				fmt.Println("This will perform a rolling update of Caddy containers on selected machines.")
+			} else {
+				fmt.Println("This will perform a rolling update of Caddy containers on each machine.")
+			}
+		}
+		fmt.Println()
+
+		fmt.Println("Deployment plan:")
+		fmt.Println(plan.Format(resolver))
+		fmt.Println()
+
+		confirmed, err := confirm()
+		if err != nil {
+			return fmt.Errorf("confirm deployment: %w", err)
+		}
+		if !confirmed {
+			fmt.Println("Cancelled. No changes were made.")
+			return nil
+		}
+
+		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+			if _, err = d.Run(ctx); err != nil {
+				return fmt.Errorf("deploy caddy: %w", err)
+			}
+			return nil
+		}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s (%s mode)", d.Spec.Name, d.Spec.Mode))
+		if err != nil {
+			return err
 		}
 	}
-	fmt.Println()
 
-	fmt.Println("Deployment plan:")
-	fmt.Println(plan.Format(resolver))
 	fmt.Println()
+	if _, err = clusterClient.GetDomain(ctx, nil); err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			fmt.Println("Skipping DNS records update as no cluster domain is reserved (see 'uc dns').")
+			return nil
+		}
+		return fmt.Errorf("get cluster domain: %w", err)
+	}
 
-	confirmed, err := confirm()
+	fmt.Println("Updating cluster domain records in Uncloud DNS to point to machines running caddy containers...")
+	records, err := clusterClient.CreateIngressRecords(ctx, client.CaddyServiceName)
 	if err != nil {
-		return fmt.Errorf("confirm deployment: %w", err)
-	}
-	if !confirmed {
-		fmt.Println("Cancelled. No changes were made.")
-		return nil
+		return fmt.Errorf("update ingress records: %w", err)
 	}
 
-	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		if _, err = d.Run(ctx); err != nil {
-			return fmt.Errorf("deploy caddy: %w", err)
-		}
-		return nil
-	}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s (%s mode)", d.Spec.Name, d.Spec.Mode))
+	fmt.Println("DNS records updated successfully:")
+	for _, r := range records {
+		fmt.Printf("  %s  %s -> %s", r.Name, r.Type, strings.Join(r.Values, ", "))
+	}
+	fmt.Println()
+
+	return nil
 }
 
 func confirm() (bool, error) {
