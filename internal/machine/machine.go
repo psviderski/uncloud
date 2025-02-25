@@ -357,7 +357,9 @@ func (m *Machine) Run(ctx context.Context) error {
 						),
 					)
 
-					caddyfileCtrl, err := caddyfile.NewController(m.store, m.config.CaddyfilePath)
+					// Create a new Caddyfile controller for managing the Caddy reverse proxy configuration.
+					// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
+					caddyfileCtrl, err := caddyfile.NewController(m.store, m.config.CaddyfilePath, m.state.ID)
 					if err != nil {
 						return fmt.Errorf("create Caddyfile controller: %w", err)
 					}

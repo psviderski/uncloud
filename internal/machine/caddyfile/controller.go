@@ -11,6 +11,7 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/reverseproxy"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,17 +21,21 @@ import (
 	"uncloud/internal/machine/store"
 )
 
-const CaddyGroup = "uncloud"
+const (
+	CaddyGroup = "uncloud"
+	VerifyPath = "/.uncloud-verify"
+)
 
 // Controller monitors container changes in the cluster store and generates a configuration file for Caddy reverse
 // proxy. The generated Caddyfile allows Caddy to route external traffic to service containers across the internal
 // network.
 type Controller struct {
-	store *store.Store
-	path  string
+	store          *store.Store
+	path           string
+	verifyResponse string
 }
 
-func NewController(store *store.Store, path string) (*Controller, error) {
+func NewController(store *store.Store, path string, verifyResponse string) (*Controller, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return nil, fmt.Errorf("create parent directory for Caddy configuration '%s': %w", dir, err)
@@ -40,8 +45,9 @@ func NewController(store *store.Store, path string) (*Controller, error) {
 	}
 
 	return &Controller{
-		store: store,
-		path:  path,
+		store:          store,
+		path:           path,
+		verifyResponse: verifyResponse,
 	}, nil
 }
 
@@ -144,7 +150,11 @@ func (c *Controller) generateConfig(containers []api.Container) error {
 	servers := make(map[string]*caddyhttp.Server)
 	servers["http"] = &caddyhttp.Server{
 		Listen: []string{fmt.Sprintf(":%d", caddyhttp.DefaultHTTPPort)},
-		Routes: hostUpstreamsToRoutes(httpHostUpstreams, &warnings),
+		Routes: append(
+			hostUpstreamsToRoutes(httpHostUpstreams, &warnings),
+			// Add a route to respond with a static verification response at the /.uncloud-verify path.
+			verificationRoute(c.verifyResponse, &warnings),
+		),
 	}
 	servers["https"] = &caddyhttp.Server{
 		Listen: []string{fmt.Sprintf(":%d", caddyhttp.DefaultHTTPSPort)},
@@ -210,4 +220,41 @@ func hostUpstreamsToRoutes(hostUpstreams map[string][]string, warnings *[]caddyc
 		})
 	}
 	return routes
+}
+
+// verificationRoute returns a Caddy route that responds with the given static response at the /.uncloud-verify path.
+func verificationRoute(response string, warnings *[]caddyconfig.Warning) caddyhttp.Route {
+	// Return the following route:
+	// {
+	//   "match": [
+	//     {
+	//       "path": [
+	//         "/.uncloud-verify"
+	//       ]
+	//     }
+	//   ],
+	//   "handle": [
+	//     {
+	//       "handler": "static_response",
+	//       "body": "<response>",
+	//       "status_code": 200
+	//     }
+	//   ]
+	// }
+
+	staticResponse := caddyhttp.StaticResponse{
+		StatusCode: caddyhttp.WeakString(strconv.Itoa(http.StatusOK)),
+		Body:       response,
+	}
+
+	return caddyhttp.Route{
+		MatcherSetsRaw: caddyhttp.RawMatcherSets{
+			{
+				"path": caddyconfig.JSON(caddyhttp.MatchPath{VerifyPath}, warnings),
+			},
+		},
+		HandlersRaw: []json.RawMessage{
+			caddyconfig.JSONModuleObject(staticResponse, "handler", "static_response", warnings),
+		},
+	}
 }
