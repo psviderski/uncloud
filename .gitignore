@@ -32,3 +32,6 @@ dist/
 
 # Web
 node_modules/
+
+# VS Code
+.vscode
