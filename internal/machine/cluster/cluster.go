@@ -110,6 +110,15 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	if len(req.Network.Endpoints) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "endpoints not set")
 	}
+	if req.PublicIp != nil {
+		ip, err := req.PublicIp.ToAddr()
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid public IP: %v", err)
+		}
+		if !ip.IsValid() {
+			return nil, status.Error(codes.InvalidArgument, "invalid public IP")
+		}
+	}
 
 	machines, err := c.store.ListMachines(ctx)
 	if err != nil {
@@ -174,6 +183,7 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 			Endpoints:    req.Network.Endpoints,
 			PublicKey:    req.Network.PublicKey,
 		},
+		PublicIp: req.PublicIp,
 	}
 	// TODO: announce the new machine to the cluster members and achieve consensus.
 	//  We should perhaps not proceed if this machine is in a minority partition.

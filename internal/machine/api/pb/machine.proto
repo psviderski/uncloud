@@ -19,18 +19,24 @@ message MachineInfo {
   string id = 1;
   string name = 2;
   NetworkConfig network = 3;
+  IP public_ip = 4;
 }
 
 message NetworkConfig {
   IPPrefix subnet = 1;
   IP management_ip = 2;
   repeated IPPort endpoints = 3;
-  bytes publicKey = 4;
+  bytes public_key = 4;
 }
 
 message InitClusterRequest {
   string machineName = 1;
   IPPrefix network = 2;
+
+  oneof public_ip_config {
+    IP public_ip = 3;
+    bool public_ip_auto = 4;
+  }
 }
 
 message InitClusterResponse {

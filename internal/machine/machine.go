@@ -558,6 +558,12 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 			PublicKey: m.state.Network.PublicKey,
 		},
 	}
+	if req.GetPublicIp() != nil {
+		addReq.PublicIp = req.GetPublicIp()
+	} else if req.GetPublicIpAuto() {
+		addReq.PublicIp = pb.NewIP(publicIP)
+	}
+
 	addResp, err := m.cluster.AddMachine(ctx, addReq)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "add machine to cluster: %v", err)

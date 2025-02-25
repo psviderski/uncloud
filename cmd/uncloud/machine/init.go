@@ -12,11 +12,12 @@ import (
 )
 
 type initOptions struct {
-	name    string
-	network string
-	noCaddy bool
-	sshKey  string
-	cluster string
+	name     string
+	network  string
+	noCaddy  bool
+	publicIP string
+	sshKey   string
+	cluster  string
 }
 
 func NewInitCommand() *cobra.Command {
@@ -58,6 +59,11 @@ func NewInitCommand() *cobra.Command {
 		&opts.noCaddy, "no-caddy", false,
 		"Don't deploy Caddy reverse proxy service to the machine.",
 	)
+	cmd.Flags().StringVar(
+		&opts.publicIP, "public-ip", "auto",
+		"Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, "+
+			"blank '' or 'none' to disable ingress on this machine, or specify an IP address.",
+	)
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "",
 		"path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
@@ -76,7 +82,21 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		return fmt.Errorf("parse network CIDR: %w", err)
 	}
 
-	client, err := uncli.InitCluster(ctx, remoteMachine, opts.cluster, opts.name, netPrefix)
+	var publicIP *netip.Addr
+	switch opts.publicIP {
+	case "auto":
+		publicIP = &netip.Addr{}
+	case "", "none":
+		publicIP = nil
+	default:
+		ip, err := netip.ParseAddr(opts.publicIP)
+		if err != nil {
+			return fmt.Errorf("parse public IP: %w", err)
+		}
+		publicIP = &ip
+	}
+
+	client, err := uncli.InitCluster(ctx, remoteMachine, opts.cluster, opts.name, netPrefix, publicIP)
 	if err != nil {
 		return err
 	}

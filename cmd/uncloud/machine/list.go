@@ -10,7 +10,6 @@ import (
 	"text/tabwriter"
 	"uncloud/internal/cli"
 	"uncloud/internal/machine/network"
-	"uncloud/internal/secret"
 )
 
 func NewListCommand() *cobra.Command {
@@ -46,7 +45,7 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 	// Print the list of machines in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	// Print header.
-	if _, err = fmt.Fprintln(tw, "NAME\tSTATE\tADDRESS\tPUBLIC KEY\tENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tSTATE\tADDRESS\tPUBLIC IP\tWIREGUARD ENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	// Print rows.
@@ -54,14 +53,21 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 		m := member.Machine
 		subnet, _ := m.Network.Subnet.ToPrefix()
 		subnet = netip.PrefixFrom(network.MachineIP(subnet), subnet.Bits())
+
+		publicIP := "-"
+		if m.PublicIp != nil {
+			ip, _ := m.PublicIp.ToAddr()
+			publicIP = ip.String()
+		}
+
 		endpoints := make([]string, len(m.Network.Endpoints))
 		for i, ep := range m.Network.Endpoints {
 			addrPort, _ := ep.ToAddrPort()
 			endpoints[i] = addrPort.String()
 		}
-		publicKey := secret.Secret(m.Network.PublicKey)
+
 		if _, err = fmt.Fprintf(
-			tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicKey, strings.Join(endpoints, ", "),
+			tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicIP, strings.Join(endpoints, ", "),
 		); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}

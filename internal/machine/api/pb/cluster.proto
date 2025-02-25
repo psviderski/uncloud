@@ -5,6 +5,7 @@ package api;
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 import "google/protobuf/empty.proto";
+import "internal/machine/api/pb/common.proto";
 import "internal/machine/api/pb/machine.proto";
 
 service Cluster {
@@ -20,6 +21,7 @@ service Cluster {
 message AddMachineRequest {
   string name = 1;
   NetworkConfig network = 2;
+  IP public_ip = 3;
 }
 
 message AddMachineResponse {
