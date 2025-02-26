@@ -79,10 +79,13 @@ func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
 		if err = rows.Scan(&mJSON); err != nil {
 			return nil, err
 		}
+
+		protojsonParser := protojson.UnmarshalOptions{DiscardUnknown: true}
 		var m pb.MachineInfo
-		if err = protojson.Unmarshal([]byte(mJSON), &m); err != nil {
+		if err = protojsonParser.Unmarshal([]byte(mJSON), &m); err != nil {
 			return nil, fmt.Errorf("unmarshal machine info: %w", err)
 		}
+
 		if err = m.Network.Validate(); err != nil {
 			slog.Error("Invalid network configuration for machine in store", "id", m.Id, "err", err)
 			continue

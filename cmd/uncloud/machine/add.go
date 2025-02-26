@@ -149,7 +149,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 func waitClusterInitialised(ctx context.Context, client *client.Client) error {
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithMaxInterval(1*time.Second),
-		backoff.WithMaxElapsedTime(30*time.Second),
+		backoff.WithMaxElapsedTime(5*time.Minute),
 	), ctx)
 
 	check := func() error {
