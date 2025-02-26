@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 )
 
 // The dns package code is based on https://github.com/acorn-io/runtime/blob/main/pkg/dns.
@@ -53,18 +52,10 @@ func (c *client) ReserveDomain(endpoint string) (string, string, error) {
 		return "", "", err
 	}
 
-	domain := resp.Name
-	if strings.HasPrefix(domain, ".") {
-		domain = domain[1:]
-	}
-	return domain, resp.Token, nil
+	return resp.Name, resp.Token, nil
 }
 
 func (c *client) CreateRecords(endpoint, domain, token string, records []RecordRequest) ([]RecordResponse, error) {
-	// TODO: update Uncloud DNS service to not use a leading dot for domain names.
-	if !strings.HasPrefix(domain, ".") {
-		domain = "." + domain
-	}
 	url := fmt.Sprintf("%s/domains/%s/records", endpoint, domain)
 
 	var resp []RecordResponse
