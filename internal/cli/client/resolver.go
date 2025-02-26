@@ -76,8 +76,8 @@ func (r *ServiceSpecResolver) expandIngressPorts(spec *api.ServiceSpec) error {
 
 		if port.Hostname == "" {
 			if r.ClusterDomain == "" {
-				return fmt.Errorf("cluster domain must be reserved to generate hostname for ingress port %s",
-					port)
+				return fmt.Errorf("cluster domain must be reserved to generate hostname for ingress port: %d/%s",
+					port.ContainerPort, port.Protocol)
 			}
 			// Assign the default hostname (service-name.cluster-domain).
 			spec.Ports[i].Hostname = fmt.Sprintf("%s.%s", spec.Name, r.ClusterDomain)
