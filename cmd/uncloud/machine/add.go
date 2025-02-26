@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"net/netip"
 	"time"
 	"uncloud/internal/cli"
 	"uncloud/internal/cli/client"
@@ -18,10 +19,11 @@ import (
 )
 
 type addOptions struct {
-	name    string
-	noCaddy bool
-	sshKey  string
-	cluster string
+	name     string
+	noCaddy  bool
+	publicIP string
+	sshKey   string
+	cluster  string
 }
 
 func NewAddCommand() *cobra.Command {
@@ -52,6 +54,11 @@ func NewAddCommand() *cobra.Command {
 		&opts.noCaddy, "no-caddy", false,
 		"Don't deploy Caddy reverse proxy service to the machine.",
 	)
+	cmd.Flags().StringVar(
+		&opts.publicIP, "public-ip", "auto",
+		"Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, "+
+			"blank '' or 'none' to disable ingress on this machine, or specify an IP address.",
+	)
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "",
 		"path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
@@ -64,7 +71,21 @@ func NewAddCommand() *cobra.Command {
 }
 
 func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, opts addOptions) error {
-	machineClient, err := uncli.AddMachine(ctx, remoteMachine, opts.cluster, opts.name)
+	var publicIP *netip.Addr
+	switch opts.publicIP {
+	case "auto":
+		publicIP = &netip.Addr{}
+	case "", "none":
+		publicIP = nil
+	default:
+		ip, err := netip.ParseAddr(opts.publicIP)
+		if err != nil {
+			return fmt.Errorf("parse public IP: %w", err)
+		}
+		publicIP = &ip
+	}
+
+	machineClient, err := uncli.AddMachine(ctx, remoteMachine, opts.cluster, opts.name, publicIP)
 	if err != nil {
 		return err
 	}

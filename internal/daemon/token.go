@@ -37,5 +37,5 @@ func MachineToken(dataDir string) (machine.Token, error) {
 	for i, ip := range ips {
 		endpoints[i] = netip.AddrPortFrom(ip, network.WireGuardPort)
 	}
-	return machine.NewToken(state.Network.PublicKey, endpoints), nil
+	return machine.NewToken(state.Network.PublicKey, publicIP, endpoints), nil
 }

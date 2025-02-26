@@ -204,9 +204,10 @@ func (cli *CLI) initRemoteMachine(
 	return machineClient, nil
 }
 
-// TODO:
+// AddMachine provisions a remote machine and adds it to the cluster. It returns a client to interact with the machine
+// which should be closed after use by the caller.
 func (cli *CLI) AddMachine(
-	ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string,
+	ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string, publicIP *netip.Addr,
 ) (*client.Client, error) {
 	c, err := cli.ConnectCluster(ctx, clusterName)
 	if err != nil {
@@ -256,6 +257,15 @@ func (cli *CLI) AddMachine(
 			PublicKey: token.PublicKey,
 		},
 	}
+	if publicIP != nil {
+		if publicIP.IsValid() {
+			addReq.PublicIp = pb.NewIP(*publicIP)
+		} else if token.PublicIP.IsValid() {
+			// Invalid or in other words zero IP means to use an automatically detected public IP from the token.
+			addReq.PublicIp = pb.NewIP(token.PublicIP)
+		}
+	}
+
 	addResp, err := c.AddMachine(ctx, addReq)
 	if err != nil {
 		return nil, fmt.Errorf("add machine to cluster: %w", err)

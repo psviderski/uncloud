@@ -16,13 +16,15 @@ const (
 // Token represents the machine's token for joining a cluster.
 type Token struct {
 	PublicKey secret.Secret
+	PublicIP  netip.Addr
 	Endpoints []netip.AddrPort
 }
 
 // NewToken creates a new machine token with the given public key and endpoints.
-func NewToken(publicKey secret.Secret, endpoints []netip.AddrPort) Token {
+func NewToken(publicKey secret.Secret, publicIP netip.Addr, endpoints []netip.AddrPort) Token {
 	return Token{
 		PublicKey: publicKey,
+		PublicIP:  publicIP,
 		Endpoints: endpoints,
 	}
 }
