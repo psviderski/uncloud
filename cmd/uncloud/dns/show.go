@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"uncloud/internal/cli"
+	"uncloud/internal/cli/client"
 )
 
 type showOptions struct {
@@ -36,20 +34,20 @@ func NewShowCommand() *cobra.Command {
 }
 
 func show(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer client.Close()
+	defer clusterClient.Close()
 
-	domain, err := client.GetDomain(ctx, &emptypb.Empty{})
+	domain, err := clusterClient.GetDomain(ctx)
 	if err != nil {
-		if status.Convert(err).Code() == codes.NotFound {
+		if errors.Is(err, client.ErrNotFound) {
 			return errors.New("no domain reserved")
 		}
 		return err
 	}
 
-	fmt.Println(domain.Name)
+	fmt.Println(domain)
 	return nil
 }

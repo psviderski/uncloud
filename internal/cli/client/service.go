@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/distribution/reference"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -12,12 +11,27 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"slices"
-	"strings"
 	"sync"
 	"uncloud/internal/api"
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/secret"
 )
+
+func (cli *Client) PrepareDeploymentSpec(ctx context.Context, spec api.ServiceSpec) (api.ServiceSpec, error) {
+	domain, err := cli.GetDomain(ctx)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return spec, fmt.Errorf("get domain: %w", err)
+	}
+
+	// If the domain is not found (not reserved), an empty domain is used for the resolver.
+	resolver := NewServiceSpecResolver(domain)
+
+	if err = resolver.Resolve(&spec); err != nil {
+		return spec, err
+	}
+
+	return spec, nil
+}
 
 type RunServiceResponse struct {
 	ID   string
@@ -31,26 +45,7 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 		return resp, fmt.Errorf("invalid service spec: %w", err)
 	}
 
-	img, err := reference.ParseDockerRef(spec.Container.Image)
-	if err != nil {
-		return resp, fmt.Errorf("invalid image: %w", err)
-	}
-
-	if spec.Name == "" {
-		// Generate a random service name from the image if not specified.
-		// Get the image name without the repository and tag/digest parts.
-		imageName := reference.FamiliarName(img)
-		// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
-		if i := strings.LastIndex(imageName, "/"); i != -1 {
-			imageName = imageName[i+1:]
-		}
-		// Append a random suffix to the image name to generate an optimistically unique service name.
-		suffix, err := secret.RandomAlphaNumeric(4)
-		if err != nil {
-			return resp, fmt.Errorf("generate random suffix: %w", err)
-		}
-		spec.Name = fmt.Sprintf("%s-%s", imageName, suffix)
-	} else {
+	if spec.Name != "" {
 		// Optimistically check if a service with the specified name already exists.
 		_, err := cli.InspectService(ctx, spec.Name)
 		if err == nil {
@@ -59,6 +54,11 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 		if !errors.Is(err, ErrNotFound) {
 			return resp, fmt.Errorf("inspect service: %w", err)
 		}
+	}
+
+	var err error
+	if spec, err = cli.PrepareDeploymentSpec(ctx, spec); err != nil {
+		return resp, fmt.Errorf("prepare service spec ready for deployment: %w", err)
 	}
 
 	serviceID, err := secret.NewID()

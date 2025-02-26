@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/docker/compose/v2/pkg/progress"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"net/http"
 	"sync"
@@ -12,6 +14,19 @@ import (
 	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/caddyfile"
 )
+
+// GetDomain returns the cluster domain name or ErrNotFound if it hasn't been reserved yet.
+func (cli *Client) GetDomain(ctx context.Context) (string, error) {
+	domain, err := cli.ClusterClient.GetDomain(ctx, nil)
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+
+	return domain.Name, nil
+}
 
 var ErrNoReachableMachines = errors.New("no internet-reachable machines running service containers")
 

@@ -7,8 +7,6 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"maps"
 	"slices"
 	"strings"
@@ -175,8 +173,8 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	fmt.Println()
-	if _, err = clusterClient.GetDomain(ctx, nil); err != nil {
-		if status.Convert(err).Code() == codes.NotFound {
+	if _, err = clusterClient.GetDomain(ctx); err != nil {
+		if errors.Is(err, client.ErrNotFound) {
 			fmt.Println("Skipping DNS records update as no cluster domain is reserved (see 'uc dns').")
 			return nil
 		}
