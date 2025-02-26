@@ -183,17 +183,38 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return fmt.Errorf("get cluster domain: %w", err)
 	}
 
-	fmt.Println("Updating cluster domain records in Uncloud DNS to point to machines running caddy containers...")
-	records, err := clusterClient.CreateIngressRecords(ctx, client.CaddyServiceName)
+	fmt.Println("Updating cluster domain records in Uncloud DNS to point to machines running caddy service...")
+	// TODO: split the method into two: one to get the records and one to update them to ask for update confirmation.
+
+	var records []*pb.DNSRecord
+	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+		records, err = clusterClient.CreateIngressRecords(ctx, client.CaddyServiceName)
+		return err
+	}, uncli.ProgressOut(), "Verifying internet access to caddy service")
 	if err != nil {
-		return fmt.Errorf("update ingress records: %w", err)
+		if errors.Is(err, client.ErrNoReachableMachines) {
+			fmt.Println()
+			fmt.Println("DNS records could not be updated as there are no internet-reachable machines running " +
+				"caddy containers.")
+			fmt.Println()
+			fmt.Println("Possible solutions:")
+			fmt.Println("- Ensure your machines have public IP addresses")
+			fmt.Println("- Use --public-ip flag when adding machines to override the automatically detected IPs")
+			fmt.Println("- Check firewall settings on your machines")
+			fmt.Println("- Configure port forwarding if behind NAT")
+			fmt.Println("- Retry Caddy deployment after resolving connectivity issues with 'uc caddy deploy'")
+			fmt.Println()
+			fmt.Println("Your services will not be accessible from the internet until at least one machine " +
+				"becomes reachable.")
+		}
+		return fmt.Errorf("failed to update DNS records pointing to caddy service: %w", err)
 	}
 
-	fmt.Println("DNS records updated successfully:")
-	for _, r := range records {
-		fmt.Printf("  %s  %s -> %s", r.Name, r.Type, strings.Join(r.Values, ", "))
-	}
 	fmt.Println()
+	fmt.Println("DNS records updated to use only the internet-reachable machines running caddy service:")
+	for _, r := range records {
+		fmt.Printf("  %s  %s -> %s\n", r.Name, r.Type, strings.Join(r.Values, ", "))
+	}
 
 	return nil
 }

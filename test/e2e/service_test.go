@@ -403,6 +403,8 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, c.Machines[2].Name, machine2.Machine.Name)
 	})
+
+	// TODO: test deployments with unreachable machines. See https://github.com/psviderski/uncloud/issues/29.
 }
 
 func TestRunService(t *testing.T) {
