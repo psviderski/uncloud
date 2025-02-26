@@ -8,6 +8,10 @@ update-dev:
 		scp uncloudd-linux-amd64 spy@192.168.40.176:~/ && \
 		ssh spy@192.168.40.176 sudo install ./uncloudd-linux-amd64 /usr/local/bin/uncloudd && \
 		rm uncloudd-linux-amd64
+#	GOOS=linux GOARCH=arm64 go build -o uncloudd-linux-arm64 ./cmd/uncloudd && \
+#		scp uncloudd-linux-arm64 ubuntu@152.67.101.197:~/ && \
+#		ssh ubuntu@152.67.101.197 sudo install ./uncloudd-linux-arm64 /usr/local/bin/uncloudd && \
+#		rm uncloudd-linux-arm64
 
 update-restart-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
@@ -16,6 +20,10 @@ update-restart-dev:
 		scp uncloudd-linux-amd64 spy@192.168.40.176:~/ && \
 		ssh spy@192.168.40.176 "sudo install ./uncloudd-linux-amd64 /usr/local/bin/uncloudd && sudo systemctl restart uncloud" && \
 		rm uncloudd-linux-amd64
+#	GOOS=linux GOARCH=arm64 go build -o uncloudd-linux-arm64 ./cmd/uncloudd && \
+#		scp uncloudd-linux-arm64 ubuntu@152.67.101.197:~/ && \
+#		ssh ubuntu@152.67.101.197 "sudo install ./uncloudd-linux-arm64 /usr/local/bin/uncloudd && sudo systemctl restart uncloud" && \
+#		rm uncloudd-linux-arm64
 
 reset-dev:
 	ssh spy@192.168.40.243 "sudo systemctl stop uncloud && sudo rm -rf /var/lib/uncloud"
