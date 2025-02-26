@@ -53,8 +53,10 @@ func NewRunCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.publish, "publish", "p", nil,
 		"Publish a service port to make it accessible outside the cluster. Can be specified multiple times.\n"+
 			"Format: [hostname:][load_balancer_port:]container_port[/protocol] or [host_ip:]:host_port:container_port[/protocol]@host\n"+
-			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified, a random hostname is generated.\n"+
+			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified,\n"+
+			"service-name.cluster-domain will be used as the hostname.\n"+
 			"Examples:\n"+
+			"  -p 8080/https                  Publish port 8080 as HTTPS via load balancer with default service-name.cluster-domain hostname\n"+
 			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via load balancer with custom hostname\n"+
 			"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via load balancer\n"+
 			"  -p 53:5353/udp@host            Bind UDP port 5353 to host port 53")

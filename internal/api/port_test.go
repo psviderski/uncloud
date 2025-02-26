@@ -51,6 +51,22 @@ func TestPortSpec_Validate(t *testing.T) {
 			},
 		},
 		{
+			name: "ingress mode without hostname http",
+			spec: PortSpec{
+				ContainerPort: 8080,
+				Protocol:      ProtocolHTTP,
+				Mode:          PortModeIngress,
+			},
+		},
+		{
+			name: "ingress mode without hostname https",
+			spec: PortSpec{
+				ContainerPort: 8080,
+				Protocol:      ProtocolHTTPS,
+				Mode:          PortModeIngress,
+			},
+		},
+		{
 			name: "ingress mode with hostname and http",
 			spec: PortSpec{
 				Hostname:      "app.example.com",
@@ -163,24 +179,6 @@ func TestPortSpec_Validate(t *testing.T) {
 				Mode:          PortModeIngress,
 			},
 			wantErr: "invalid hostname 'app': must be a valid domain name containing at least one dot",
-		},
-		{
-			name: "missing hostname with http",
-			spec: PortSpec{
-				ContainerPort: 8080,
-				Protocol:      ProtocolHTTP,
-				Mode:          PortModeIngress,
-			},
-			wantErr: "hostname is required with 'http' or 'https' protocols",
-		},
-		{
-			name: "missing hostname with https",
-			spec: PortSpec{
-				ContainerPort: 8080,
-				Protocol:      ProtocolHTTPS,
-				Mode:          PortModeIngress,
-			},
-			wantErr: "hostname is required with 'http' or 'https' protocols",
 		},
 		{
 			name: "host IP in ingress mode",
@@ -469,6 +467,15 @@ func TestParsePortSpec(t *testing.T) {
 			},
 		},
 		{
+			name: "container port http without hostname",
+			port: "8080/http",
+			expected: PortSpec{
+				ContainerPort: 8080,
+				Protocol:      ProtocolHTTP,
+				Mode:          PortModeIngress,
+			},
+		},
+		{
 			name: "hostname and container port http",
 			port: "app.example.com:8080/http",
 			expected: PortSpec{
@@ -601,21 +608,6 @@ func TestParsePortSpec(t *testing.T) {
 			name:    "invalid published port",
 			port:    "app.example.com:invalid:8080",
 			wantErr: "invalid published port",
-		},
-		{
-			name:    "missing hostname with http",
-			port:    "8080/http",
-			wantErr: "hostname is required",
-		},
-		{
-			name:    "missing hostname with http",
-			port:    "8080/https",
-			wantErr: "hostname is required",
-		},
-		{
-			name:    "missing hostname with published https port",
-			port:    "8000:8080/https",
-			wantErr: "hostname is required",
 		},
 		{
 			name:    "invalid hostname",

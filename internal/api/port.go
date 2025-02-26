@@ -62,9 +62,6 @@ func (p *PortSpec) Validate() error {
 				return fmt.Errorf("invalid hostname '%s': %w", p.Hostname, err)
 			}
 		}
-		if p.Hostname == "" && (p.Protocol == ProtocolHTTP || p.Protocol == ProtocolHTTPS) {
-			return fmt.Errorf("hostname is required with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
-		}
 	case PortModeHost:
 		if p.PublishedPort == 0 {
 			return fmt.Errorf("published port is required in %s mode", PortModeHost)
@@ -216,9 +213,7 @@ func ParsePortSpec(port string) (PortSpec, error) {
 				return spec, fmt.Errorf("invalid host IP '%s': %w", parts[0], err)
 			}
 		} else {
-			if parts[0] == "" {
-				return spec, fmt.Errorf("hostname must not be empty")
-			}
+			// Hostname may be empty.
 			spec.Hostname = parts[0]
 		}
 
