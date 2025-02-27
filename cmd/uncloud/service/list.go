@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"uncloud/internal/cli"
 )
@@ -41,11 +42,14 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 
 	// Print the list of services in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "SERVICE ID\tNAME\tMODE\tREPLICAS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	for _, s := range services {
-		if _, err = fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", s.ID, s.Name, s.Mode, len(s.Containers)); err != nil {
+		endpointsSlice := s.Endpoints()
+		endpoints := strings.Join(endpointsSlice, ", ")
+
+		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\n", s.Name, s.Mode, len(s.Containers), endpoints); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}

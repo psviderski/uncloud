@@ -118,6 +118,7 @@ func (s *Service) Endpoints() []string {
 				}
 			}
 
+			endpoint += fmt.Sprintf(" → :%d", port.ContainerPort)
 			endpoints[endpoint] = struct{}{}
 		}
 	}
