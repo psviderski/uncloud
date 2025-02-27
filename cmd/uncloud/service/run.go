@@ -109,8 +109,20 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	}
 	defer client.Close()
 
-	if _, err = client.RunService(ctx, spec); err != nil {
+	resp, err := client.RunService(ctx, spec)
+	if err != nil {
 		return fmt.Errorf("run service: %w", err)
+	}
+
+	svc, err := client.InspectService(ctx, resp.ID)
+	if err != nil {
+		return fmt.Errorf("inspect service: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Printf("%s endpoints:\n", svc.Name)
+	for _, endpoint := range svc.Endpoints() {
+		fmt.Printf(" • %s\n", endpoint)
 	}
 
 	return nil

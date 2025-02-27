@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/distribution/reference"
+	"maps"
 	"reflect"
 	"regexp"
+	"slices"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -77,6 +79,50 @@ type Service struct {
 type MachineContainer struct {
 	MachineID string
 	Container Container
+}
+
+// Endpoints returns the exposed HTTP and HTTPS endpoints of the service.
+func (s *Service) Endpoints() []string {
+	endpoints := make(map[string]struct{})
+
+	// Container specs may differ between containers in the same service, e.g. during a rolling update,
+	// so we need to collect all unique endpoints.
+	for _, ctr := range s.Containers {
+		ports, err := ctr.Container.ServicePorts()
+		if err != nil {
+			continue
+		}
+
+		for _, port := range ports {
+			protocol := ""
+			switch port.Protocol {
+			case ProtocolHTTP:
+				protocol = "http"
+			case ProtocolHTTPS:
+				protocol = "https"
+			default:
+				continue
+			}
+
+			if port.Hostname == "" {
+				// There shouldn't be http(s) ports without a hostname but just in case ignore them.
+				continue
+			}
+
+			endpoint := fmt.Sprintf("%s://%s", protocol, port.Hostname)
+			if port.PublishedPort != 0 {
+				// For non-standard ports (80/443), include the port in the URL.
+				if !(port.Protocol == ProtocolHTTP && port.PublishedPort == 80) &&
+					!(port.Protocol == ProtocolHTTPS && port.PublishedPort == 443) {
+					endpoint += fmt.Sprintf(":%d", port.PublishedPort)
+				}
+			}
+
+			endpoints[endpoint] = struct{}{}
+		}
+	}
+
+	return slices.Sorted(maps.Keys(endpoints))
 }
 
 func ServiceFromProto(s *pb.Service) (Service, error) {
