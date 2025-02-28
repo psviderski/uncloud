@@ -610,7 +610,7 @@ func TestRunService(t *testing.T) {
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, resp.ID)
@@ -681,7 +681,7 @@ func TestRunService(t *testing.T) {
 				},
 			},
 		}
-		resp, err := cli.RunService(ctx, spec)
+		resp, err := cli.RunService(ctx, spec, nil)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, resp.ID)
@@ -714,7 +714,7 @@ func TestRunService(t *testing.T) {
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, resp.ID)
