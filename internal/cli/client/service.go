@@ -14,7 +14,6 @@ import (
 	"sync"
 	"uncloud/internal/api"
 	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/secret"
 )
 
 func (cli *Client) PrepareDeploymentSpec(ctx context.Context, spec api.ServiceSpec) (api.ServiceSpec, error) {
@@ -38,7 +37,9 @@ type RunServiceResponse struct {
 	Name string
 }
 
-func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
+func (cli *Client) RunService(
+	ctx context.Context, spec api.ServiceSpec, filter MachineFilter,
+) (RunServiceResponse, error) {
 	var resp RunServiceResponse
 
 	if err := spec.Validate(); err != nil {
@@ -61,110 +62,25 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 		return resp, fmt.Errorf("prepare service spec ready for deployment: %w", err)
 	}
 
-	serviceID, err := secret.NewID()
-	if err != nil {
-		return resp, fmt.Errorf("generate service ID: %w", err)
-	}
-
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		switch spec.Mode {
-		case "", api.ServiceModeReplicated:
-			resp, err = cli.runReplicatedService(ctx, serviceID, spec)
-		case api.ServiceModeGlobal:
-			deploy, err := cli.NewDeployment(spec, &RollingStrategy{})
-			if err != nil {
-				return fmt.Errorf("create deployment: %w", err)
-			}
-
-			serviceID, err = deploy.Run(ctx)
-			if err != nil {
-				return err
-			}
-
-			resp.ID = serviceID
-			// TODO: get the service name from the plan when it's available.
-			resp.Name = spec.Name
-
-			return nil
-		default:
-			return fmt.Errorf("invalid mode: %q", spec.Mode)
+		deploy, err := cli.NewDeployment(spec, &RollingStrategy{MachineFilter: filter})
+		if err != nil {
+			return fmt.Errorf("create deployment: %w", err)
 		}
 
-		return err
-	}, cli.progressOut(), "Running service "+spec.Name)
+		serviceID, err := deploy.Run(ctx)
+		if err != nil {
+			return err
+		}
+
+		resp.ID = serviceID
+		// TODO: get the service name from the plan when it's available.
+		resp.Name = spec.Name
+
+		return nil
+	}, cli.progressOut(), fmt.Sprintf("Running service %s (%s mode)", spec.Name, spec.Mode))
 
 	return resp, err
-}
-
-func (cli *Client) runReplicatedService(ctx context.Context, id string, spec api.ServiceSpec) (RunServiceResponse, error) {
-	resp := RunServiceResponse{
-		ID:   id,
-		Name: spec.Name,
-	}
-
-	// Find a machine to run a service replica on.
-	machines, err := cli.ListMachines(ctx)
-	if err != nil {
-		return resp, fmt.Errorf("list machines: %w", err)
-	}
-
-	// TODO: support selecting a particular machine by ID or name through the user options.
-	//var machine *pb.MachineMember
-	//if opts.Machine != "" {
-	//	// Check if the machine ID or name exists if it's explicitly specified.
-	//	for _, m := range machines {
-	//		if m.Machine.Name == opts.Machine || m.Machine.Id == opts.Machine {
-	//			machine = m
-	//			break
-	//		}
-	//	}
-	//	if machine == nil {
-	//		return resp, fmt.Errorf("machine %q not found", opts.Machine)
-	//	}
-	//}
-
-	m := firstAvailableMachine(machines)
-	if m == nil {
-		return resp, errors.New("no available machine to run the service")
-	}
-
-	if _, err = cli.runContainer(ctx, id, spec, m.Machine); err != nil {
-		return resp, fmt.Errorf("run container: %w", err)
-	}
-
-	return resp, nil
-}
-
-func firstAvailableMachine(machines []*pb.MachineMember) *pb.MachineMember {
-	// Find the first UP machine.
-	for _, m := range machines {
-		if m.State == pb.MachineMember_UP {
-			return m
-		}
-	}
-	// There is no UP machine, try to find the first SUSPECT machine.
-	for _, m := range machines {
-		if m.State == pb.MachineMember_SUSPECT {
-			return m
-		}
-	}
-
-	return nil
-}
-
-func (cli *Client) runContainer(
-	ctx context.Context, serviceID string, spec api.ServiceSpec, machine *pb.MachineInfo,
-) (container.CreateResponse, error) {
-	resp, err := cli.CreateContainer(ctx, serviceID, spec, machine.Name)
-	if err != nil {
-		return resp, fmt.Errorf("create container: %w", err)
-	}
-
-	if err = cli.StartContainer(ctx, serviceID, resp.ID); err != nil {
-		return resp, fmt.Errorf("start container: %w", err)
-	}
-
-	return resp, nil
 }
 
 // InspectService returns detailed information about a service and its containers.

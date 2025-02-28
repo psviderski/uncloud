@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/distribution/reference"
-	"strings"
 	"uncloud/internal/api"
 	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/secret"
 )
 
 // Deployment manages the process of creating or updating a service to match a desired state.
@@ -35,29 +32,6 @@ var ErrNoMatchingMachines = errors.New("no machines match the filter")
 // NewDeployment creates a new deployment for the given service specification.
 // If strategy is nil, a default RollingStrategy will be used.
 func (cli *Client) NewDeployment(spec api.ServiceSpec, strategy Strategy) (*Deployment, error) {
-	if err := spec.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid service spec: %w", err)
-	}
-	if spec.Name == "" {
-		// Generate a random service name from the image when not provided.
-		img, err := reference.ParseDockerRef(spec.Container.Image)
-		if err != nil {
-			return nil, fmt.Errorf("invalid image: %w", err)
-		}
-		// Get the image name without the repository and tag/digest parts.
-		imageName := reference.FamiliarName(img)
-		// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
-		if i := strings.LastIndex(imageName, "/"); i != -1 {
-			imageName = imageName[i+1:]
-		}
-		// Append a random suffix to the image name to generate an optimistically unique service name.
-		suffix, err := secret.RandomAlphaNumeric(4)
-		if err != nil {
-			return nil, fmt.Errorf("generate random suffix: %w", err)
-		}
-		spec.Name = fmt.Sprintf("%s-%s", imageName, suffix)
-	}
-
 	if strategy == nil {
 		strategy = &RollingStrategy{}
 	}
@@ -117,6 +91,9 @@ func (d *Deployment) Validate(ctx context.Context) error {
 	}
 	if d.Service.Mode != d.Spec.Mode {
 		return errors.New("service mode cannot be changed")
+	}
+	if d.Spec.Mode == api.ServiceModeReplicated && d.Spec.Replicas < 1 {
+		return errors.New("number of replicas must be at least 1")
 	}
 
 	return nil

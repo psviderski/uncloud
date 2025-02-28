@@ -21,6 +21,7 @@ type Container struct {
 }
 
 // NameWithoutSlash returns the container name without the leading slash.
+// TODO: modify Name in original ContainerJSON structure when inspecting a Docker container and get rid of this method.
 func (c *Container) NameWithoutSlash() string {
 	return c.Name[1:]
 }

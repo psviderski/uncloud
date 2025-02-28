@@ -4,18 +4,23 @@ import (
 	"context"
 	"fmt"
 	"github.com/spf13/cobra"
+	"slices"
+	"strings"
 	"uncloud/internal/api"
 	"uncloud/internal/cli"
+	"uncloud/internal/cli/client"
+	"uncloud/internal/machine/api/pb"
 )
 
 type runOptions struct {
-	command []string
-	image   string
-	machine string
-	mode    string
-	name    string
-	publish []string
-	volumes []string
+	command  []string
+	image    string
+	machines []string
+	mode     string
+	name     string
+	publish  []string
+	replicas uint
+	volumes  []string
 
 	cluster string
 }
@@ -39,15 +44,13 @@ func NewRunCommand() *cobra.Command {
 		},
 	}
 
-	// TODO: implement placement constraints and translate --machine to a constraint.
-	//cmd.Flags().StringVarP(
-	//	&opts.machine, "machine", "m", "",
-	//	"Name or ID of the machine to run the service on. (default is first available)",
-	//)
 	cmd.Flags().StringVar(&opts.mode, "mode", api.ServiceModeReplicated,
 		fmt.Sprintf("Replication mode of the service: either %q (a specified number of containers across "+
 			"the machines) or %q (one container on every machine).",
 			api.ServiceModeReplicated, api.ServiceModeGlobal))
+	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
+		"Placement constraint by machine name, limiting which machines the service can run on. Can be specified "+
+			"multiple times or as a comma-separated list of machine names. (default is any suitable machine)")
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "",
 		"Assign a name to the service. A random name is generated if not specified.")
 	cmd.Flags().StringSliceVarP(&opts.publish, "publish", "p", nil,
@@ -60,6 +63,8 @@ func NewRunCommand() *cobra.Command {
 			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via load balancer with custom hostname\n"+
 			"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via load balancer\n"+
 			"  -p 53:5353/udp@host            Bind UDP port 5353 to host port 53")
+	cmd.Flags().UintVar(&opts.replicas, "replicas", 1,
+		"Number of containers to run for the service. Only valid for a replicated service.")
 	cmd.Flags().StringSliceVarP(&opts.volumes, "volume", "v", nil,
 		"Bind mount a host file or directory into a service container using the format "+
 			"/host/path:/container/path[:ro]. Can be specified multiple times.")
@@ -74,9 +79,32 @@ func NewRunCommand() *cobra.Command {
 
 func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	switch opts.mode {
-	case "", api.ServiceModeReplicated, api.ServiceModeGlobal:
+	case api.ServiceModeReplicated, api.ServiceModeGlobal:
 	default:
 		return fmt.Errorf("invalid replication mode: %q", opts.mode)
+	}
+
+	var machineFilter client.MachineFilter
+	if len(opts.machines) > 0 {
+		var machines []string
+		for _, value := range opts.machines {
+			if value == "" {
+				continue
+			}
+
+			mlist := strings.Split(value, ",")
+			for _, m := range mlist {
+				if m = strings.TrimSpace(m); m != "" {
+					machines = append(machines, m)
+				}
+			}
+		}
+
+		if len(machines) > 0 {
+			machineFilter = func(m *pb.MachineInfo) bool {
+				return slices.Contains(machines, m.Name)
+			}
+		}
 	}
 
 	ports := make([]api.PortSpec, len(opts.publish))
@@ -95,9 +123,10 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 			Image:   opts.image,
 			Volumes: opts.volumes,
 		},
-		Mode:  opts.mode,
-		Name:  opts.name,
-		Ports: ports,
+		Mode:     opts.mode,
+		Name:     opts.name,
+		Ports:    ports,
+		Replicas: opts.replicas,
 	}
 	if err := spec.Validate(); err != nil {
 		return fmt.Errorf("invalid service configuration: %w", err)
@@ -109,7 +138,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	}
 	defer client.Close()
 
-	resp, err := client.RunService(ctx, spec)
+	resp, err := client.RunService(ctx, spec, machineFilter)
 	if err != nil {
 		return fmt.Errorf("run service: %w", err)
 	}

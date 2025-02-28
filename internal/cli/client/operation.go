@@ -17,6 +17,7 @@ type Operation interface {
 	String() string
 }
 
+// NameResolver resolves machine and container IDs to their names.
 type NameResolver interface {
 	MachineName(machineID string) string
 	ContainerName(containerID string) string

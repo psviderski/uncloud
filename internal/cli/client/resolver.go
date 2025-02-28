@@ -24,6 +24,7 @@ func (r *ServiceSpecResolver) Resolve(spec *api.ServiceSpec) error {
 	}
 
 	steps := []func(*api.ServiceSpec) error{
+		r.applyDefaults,
 		r.resolveServiceName,
 		r.expandIngressPorts,
 	}
@@ -32,6 +33,18 @@ func (r *ServiceSpecResolver) Resolve(spec *api.ServiceSpec) error {
 		if err := step(spec); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (r *ServiceSpecResolver) applyDefaults(spec *api.ServiceSpec) error {
+	if spec.Mode == "" {
+		spec.Mode = api.ServiceModeReplicated
+	}
+	// Ensure the replicated service has at least one replica.
+	if spec.Mode == api.ServiceModeReplicated && spec.Replicas == 0 {
+		spec.Replicas = 1
 	}
 
 	return nil
@@ -63,14 +76,14 @@ func (r *ServiceSpecResolver) resolveServiceName(spec *api.ServiceSpec) error {
 	return nil
 }
 
-// expandIngressPorts processes ingress ports in a service spec by:
+// expandIngressPorts processes HTTP(S) ingress ports in a service spec by:
 // 1. Setting a default hostname (service-name.cluster-domain) for ports without a hostname.
 // 2. Duplicating a port with a cluster domain hostname for ports with external domains.
 // This ensures every ingress port is accessible via the cluster domain, while preserving any custom domains specified
 // by the user.
 func (r *ServiceSpecResolver) expandIngressPorts(spec *api.ServiceSpec) error {
 	for i, port := range spec.Ports {
-		if port.Mode != api.PortModeIngress {
+		if port.Protocol != api.ProtocolHTTP && port.Protocol != api.ProtocolHTTPS {
 			continue
 		}
 

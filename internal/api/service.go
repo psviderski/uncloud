@@ -23,6 +23,8 @@ type ServiceSpec struct {
 	Name string
 	// Ports defines what service ports to publish to make the service accessible outside the cluster.
 	Ports []PortSpec
+	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
+	Replicas uint
 }
 
 func (s *ServiceSpec) Validate() error {
@@ -37,6 +39,7 @@ func (s *ServiceSpec) Validate() error {
 	}
 
 	// TODO: validate there is no conflict between ports.
+	// TODO: return error if there are non-HTTP/HTTPS ingress ports that we don't support yet.
 
 	return nil
 }

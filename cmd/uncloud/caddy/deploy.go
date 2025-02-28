@@ -211,7 +211,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	fmt.Println()
 	fmt.Println("DNS records updated to use only the internet-reachable machines running caddy service:")
 	for _, r := range records {
-		fmt.Printf("  %s  %s -> %s\n", r.Name, r.Type, strings.Join(r.Values, ", "))
+		fmt.Printf("  %s  %s → %s\n", r.Name, r.Type, strings.Join(r.Values, ", "))
 	}
 
 	return nil
