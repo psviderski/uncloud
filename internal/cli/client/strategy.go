@@ -2,8 +2,8 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"uncloud/internal/api"
 	"uncloud/internal/machine/api/pb"
@@ -23,7 +23,7 @@ type Strategy interface {
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
 // to minimize service disruption.
 type RollingStrategy struct {
-	// MachineFilter optionally restricts which machines participate in this deployment.
+	// MachineFilter optionally restricts which machines can be used for deployment.
 	MachineFilter MachineFilter
 }
 
@@ -35,7 +35,7 @@ func (s *RollingStrategy) Plan(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
 	switch spec.Mode {
-	case "", api.ServiceModeReplicated:
+	case api.ServiceModeReplicated:
 		return s.planReplicated(ctx, cli, svc, spec)
 	case api.ServiceModeGlobal:
 		return s.planGlobal(ctx, cli, svc, spec)
@@ -45,10 +45,165 @@ func (s *RollingStrategy) Plan(
 }
 
 // planReplicated creates a plan for a replicated service deployment.
+// For replicated services, we want to maintain a specific number of containers (replicas) across the available machines
+// in the cluster.
 func (s *RollingStrategy) planReplicated(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
-	return Plan{}, errors.New("not implemented")
+	var plan Plan
+
+	// Generate a new service ID for the first service deployment if it doesn't exist yet.
+	if svc != nil {
+		plan.ServiceID = svc.ID
+	} else {
+		var err error
+		plan.ServiceID, err = secret.NewID()
+		if err != nil {
+			return plan, fmt.Errorf("generate service ID: %w", err)
+		}
+	}
+
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return plan, fmt.Errorf("list machines: %w", err)
+	}
+	// Filter machines that are not DOWN and match the machine filter if provided.
+	var availableMachines []*pb.MachineInfo
+	var unmatchedMachines []*pb.MachineInfo
+	var downMachines []*pb.MachineInfo
+	for _, m := range machines {
+		if m.State == pb.MachineMember_DOWN {
+			downMachines = append(downMachines, m.Machine)
+		} else {
+			if s.MachineFilter == nil || s.MachineFilter(m.Machine) {
+				availableMachines = append(availableMachines, m.Machine)
+			} else {
+				unmatchedMachines = append(unmatchedMachines, m.Machine)
+			}
+		}
+	}
+
+	if len(availableMachines) == 0 {
+		if s.MachineFilter != nil {
+			return plan, ErrNoMatchingMachines
+		}
+		return plan, fmt.Errorf("no available machines to deploy service")
+	}
+	// Randomise the order of machines to avoid always deploying to the same machines first.
+	rand.Shuffle(len(availableMachines), func(i, j int) {
+		availableMachines[i], availableMachines[j] = availableMachines[j], availableMachines[i]
+	})
+
+	// Organise existing containers by machine.
+	containersOnMachine := make(map[string][]api.Container)
+	machineHasUpToDateContainer := make(map[string]bool)
+	if svc != nil {
+		runningSpecs := make(map[string]api.ServiceSpec)
+		for _, c := range svc.Containers {
+			if !c.Container.State.Running || c.Container.State.Paused {
+				// Skip containers that are not running.
+				continue
+			}
+			cs, err := c.Container.ServiceSpec()
+			if err == nil {
+				runningSpecs[c.Container.ID] = cs
+				if cs.Equals(spec) {
+					machineHasUpToDateContainer[c.MachineID] = true
+				}
+			}
+		}
+
+		// Sort containers such that containers with the desired spec are first.
+		slices.SortFunc(svc.Containers, func(c1, c2 api.MachineContainer) int {
+			if spec1, ok := runningSpecs[c1.Container.ID]; ok && spec1.Equals(spec) {
+				return -1
+			}
+			if spec2, ok := runningSpecs[c2.Container.ID]; ok && spec2.Equals(spec) {
+				return 1
+			}
+			return 0
+		})
+
+		for _, c := range svc.Containers {
+			containersOnMachine[c.MachineID] = append(containersOnMachine[c.MachineID], c.Container)
+		}
+
+		// Sort machines such that machines with containers that match the desired spec are first, followed by machines
+		// with existing containers, and finally machines without containers.
+		slices.SortFunc(availableMachines, func(m1, m2 *pb.MachineInfo) int {
+			if machineHasUpToDateContainer[m1.Id] {
+				return -1
+			}
+			if machineHasUpToDateContainer[m2.Id] {
+				return 1
+			}
+			return len(containersOnMachine[m2.Id]) - len(containersOnMachine[m1.Id])
+		})
+	}
+
+	// Spread the containers across the available machines evenly using a simple round-robin approach, starting with
+	// machines that already have containers and prioritising machines with containers that match the desired spec.
+	for i := 0; i < int(spec.Replicas); i++ {
+		m := availableMachines[i%len(availableMachines)]
+		containers := containersOnMachine[m.Id]
+
+		if len(containers) == 0 {
+			// No more existing containers on this machine, create a new one.
+			plan.Operations = append(plan.Operations, &RunContainerOperation{
+				ServiceID: plan.ServiceID,
+				Spec:      spec,
+				MachineID: m.Id,
+			})
+			continue
+		}
+
+		ctr := containers[0]
+		containersOnMachine[m.Id] = containers[1:]
+
+		if ctr.State.Running {
+			ctrSpec, specErr := ctr.ServiceSpec()
+			if specErr == nil && ctrSpec.Equals(spec) {
+				continue
+			}
+
+			conflictingPorts, portsErr := ctr.ConflictingServicePorts(spec.Ports)
+			if specErr != nil || portsErr != nil || len(conflictingPorts) > 0 {
+				// Stop the malformed container or the container with conflicting ports.
+				plan.Operations = append(plan.Operations, &StopContainerOperation{
+					ServiceID:   plan.ServiceID,
+					ContainerID: ctr.ID,
+					MachineID:   m.Id,
+				})
+			}
+		}
+
+		// Run a new container.
+		plan.Operations = append(plan.Operations, &RunContainerOperation{
+			ServiceID: plan.ServiceID,
+			Spec:      spec,
+			MachineID: m.Id,
+		})
+
+		// Remove the old container.
+		plan.Operations = append(plan.Operations, &RemoveContainerOperation{
+			ServiceID:   plan.ServiceID,
+			ContainerID: ctr.ID,
+			MachineID:   m.Id,
+		})
+	}
+
+	// Remove any remaining containers that are not needed.
+	for mid, containers := range containersOnMachine {
+		for _, c := range containers {
+			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
+				ServiceID:   plan.ServiceID,
+				ContainerID: c.ID,
+				MachineID:   mid,
+			})
+		}
+	}
+
+	return plan, nil
 }
 
 // planGlobal creates a plan for a global service deployment, ensuring one container runs on each available machine.
@@ -83,6 +238,9 @@ func (s *RollingStrategy) planGlobal(
 		return plan, fmt.Errorf("list machines: %w", err)
 	}
 	// Filter machines if a machine filter is provided.
+	// TODO: not sure this is the right behaviour to ignore other machines that might run service containers.
+	//  Maybe there should be another filter to specify which machines to deploy to but keep the rest running.
+	//  Could be useful to test a new version on a subset of machines before rolling out to all.
 	if s.MachineFilter != nil {
 		machines = slices.DeleteFunc(machines, func(m *pb.MachineMember) bool {
 			return !s.MachineFilter(m.Machine)
@@ -107,7 +265,7 @@ func (s *RollingStrategy) planGlobal(
 		if err != nil {
 			return plan, err
 		}
-		plan.SequenceOperation.Operations = append(plan.SequenceOperation.Operations, ops...)
+		plan.Operations = append(plan.Operations, ops...)
 	}
 
 	return plan, nil
