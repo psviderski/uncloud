@@ -44,8 +44,13 @@ func (s *ServiceSpec) Validate() error {
 	return nil
 }
 
+// Equals returns true if the service spec is equal to the given spec ignoring the number of replicas.
 func (s *ServiceSpec) Equals(spec ServiceSpec) bool {
 	// TODO: ignore order of ports.
+	sCopy := *s
+	// Ignore the number of replicas when comparing.
+	sCopy.Replicas = 0
+	spec.Replicas = 0
 	return reflect.DeepEqual(*s, spec)
 }
 
