@@ -96,7 +96,7 @@ func (s *RollingStrategy) planReplicated(
 
 	// Organise existing containers by machine.
 	containersOnMachine := make(map[string][]api.Container)
-	machineHasUpToDateContainer := make(map[string]bool)
+	upToDateContainersOnMachine := make(map[string]int)
 	if svc != nil {
 		runningSpecs := make(map[string]api.ServiceSpec)
 		for _, c := range svc.Containers {
@@ -108,7 +108,7 @@ func (s *RollingStrategy) planReplicated(
 			if err == nil {
 				runningSpecs[c.Container.ID] = cs
 				if cs.Equals(spec) {
-					machineHasUpToDateContainer[c.MachineID] = true
+					upToDateContainersOnMachine[c.MachineID] += 1
 				}
 			}
 		}
@@ -128,13 +128,16 @@ func (s *RollingStrategy) planReplicated(
 			containersOnMachine[c.MachineID] = append(containersOnMachine[c.MachineID], c.Container)
 		}
 
-		// Sort machines such that machines with containers that match the desired spec are first, followed by machines
-		// with existing containers, and finally machines without containers.
+		// Sort machines such that machines with the most up-to-date containers are first, followed by machines with
+		// existing containers, and finally machines without containers.
 		slices.SortFunc(availableMachines, func(m1, m2 *pb.MachineInfo) int {
-			if machineHasUpToDateContainer[m1.Id] {
+			if upToDateContainersOnMachine[m1.Id] > 0 && upToDateContainersOnMachine[m2.Id] > 0 {
+				return upToDateContainersOnMachine[m2.Id] - upToDateContainersOnMachine[m1.Id]
+			}
+			if upToDateContainersOnMachine[m1.Id] > 0 {
 				return -1
 			}
-			if machineHasUpToDateContainer[m2.Id] {
+			if upToDateContainersOnMachine[m2.Id] > 0 {
 				return 1
 			}
 			return len(containersOnMachine[m2.Id]) - len(containersOnMachine[m1.Id])
