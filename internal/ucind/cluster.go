@@ -89,7 +89,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 	// Init a new cluster on the first machine.
 	initMachine := machines[0]
 
-	if err := p.WaitMachineReady(ctx, initMachine, 5*time.Second); err != nil {
+	if err := p.WaitMachineReady(ctx, initMachine, 30*time.Second); err != nil {
 		return fmt.Errorf("wait for machine %q to be ready: %w", initMachine.Name, err)
 	}
 
