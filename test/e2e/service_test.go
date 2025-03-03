@@ -560,6 +560,81 @@ func TestDeployment(t *testing.T) {
 		assert.Empty(t, plan.Operations, "Redeploying the same spec should be a no-op")
 	})
 
+	t.Run("replicated with machine filter", func(t *testing.T) {
+		t.Parallel()
+
+		name := "replicated-deployment-filtered"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !errors.Is(err, client.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		// Create a replicated service with 2 replicas but limit to machines 0 and 1
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+			Replicas: 2,
+		}
+
+		machine01Filter := func(m *pb.MachineInfo) bool {
+			return m.Name == c.Machines[0].Name || m.Name == c.Machines[1].Name
+		}
+		strategy := &client.RollingStrategy{MachineFilter: machine01Filter}
+
+		deploy, err := cli.NewDeployment(spec, strategy)
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		// Verify service has 2 containers on machines 0 and 1.
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		assert.Len(t, svc.Containers, 2)
+		assert.NotEqual(t, svc.Containers[0].MachineID, svc.Containers[1].MachineID,
+			"Expected containers on different machines")
+
+		machineNames := make(map[string]string)
+		for _, ctr := range svc.Containers {
+			machine, err := cli.InspectMachine(ctx, ctr.MachineID)
+			require.NoError(t, err)
+			machineNames[ctr.MachineID] = machine.Machine.Name
+
+			// Should only be on machines 0 or 1.
+			assert.Contains(t, []string{c.Machines[0].Name, c.Machines[1].Name}, machine.Machine.Name)
+		}
+
+		// Now update the filter to only allow machine 2
+		machine2Filter := func(m *pb.MachineInfo) bool {
+			return m.Name == c.Machines[2].Name
+		}
+
+		strategy = &client.RollingStrategy{MachineFilter: machine2Filter}
+		deploy, err = cli.NewDeployment(spec, strategy)
+		require.NoError(t, err)
+
+		_, err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		// Verify service now has containers only on machine 2.
+		svc, err = cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		assert.Len(t, svc.Containers, 2) // Still 2 replicas.
+		assert.Equal(t, svc.Containers[0].MachineID, svc.Containers[1].MachineID,
+			"Expected containers on the same machine")
+
+		machine, err := cli.InspectMachine(ctx, svc.Containers[0].MachineID)
+		require.NoError(t, err)
+		assert.Equal(t, c.Machines[2].Name, machine.Machine.Name, "Containers should only be on machine #2")
+	})
+
 	// TODO: test deployments with unreachable machines. See https://github.com/psviderski/uncloud/issues/29.
 }
 
