@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"uncloud/internal/corrosion"
 	"uncloud/internal/docker"
@@ -541,7 +542,9 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	publicIP, pubIPErr := network.GetPublicIP()
 	// Ignore the error if failed to get the public IP using API services.
 	if pubIPErr == nil {
-		ips = append(ips, publicIP)
+		if !slices.Contains(ips, publicIP) {
+			ips = append(ips, publicIP)
+		}
 	}
 	endpoints := make([]*pb.IPPort, len(ips))
 	for i, addr := range ips {
