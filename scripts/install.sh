@@ -47,7 +47,7 @@ Uncloud supports only systemd-based Linux systems for now."
 }
 
 install_docker() {
-    if command_exists docker; then
+    if command_exists dockerd; then
         log "✓ Docker is already installed."
         docker version
         return
