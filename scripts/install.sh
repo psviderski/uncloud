@@ -122,8 +122,8 @@ install_uncloud_binaries() {
     if ! curl -fsSL -o "${uncloudd_download_path}" "${uncloudd_url}"; then
         error "Failed to download uncloudd binary."
     fi
-    tar -xf "${uncloudd_download_path}"
-    if ! install ./uncloudd "${uncloudd_install_path}"; then
+    tar -xf --directory "${tmp_dir}" "${uncloudd_download_path}"
+    if ! install "${tmp_dir}/uncloudd" "${uncloudd_install_path}"; then
         error "Failed to install uncloud binary to ${uncloudd_install_path}"
     fi
     log "✓ uncloudd binary installed: ${uncloudd_install_path}"
