@@ -71,9 +71,6 @@ func (c *Controller) Run(ctx context.Context) error {
 				continue
 			}
 			containers, err = c.filterAvailableContainers(containerRecords)
-			for _, c := range containers {
-				fmt.Printf("## caddyfile container: %+v\n", c)
-			}
 			if err != nil {
 				slog.Error("Failed to filter available containers.", "err", err)
 				continue
