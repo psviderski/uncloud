@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/charmbracelet/huh"
+	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
 	"maps"
@@ -173,7 +174,11 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	fmt.Println()
-	if _, err = clusterClient.GetDomain(ctx); err != nil {
+	return UpdateDomainRecords(ctx, clusterClient, uncli.ProgressOut())
+}
+
+func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, progressOut *streams.Out) error {
+	if _, err := clusterClient.GetDomain(ctx); err != nil {
 		if errors.Is(err, client.ErrNotFound) {
 			fmt.Println("Skipping DNS records update as no cluster domain is reserved (see 'uc dns').")
 			return nil
@@ -185,10 +190,11 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	// TODO: split the method into two: one to get the records and one to update them to ask for update confirmation.
 
 	var records []*pb.DNSRecord
-	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+	err := progress.RunWithTitle(ctx, func(ctx context.Context) error {
+		var err error
 		records, err = clusterClient.CreateIngressRecords(ctx, client.CaddyServiceName)
 		return err
-	}, uncli.ProgressOut(), "Verifying internet access to caddy service")
+	}, progressOut, "Verifying internet access to caddy service")
 	if err != nil {
 		if errors.Is(err, client.ErrNoReachableMachines) {
 			fmt.Println()

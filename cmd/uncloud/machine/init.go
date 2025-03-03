@@ -6,18 +6,23 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
 	"net/netip"
+	"uncloud/cmd/uncloud/caddy"
+	"uncloud/cmd/uncloud/dns"
 	"uncloud/internal/cli"
 	"uncloud/internal/cli/config"
+	"uncloud/internal/machine/api/pb"
 	"uncloud/internal/machine/cluster"
 )
 
 type initOptions struct {
-	name     string
-	network  string
-	noCaddy  bool
-	publicIP string
-	sshKey   string
-	cluster  string
+	dnsEndpoint string
+	name        string
+	network     string
+	noCaddy     bool
+	noDNS       bool
+	publicIP    string
+	sshKey      string
+	cluster     string
 }
 
 func NewInitCommand() *cobra.Command {
@@ -47,6 +52,8 @@ func NewInitCommand() *cobra.Command {
 			return initCluster(cmd.Context(), uncli, remoteMachine, opts)
 		},
 	}
+	cmd.Flags().StringVar(&opts.dnsEndpoint, "dns-endpoint", dns.DefaultUncloudDNSAPIEndpoint,
+		"API endpoint for the Uncloud DNS service.")
 	cmd.Flags().StringVarP(
 		&opts.name, "name", "n", "",
 		"Assign a name to the machine.",
@@ -58,6 +65,10 @@ func NewInitCommand() *cobra.Command {
 	cmd.Flags().BoolVar(
 		&opts.noCaddy, "no-caddy", false,
 		"Don't deploy Caddy reverse proxy service to the machine.",
+	)
+	cmd.Flags().BoolVar(
+		&opts.noDNS, "no-dns", false,
+		"Don't reserve a cluster domain in Uncloud DNS.",
 	)
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "auto",
@@ -102,7 +113,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	}
 	defer client.Close()
 
-	if opts.noCaddy {
+	if opts.noCaddy && opts.noDNS {
 		return nil
 	}
 
@@ -111,15 +122,33 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	// after cluster initialisation, we keep the user informed during this wait.
 	fmt.Println("Waiting for the machine to be ready...")
 
-	d, err := client.NewCaddyDeployment("", nil)
-	if err != nil {
-		return fmt.Errorf("create caddy deployment: %w", err)
+	if !opts.noDNS {
+		domain, err := client.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.dnsEndpoint})
+		if err != nil {
+			return fmt.Errorf("reserve cluster domain in Uncloud DNS: %w", err)
+		}
+		fmt.Printf("Reserved cluster domain: %s\n", domain.Name)
 	}
 
-	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		if _, err = d.Run(ctx); err != nil {
-			return fmt.Errorf("deploy caddy: %w", err)
+	if !opts.noCaddy {
+		d, err := client.NewCaddyDeployment("", nil)
+		if err != nil {
+			return fmt.Errorf("create caddy deployment: %w", err)
 		}
-		return nil
-	}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s", d.Spec.Name))
+
+		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+			if _, err = d.Run(ctx); err != nil {
+				return fmt.Errorf("deploy caddy: %w", err)
+			}
+			return nil
+		}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s", d.Spec.Name))
+		if err != nil {
+			return err
+		}
+
+		fmt.Println()
+		return caddy.UpdateDomainRecords(ctx, client, uncli.ProgressOut())
+	}
+
+	return nil
 }
