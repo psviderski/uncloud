@@ -41,8 +41,9 @@ func (cli *Client) CreateContainer(
 	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
 
 	config := &container.Config{
-		Cmd:   spec.Container.Command,
-		Image: spec.Container.Image,
+		Cmd:      spec.Container.Command,
+		Hostname: containerName,
+		Image:    spec.Container.Image,
 		Labels: map[string]string{
 			api.LabelServiceID:   serviceID,
 			api.LabelServiceName: spec.Name,
