@@ -114,10 +114,10 @@ install_uncloud_binaries() {
     local uninstall_url
     if [ "${UNCLOUD_VERSION}" == "latest" ]; then
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.tar.gz"
-        uninstall_url="https://github.com/psviderski/uncloud/blob/main/scripts/uninstall.sh"
+        uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh"
     else
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.tar.gz"
-        uninstall_url="https://github.com/psviderski/uncloud/blob/${UNCLOUD_VERSION}/scripts/uninstall.sh"
+        uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/${UNCLOUD_VERSION}/scripts/uninstall.sh"
     fi
     local uncloudd_download_path="${tmp_dir}/uncloudd.tar.gz"
     local uninstall_download_path="${tmp_dir}/uninstall.sh"
