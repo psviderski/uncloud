@@ -111,12 +111,16 @@ install_uncloud_binaries() {
     trap "rm -rf '$tmp_dir'" EXIT
 
     local uncloudd_url
+    local uninstall_url
     if [ "${UNCLOUD_VERSION}" == "latest" ]; then
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.tar.gz"
+        uninstall_url="https://github.com/psviderski/uncloud/blob/main/scripts/uninstall.sh"
     else
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.tar.gz"
+        uninstall_url="https://github.com/psviderski/uncloud/blob/${UNCLOUD_VERSION}/scripts/uninstall.sh"
     fi
     local uncloudd_download_path="${tmp_dir}/uncloudd.tar.gz"
+    local uninstall_download_path="${tmp_dir}/uninstall.sh"
 
     log "⏳ Downloading uncloudd binary: ${uncloudd_url}"
     if ! curl -fsSL -o "${uncloudd_download_path}" "${uncloudd_url}"; then
@@ -127,6 +131,16 @@ install_uncloud_binaries() {
         error "Failed to install uncloud binary to ${uncloudd_install_path}"
     fi
     log "✓ uncloudd binary installed: ${uncloudd_install_path}"
+
+    log "⏳ Downloading uninstall script: ${uninstall_url}"
+    if ! curl -fsSL -o "${uninstall_download_path}" "${uninstall_url}"; then
+        error "Failed to download uninstall script."
+    fi
+    local uninstall_install_path="${INSTALL_BIN_DIR}/uncloud-uninstall"
+    if ! install "${uninstall_download_path}" "${uninstall_install_path}"; then
+        error "Failed to install uninstall.sh script to ${uninstall_install_path}"
+    fi
+    log "✓ uncloud-uninstall script installed: ${uninstall_install_path}"
 
     # TODO: install uncloud CLI binary and create a uc alias.
 }

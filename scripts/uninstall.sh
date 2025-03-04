@@ -41,7 +41,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Confirm before proceeding.
-log "⚠️This script will uninstall Uncloud and remove ALL service containers deployed to this machine."
+log "⚠️This script will uninstall Uncloud and remove ALL Uncloud managed containers on this machine."
 log "The following actions will be performed:"
 echo "- Remove Uncloud systemd services"
 echo "- Remove Uncloud binaries and data"
@@ -127,6 +127,10 @@ if ip link show uncloud &> /dev/null; then
 else
     log "WireGuard interface uncloud not found."
 fi
+
+log "⏳ Removing uninstall script..."
+rm -fv "${INSTALL_BIN_DIR}/uncloud-uninstall"
+log "✓ Uninstall script removed."
 
 echo
 log "✅ Uncloud has been uninstalled successfully!"
