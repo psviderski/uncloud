@@ -541,10 +541,8 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	}
 	publicIP, pubIPErr := network.GetPublicIP()
 	// Ignore the error if failed to get the public IP using API services.
-	if pubIPErr == nil {
-		if !slices.Contains(ips, publicIP) {
-			ips = append(ips, publicIP)
-		}
+	if pubIPErr == nil && !slices.Contains(ips, publicIP) {
+		ips = append(ips, publicIP)
 	}
 	endpoints := make([]*pb.IPPort, len(ips))
 	for i, addr := range ips {
@@ -685,7 +683,7 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 	}
 	publicIP, err := network.GetPublicIP()
 	// Ignore the error if failed to get the public IP using API services.
-	if err == nil {
+	if err == nil && !slices.Contains(ips, publicIP) {
 		ips = append(ips, publicIP)
 	}
 	endpoints := make([]netip.AddrPort, len(ips))
