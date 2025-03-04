@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"time"
+	"uncloud/cmd/uncloud/caddy"
 	"uncloud/internal/cli"
 	"uncloud/internal/cli/client"
 	"uncloud/internal/cli/config"
@@ -138,12 +139,18 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}
 
-	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
+	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		if _, err = d.Run(ctx); err != nil {
 			return fmt.Errorf("deploy caddy: %w", err)
 		}
 		return nil
 	}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s", d.Spec.Name))
+	if err != nil {
+		return err
+	}
+
+	fmt.Println()
+	return caddy.UpdateDomainRecords(ctx, machineClient, uncli.ProgressOut())
 }
 
 func waitClusterInitialised(ctx context.Context, client *client.Client) error {
