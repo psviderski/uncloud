@@ -51,6 +51,7 @@ func main() {
 		service.NewListCommand(),
 		service.NewRmCommand(),
 		service.NewRunCommand(),
+		service.NewScaleCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())
 }

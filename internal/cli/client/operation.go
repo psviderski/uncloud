@@ -164,3 +164,22 @@ func (r *MapNameResolver) ContainerName(containerID string) string {
 	}
 	return containerID
 }
+
+// ServiceOperationNameResolver returns a machine and container name resolver for a service that can be used to format
+// deployment operations.
+func (cli *Client) ServiceOperationNameResolver(ctx context.Context, svc api.Service) (*MapNameResolver, error) {
+	machines, err := cli.ListMachines(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list machines: %w", err)
+	}
+	machineNames := make(map[string]string, len(machines))
+	for _, m := range machines {
+		machineNames[m.Machine.Id] = m.Machine.Name
+	}
+	containerNames := make(map[string]string, len(svc.Containers))
+	for _, c := range svc.Containers {
+		containerNames[c.Container.ID] = c.Container.NameWithoutSlash()
+	}
+
+	return NewNameResolver(machineNames, containerNames), nil
+}

@@ -100,21 +100,6 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}
 
-	// Initialize a machine and container name resolver to properly format the plan output.
-	machines, err := clusterClient.ListMachines(ctx)
-	if err != nil {
-		return fmt.Errorf("list machines: %w", err)
-	}
-	machineNames := make(map[string]string, len(machines))
-	for _, m := range machines {
-		machineNames[m.Machine.Id] = m.Machine.Name
-	}
-	containerNames := make(map[string]string, len(svc.Containers))
-	for _, c := range svc.Containers {
-		containerNames[c.Container.ID] = c.Container.NameWithoutSlash()
-	}
-	resolver := client.NewNameResolver(machineNames, containerNames)
-
 	if opts.image == "" {
 		fmt.Printf("Target image: %s (latest stable)\n", d.Spec.Container.Image)
 	}
@@ -127,7 +112,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return fmt.Errorf("plan caddy deployment: %w", err)
 	}
 
-	if len(plan.SequenceOperation.Operations) == 0 {
+	if len(plan.Operations) == 0 {
 		if opts.machine != "" {
 			fmt.Printf("%s service is up to date on selected machines.\n", client.CaddyServiceName)
 		} else {
@@ -147,8 +132,14 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 				fmt.Println("This will perform a rolling update of Caddy containers on each machine.")
 			}
 		}
-		fmt.Println()
 
+		// Initialise a machine and container name resolver to properly format the plan output.
+		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, svc)
+		if err != nil {
+			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
+		}
+
+		fmt.Println()
 		fmt.Println("Deployment plan:")
 		fmt.Println(plan.Format(resolver))
 		fmt.Println()
