@@ -41,12 +41,11 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
 
 Coming soon:
 
-* Project isolation through environments/namespaces
 * Infrastructure as Code using Docker Compose format
+* Project isolation through environments/namespaces
 * Persistent volumes and secrets management
 * Monitoring and log aggregation
 * Database deployment and management
-* Curated application catalog
 
 Here is a diagram of an Uncloud multi-provider cluster of 3 machines:
 
