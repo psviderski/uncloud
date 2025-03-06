@@ -172,7 +172,6 @@ DNS records updated to use only the internet-reachable machines running caddy se
 
 ```bash
 $ uc machine add --name hetzner-server root@5.223.45.199
-
 Downloading Uncloud install script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/install.sh
 ⏳ Running Uncloud install script...
 ✓ Docker is already installed.
@@ -203,6 +202,11 @@ Updating cluster domain records in Uncloud DNS to point to machines running cadd
 
 DNS records updated to use only the internet-reachable machines running caddy service:
   *.xuw3xd.cluster.uncloud.run  A → 152.67.101.197, 5.223.45.199
+  
+$ uc machine ls
+NAME             STATE   ADDRESS         PUBLIC IP        WIREGUARD ENDPOINTS
+oracle-vm        Up      10.210.0.1/24   152.67.101.197   10.0.0.95:51820, 152.67.101.197:51820
+hetzner-server   Up      10.210.1.1/24   5.223.45.199     5.223.45.199:51820, [2a01:4ff:2f0:128b::1]:51820
 ```
 
 1. The second machine gets provisioned just like the first. A non-root SSH user will need `sudo` access.
