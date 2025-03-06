@@ -4,7 +4,8 @@
 <head>
     <meta charset="utf-8">
     <title>Deploy Docker Apps on Your Infrastructure | Uncloud</title>
-    <meta name="description" content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required.">
+    <meta name="description"
+          content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required.">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <link href="./style.css" rel="stylesheet">
     <link rel="apple-touch-icon" href="./images/apple-touch-icon.png" sizes="180x180"/>
@@ -12,19 +13,21 @@
     <link rel="alternate icon" type="image/png" href="./images/favicon.png" sizes="96x96"/>
 
     <!-- OpenGraph tags for social media -->
-    <meta property="og:title" content="Deploy Docker Apps on Your Infrastructure | Uncloud" />
-    <meta property="og:description" content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required." />
-    <meta property="og:image" content="https://uncloud.run/images/logo-wide.png" />
-    <meta property="og:image:alt" content="Uncloud logo - Deploy container apps with ease" />
-    <meta property="og:url" content="https://uncloud.run" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Uncloud" />
+    <meta property="og:title" content="Deploy Docker Apps on Your Infrastructure | Uncloud"/>
+    <meta property="og:description"
+          content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required."/>
+    <meta property="og:image" content="https://uncloud.run/images/logo-wide.png"/>
+    <meta property="og:image:alt" content="Uncloud logo - Deploy container apps with ease"/>
+    <meta property="og:url" content="https://uncloud.run"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="Uncloud"/>
     <!-- Twitter card tags -->
     <meta property="twitter:domain" content="uncloud.run">
     <meta property="twitter:url" content="https://uncloud.run">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Deploy Docker Apps on Your Infrastructure | Uncloud">
-    <meta name="twitter:description" content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required.">
+    <meta name="twitter:description"
+          content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required.">
     <meta name="twitter:image" content="https://uncloud.run/images/logo-wide.png">
     <meta name="twitter:image:alt" content="Uncloud logo - Deploy container apps with ease">
 </head>
@@ -114,32 +117,15 @@
                 </div>
 
                 <div class="max-w-3xl mx-auto px-4 sm:px-6 flex justify-center pb-12 relative before:absolute before:-top-12 before:w-96 before:h-96 before:bg-zinc-900 before:opacity-[.15] before:rounded-full before:blur-3xl before:-z-10">
-                    <div class="coding w-full bg-zinc-800 rounded-lg border border-zinc-700/50 shadow-2xl">
-                        <!-- Title bar -->
-                        <div class="pl-4 pt-4 flex items-center">
-                            <div class="flex gap-2">
-                                <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                                <div class="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
-                                <div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>
-                            </div>
-                        </div>
-                        <!-- Terminal content -->
-                        <div class="p-4 text-sm sm:p-6 sm:text-[0.9375rem] text-white overflow-x-auto">
-                            <pre class="text-zinc-500 select-none"># Start with any cloud VM or your own hardware</pre>
-                            <pre><span class="text-emerald-500 select-none">$ </span>uc machine init root@137.123.45.67</pre>
-
-                            <pre> </pre>
-                            <pre class="text-zinc-500 select-none"># Deploy your app with automatic HTTPS</pre>
-                            <pre><span class="text-emerald-500 select-none">$ </span>uc run --name my-app -p app.example.com:8000/https app-image:latest</pre>
-                            <pre class="text-zinc-200">✨ Your app is available at <span class="underline">https://app.example.com</span></pre>
-
-                            <pre> </pre>
-                            <pre class="text-zinc-500 select-none"># Achieve high availability by adding more machines and scaling the app</pre>
-                            <pre><span
-                                    class="text-emerald-500 select-none">$ </span>uc machine add ubuntu@65.21.45.67</pre>
-                            <pre><span class="text-emerald-500 select-none">$ </span>uc scale my-app --replicas 2</pre>
-                        </div>
-                    </div>
+                    <script src="https://fast.wistia.com/player.js" async></script>
+                    <script src="https://fast.wistia.com/embed/k47uwt9uau.js" async type="module"></script>
+                    <style>wistia-player[media-id='k47uwt9uau']:not(:defined) {
+                        background: center / contain no-repeat url('https://fast.wistia.com/embed/medias/k47uwt9uau/swatch');
+                        display: block;
+                        filter: blur(5px);
+                        padding-top: 58.33%;
+                    }</style>
+                    <wistia-player media-id="k47uwt9uau" aspect="1.7142857142857142"></wistia-player>
                 </div>
             </div>
         </section>
