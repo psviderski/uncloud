@@ -98,6 +98,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 
 	// Wait for the cluster to be initialised to be able to deploy the Caddy service.
 	fmt.Println("Waiting for the machine to be ready...")
+	fmt.Println()
 	if err = waitClusterInitialised(ctx, machineClient); err != nil {
 		return fmt.Errorf("wait for cluster to be initialised on machine: %w", err)
 	}

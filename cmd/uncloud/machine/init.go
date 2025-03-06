@@ -121,6 +121,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	// The creation of a deployment plan talks to cluster API. Since the API needs a few moments to become available
 	// after cluster initialisation, we keep the user informed during this wait.
 	fmt.Println("Waiting for the machine to be ready...")
+	fmt.Println()
 
 	if !opts.noDNS {
 		domain, err := client.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.dnsEndpoint})

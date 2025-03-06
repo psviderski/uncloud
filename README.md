@@ -16,6 +16,14 @@ some machines go offline.
 Uncloud aims to be the solution for developers who want the flexibility of self-hosted infrastructure without the
 operational complexity of Kubernetes.
 
+## 🎬 Quick demo
+
+Deploy a highly available web app with automatic HTTPS across multiple regions and on-premises in just a couple minutes.
+
+<a href="https://uncloud.wistia.com/medias/k47uwt9uau?wvideo=k47uwt9uau">
+<img src="https://embed-ssl.wistia.com/deliveries/3cf7014a48b93afc556444bed3e39a8c.jpg?image_crop_resized=900x526&image_play_button_rounded=true&image_play_button_size=2x&image_play_button_color=18181Be0" alt="Uncloud demo" width="450" height="263" />
+</a>
+
 ## ✨ Features
 
 * **Deploy anywhere**: Combine cloud VMs, dedicated servers, and bare metal into a unified computing environment —
@@ -66,36 +74,43 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
 
 1. Install Uncloud CLI:
 
-```bash
-brew install psviderski/tap/uncloud
+   ```bash
+   brew install psviderski/tap/uncloud
 
-# or using curl (macOS/Linux)
-curl -fsS https://get.uncloud.run/install.sh | sh
-```
+   # or using curl (macOS/Linux)
+   curl -fsS https://get.uncloud.run/install.sh | sh
+   ```
 
 2. Initialize your first machine:
 
-```bash
-uc machine init root@your-server-ip
-```
+   ```bash
+   uc machine init root@your-server-ip
+   ```
 
-3. Create a DNS A record in your DNS provider (Cloudflare, Namecheap, etc.) that points `app.example.com` to your
+3. Deploy your app from a Docker image and publish its container port 8000 as HTTPS using `app.example.com` domain:
+
+   ```bash
+   uc run -p app.example.com:8000/https image/my-app
+   ```
+
+4. Create a DNS A record in your DNS provider (Cloudflare, Namecheap, etc.) that points `app.example.com` to your
    server's IP address. Allow a few minutes for DNS propagation.
-4. Deploy your app from a Docker image:
 
-```bash
-uc run -p app.example.com:8000/https my-app-image
-```
-
-That's it! Your app is now running and accessible at https://app.example.com ✨
+   That's it! Your app is now running and accessible at https://app.example.com ✨
 
 5. Clean up when you're done:
 
-```bash
-uc ls
-# Copy the service ID from the output and remove it:
-uc rm my-app-id
-```
+   ```bash
+   uc ls
+   # Copy the service name from the output and run the rm command:
+   uc rm my-app-name
+   ```
+
+   If you want to fully uninstall Uncloud on a machine, run:
+
+   ```bash
+   uncloud-uninstall
+   ```
 
 ## ⚙️ How it works
 
@@ -105,7 +120,42 @@ under the hood to see what happens when you run certain commands.
 **When you initialize a new cluster on a machine:**
 
 ```bash
-uc machine init root@your-server-ip
+$ uc machine init --name oracle-vm ubuntu@152.67.101.197
+
+Downloading Uncloud install script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/install.sh
+⏳ Running Uncloud install script...
+✓ Docker is already installed.
+⏳ Installing Docker...
+...
+✓ Docker installed successfully.
+✓ Linux user and group 'uncloud' created.
+✓ Linux user 'ubuntu' added to group 'uncloud'.
+⏳ Installing Uncloud binaries...
+⏳ Downloading uncloudd binary: https://github.com/psviderski/uncloud/releases/latest/download/uncloudd_linux_arm64.tar.gz
+✓ uncloudd binary installed: /usr/local/bin/uncloudd
+⏳ Downloading uninstall script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh
+✓ uncloud-uninstall script installed: /usr/local/bin/uncloud-uninstall
+✓ Systemd unit file created: /etc/systemd/system/uncloud.service
+Created symlink /etc/systemd/system/multi-user.target.wants/uncloud.service → /etc/systemd/system/uncloud.service.
+⏳ Downloading uncloud-corrosion binary: https://github.com/psviderski/corrosion/releases/latest/download/corrosion-aarch64-unknown-linux-gnu.tar.gz
+✓ uncloud-corrosion binary installed: /usr/local/bin/uncloud-corrosion
+✓ Systemd unit file created: /etc/systemd/system/uncloud-corrosion.service
+⏳ Starting Uncloud machine daemon (uncloud.service)...
+✓ Uncloud machine daemon started.
+✓ Uncloud installed on the machine successfully! 🎉
+Cluster "default" initialised with machine "oracle-vm"
+Waiting for the machine to be ready...
+
+Reserved cluster domain: xuw3xd.cluster.uncloud.run
+[+] Deploying service caddy 1/1
+ ✔ Container caddy-c47x on oracle-vm  Started                                                                                                                                          0.9s
+
+Updating cluster domain records in Uncloud DNS to point to machines running caddy service...
+[+] Verifying internet access to caddy service 1/1
+ ✔ Machine oracle-vm (152.67.101.197)  Reachable                                                                                                                                       0.1s
+
+DNS records updated to use only the internet-reachable machines running caddy service:
+  *.xuw3xd.cluster.uncloud.run  A → 152.67.101.197
 ```
 
 1. The CLI SSHs into the machine and installs Docker, the `uncloudd` machine daemon and
@@ -121,7 +171,38 @@ uc machine init root@your-server-ip
 **When you add another machine:**
 
 ```bash
-uc machine add ubuntu@second-server-ip
+$ uc machine add --name hetzner-server root@5.223.45.199
+
+Downloading Uncloud install script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/install.sh
+⏳ Running Uncloud install script...
+✓ Docker is already installed.
+✓ Linux user and group 'uncloud' created.
+⏳ Installing Uncloud binaries...
+⏳ Downloading uncloudd binary: https://github.com/psviderski/uncloud/releases/latest/download/uncloudd_linux_amd64.tar.gz
+✓ uncloudd binary installed: /usr/local/bin/uncloudd
+⏳ Downloading uninstall script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh
+✓ uncloud-uninstall script installed: /usr/local/bin/uncloud-uninstall
+✓ Systemd unit file created: /etc/systemd/system/uncloud.service
+Created symlink /etc/systemd/system/multi-user.target.wants/uncloud.service → /etc/systemd/system/uncloud.service.
+⏳ Downloading uncloud-corrosion binary: https://github.com/psviderski/corrosion/releases/latest/download/corrosion-x86_64-unknown-linux-gnu.tar.gz
+✓ uncloud-corrosion binary installed: /usr/local/bin/uncloud-corrosion
+✓ Systemd unit file created: /etc/systemd/system/uncloud-corrosion.service
+⏳ Starting Uncloud machine daemon (uncloud.service)...
+✓ Uncloud machine daemon started.
+✓ Uncloud installed on the machine successfully! 🎉
+Machine "hetzner-server" added to cluster
+Waiting for the machine to be ready...
+
+[+] Deploying service caddy 1/1
+ ✔ Container caddy-d36c on hetzner-server  Started                                                                                                                                     1.0s
+
+Updating cluster domain records in Uncloud DNS to point to machines running caddy service...
+[+] Verifying internet access to caddy service 2/2
+ ✔ Machine hetzner-server (5.223.45.199)  Reachable                                                                                                                                    0.2s
+ ✔ Machine oracle-vm (152.67.101.197)     Reachable                                                                                                                                    0.1s
+
+DNS records updated to use only the internet-reachable machines running caddy service:
+  *.xuw3xd.cluster.uncloud.run  A → 152.67.101.197, 5.223.45.199
 ```
 
 1. The second machine gets provisioned just like the first. A non-root SSH user will need `sudo` access.
@@ -140,7 +221,14 @@ and automatically establish a WireGuard tunnel with it.
 **When you run a service:**
 
 ```bash
-uc run -p app.example.com:8000/https my-app-image
+$ uc run -p app.example.com:8000/https image/my-app
+
+[+] Running service my-app-1b3b (replicated mode) 1/1
+ ✔ Container my-app-1b3b-tcex on oracle-vm  Started
+
+my-app-1b3b endpoints:
+ • https://app.example.com → :8000
+ • https://my-app-1b3b.xuw3xd.cluster.uncloud.run → :8000
 ```
 
 1. CLI picks a machine to run your container.
