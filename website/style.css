@@ -2212,6 +2212,10 @@ input[type="search"]::-webkit-search-results-decoration {
     margin-bottom: 0px;
   }
 
+  .md\:min-h-\[420px\]{
+    min-height: 420px;
+  }
+
   .md\:max-w-4xl{
     max-width: 56rem;
   }
