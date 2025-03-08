@@ -38,8 +38,14 @@ func (s *ServiceSpec) Validate() error {
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
 
+	for _, p := range s.Ports {
+		if (p.Mode == "" || p.Mode == PortModeIngress) &&
+			p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
+			return fmt.Errorf("unsupported protocol for ingress port %d: %s", p.ContainerPort, p.Protocol)
+		}
+	}
+
 	// TODO: validate there is no conflict between ports.
-	// TODO: return error if there are non-HTTP/HTTPS ingress ports that we don't support yet.
 
 	return nil
 }
