@@ -132,18 +132,18 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return fmt.Errorf("invalid service configuration: %w", err)
 	}
 
-	client, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer client.Close()
+	defer clusterClient.Close()
 
-	resp, err := client.RunService(ctx, spec, machineFilter)
+	resp, err := clusterClient.RunService(ctx, spec, machineFilter)
 	if err != nil {
 		return fmt.Errorf("run service: %w", err)
 	}
 
-	svc, err := client.InspectService(ctx, resp.ID)
+	svc, err := clusterClient.InspectService(ctx, resp.ID)
 	if err != nil {
 		return fmt.Errorf("inspect service: %w", err)
 	}
