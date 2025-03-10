@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/compose/v2/pkg/progress"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -62,59 +63,8 @@ func (cli *Client) CreateIngressRecords(ctx context.Context, serviceID string) (
 		go func() {
 			defer wg.Done()
 
-			// Verify that the Caddy container is reachable on the machine by its public IP.
-			publicIP, _ := m.Machine.PublicIp.ToAddr()
-
-			pw := progress.ContextWriter(ctx)
-			eventID := fmt.Sprintf("Machine %s (%s)", m.Machine.Name, publicIP)
-			pw.Event(progress.NewEvent(eventID, progress.Working, "Querying"))
-
-			verifyURL := fmt.Sprintf("http://%s%s", publicIP, caddyfile.VerifyPath)
-
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, verifyURL, nil)
-			if err != nil {
-				pw.Event(progress.NewEvent(eventID, progress.Error, err.Error()))
-				return
-			}
-
-			client := &http.Client{Timeout: 5 * time.Second}
-			resp, err := client.Do(req)
-			if err != nil {
-				e := unreachable(eventID)
-				e.Text = fmt.Sprintf("Failed to send HTTP request: %v", err)
-				pw.Event(e)
-				return
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != http.StatusOK {
-				e := unreachable(eventID)
-				e.Text = fmt.Sprintf("Unexpected HTTP response status code: %d", resp.StatusCode)
-				pw.Event(e)
-				return
-			}
-
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				e := unreachable(eventID)
-				e.Text = fmt.Sprintf("Failed to read HTTP response body: %v", err)
-				pw.Event(e)
-				return
-			}
-
-			// Check the response body is the machine ID to ensure the correct Caddy container is responding.
-			if string(body) == m.Machine.Id {
-				pw.Event(progress.NewEvent(eventID, progress.Done, "Reachable"))
+			if err = verifyCaddyReachable(ctx, m.Machine); err == nil {
 				reachableMachines <- m.Machine
-			} else {
-				bodyStr := string(body)
-				if len(bodyStr) > 50 {
-					bodyStr = bodyStr[:50] + "..."
-				}
-
-				e := unreachable(eventID)
-				e.Text = fmt.Sprintf("Unexpected HTTP response body: %s", bodyStr)
-				pw.Event(e)
 			}
 		}()
 	}
@@ -149,6 +99,76 @@ func (cli *Client) CreateIngressRecords(ctx context.Context, serviceID string) (
 	}
 
 	return resp.Records, nil
+}
+
+// verifyCaddyReachable verifies that the Caddy service is reachable on the machine by its public IP.
+func verifyCaddyReachable(ctx context.Context, m *pb.MachineInfo) error {
+	publicIP, _ := m.PublicIp.ToAddr()
+
+	pw := progress.ContextWriter(ctx)
+	eventID := fmt.Sprintf("Machine %s (%s)", m.Name, publicIP)
+	pw.Event(progress.NewEvent(eventID, progress.Working, "Querying"))
+
+	verifyURL := fmt.Sprintf("http://%s%s", publicIP, caddyfile.VerifyPath)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, verifyURL, nil)
+	if err != nil {
+		pw.Event(progress.NewEvent(eventID, progress.Error, err.Error()))
+		return err
+	}
+
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxElapsedTime(5*time.Second),
+	), ctx)
+	client := &http.Client{Timeout: 3 * time.Second}
+	do := func() (*http.Response, error) {
+		return client.Do(req)
+	}
+
+	resp, err := backoff.RetryWithData(do, boff)
+	if err != nil {
+		e := unreachable(eventID)
+		e.Text = fmt.Sprintf("Failed to send HTTP request: %v", err)
+		pw.Event(e)
+
+		return fmt.Errorf("send HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		e := unreachable(eventID)
+		e.Text = fmt.Sprintf("Unexpected HTTP response status code: %d", resp.StatusCode)
+		pw.Event(e)
+
+		return fmt.Errorf("unexpected HTTP response status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		e := unreachable(eventID)
+		e.Text = fmt.Sprintf("Failed to read HTTP response body: %v", err)
+		pw.Event(e)
+
+		return fmt.Errorf("read HTTP response body: %w", err)
+	}
+
+	// Check the response body is the machine ID to ensure the correct Caddy container is responding.
+	if string(body) == m.Id {
+		pw.Event(progress.NewEvent(eventID, progress.Done, "Reachable"))
+		return nil
+	} else {
+		bodyStr := string(body)
+		if len(bodyStr) > 50 {
+			bodyStr = bodyStr[:50] + "..."
+		}
+
+		e := unreachable(eventID)
+		e.Text = fmt.Sprintf("Unexpected HTTP response body: %s", bodyStr)
+		pw.Event(e)
+
+		return fmt.Errorf("unexpected HTTP response body: %s", bodyStr)
+	}
 }
 
 // unreachable creates a new Unreachable error event.
