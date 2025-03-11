@@ -7,7 +7,9 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"uncloud/cmd/uncloud/caddy"
 	"uncloud/internal/cli"
+	"uncloud/internal/cli/client"
 	"uncloud/internal/machine/api/pb"
 )
 
@@ -41,13 +43,13 @@ func NewReserveCommand() *cobra.Command {
 }
 
 func reserve(ctx context.Context, uncli *cli.CLI, opts reserveOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer client.Close()
+	defer clusterClient.Close()
 
-	domain, err := client.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.endpoint})
+	domain, err := clusterClient.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.endpoint})
 	if err != nil {
 		if status.Convert(err).Code() == codes.AlreadyExists {
 			return errors.New("domain already reserved")
@@ -56,7 +58,16 @@ func reserve(ctx context.Context, uncli *cli.CLI, opts reserveOptions) error {
 	}
 
 	fmt.Printf("Reserved cluster domain: %s\n", domain.Name)
-	fmt.Println("Redeploy the Caddy service ('uc caddy deploy') to configure DNS records for the domain " +
-		"to route traffic to the services in the cluster.")
-	return nil
+
+	// Update cluster domain records in Uncloud DNS to point to machines running caddy service if it has been deployed.
+	if _, err = clusterClient.InspectService(ctx, client.CaddyServiceName); err != nil {
+		if errors.Is(err, client.ErrNotFound) {
+			fmt.Println("Deploy the Caddy reverse proxy service ('uc caddy deploy') to enable internet access " +
+				"to your services via the reserved or your custom domain.")
+			return nil
+		}
+		return fmt.Errorf("inspect caddy service: %w", err)
+	}
+
+	return caddy.UpdateDomainRecords(ctx, clusterClient, uncli.ProgressOut())
 }
