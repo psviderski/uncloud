@@ -43,6 +43,7 @@ func main() {
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "toml")
 
 	cmd.AddCommand(
+		NewDeployCommand(),
 		caddy.NewRootCommand(),
 		dns.NewRootCommand(),
 		machine.NewRootCommand(),
