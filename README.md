@@ -33,7 +33,9 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
 * **No control plane**: Fully decentralized design eliminates single points of failure and reduces operational overhead.
 * **Imperative over declarative**: Favoring imperative operations over state reconciliation simplifies both the mental
   model and troubleshooting.
+* **Zero-downtime deployments**: Rolling updates with health checks and automatic rollback on failure.
 * **Service discovery**: Built-in DNS server resolves service names to container IPs.
+* **Managed DNS**: Automatic DNS records `*.<id>.cluster.uncloud.run` for services with public access.
 * **Automatic HTTPS**: Built-in Caddy reverse proxy handles TLS certificate provisioning and renewal using Let's
   Encrypt.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
