@@ -35,7 +35,8 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
   model and troubleshooting.
 * **Zero-downtime deployments**: Rolling updates with health checks and automatic rollback on failure.
 * **Service discovery**: Built-in DNS server resolves service names to container IPs.
-* **Managed DNS**: Automatic DNS records `*.<id>.cluster.uncloud.run` for services with public access.
+* **Managed DNS**: Automatic DNS records `*.<id>.cluster.uncloud.run` for services with public access via managed
+  [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service.
 * **Automatic HTTPS**: Built-in Caddy reverse proxy handles TLS certificate provisioning and renewal using Let's
   Encrypt.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
