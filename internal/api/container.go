@@ -72,7 +72,7 @@ func (c *Container) ServiceSpec() (ServiceSpec, error) {
 	}
 
 	// TODO: many properties on the container such as Config.Cmd or Config.Entrypoint are populated when the container
-	//  is created.
+	//  is created. Figure out how to get a spec that is equal to the initial spec.
 	return ServiceSpec{
 		Container: ContainerSpec{
 			Command: c.Config.Cmd,
