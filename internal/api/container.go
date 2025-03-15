@@ -71,6 +71,8 @@ func (c *Container) ServiceSpec() (ServiceSpec, error) {
 		return ServiceSpec{}, fmt.Errorf("get service ports: %w", err)
 	}
 
+	// TODO: many properties on the container such as Config.Cmd or Config.Entrypoint are populated when the container
+	//  is created.
 	return ServiceSpec{
 		Container: ContainerSpec{
 			Command: c.Config.Cmd,
