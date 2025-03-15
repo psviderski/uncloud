@@ -68,14 +68,13 @@ func (cli *Client) RunService(
 			return fmt.Errorf("create deployment: %w", err)
 		}
 
-		serviceID, err := deploy.Run(ctx)
+		plan, err := deploy.Run(ctx)
 		if err != nil {
 			return err
 		}
 
-		resp.ID = serviceID
-		// TODO: get the service name from the plan when it's available.
-		resp.Name = spec.Name
+		resp.ID = plan.ServiceID
+		resp.Name = plan.ServiceName
 
 		return nil
 	}, cli.progressOut(), fmt.Sprintf("Running service %s (%s mode)", spec.Name, spec.Mode))

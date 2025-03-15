@@ -34,13 +34,14 @@ func (s *RollingStrategy) Type() string {
 func (s *RollingStrategy) Plan(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
+	// We can assume that the spec is valid at this point because it has been validated by the deployment.
 	switch spec.Mode {
 	case api.ServiceModeReplicated:
 		return s.planReplicated(ctx, cli, svc, spec)
 	case api.ServiceModeGlobal:
 		return s.planGlobal(ctx, cli, svc, spec)
 	default:
-		return Plan{}, fmt.Errorf("unsupported service mode: %s", spec.Mode)
+		return Plan{}, fmt.Errorf("unsupported service mode: '%s'", spec.Mode)
 	}
 }
 
@@ -50,17 +51,9 @@ func (s *RollingStrategy) Plan(
 func (s *RollingStrategy) planReplicated(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
-	var plan Plan
-
-	// Generate a new service ID for the first service deployment if it doesn't exist yet.
-	if svc != nil {
-		plan.ServiceID = svc.ID
-	} else {
-		var err error
-		plan.ServiceID, err = secret.NewID()
-		if err != nil {
-			return plan, fmt.Errorf("generate service ID: %w", err)
-		}
+	plan, err := newEmptyPlan(svc, spec)
+	if err != nil {
+		return plan, err
 	}
 
 	machines, err := cli.ListMachines(ctx)
@@ -217,22 +210,18 @@ func (s *RollingStrategy) planReplicated(
 func (s *RollingStrategy) planGlobal(
 	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
-	var plan Plan
+	plan, err := newEmptyPlan(svc, spec)
+	if err != nil {
+		return plan, err
+	}
+
 	// Map machineID to service containers on that machine. For the global mode, there should be at most one
 	// container per machine but we use a slice to handle multiple containers that may exist due to a bug
 	// or interruption in the previous deployment.
 	containersOnMachine := make(map[string][]api.MachineContainer)
 	if svc != nil {
-		plan.ServiceID = svc.ID
 		for _, c := range svc.Containers {
 			containersOnMachine[c.MachineID] = append(containersOnMachine[c.MachineID], c)
-		}
-	} else {
-		// Generate a new service ID for the first service deployment.
-		var err error
-		plan.ServiceID, err = secret.NewID()
-		if err != nil {
-			return plan, fmt.Errorf("generate service ID: %w", err)
 		}
 	}
 
@@ -361,4 +350,24 @@ func reconcileGlobalContainer(
 	}
 
 	return ops, nil
+}
+
+// newEmptyPlan creates a new empty plan for a service deployment with initialised service ID and name.
+func newEmptyPlan(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
+	var plan Plan
+
+	// Generate a new service ID for the initial service deployment if it doesn't exist yet.
+	if svc != nil {
+		plan.ServiceID = svc.ID
+		plan.ServiceName = svc.Name
+	} else {
+		var err error
+		plan.ServiceID, err = secret.NewID()
+		if err != nil {
+			return plan, fmt.Errorf("generate service ID: %w", err)
+		}
+		plan.ServiceName = spec.Name
+	}
+
+	return plan, nil
 }

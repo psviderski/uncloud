@@ -19,7 +19,8 @@ type Deployment struct {
 }
 
 type Plan struct {
-	ServiceID string
+	ServiceID   string
+	ServiceName string
 	SequenceOperation
 }
 
@@ -31,6 +32,7 @@ var ErrNoMatchingMachines = errors.New("no machines match the filter")
 
 // NewDeployment creates a new deployment for the given service specification.
 // If strategy is nil, a default RollingStrategy will be used.
+// TODO(refactor): do not return error
 func (cli *Client) NewDeployment(spec api.ServiceSpec, strategy Strategy) (*Deployment, error) {
 	if strategy == nil {
 		strategy = &RollingStrategy{}
@@ -103,11 +105,11 @@ func (d *Deployment) Validate(ctx context.Context) error {
 // It will create a new plan if one hasn't been created yet. The deployment will either create a new service or update
 // the existing one to match the desired specification.
 // TODO: forbid to run the same deployment more than once.
-func (d *Deployment) Run(ctx context.Context) (string, error) {
+func (d *Deployment) Run(ctx context.Context) (Plan, error) {
 	plan, err := d.Plan(ctx)
 	if err != nil {
-		return "", fmt.Errorf("create plan: %w", err)
+		return plan, fmt.Errorf("create plan: %w", err)
 	}
 
-	return plan.ServiceID, plan.Execute(ctx, d.cli)
+	return plan, plan.Execute(ctx, d.cli)
 }

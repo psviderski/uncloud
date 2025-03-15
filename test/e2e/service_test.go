@@ -65,11 +65,13 @@ func TestDeployment(t *testing.T) {
 
 		plan, err := deploy.Plan(ctx)
 		require.NoError(t, err)
+		assert.NotEmpty(t, plan.ServiceID)
+		assert.NotEmpty(t, plan.ServiceName)
 		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 run
 
-		svcID, err := deploy.Run(ctx)
+		runPlan, err := deploy.Run(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, svcID)
+		assert.Equal(t, plan, runPlan)
 
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -110,9 +112,8 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 6) // 3 run + 3 remove
 
-		svcID, err = deploy.Run(ctx)
+		_, err = deploy.Run(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, svcID)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -149,9 +150,8 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 9) // 3 stop + 3 run + 3 remove
 
-		svcID, err = deploy.Run(ctx)
+		_, err = deploy.Run(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, svcID)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -171,9 +171,8 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 0) // no-op
 
-		svcID, err = deploy.Run(ctx)
+		_, err = deploy.Run(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, svcID)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -435,9 +434,9 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 2) // 2 run operations for 2 replicas
 
-		svcID, err := deploy.Run(ctx)
+		runPlan, err := deploy.Run(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, svcID)
+		assert.Equal(t, plan, runPlan)
 
 		// Verify service was created with correct settings.
 		svc, err := cli.InspectService(ctx, name)
