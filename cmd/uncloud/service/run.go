@@ -148,10 +148,13 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return fmt.Errorf("inspect service: %w", err)
 	}
 
-	fmt.Println()
-	fmt.Printf("%s endpoints:\n", svc.Name)
-	for _, endpoint := range svc.Endpoints() {
-		fmt.Printf(" • %s\n", endpoint)
+	endpoints := svc.Endpoints()
+	if len(endpoints) > 0 {
+		fmt.Println()
+		fmt.Printf("%s endpoints:\n", svc.Name)
+		for _, endpoint := range endpoints {
+			fmt.Printf(" • %s\n", endpoint)
+		}
 	}
 
 	return nil
