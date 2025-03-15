@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/charmbracelet/huh"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
@@ -144,7 +143,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		fmt.Println(plan.Format(resolver))
 		fmt.Println()
 
-		confirmed, err := confirm()
+		confirmed, err := cli.Confirm()
 		if err != nil {
 			return fmt.Errorf("confirm deployment: %w", err)
 		}
@@ -212,26 +211,6 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 	}
 
 	return nil
-}
-
-func confirm() (bool, error) {
-	var confirmed bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(
-					"Do you want to continue?",
-				).
-				Affirmative("Yes!").
-				Negative("No").
-				Value(&confirmed),
-		),
-	)
-	if err := form.Run(); err != nil {
-		return false, err
-	}
-
-	return confirmed, nil
 }
 
 func machineFilter(machines []string) client.MachineFilter {
