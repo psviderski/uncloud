@@ -18,7 +18,7 @@ func LoadProject(ctx context.Context, paths []string) (*types.Project, error) {
 		composecli.WithConfigFileEnv,
 		// If none was selected, get default compose.yaml file from current dir or parent folders.
 		composecli.WithDefaultConfigPath,
-		composecli.WithExtension("x-ports", PortsSource{}),
+		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create compose parser options: %w", err)
@@ -29,7 +29,7 @@ func LoadProject(ctx context.Context, paths []string) (*types.Project, error) {
 		return nil, err
 	}
 
-	if err = transformServicesPortsExtension(project); err != nil {
+	if project, err = transformServicesPortsExtension(project); err != nil {
 		return nil, err
 	}
 
