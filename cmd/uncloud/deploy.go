@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	composecli "github.com/compose-spec/compose-go/v2/cli"
-	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
+	"strings"
 	"uncloud/internal/cli"
+	"uncloud/internal/cli/client"
+	"uncloud/internal/compose"
 )
 
 type deployOptions struct {
@@ -45,55 +48,84 @@ func NewDeployCommand() *cobra.Command {
 
 // deploy parses the Compose file(s) and deploys the services.
 func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
-	project, err := loadComposeProject(ctx, opts)
+	project, err := compose.LoadProject(ctx, opts.files)
 	if err != nil {
-		return err
+		return fmt.Errorf("load compose file(s): %w", err)
 	}
 
-	projectYAML, err := project.MarshalYAML()
-	if err != nil {
-		return err
+	if len(opts.services) > 0 {
+		// TODO: handle dependencies properly.
+		project, err = project.WithSelectedServices(opts.services, types.IgnoreDependencies)
+		if err != nil {
+			return fmt.Errorf("select services: %w", err)
+		}
 	}
 
-	fmt.Println(string(projectYAML))
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
+	}
+	defer clusterClient.Close()
 
-	// TODO: move to ComposeDeployment.
-	err = graph.InDependencyOrder(ctx, project,
-		// TODO: properly handle dependency conditions.
-		func(ctx context.Context, name string, service types.ServiceConfig) error {
-			service, err := project.GetService(name)
-			if err != nil {
-				return err
+	plan, err := client.PlanComposeDeployment(ctx, project, clusterClient)
+	if err != nil {
+		return fmt.Errorf("plan deployment: %w", err)
+	}
+
+	if len(plan.Operations) == 0 {
+		fmt.Println("Services are up to date.")
+		return nil
+	}
+
+	fmt.Println("Deployment plan:")
+
+	for _, op := range plan.Operations {
+		svcPlan, ok := op.(*client.Plan)
+		if !ok {
+			return fmt.Errorf("expected service Plan, got: %T", op)
+		}
+
+		svc, err := clusterClient.InspectService(ctx, svcPlan.ServiceID)
+		if err != nil {
+			if !errors.Is(err, client.ErrNotFound) {
+				return fmt.Errorf("inspect service: %w", err)
 			}
+			fmt.Printf("- Run service [name=%s]\n", svcPlan.ServiceName)
+		} else {
+			fmt.Printf("- Update service [name=%s]\n", svc.Name)
+		}
 
-			fmt.Println(service.Name)
+		// Initialise a machine and container name resolver to properly format the service plan output.
+		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, svc)
+		if err != nil {
+			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
+		}
 
-			return nil
-		})
+		fmt.Println(indent(svcPlan.Format(resolver), "  "))
+	}
+	fmt.Println()
 
-	return nil
+	confirmed, err := cli.Confirm()
+	if err != nil {
+		return fmt.Errorf("confirm deployment: %w", err)
+	}
+	if !confirmed {
+		fmt.Println("Cancelled. No changes were made.")
+		return nil
+	}
+
+	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
+		if err := plan.Execute(ctx, clusterClient); err != nil {
+			return fmt.Errorf("deploy services: %w", err)
+		}
+		return nil
+	}, uncli.ProgressOut(), "Deploying services")
 }
 
-func loadComposeProject(ctx context.Context, opts deployOptions) (*types.Project, error) {
-	options, err := composecli.NewProjectOptions(
-		opts.files,
-		// First apply os.Environment, always wins.
-		composecli.WithOsEnv,
-		// Read dot env file to populate project environment.
-		composecli.WithDotEnv,
-		// Get compose file path set by COMPOSE_FILE.
-		composecli.WithConfigFileEnv,
-		// If none was selected, get default compose.yaml file from current dir or parent folders.
-		composecli.WithDefaultConfigPath,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create compose parser options: %w", err)
+func indent(text, prefix string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
 	}
-
-	project, err := options.LoadProject(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load compose file(s): %w", err)
-	}
-
-	return project, nil
+	return strings.Join(lines, "\n")
 }
