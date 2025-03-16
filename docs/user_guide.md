@@ -20,7 +20,7 @@ Uncloud stores its configuration in `~/.config/uncloud/config.toml`. If you wish
 
 ### Initialisation
 
-Begin by initialising the first node in your cluster with `uncloud machine init [USER@HOST:PORT]`. If you do not have a need for Caddy reverse proxy, you may disable this feature with `--no-caddy`.
+Begin by initialising the first node in your cluster with `uc machine init [USER@HOST:PORT]`. If you do not have a need for Caddy reverse proxy, you may disable this feature with `--no-caddy`.
 
 This command will idempotently install Docker, uncloudd, uncloud-corrosion. If Caddy is enabled, it will set up a reverse proxy. If Uncloud DNS is enabled, it will create a DNS A record for the machine's public IP address under `*.[CLUSTER ID].cluster.uncloud.run`.
 
@@ -28,30 +28,32 @@ If you wish to uninstall Uncloud and its components, run `uncloud-uninstall`.
 
 ### Adding a node
 
-Just like the initialisation of the first node, a node can be added to the cluster with `uncloud machine add`.
+Just like the initialisation of the first node, a node can be added to the cluster with `uc machine add`.
 
 ### DNS
 
-Uncloud (uncloud.run) DNS can be managed with the `uncloud dns` subcommand.
+Uncloud (uncloud.run) DNS can be managed with the `uc dns` subcommand.
 
-* To reserve a domain name, run `uncloud dns reserve`
-* To release a domain name, run `uncloud dns release`.
-* To see the domain name, run `uncloud dns show`
+* To reserve a domain name, run `uc dns reserve`
+* To release a domain name, run `uc dns release`.
+* To see the domain name, run `uc dns show`
 
 ### Running a service
 
-Services on an Uncloud cluster can be managed with `uncloud service`.
+Services on an Uncloud cluster can be managed with `uc service`.
 
 You can run a service with two replicas that expose port 80 like the following:
 
 ```
-uncloud service run --mode replicated -p 80/http --replicas 2 nginxdemos/hello
+uc service run -p 80/http --replicas 2 nginxdemos/hello
 ```
+
+This requires the Caddy reverse proxy to be deployed. If it wasn't previously, it can be deployed with `uc caddy deploy`.
 
 Since this doesn't specify a service name, a random one will be generated.
 
 The service can be deleted by its service name:
 
 ```
-uncloud service rm hello-gsdo
+uc service rm hello-gsdo
 ```
