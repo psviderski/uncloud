@@ -114,6 +114,8 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    uncloud-uninstall
    ```
 
+View the [user guide](docs/user_guide.md) for more information.
+
 ## ⚙️ How it works
 
 Check out the [design document](docs/design.md) to understand Uncloud's design philosophy and goals. Here, let's peek
@@ -204,7 +206,7 @@ Updating cluster domain records in Uncloud DNS to point to machines running cadd
 
 DNS records updated to use only the internet-reachable machines running caddy service:
   *.xuw3xd.cluster.uncloud.run  A → 152.67.101.197, 5.223.45.199
-  
+
 $ uc machine ls
 NAME             STATE   ADDRESS         PUBLIC IP        WIREGUARD ENDPOINTS
 oracle-vm        Up      10.210.0.1/24   152.67.101.197   10.0.0.95:51820, 152.67.101.197:51820
