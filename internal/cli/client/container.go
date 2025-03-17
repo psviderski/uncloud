@@ -40,6 +40,7 @@ func (cli *Client) CreateContainer(
 	}
 	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
 
+	// TODO: calculate the spec hash and set it as a label to detect changes in the service spec.
 	config := &container.Config{
 		Cmd:      spec.Container.Command,
 		Hostname: containerName,

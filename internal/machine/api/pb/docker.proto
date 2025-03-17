@@ -15,6 +15,8 @@ service Docker {
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
   rpc PullImage(PullImageRequest) returns (stream JSONMessage);
+  // TODO: implement InspectImageFromRegistry to resolve image name to digest and supported platforms using
+  //  the configured Docker auth.
 }
 
 message CreateContainerRequest {

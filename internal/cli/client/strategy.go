@@ -97,6 +97,8 @@ func (s *RollingStrategy) planReplicated(
 				// Skip containers that are not running.
 				continue
 			}
+			// TODO: determine if the spec has changed by comparing the hashes.
+			//  Refactor all the spec comparison logic below.
 			cs, err := c.Container.ServiceSpec()
 			if err == nil {
 				runningSpecs[c.Container.ID] = cs
