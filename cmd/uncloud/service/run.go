@@ -13,14 +13,16 @@ import (
 )
 
 type runOptions struct {
-	command  []string
-	image    string
-	machines []string
-	mode     string
-	name     string
-	publish  []string
-	replicas uint
-	volumes  []string
+	command           []string
+	entrypoint        string
+	entrypointChanged bool
+	image             string
+	machines          []string
+	mode              string
+	name              string
+	publish           []string
+	replicas          uint
+	volumes           []string
 
 	cluster string
 }
@@ -35,6 +37,7 @@ func NewRunCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
+			opts.entrypointChanged = cmd.Flag("entrypoint").Changed
 			opts.image = args[0]
 			if len(args) > 1 {
 				opts.command = args[1:]
@@ -44,6 +47,8 @@ func NewRunCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&opts.entrypoint, "entrypoint", "",
+		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it.")
 	cmd.Flags().StringVar(&opts.mode, "mode", api.ServiceModeReplicated,
 		fmt.Sprintf("Replication mode of the service: either %q (a specified number of containers across "+
 			"the machines) or %q (one container on every machine).",
@@ -128,6 +133,14 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		Ports:    ports,
 		Replicas: opts.replicas,
 	}
+
+	// Overwrite the default ENTRYPOINT of the image or reset it if an empty string is passed.
+	if opts.entrypoint != "" {
+		spec.Container.Entrypoint = []string{opts.entrypoint}
+	} else if opts.entrypointChanged {
+		spec.Container.Entrypoint = []string{""}
+	}
+
 	if err := spec.Validate(); err != nil {
 		return fmt.Errorf("invalid service configuration: %w", err)
 	}

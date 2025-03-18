@@ -42,9 +42,10 @@ func (cli *Client) CreateContainer(
 
 	// TODO: calculate the spec hash and set it as a label to detect changes in the service spec.
 	config := &container.Config{
-		Cmd:      spec.Container.Command,
-		Hostname: containerName,
-		Image:    spec.Container.Image,
+		Cmd:        spec.Container.Command,
+		Entrypoint: spec.Container.Entrypoint,
+		Hostname:   containerName,
+		Image:      spec.Container.Image,
 		Labels: map[string]string{
 			api.LabelServiceID:   serviceID,
 			api.LabelServiceName: spec.Name,

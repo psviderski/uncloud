@@ -75,10 +75,11 @@ func (c *Container) ServiceSpec() (ServiceSpec, error) {
 	//  is created. Figure out how to get a spec that is equal to the initial spec.
 	return ServiceSpec{
 		Container: ContainerSpec{
-			Command: c.Config.Cmd,
-			Image:   c.Config.Image,
-			Init:    c.HostConfig.Init,
-			Volumes: c.HostConfig.Binds,
+			Command:    c.Config.Cmd,
+			Entrypoint: c.Config.Entrypoint,
+			Image:      c.Config.Image,
+			Init:       c.HostConfig.Init,
+			Volumes:    c.HostConfig.Binds,
 		},
 		Mode:  c.ServiceMode(),
 		Name:  c.ServiceName(),

@@ -67,8 +67,11 @@ func ValidateServiceID(id string) bool {
 }
 
 type ContainerSpec struct {
+	// Command overrides the default CMD of the image to be executed when running a container.
 	Command []string
-	Image   string
+	// Entrypoint overrides the default ENTRYPOINT of the image.
+	Entrypoint []string
+	Image      string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
 	// List of volumes to bind mount into the container.
