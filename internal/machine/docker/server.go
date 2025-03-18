@@ -149,13 +149,17 @@ func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersReque
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
-	containers := make([]types.ContainerJSON, len(containerSummaries))
-	for i, cs := range containerSummaries {
+	containers := make([]types.ContainerJSON, 0, len(containerSummaries))
+	for _, cs := range containerSummaries {
 		c, err := s.client.ContainerInspect(ctx, cs.ID)
 		if err != nil {
+			if client.IsErrNotFound(err) {
+				// The listed container may have been removed while we were inspecting other containers.
+				continue
+			}
 			return nil, status.Errorf(codes.Internal, "inspect container %s: %v", cs.ID, err)
 		}
-		containers[i] = c
+		containers = append(containers, c)
 	}
 
 	containersBytes, err := json.Marshal(containers)
