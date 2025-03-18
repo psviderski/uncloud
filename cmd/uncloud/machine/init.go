@@ -77,7 +77,7 @@ func NewInitCommand() *cobra.Command {
 	)
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "",
-		"path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
+		"Path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
 	)
 	cmd.Flags().StringVarP(
 		&opts.cluster, "cluster", "c", "",

@@ -23,13 +23,22 @@ const defaultClusterName = "default"
 
 type CLI struct {
 	config *config.Config
+	conn   *config.MachineConnection
 }
 
-func New(configPath string) (*CLI, error) {
+// New creates a new CLI instance with the given config path or remote machine connection.
+// If the connection is provided, the config is ignored for all operations which is useful for interacting with
+// a cluster without creating a config.
+func New(configPath string, conn *config.MachineConnection) (*CLI, error) {
+	if conn != nil {
+		return &CLI{conn: conn}, nil
+	}
+
 	cfg, err := config.NewFromFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("read Uncloud config: %w", err)
 	}
+
 	return &CLI{
 		config: cfg,
 	}, nil
@@ -53,7 +62,13 @@ func (cli *CLI) SetCurrentCluster(name string) error {
 	return cli.config.Save()
 }
 
+// ConnectCluster connects to a cluster using the given cluster name or the current cluster if not specified.
+// If the CLI was initialised with a machine connection, the config is ignored and the connection is used instead.
 func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client.Client, error) {
+	if cli.conn != nil {
+		return connectCluster(ctx, *cli.conn)
+	}
+
 	if len(cli.config.Clusters) == 0 {
 		return nil, errors.New(
 			"no clusters found in the Uncloud config. " +
@@ -88,6 +103,16 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 
 	// TODO: iterate over all connections and try to connect to the cluster using the first successful connection.
 	conn := cfg.Connections[0]
+
+	c, err := connectCluster(ctx, conn)
+	if err != nil {
+		return nil, errors.New("no valid connection configuration found for the cluster")
+	}
+
+	return c, nil
+}
+
+func connectCluster(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
 	if conn.SSH != "" {
 		user, host, port, err := conn.SSH.Parse()
 		if err != nil {
@@ -106,7 +131,8 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 	} else if conn.TCP.IsValid() {
 		return client.New(ctx, connector.NewTCPConnector(conn.TCP))
 	}
-	return nil, errors.New("no valid connection configuration found for the cluster")
+
+	return nil, errors.New("connection configuration is invalid")
 }
 
 // InitCluster initialises a new cluster on a remote machine and returns a client to interact with the cluster.
