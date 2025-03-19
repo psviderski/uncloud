@@ -311,6 +311,7 @@ func reconcileGlobalContainer(
 			}
 			break
 		}
+		// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
 	}
 	if upToDate {
 		return ops, nil

@@ -19,11 +19,14 @@ import (
 func (cli *Client) PrepareDeploymentSpec(ctx context.Context, spec api.ServiceSpec) (api.ServiceSpec, error) {
 	domain, err := cli.GetDomain(ctx)
 	if err != nil && !errors.Is(err, ErrNotFound) {
-		return spec, fmt.Errorf("get domain: %w", err)
+		return spec, fmt.Errorf("get cluster domain: %w", err)
 	}
 
-	// If the domain is not found (not reserved), an empty domain is used for the resolver.
-	resolver := NewServiceSpecResolver(domain)
+	resolver := ServiceSpecResolver{
+		// If the domain is not found (not reserved), an empty domain is used for the resolver.
+		ClusterDomain: domain,
+		// TODO: provide an image resolver.
+	}
 
 	if err = resolver.Resolve(&spec); err != nil {
 		return spec, err

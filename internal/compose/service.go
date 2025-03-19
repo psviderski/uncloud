@@ -7,9 +7,6 @@ import (
 )
 
 func ServiceSpecFromCompose(name string, service types.ServiceConfig) (api.ServiceSpec, error) {
-	// TODO: resolve the image to a digest and supported platforms using an image resolver that broadcasts requests
-	//  to all machines in the cluster.
-	// TODO: configure placement filter based on the supported platforms of the image.
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command: service.Command,

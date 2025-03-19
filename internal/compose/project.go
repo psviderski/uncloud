@@ -1,5 +1,7 @@
 package compose
 
+// TODO: make compose, cli, and api packages public.
+
 import (
 	"context"
 	"fmt"

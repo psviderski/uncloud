@@ -1,0 +1,5 @@
+services:
+  basic:
+    image: portainer/pause:3.9
+    x-ports:
+      - basic.example.com:80/https

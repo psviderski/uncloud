@@ -8,13 +8,14 @@ import (
 	"uncloud/internal/secret"
 )
 
+type ImageDigestResolver interface {
+	Resolve(image string) (string, error)
+}
+
 // ServiceSpecResolver transforms user-provided service specs into deployment-ready form.
 type ServiceSpecResolver struct {
 	ClusterDomain string
-}
-
-func NewServiceSpecResolver(clusterDomain string) *ServiceSpecResolver {
-	return &ServiceSpecResolver{ClusterDomain: clusterDomain}
+	ImageResolver ImageDigestResolver
 }
 
 // Resolve transforms a service spec into its fully resolved form ready for deployment.
@@ -26,6 +27,7 @@ func (r *ServiceSpecResolver) Resolve(spec *api.ServiceSpec) error {
 	steps := []func(*api.ServiceSpec) error{
 		r.applyDefaults,
 		r.resolveServiceName,
+		r.resolveImageDigest,
 		r.expandIngressPorts,
 	}
 
@@ -72,6 +74,21 @@ func (r *ServiceSpecResolver) resolveServiceName(spec *api.ServiceSpec) error {
 		return fmt.Errorf("generate random suffix: %w", err)
 	}
 	spec.Name = fmt.Sprintf("%s-%s", imageName, suffix)
+
+	return nil
+}
+
+func (r *ServiceSpecResolver) resolveImageDigest(spec *api.ServiceSpec) error {
+	if r.ImageResolver == nil {
+		// Skip digest resolution when no resolver is provided.
+		return nil
+	}
+
+	imageDigest, err := r.ImageResolver.Resolve(spec.Container.Image)
+	if err != nil {
+		return fmt.Errorf("resolve image digest: %w", err)
+	}
+	spec.Container.Image = imageDigest
 
 	return nil
 }
