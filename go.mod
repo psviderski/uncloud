@@ -13,6 +13,7 @@ require (
 	github.com/charmbracelet/huh v0.6.0
 	github.com/compose-spec/compose-go/v2 v2.4.5
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
+	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/distribution/reference v0.6.0
 	github.com/docker/cli v27.5.0+incompatible

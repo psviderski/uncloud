@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	LabelManaged      = "uncloud.managed"
-	LabelServiceID    = "uncloud.service.id"
-	LabelServiceName  = "uncloud.service.name"
-	LabelServiceMode  = "uncloud.service.mode"
-	LabelServicePorts = "uncloud.service.ports"
+	LabelManaged         = "uncloud.managed"
+	LabelServiceID       = "uncloud.service.id"
+	LabelServiceName     = "uncloud.service.name"
+	LabelServiceMode     = "uncloud.service.mode"
+	LabelServicePorts    = "uncloud.service.ports"
+	LabelServiceSpecHash = "uncloud.service.spec-hash"
 )
 
 type Container struct {

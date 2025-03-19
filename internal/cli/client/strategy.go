@@ -90,30 +90,31 @@ func (s *RollingStrategy) planReplicated(
 	// Organise existing containers by machine.
 	containersOnMachine := make(map[string][]api.Container)
 	upToDateContainersOnMachine := make(map[string]int)
+	containerSpecStatuses := make(map[string]ContainerSpecStatus)
 	if svc != nil {
-		runningSpecs := make(map[string]api.ServiceSpec)
 		for _, c := range svc.Containers {
 			if !c.Container.State.Running || c.Container.State.Paused {
 				// Skip containers that are not running.
 				continue
 			}
-			// TODO: determine if the spec has changed by comparing the hashes.
-			//  Refactor all the spec comparison logic below.
-			cs, err := c.Container.ServiceSpec()
-			if err == nil {
-				runningSpecs[c.Container.ID] = cs
-				if cs.Equals(spec) {
-					upToDateContainersOnMachine[c.MachineID] += 1
-				}
+
+			status, err := CompareContainerToSpec(c.Container, spec)
+			if err != nil {
+				return plan, fmt.Errorf("compare container to spec: %w", err)
+			}
+			containerSpecStatuses[c.Container.ID] = status
+
+			if status == ContainerUpToDate {
+				upToDateContainersOnMachine[c.MachineID] += 1
 			}
 		}
 
-		// Sort containers such that containers with the desired spec are first.
+		// Sort containers such that running containers with the desired spec are first.
 		slices.SortFunc(svc.Containers, func(c1, c2 api.MachineContainer) int {
-			if spec1, ok := runningSpecs[c1.Container.ID]; ok && spec1.Equals(spec) {
+			if status, ok := containerSpecStatuses[c1.Container.ID]; ok && status == ContainerUpToDate {
 				return -1
 			}
-			if spec2, ok := runningSpecs[c2.Container.ID]; ok && spec2.Equals(spec) {
+			if status, ok := containerSpecStatuses[c2.Container.ID]; ok && status == ContainerUpToDate {
 				return 1
 			}
 			return 0
@@ -158,14 +159,14 @@ func (s *RollingStrategy) planReplicated(
 		ctr := containers[0]
 		containersOnMachine[m.Id] = containers[1:]
 
-		if ctr.State.Running {
-			ctrSpec, specErr := ctr.ServiceSpec()
-			if specErr == nil && ctrSpec.Equals(spec) {
+		if status, ok := containerSpecStatuses[ctr.ID]; ok { // Contains statuses for only running containers.
+			if status == ContainerUpToDate {
 				continue
 			}
+			// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
 
 			conflictingPorts, portsErr := ctr.ConflictingServicePorts(spec.Ports)
-			if specErr != nil || portsErr != nil || len(conflictingPorts) > 0 {
+			if portsErr != nil || len(conflictingPorts) > 0 {
 				// Stop the malformed container or the container with conflicting ports.
 				plan.Operations = append(plan.Operations, &StopContainerOperation{
 					ServiceID:   plan.ServiceID,
@@ -245,12 +246,12 @@ func (s *RollingStrategy) planGlobal(
 	}
 
 	// TODO: figure out how to return a warning if there are machines down. Embed the machinesDown in the plan?
-	//  WARNING: failed to run a service container on machine '%s' which is Down.
 	var machinesDown []*pb.MachineInfo
 	for _, m := range machines {
 		// Skip machines that are down but collect them to report a warning later.
 		if m.State == pb.MachineMember_DOWN {
 			machinesDown = append(machinesDown, m.Machine)
+			fmt.Printf("WARNING: failed to run a service container on machine '%s' which is Down.\n", m.Machine.Id)
 			continue
 		}
 
@@ -291,11 +292,11 @@ func reconcileGlobalContainer(
 			continue
 		}
 
-		svcSpec, err := c.Container.ServiceSpec()
+		status, err := CompareContainerToSpec(c.Container, spec)
 		if err != nil {
-			return nil, fmt.Errorf("get service spec: %w", err)
+			return nil, fmt.Errorf("compare container to spec: %w", err)
 		}
-		if svcSpec.Equals(spec) {
+		if status == ContainerUpToDate {
 			// The container is already running with the same spec.
 			upToDate = true
 			for j, old := range containers {
