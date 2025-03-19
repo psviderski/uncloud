@@ -43,13 +43,10 @@ func (d *ComposeDeployment) Plan(ctx context.Context) (SequenceOperation, error)
 
 	plan := SequenceOperation{}
 	err := graph.InDependencyOrder(ctx, d.Project,
-		func(ctx context.Context, name string, service types.ServiceConfig) error {
-			spec, err := compose.ServiceSpecFromCompose(name, service)
+		func(ctx context.Context, name string, _ types.ServiceConfig) error {
+			spec, err := d.ServiceSpec(name)
 			if err != nil {
 				return fmt.Errorf("convert compose service '%s' to service spec: %w", name, err)
-			}
-			if spec, err = d.Client.PrepareDeploymentSpec(ctx, spec); err != nil {
-				return fmt.Errorf("prepare service '%s' spec ready for deployment: %w", name, err)
 			}
 
 			// TODO: properly handle dependency conditions in the service deployment plan as the first operation.
