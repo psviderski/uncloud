@@ -15,8 +15,10 @@ service Docker {
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
   rpc PullImage(PullImageRequest) returns (stream JSONMessage);
-  // TODO: implement InspectImageFromRegistry to resolve image name to digest and supported platforms using
-  //  the configured Docker auth.
+  rpc InspectImage(InspectImageRequest) returns (InspectImageResponse);
+  // InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
+  // Docker auth credentials if necessary.
+  rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
 }
 
 message CreateContainerRequest {
@@ -88,4 +90,22 @@ message PullImageRequest {
 message JSONMessage {
   // JSON serialized jsonmessage.JSONMessage.
   bytes message = 1;
+}
+
+message InspectImageRequest {
+  string id = 1;
+}
+
+message InspectImageResponse {
+  // JSON serialized types.ImageInspect.
+  bytes response = 1;
+}
+
+message InspectRemoteImageRequest {
+  string id = 1;
+}
+
+message InspectRemoteImageResponse {
+  // Raw manifest data (JSON).
+  bytes manifest = 1;
 }
