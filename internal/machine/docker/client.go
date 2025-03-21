@@ -228,20 +228,43 @@ func (c *Client) PullImage(ctx context.Context, image string) (<-chan PullImageM
 	return ch, nil
 }
 
+type MachineImage struct {
+	Metadata *pb.Metadata
+	Image    types.ImageInspect
+}
+
 // ImageInspect returns the image information for the given image ID.
-func (c *Client) ImageInspect(ctx context.Context, id string) (types.ImageInspect, error) {
-	var resp types.ImageInspect
-
-	grpcResp, err := c.grpcClient.InspectImage(ctx, &pb.InspectImageRequest{id: id})
+func (c *Client) ImageInspect(ctx context.Context, id string) ([]MachineImage, error) {
+	resp, err := c.grpcClient.InspectImage(ctx, &pb.InspectImageRequest{Id: id})
 	if err != nil {
+		// If the request was sent to only one machine, err is an actual error from the machine.
 		if status.Convert(err).Code() == codes.NotFound {
-			return resp, errdefs.NotFound(err)
+			return nil, errdefs.NotFound(err)
 		}
-		return resp, err
+		return nil, err
 	}
 
-	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
-		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
+	notFoundCount := 0
+	for _, msg := range resp.Messages {
+		if msg.Metadata != nil && codes.Code(msg.Metadata.Status.Code) == codes.NotFound {
+			notFoundCount++
+		}
 	}
-	return resp, nil
+	if len(resp.Messages) == notFoundCount {
+		return nil, errdefs.NotFound(fmt.Errorf("image not found: %s", id))
+	}
+
+	images := make([]MachineImage, len(resp.Messages))
+	for i, msg := range resp.Messages {
+		images[i].Metadata = msg.Metadata
+		if msg.Metadata != nil && msg.Metadata.Error != "" {
+			continue
+		}
+
+		if err = json.Unmarshal(msg.Image, &images[i].Image); err != nil {
+			return nil, fmt.Errorf("unmarshal image: %w", err)
+		}
+	}
+
+	return images, nil
 }
