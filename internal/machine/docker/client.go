@@ -72,10 +72,8 @@ func (c *Client) CreateContainer(
 		Name:          name,
 	})
 	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			if s.Code() == codes.NotFound {
-				return resp, errdefs.NotFound(err)
-			}
+		if status.Convert(err).Code() == codes.NotFound {
+			return resp, errdefs.NotFound(err)
 		}
 		return resp, err
 	}
@@ -92,10 +90,8 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (types.Contain
 
 	grpcResp, err := c.grpcClient.InspectContainer(ctx, &pb.InspectContainerRequest{Id: id})
 	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			if s.Code() == codes.NotFound {
-				return resp, errdefs.NotFound(err)
-			}
+		if status.Convert(err).Code() == codes.NotFound {
+			return resp, errdefs.NotFound(err)
 		}
 		return resp, err
 	}
@@ -118,10 +114,8 @@ func (c *Client) StartContainer(ctx context.Context, id string, opts container.S
 		Options: optsBytes,
 	})
 	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			if s.Code() == codes.NotFound {
-				return errdefs.NotFound(err)
-			}
+		if status.Convert(err).Code() == codes.NotFound {
+			return errdefs.NotFound(err)
 		}
 	}
 	return err
@@ -139,10 +133,8 @@ func (c *Client) StopContainer(ctx context.Context, id string, opts container.St
 		Options: optsBytes,
 	})
 	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			if s.Code() == codes.NotFound {
-				return errdefs.NotFound(err)
-			}
+		if status.Convert(err).Code() == codes.NotFound {
+			return errdefs.NotFound(err)
 		}
 	}
 	return err
@@ -191,10 +183,8 @@ func (c *Client) RemoveContainer(ctx context.Context, id string, opts container.
 		Options: optsBytes,
 	})
 	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			if s.Code() == codes.NotFound {
-				return errdefs.NotFound(err)
-			}
+		if status.Convert(err).Code() == codes.NotFound {
+			return errdefs.NotFound(err)
 		}
 	}
 	return err
@@ -236,4 +226,22 @@ func (c *Client) PullImage(ctx context.Context, image string) (<-chan PullImageM
 	}()
 
 	return ch, nil
+}
+
+// ImageInspect returns the image information for the given image ID.
+func (c *Client) ImageInspect(ctx context.Context, id string) (types.ImageInspect, error) {
+	var resp types.ImageInspect
+
+	grpcResp, err := c.grpcClient.InspectImage(ctx, &pb.InspectImageRequest{id: id})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return resp, errdefs.NotFound(err)
+		}
+		return resp, err
+	}
+
+	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
+		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
+	}
+	return resp, nil
 }

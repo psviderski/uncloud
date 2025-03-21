@@ -243,3 +243,27 @@ func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreaming
 		}
 	}
 }
+
+// InspectImage returns the image information for the given image ID.
+func (s *Server) InspectImage(ctx context.Context, req *pb.InspectImageRequest) (*pb.InspectImageResponse, error) {
+	resp, _, err := s.client.ImageInspectWithRaw(ctx, req.Id)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+	}
+
+	return &pb.InspectImageResponse{
+		Messages: []*pb.Image{
+			{
+				Image: respBytes,
+			},
+		},
+	}, nil
+}

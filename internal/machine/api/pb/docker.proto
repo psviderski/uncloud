@@ -64,8 +64,8 @@ message ListContainersRequest {
   bytes options = 1;
 }
 
-// ListContainersResponse structure allows broadcasting ListContainers requests to multiple machines.
 message ListContainersResponse {
+  // Must contain only one repeated messages field to allow broadcasting ListContainers requests to multiple machines.
   repeated MachineContainers messages = 1;
 }
 
@@ -97,8 +97,14 @@ message InspectImageRequest {
 }
 
 message InspectImageResponse {
+  // Must contain only one repeated messages field to allow broadcasting InspectImage requests to multiple machines.
+  repeated Image messages = 1;
+}
+
+message Image {
+  Metadata metadata = 1;
   // JSON serialized types.ImageInspect.
-  bytes response = 1;
+  bytes image = 2;
 }
 
 message InspectRemoteImageRequest {
@@ -106,6 +112,12 @@ message InspectRemoteImageRequest {
 }
 
 message InspectRemoteImageResponse {
+  // Must contain only one repeated messages field to allow broadcasting InspectRemoteImage requests to multiple machines.
+  repeated RemoteImage messages = 1;
+}
+
+message RemoteImage {
+  Metadata metadata = 1;
   // Raw manifest data (JSON).
-  bytes manifest = 1;
+  bytes manifest = 2;
 }
