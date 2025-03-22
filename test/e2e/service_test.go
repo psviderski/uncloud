@@ -5,17 +5,17 @@ import (
 	"errors"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/netip"
 	"strings"
 	"testing"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
-	"github.com/psviderski/uncloud/internal/secret"
-	"github.com/psviderski/uncloud/internal/ucind"
 )
 
 func newServiceID() string {

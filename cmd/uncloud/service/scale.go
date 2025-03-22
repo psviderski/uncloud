@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/charmbracelet/huh"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 	"strconv"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/cli"
 )
 
 type scaleOptions struct {

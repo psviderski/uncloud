@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"time"
-	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
-	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/cli/config"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 type addOptions struct {

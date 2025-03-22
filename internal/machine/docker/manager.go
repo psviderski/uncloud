@@ -8,10 +8,10 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/pkg/api"
 	"log/slog"
 	"time"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/machine/store"
 )
 
 const (

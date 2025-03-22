@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/psviderski/uncloud/pkg/api"
 	"log/slog"
 	"strings"
 	"time"
-	"github.com/psviderski/uncloud/internal/api"
 )
 
 const (

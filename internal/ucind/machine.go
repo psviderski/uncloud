@@ -9,14 +9,14 @@ import (
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/client/connector"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"io"
 	"net"
 	"net/netip"
 	"time"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/cli/client/connector"
-	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

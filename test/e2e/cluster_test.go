@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -11,9 +14,6 @@ import (
 	"os"
 	"testing"
 	"time"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	"github.com/psviderski/uncloud/internal/ucind"
 )
 
 func createTestCluster(

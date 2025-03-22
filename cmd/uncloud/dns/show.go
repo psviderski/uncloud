@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/spf13/cobra"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/spf13/cobra"
 )
 
 type showOptions struct {

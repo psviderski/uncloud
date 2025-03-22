@@ -3,13 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 	"slices"
 	"strings"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 type runOptions struct {

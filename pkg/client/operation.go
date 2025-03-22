@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types/container"
+	"github.com/psviderski/uncloud/pkg/api"
 	"strings"
-	"github.com/psviderski/uncloud/internal/api"
 )
 
 // Operation represents a single atomic operation in a deployment process.

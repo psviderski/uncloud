@@ -3,10 +3,10 @@ package e2e
 import (
 	"context"
 	"errors"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/compose"
 	"github.com/psviderski/uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"

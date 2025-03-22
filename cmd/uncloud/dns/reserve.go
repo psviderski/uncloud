@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
-	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 const DefaultUncloudDNSAPIEndpoint = "https://dns.uncloud.run/v1"

@@ -1,10 +1,10 @@
 package client
 
 import (
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"github.com/psviderski/uncloud/internal/api"
 )
 
 func TestClient_NewCaddyDeployment(t *testing.T) {

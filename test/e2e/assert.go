@@ -2,11 +2,11 @@ package e2e
 
 import (
 	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/cli/client"
 )
 
 func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpec) {

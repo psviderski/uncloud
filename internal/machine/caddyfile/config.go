@@ -8,14 +8,14 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/reverseproxy"
+	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/pkg/api"
 	"log/slog"
 	"maps"
 	"net"
 	"net/http"
 	"slices"
 	"strconv"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/machine/docker"
 )
 
 func GenerateConfig(containers []api.Container, verifyResponse string) (*caddy.Config, error) {

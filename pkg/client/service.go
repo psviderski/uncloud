@@ -7,13 +7,13 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"slices"
 	"sync"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 func (cli *Client) PrepareDeploymentSpec(ctx context.Context, spec api.ServiceSpec) (api.ServiceSpec, error) {

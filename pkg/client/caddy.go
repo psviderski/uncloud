@@ -6,7 +6,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/pkg/api"
 	"regexp"
 )
 

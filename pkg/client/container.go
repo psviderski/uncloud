@@ -10,12 +10,12 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/status"
 	"strconv"
 	"strings"
-	"github.com/psviderski/uncloud/internal/api"
-	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
-	"github.com/psviderski/uncloud/internal/secret"
 )
 
 // CreateContainer creates a new container for the given service on the specified machine.

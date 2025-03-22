@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/compose"
 	"github.com/spf13/cobra"
 	"strings"
-	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/cli/client"
-	"github.com/psviderski/uncloud/internal/compose"
 )
 
 type deployOptions struct {

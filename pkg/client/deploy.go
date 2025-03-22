@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/psviderski/uncloud/internal/api"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 // Deployment manages the process of creating or updating a service to match a desired state.

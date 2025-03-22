@@ -4,12 +4,12 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
-	"github.com/psviderski/uncloud/internal/api"
-	"github.com/psviderski/uncloud/internal/machine/docker"
 )
 
 func TestGenerateConfig(t *testing.T) {

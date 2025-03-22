@@ -3,8 +3,8 @@ package client
 import (
 	"fmt"
 	"github.com/distribution/reference"
-	"github.com/psviderski/uncloud/internal/api"
 	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/pkg/api"
 	"strings"
 )
 

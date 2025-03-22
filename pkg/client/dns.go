@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/caddyfile"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
 	"net/http"
 	"sync"
 	"time"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	"github.com/psviderski/uncloud/internal/machine/caddyfile"
 )
 
 // GetDomain returns the cluster domain name or ErrNotFound if it hasn't been reserved yet.

@@ -3,7 +3,7 @@ package compose
 import (
 	"fmt"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const PortsExtensionKey = "x-ports"

@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/distribution/reference"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"maps"
 	"reflect"
 	"regexp"
 	"slices"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 const (
