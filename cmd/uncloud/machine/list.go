@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
-	"uncloud/internal/cli"
-	"uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 func NewListCommand() *cobra.Command {

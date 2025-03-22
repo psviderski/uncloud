@@ -3,7 +3,7 @@ package cluster
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	"uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/internal/ucind"
 )
 
 func NewCreateCommand() *cobra.Command {

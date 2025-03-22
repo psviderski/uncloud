@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/encoding/protojson"
 	"log/slog"
-	"uncloud/internal/corrosion"
-	"uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/corrosion"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 var (

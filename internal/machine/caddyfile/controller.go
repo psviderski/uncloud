@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"uncloud/internal/api"
-	"uncloud/internal/fs"
-	"uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/machine/store"
 )
 
 const (

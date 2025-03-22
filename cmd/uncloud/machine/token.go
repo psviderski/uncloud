@@ -3,8 +3,8 @@ package machine
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	"uncloud/internal/daemon"
-	"uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/daemon"
+	"github.com/psviderski/uncloud/internal/machine"
 )
 
 type tokenOptions struct {

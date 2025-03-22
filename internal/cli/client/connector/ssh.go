@@ -3,13 +3,13 @@ package connector
 import (
 	"context"
 	"fmt"
+	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/sshexec"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"strings"
-	"uncloud/internal/machine"
-	"uncloud/internal/sshexec"
 )
 
 type SSHConnectorConfig struct {

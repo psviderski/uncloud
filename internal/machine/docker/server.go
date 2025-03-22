@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"io"
-	"uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.

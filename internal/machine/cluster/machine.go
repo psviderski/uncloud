@@ -2,7 +2,7 @@ package cluster
 
 import (
 	"fmt"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 // NewMachineID generates a new unique machine ID.

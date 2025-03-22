@@ -1,4 +1,4 @@
-module uncloud
+module github.com/psviderski/uncloud
 
 go 1.23.0
 

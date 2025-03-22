@@ -11,9 +11,9 @@ import (
 	"os"
 	"testing"
 	"time"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/ucind"
 )
 
 func createTestCluster(

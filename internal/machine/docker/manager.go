@@ -10,8 +10,8 @@ import (
 	"github.com/docker/docker/client"
 	"log/slog"
 	"time"
-	"uncloud/internal/api"
-	"uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/machine/store"
 )
 
 const (

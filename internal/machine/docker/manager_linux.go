@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/libnetwork/iptables"
 	"log/slog"
 	"net/netip"
-	"uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 // EnsureUncloudNetwork creates the Docker bridge network NetworkName with the provided machine subnet

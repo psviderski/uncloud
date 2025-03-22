@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/psviderski/uncloud/internal/dns"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"uncloud/internal/dns"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/store"
 )
 
 // uncloudDNSKey is the key used to store the details of the reserved domain in the store.

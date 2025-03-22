@@ -17,7 +17,7 @@ import (
 	"slices"
 	"sync"
 	"time"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 type WireGuardNetwork struct {

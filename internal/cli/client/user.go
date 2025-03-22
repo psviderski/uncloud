@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"net/netip"
-	"uncloud/internal/machine/network"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 type User struct {

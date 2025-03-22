@@ -5,8 +5,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"uncloud/internal/api"
-	"uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/cli/client"
 )
 
 func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpec) {

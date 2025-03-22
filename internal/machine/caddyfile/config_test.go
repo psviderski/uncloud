@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
-	"uncloud/internal/api"
-	"uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/machine/docker"
 )
 
 func TestGenerateConfig(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
 	"strconv"
-	"uncloud/internal/api"
-	"uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/cli"
 )
 
 type scaleOptions struct {

@@ -3,9 +3,9 @@ package client
 import (
 	"fmt"
 	"github.com/distribution/reference"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/secret"
 	"strings"
-	"uncloud/internal/api"
-	"uncloud/internal/secret"
 )
 
 type ImageDigestResolver interface {

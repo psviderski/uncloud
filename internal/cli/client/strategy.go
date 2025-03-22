@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
-	"uncloud/internal/api"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 // Strategy defines how a service should be deployed or updated. Different implementations can provide various

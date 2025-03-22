@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/fs"
 )
 
 const (

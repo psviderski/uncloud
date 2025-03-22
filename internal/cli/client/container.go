@@ -13,9 +13,9 @@ import (
 	"google.golang.org/grpc/status"
 	"strconv"
 	"strings"
-	"uncloud/internal/api"
-	machinedocker "uncloud/internal/machine/docker"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/api"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 // CreateContainer creates a new container for the given service on the specified machine.

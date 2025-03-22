@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"uncloud/internal/sshexec"
+	"github.com/psviderski/uncloud/internal/sshexec"
 )
 
 // TODO: support pinning the script version to the CLI version.

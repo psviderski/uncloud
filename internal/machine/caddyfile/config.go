@@ -14,8 +14,8 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"uncloud/internal/api"
-	"uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/machine/docker"
 )
 
 func GenerateConfig(containers []api.Container, verifyResponse string) (*caddy.Config, error) {

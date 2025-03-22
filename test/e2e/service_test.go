@@ -10,12 +10,12 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
-	"uncloud/internal/api"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/machine/api/pb"
-	machinedocker "uncloud/internal/machine/docker"
-	"uncloud/internal/secret"
-	"uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/ucind"
 )
 
 func newServiceID() string {

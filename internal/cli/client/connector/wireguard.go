@@ -8,11 +8,11 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/cli/config"
-	machine2 "uncloud/internal/machine"
-	"uncloud/internal/machine/network"
-	"uncloud/internal/machine/network/tunnel"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/cli/config"
+	machine2 "github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/network/tunnel"
 )
 
 // WireGuardConnector establishes a connection to the cluster API through a WireGuard tunnel

@@ -4,7 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/api"
 )
 
 func TestClient_NewCaddyDeployment(t *testing.T) {

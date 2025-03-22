@@ -14,9 +14,9 @@ import (
 	"net"
 	"net/netip"
 	"time"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/cli/client/connector"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/cli/client/connector"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

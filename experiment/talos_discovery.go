@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 	"net/netip"
 	"time"
-	"uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 const (

@@ -12,9 +12,9 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"time"
-	"uncloud/internal/machine"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/cluster"
+	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/cluster"
 )
 
 const (

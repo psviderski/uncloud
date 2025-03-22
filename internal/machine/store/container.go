@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-	"uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/api"
 )
 
 const (

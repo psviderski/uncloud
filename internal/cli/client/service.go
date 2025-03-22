@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 	"slices"
 	"sync"
-	"uncloud/internal/api"
-	"uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 func (cli *Client) PrepareDeploymentSpec(ctx context.Context, spec api.ServiceSpec) (api.ServiceSpec, error) {

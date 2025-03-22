@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 const (

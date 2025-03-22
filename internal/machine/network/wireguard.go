@@ -5,7 +5,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"net/netip"
 	"time"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

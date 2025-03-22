@@ -5,7 +5,7 @@ import (
 	"fmt"
 	systemd "github.com/coreos/go-systemd/daemon"
 	"log/slog"
-	"uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine"
 )
 
 type Daemon struct {

@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
 	"os"
 	"strings"
 	"text/tabwriter"
-	"uncloud/internal/cli"
 )
 
 func NewListCommand() *cobra.Command {

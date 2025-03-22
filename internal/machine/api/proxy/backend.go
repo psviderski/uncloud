@@ -5,7 +5,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
-	"uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 // One2ManyResponder converts upstream responses into messages from upstreams, so that multiple

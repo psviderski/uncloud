@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/docker/cli/cli/streams"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/docker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"os"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/docker"
 )
 
 var ErrNotFound = errors.New("not found")

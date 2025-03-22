@@ -3,13 +3,13 @@ package e2e
 import (
 	"context"
 	"errors"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/compose"
+	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"uncloud/internal/api"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/compose"
-	"uncloud/internal/ucind"
 )
 
 func TestComposeDeployment(t *testing.T) {

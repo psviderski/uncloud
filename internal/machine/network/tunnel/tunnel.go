@@ -9,7 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"time"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

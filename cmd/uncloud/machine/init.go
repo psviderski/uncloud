@@ -6,12 +6,12 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
 	"net/netip"
-	"uncloud/cmd/uncloud/caddy"
-	"uncloud/cmd/uncloud/dns"
-	"uncloud/internal/cli"
-	"uncloud/internal/cli/config"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/cluster"
+	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
+	"github.com/psviderski/uncloud/cmd/uncloud/dns"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/cluster"
 )
 
 type initOptions struct {

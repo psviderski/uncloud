@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"strings"
-	"uncloud/cmd/ucind/cluster"
-	"uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/cmd/ucind/cluster"
+	"github.com/psviderski/uncloud/internal/ucind"
 )
 
 func main() {

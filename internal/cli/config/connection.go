@@ -5,7 +5,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

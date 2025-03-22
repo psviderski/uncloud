@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
-	"uncloud/internal/api"
-	"uncloud/internal/compose"
+	"github.com/psviderski/uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/compose"
 )
 
 func (cli *Client) NewComposeDeployment(ctx context.Context, project *types.Project) (*ComposeDeployment, error) {
@@ -87,11 +87,15 @@ func (d *ComposeDeployment) ServiceSpec(name string) (api.ServiceSpec, error) {
 	}
 
 	// TODO: resolve the image to a digest and supported platforms using an image resolver that broadcasts requests
-	//  to all machines in the cluster.
+	//  to all machines in the cluster. If service.PullPolicy is "missing":
+	//    - Broadcast request if any machine contains a particular image and resolve it to image@digest.
+	//    - If not found, broadcast request to resolve an image using a registry, and resolve it to image@digest.
 	// TODO: configure placement filter based on the supported platforms of the image.
 	if err = d.SpecResolver.Resolve(&spec); err != nil {
 		return spec, fmt.Errorf("resolve service spec '%s': %w", name, err)
 	}
+
+	// TODO: maybe instantiate ImageResolver here based on PullPolicy of each service?
 
 	return spec, nil
 }

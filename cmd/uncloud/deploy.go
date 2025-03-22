@@ -8,9 +8,9 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/spf13/cobra"
 	"strings"
-	"uncloud/internal/cli"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/compose"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/compose"
 )
 
 type deployOptions struct {

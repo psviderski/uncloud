@@ -3,7 +3,7 @@ package compose
 import (
 	"fmt"
 	"github.com/compose-spec/compose-go/v2/types"
-	"uncloud/internal/api"
+	"github.com/psviderski/uncloud/internal/api"
 )
 
 func ServiceSpecFromCompose(name string, service types.ServiceConfig) (api.ServiceSpec, error) {

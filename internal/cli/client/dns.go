@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/caddyfile"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/caddyfile"
 )
 
 // GetDomain returns the cluster domain name or ErrNotFound if it hasn't been reserved yet.

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli"
 )
 
 type inspectOptions struct {

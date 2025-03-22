@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

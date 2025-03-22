@@ -2,9 +2,9 @@ package network
 
 import (
 	"fmt"
+	"github.com/psviderski/uncloud/internal/secret"
 	"net"
 	"net/netip"
-	"uncloud/internal/secret"
 )
 
 // MachineIP returns the IP address of the machine which is the first address in the subnet.

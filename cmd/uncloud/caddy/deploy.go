@@ -10,9 +10,9 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"uncloud/internal/cli"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 type deployOptions struct {

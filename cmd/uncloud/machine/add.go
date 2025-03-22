@@ -12,11 +12,11 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"net/netip"
 	"time"
-	"uncloud/cmd/uncloud/caddy"
-	"uncloud/internal/cli"
-	"uncloud/internal/cli/client"
-	"uncloud/internal/cli/config"
-	"uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/client"
+	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 type addOptions struct {

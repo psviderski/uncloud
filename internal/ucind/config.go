@@ -2,7 +2,7 @@ package ucind
 
 import (
 	"fmt"
-	"uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/config"
 )
 
 type ConfigUpdater struct {

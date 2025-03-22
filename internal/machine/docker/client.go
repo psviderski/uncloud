@@ -10,11 +10,11 @@ import (
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/jsonmessage"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
-	"uncloud/internal/machine/api/pb"
 )
 
 // Client is a gRPC client for the Docker service that provides a similar interface to the Docker HTTP client.

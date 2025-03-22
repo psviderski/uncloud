@@ -3,16 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
+	"github.com/psviderski/uncloud/cmd/uncloud/dns"
+	"github.com/psviderski/uncloud/cmd/uncloud/machine"
+	"github.com/psviderski/uncloud/cmd/uncloud/service"
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/spf13/cobra"
 	"net/netip"
 	"strings"
-	"uncloud/cmd/uncloud/caddy"
-	"uncloud/cmd/uncloud/dns"
-	"uncloud/cmd/uncloud/machine"
-	"uncloud/cmd/uncloud/service"
-	"uncloud/internal/cli"
-	"uncloud/internal/cli/config"
-	"uncloud/internal/fs"
 )
 
 type globalOptions struct {

@@ -14,12 +14,12 @@ import (
 	"slices"
 	"strconv"
 	"time"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/caddyfile"
-	"uncloud/internal/machine/corroservice"
-	"uncloud/internal/machine/docker"
-	"uncloud/internal/machine/network"
-	"uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/caddyfile"
+	"github.com/psviderski/uncloud/internal/machine/corroservice"
+	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/store"
 )
 
 const (

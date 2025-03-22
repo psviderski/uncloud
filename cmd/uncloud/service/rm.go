@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
 	"os"
-	"uncloud/internal/cli"
 )
 
 type rmOptions struct {

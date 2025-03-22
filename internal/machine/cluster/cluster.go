@@ -11,11 +11,11 @@ import (
 	"log/slog"
 	"net/netip"
 	"time"
-	"uncloud/internal/corrosion"
-	"uncloud/internal/machine/api/pb"
-	"uncloud/internal/machine/network"
-	"uncloud/internal/machine/store"
-	"uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/corrosion"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 type Cluster struct {

@@ -7,9 +7,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"uncloud/internal/daemon"
-	"uncloud/internal/log"
-	"uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/daemon"
+	"github.com/psviderski/uncloud/internal/log"
+	"github.com/psviderski/uncloud/internal/machine"
 )
 
 func main() {
