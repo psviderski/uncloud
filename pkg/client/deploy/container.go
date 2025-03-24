@@ -24,8 +24,16 @@ func CompareContainerToSpec(ctr api.Container, spec api.ServiceSpec) (ContainerS
 	}
 
 	// TODO: compare mutable properties such as memory or CPU limits when they are implemented.
-	
-	// TODO: compare ports
+
+	// TODO: remove ports check when ports are stored in the local machine store instead of as labels.
+	ports, err := ctr.ServicePorts()
+	if err != nil {
+		return "", fmt.Errorf("get service ports: %w", err)
+	}
+
+	if !api.PortsEqual(ports, spec.Ports) {
+		return ContainerNeedsRecreate, nil
+	}
 
 	return ContainerUpToDate, nil
 }

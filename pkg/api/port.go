@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -260,4 +261,32 @@ func validateHostname(hostname string) error {
 		return fmt.Errorf("must be a valid domain name containing at least one dot")
 	}
 	return nil
+}
+
+// PortsEqual returns true if the two port sets are equal. The order of the ports is not important.
+func PortsEqual(a, b []PortSpec) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	var err error
+	aSerialised := make([]string, len(a))
+	bSerialised := make([]string, len(b))
+
+	for i := range a {
+		aSerialised[i], err = a[i].String()
+		if err != nil {
+			return false
+		}
+
+		bSerialised[i], err = b[i].String()
+		if err != nil {
+			return false
+		}
+	}
+
+	slices.Sort(aSerialised)
+	slices.Sort(bSerialised)
+
+	return slices.Equal(aSerialised, bSerialised)
 }
