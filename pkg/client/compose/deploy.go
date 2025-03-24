@@ -7,7 +7,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/deploy"
+	"github.com/psviderski/uncloud/pkg/client/deploy"
 )
 
 type Client interface {

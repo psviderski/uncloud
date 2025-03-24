@@ -8,8 +8,8 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/compose"
-	"github.com/psviderski/uncloud/pkg/deploy"
+	"github.com/psviderski/uncloud/pkg/client/compose"
+	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
 	"strings"
 )

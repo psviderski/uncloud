@@ -3,7 +3,7 @@ package e2e
 import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/deploy"
+	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"

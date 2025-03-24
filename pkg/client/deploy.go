@@ -2,7 +2,7 @@ package client
 
 import (
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/deploy"
+	"github.com/psviderski/uncloud/pkg/client/deploy"
 )
 
 // NewDeployment creates a new deployment for the given service specification.
