@@ -7,12 +7,11 @@ import (
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"os"
 )
-
-var ErrNotFound = errors.New("not found")
 
 // Client is a client for the machine API.
 type Client struct {
@@ -25,6 +24,8 @@ type Client struct {
 	// from generic Docker operations.
 	Docker *docker.Client
 }
+
+var _ api.Client = (*Client)(nil)
 
 // Connector is an interface for establishing a connection to the machine API.
 type Connector interface {

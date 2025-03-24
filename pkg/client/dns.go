@@ -8,6 +8,7 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyfile"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
@@ -21,7 +22,7 @@ func (cli *Client) GetDomain(ctx context.Context) (string, error) {
 	domain, err := cli.ClusterClient.GetDomain(ctx, nil)
 	if err != nil {
 		if status.Convert(err).Code() == codes.NotFound {
-			return "", ErrNotFound
+			return "", api.ErrNotFound
 		}
 		return "", err
 	}

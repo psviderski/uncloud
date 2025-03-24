@@ -7,6 +7,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
@@ -61,7 +62,7 @@ func reserve(ctx context.Context, uncli *cli.CLI, opts reserveOptions) error {
 
 	// Update cluster domain records in Uncloud DNS to point to machines running caddy service if it has been deployed.
 	if _, err = clusterClient.InspectService(ctx, client.CaddyServiceName); err != nil {
-		if errors.Is(err, client.ErrNotFound) {
+		if errors.Is(err, api.ErrNotFound) {
 			fmt.Println("Deploy the Caddy reverse proxy service ('uc caddy deploy') to enable internet access " +
 				"to your services via the reserved or your custom domain.")
 			return nil

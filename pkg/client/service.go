@@ -9,6 +9,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/deploy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -18,11 +19,11 @@ import (
 
 func (cli *Client) PrepareDeploymentSpec(ctx context.Context, spec api.ServiceSpec) (api.ServiceSpec, error) {
 	domain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, ErrNotFound) {
+	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return spec, fmt.Errorf("get cluster domain: %w", err)
 	}
 
-	resolver := ServiceSpecResolver{
+	resolver := deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: domain,
 		// TODO: provide an image resolver.
@@ -41,7 +42,7 @@ type RunServiceResponse struct {
 }
 
 func (cli *Client) RunService(
-	ctx context.Context, spec api.ServiceSpec, filter MachineFilter,
+	ctx context.Context, spec api.ServiceSpec, filter deploy.MachineFilter,
 ) (RunServiceResponse, error) {
 	var resp RunServiceResponse
 
@@ -55,7 +56,7 @@ func (cli *Client) RunService(
 		if err == nil {
 			return resp, fmt.Errorf("service with name '%s' already exists", spec.Name)
 		}
-		if !errors.Is(err, ErrNotFound) {
+		if !errors.Is(err, api.ErrNotFound) {
 			return resp, fmt.Errorf("inspect service: %w", err)
 		}
 	}
@@ -66,12 +67,9 @@ func (cli *Client) RunService(
 	}
 
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		deploy, err := cli.NewDeployment(spec, &RollingStrategy{MachineFilter: filter})
-		if err != nil {
-			return fmt.Errorf("create deployment: %w", err)
-		}
+		deployment := cli.NewDeployment(spec, &deploy.RollingStrategy{MachineFilter: filter})
 
-		plan, err := deploy.Run(ctx)
+		plan, err := deployment.Run(ctx)
 		if err != nil {
 			return err
 		}
@@ -168,7 +166,7 @@ func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, 
 	}
 
 	if len(containers) == 0 {
-		return svc, ErrNotFound
+		return svc, api.ErrNotFound
 	}
 
 	// Containers from different services may share the same service name (distributed and eventually consistent store
@@ -211,7 +209,7 @@ func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (api.
 	if err != nil {
 		if s, ok := status.FromError(err); ok {
 			if s.Code() == codes.NotFound {
-				return svc, ErrNotFound
+				return svc, api.ErrNotFound
 			}
 		}
 		return svc, err
@@ -259,7 +257,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 			}
 
 			err = cli.RemoveContainer(ctx, svc.ID, mc.Container.ID, container.RemoveOptions{})
-			if err != nil && !errors.Is(err, ErrNotFound) {
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
 				errCh <- fmt.Errorf("remove container '%s': %w", mc.Container.ID, err)
 			}
 		}()
@@ -327,7 +325,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 
 			svc, err := cli.InspectService(ctx, ctr.ServiceID())
 			if err != nil {
-				if errors.Is(err, ErrNotFound) {
+				if errors.Is(err, api.ErrNotFound) {
 					continue
 				}
 				return nil, fmt.Errorf("inspect service: %w", err)

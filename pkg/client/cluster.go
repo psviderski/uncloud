@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -18,7 +19,7 @@ func (cli *Client) InspectMachine(ctx context.Context, id string) (*pb.MachineMe
 		}
 	}
 
-	return nil, ErrNotFound
+	return nil, api.ErrNotFound
 }
 
 func (cli *Client) ListMachines(ctx context.Context) ([]*pb.MachineMember, error) {

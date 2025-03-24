@@ -6,7 +6,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/deploy"
 	"github.com/spf13/cobra"
 	"slices"
 	"strings"
@@ -89,7 +89,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return fmt.Errorf("invalid replication mode: %q", opts.mode)
 	}
 
-	var machineFilter client.MachineFilter
+	var machineFilter deploy.MachineFilter
 	if len(opts.machines) > 0 {
 		var machines []string
 		for _, value := range opts.machines {

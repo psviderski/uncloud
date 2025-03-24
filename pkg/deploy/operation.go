@@ -1,4 +1,4 @@
-package client
+package deploy
 
 import (
 	"context"
@@ -14,7 +14,7 @@ type Operation interface {
 	// Execute performs the operation using the provided client.
 	// TODO: Encapsulate the client in the operation as otherwise it gives an impression that different clients
 	//  can be provided. But in reality, the operation is tightly coupled with the client that was used to create it.
-	Execute(ctx context.Context, cli *Client) error
+	Execute(ctx context.Context, cli Client) error
 	// Format returns a human-readable representation of the operation.
 	Format(resolver NameResolver) string
 	String() string
@@ -33,7 +33,7 @@ type RunContainerOperation struct {
 	MachineID string
 }
 
-func (o *RunContainerOperation) Execute(ctx context.Context, cli *Client) error {
+func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 	resp, err := cli.CreateContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
 	if err != nil {
 		return fmt.Errorf("create container: %w", err)
@@ -64,7 +64,7 @@ type StopContainerOperation struct {
 	MachineID   string
 }
 
-func (o *StopContainerOperation) Execute(ctx context.Context, cli *Client) error {
+func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error {
 	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, container.StopOptions{}); err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
@@ -88,7 +88,7 @@ type RemoveContainerOperation struct {
 	MachineID   string
 }
 
-func (o *RemoveContainerOperation) Execute(ctx context.Context, cli *Client) error {
+func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) error {
 	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, container.StopOptions{}); err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
@@ -114,7 +114,7 @@ type SequenceOperation struct {
 	Operations []Operation
 }
 
-func (o *SequenceOperation) Execute(ctx context.Context, cli *Client) error {
+func (o *SequenceOperation) Execute(ctx context.Context, cli Client) error {
 	for _, op := range o.Operations {
 		if err := op.Execute(ctx, cli); err != nil {
 			return err
@@ -139,50 +139,4 @@ func (o *SequenceOperation) String() string {
 	}
 
 	return fmt.Sprintf("SequenceOperation[%s]", strings.Join(ops, ", "))
-}
-
-// MapNameResolver resolves machine and container IDs to their names using a static map.
-type MapNameResolver struct {
-	machines   map[string]string
-	containers map[string]string
-}
-
-func NewNameResolver(machines, containers map[string]string) *MapNameResolver {
-	return &MapNameResolver{
-		machines:   machines,
-		containers: containers,
-	}
-}
-
-func (r *MapNameResolver) MachineName(machineID string) string {
-	if name, ok := r.machines[machineID]; ok {
-		return name
-	}
-	return machineID
-}
-
-func (r *MapNameResolver) ContainerName(containerID string) string {
-	if name, ok := r.containers[containerID]; ok {
-		return name
-	}
-	return containerID
-}
-
-// ServiceOperationNameResolver returns a machine and container name resolver for a service that can be used to format
-// deployment operations.
-func (cli *Client) ServiceOperationNameResolver(ctx context.Context, svc api.Service) (*MapNameResolver, error) {
-	machines, err := cli.ListMachines(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list machines: %w", err)
-	}
-	machineNames := make(map[string]string, len(machines))
-	for _, m := range machines {
-		machineNames[m.Machine.Id] = m.Machine.Name
-	}
-	containerNames := make(map[string]string, len(svc.Containers))
-	for _, c := range svc.Containers {
-		containerNames[c.Container.ID] = c.Container.NameWithoutSlash()
-	}
-
-	return NewNameResolver(machineNames, containerNames), nil
 }

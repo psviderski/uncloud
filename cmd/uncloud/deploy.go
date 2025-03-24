@@ -7,8 +7,9 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/compose"
+	"github.com/psviderski/uncloud/pkg/deploy"
 	"github.com/spf13/cobra"
 	"strings"
 )
@@ -34,7 +35,7 @@ func NewDeployCommand() *cobra.Command {
 				opts.services = args
 			}
 
-			return deploy(cmd.Context(), uncli, opts)
+			return runDeploy(cmd.Context(), uncli, opts)
 		},
 	}
 
@@ -46,8 +47,8 @@ func NewDeployCommand() *cobra.Command {
 	return cmd
 }
 
-// deploy parses the Compose file(s) and deploys the services.
-func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
+// runDeploy parses the Compose file(s) and deploys the services.
+func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	project, err := compose.LoadProject(ctx, opts.files)
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
@@ -85,14 +86,14 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	fmt.Println("Deployment plan:")
 
 	for _, op := range plan.Operations {
-		svcPlan, ok := op.(*client.Plan)
+		svcPlan, ok := op.(*deploy.Plan)
 		if !ok {
 			return fmt.Errorf("expected service Plan, got: %T", op)
 		}
 
 		svc, err := clusterClient.InspectService(ctx, svcPlan.ServiceID)
 		if err != nil {
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				return fmt.Errorf("inspect service: %w", err)
 			}
 			fmt.Printf("- Run service [name=%s]\n", svcPlan.ServiceName)

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func TestComposeDeployment(t *testing.T) {
 		name := "basic"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})

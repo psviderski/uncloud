@@ -3,7 +3,7 @@ package e2e
 import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -23,9 +23,9 @@ func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpe
 }
 
 func assertContainerMatchesSpec(t *testing.T, ctr api.Container, spec api.ServiceSpec) {
-	status, err := client.CompareContainerToSpec(ctr, spec)
+	status, err := deploy.CompareContainerToSpec(ctr, spec)
 	require.NoError(t, err)
-	assert.Equal(t, client.ContainerUpToDate, status)
+	assert.Equal(t, deploy.ContainerUpToDate, status)
 }
 
 // serviceContainersByMachine returns a map of machine ID to service containers on that machine.

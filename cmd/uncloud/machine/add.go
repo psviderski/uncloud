@@ -10,6 +10,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
@@ -116,7 +117,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 	caddyImage := ""
 	caddySvc, err := machineClient.InspectService(ctx, client.CaddyServiceName)
 	if err != nil {
-		if !errors.Is(err, client.ErrNotFound) {
+		if !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect caddy service: %w", err)
 		}
 	} else {

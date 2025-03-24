@@ -89,12 +89,8 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 
 	spec.Replicas = opts.replicas
 
-	deploy, err := clusterClient.NewDeployment(spec, nil)
-	if err != nil {
-		return fmt.Errorf("create deployment: %w", err)
-	}
-
-	plan, err := deploy.Plan(ctx)
+	deployment := clusterClient.NewDeployment(spec, nil)
+	plan, err := deployment.Plan(ctx)
 	if err != nil {
 		return fmt.Errorf("plan deployment: %w", err)
 	}
@@ -128,7 +124,7 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 
 	title := fmt.Sprintf("Scaling service %s (%d → %d replicas)", svc.Name, currentReplicas, opts.replicas)
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		if _, err = deploy.Run(ctx); err != nil {
+		if _, err = deployment.Run(ctx); err != nil {
 			return fmt.Errorf("deploy service: %w", err)
 		}
 		return nil

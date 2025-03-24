@@ -11,6 +11,7 @@ import (
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/netip"
@@ -42,12 +43,12 @@ func TestDeployment(t *testing.T) {
 		name := "global-deployment"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
 			_, err = cli.InspectService(ctx, name)
-			require.ErrorIs(t, err, client.ErrNotFound)
+			require.ErrorIs(t, err, api.ErrNotFound)
 		})
 
 		spec := api.ServiceSpec{
@@ -57,19 +58,17 @@ func TestDeployment(t *testing.T) {
 				Image: "portainer/pause:latest",
 			},
 		}
-		deploy, err := cli.NewDeployment(spec, nil)
+		deployment := cli.NewDeployment(spec, nil)
+		err = deployment.Validate(ctx)
 		require.NoError(t, err)
 
-		err = deploy.Validate(ctx)
-		require.NoError(t, err)
-
-		plan, err := deploy.Plan(ctx)
+		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.NotEmpty(t, plan.ServiceID)
 		assert.Equal(t, name, plan.ServiceName)
 		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 run
 
-		runPlan, err := deploy.Run(ctx)
+		runPlan, err := deployment.Run(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, plan, runPlan)
 
@@ -99,14 +98,12 @@ func TestDeployment(t *testing.T) {
 				},
 			},
 		}
-		deploy, err = cli.NewDeployment(specWithPort, nil)
-		require.NoError(t, err)
-
-		plan, err = deploy.Plan(ctx)
+		deployment = cli.NewDeployment(specWithPort, nil)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 6) // 3 run + 3 remove
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -140,14 +137,12 @@ func TestDeployment(t *testing.T) {
 				},
 			},
 		}
-		deploy, err = cli.NewDeployment(specWithPortAndInit, nil)
-		require.NoError(t, err)
-
-		plan, err = deploy.Plan(ctx)
+		deployment = cli.NewDeployment(specWithPortAndInit, nil)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 9) // 3 stop + 3 run + 3 remove
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -164,14 +159,12 @@ func TestDeployment(t *testing.T) {
 		// Deploying the same spec should be a no-op.
 		initialContainers = containers
 
-		deploy, err = cli.NewDeployment(specWithPortAndInit, nil)
-		require.NoError(t, err)
-
-		plan, err = deploy.Plan(ctx)
+		deployment = cli.NewDeployment(specWithPortAndInit, nil)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 0) // no-op
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -187,7 +180,7 @@ func TestDeployment(t *testing.T) {
 		name := "global-deployment-filtered"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -201,10 +194,8 @@ func TestDeployment(t *testing.T) {
 			},
 		}
 
-		deploy, err := cli.NewDeployment(spec, nil)
-		require.NoError(t, err)
-
-		_, err = deploy.Run(ctx)
+		deployment := cli.NewDeployment(spec, nil)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, name)
@@ -225,12 +216,10 @@ func TestDeployment(t *testing.T) {
 		filter := func(m *pb.MachineInfo) bool {
 			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
 		}
-		strategy := &client.RollingStrategy{MachineFilter: filter}
+		strategy := &deploy.RollingStrategy{MachineFilter: filter}
 
-		deploy, err = cli.NewDeployment(specWithInit, strategy)
-		require.NoError(t, err)
-
-		_, err = deploy.Run(ctx)
+		deployment = cli.NewDeployment(specWithInit, strategy)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -275,10 +264,8 @@ func TestDeployment(t *testing.T) {
 			},
 		}
 
-		deploy, err = cli.NewDeployment(specWithPort, nil)
-		require.NoError(t, err)
-
-		_, err = deploy.Run(ctx)
+		deployment = cli.NewDeployment(specWithPort, nil)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -302,15 +289,15 @@ func TestDeployment(t *testing.T) {
 	t.Run("caddy", func(t *testing.T) {
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, client.CaddyServiceName)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
 
-		deploy, err := cli.NewCaddyDeployment("", nil)
+		deployment, err := cli.NewCaddyDeployment("", nil)
 		require.NoError(t, err)
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
@@ -349,7 +336,7 @@ func TestDeployment(t *testing.T) {
 	t.Run("caddy with machine filter", func(t *testing.T) {
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, client.CaddyServiceName)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -359,10 +346,10 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[0].Name
 		}
 
-		deploy, err := cli.NewCaddyDeployment("", filter)
+		deployment, err := cli.NewCaddyDeployment("", filter)
 		require.NoError(t, err)
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
@@ -379,10 +366,10 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
 		}
 
-		deploy, err = cli.NewCaddyDeployment("", filter)
+		deployment, err = cli.NewCaddyDeployment("", filter)
 		require.NoError(t, err)
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, client.CaddyServiceName)
@@ -409,7 +396,7 @@ func TestDeployment(t *testing.T) {
 		name := "replicated-deployment"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -424,19 +411,17 @@ func TestDeployment(t *testing.T) {
 			Replicas: 2,
 		}
 
-		deploy, err := cli.NewDeployment(spec, nil)
+		deployment := cli.NewDeployment(spec, nil)
+		err = deployment.Validate(ctx)
 		require.NoError(t, err)
 
-		err = deploy.Validate(ctx)
-		require.NoError(t, err)
-
-		plan, err := deploy.Plan(ctx)
+		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.NotEmpty(t, plan.ServiceID)
 		assert.Equal(t, name, plan.ServiceName)
 		assert.Len(t, plan.SequenceOperation.Operations, 2) // 2 run operations for 2 replicas
 
-		runPlan, err := deploy.Run(ctx)
+		runPlan, err := deployment.Run(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, plan, runPlan)
 
@@ -455,14 +440,12 @@ func TestDeployment(t *testing.T) {
 		updatedSpec := spec
 		updatedSpec.Container.Init = &init
 
-		deploy, err = cli.NewDeployment(updatedSpec, nil)
-		require.NoError(t, err)
-
-		plan, err = deploy.Plan(ctx)
+		deployment = cli.NewDeployment(updatedSpec, nil)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 4, "Expected 2 run + 2 remove operations")
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -484,14 +467,12 @@ func TestDeployment(t *testing.T) {
 		threeReplicaSpec := updatedSpec
 		threeReplicaSpec.Replicas = 3
 
-		deploy, err = cli.NewDeployment(threeReplicaSpec, nil)
-		require.NoError(t, err)
-
-		plan, err = deploy.Plan(ctx)
+		deployment = cli.NewDeployment(threeReplicaSpec, nil)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 1, "Expected 1 run operation")
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -511,14 +492,12 @@ func TestDeployment(t *testing.T) {
 		fourReplicaSpec.Container.Command = []string{"updated"}
 		fourReplicaSpec.Replicas = 5
 
-		deploy, err = cli.NewDeployment(fourReplicaSpec, nil)
-		require.NoError(t, err)
-
-		plan, err = deploy.Plan(ctx)
+		deployment = cli.NewDeployment(fourReplicaSpec, nil)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 8, "Expected 5 run + 3 remove operations")
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -540,14 +519,12 @@ func TestDeployment(t *testing.T) {
 		// 5. Redeploy the exact same spec and verify it's a noop.
 		initialContainers = containers // Reset container tracking.
 
-		deploy, err = cli.NewDeployment(fourReplicaSpec, nil)
-		require.NoError(t, err)
-
-		plan, err = deploy.Plan(ctx)
+		deployment = cli.NewDeployment(fourReplicaSpec, nil)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Empty(t, plan.Operations, "Redeploying the same spec should be a no-op")
 
-		_, err = deploy.Run(ctx)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -563,7 +540,7 @@ func TestDeployment(t *testing.T) {
 		name := "replicated-deployment-filtered"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -581,12 +558,10 @@ func TestDeployment(t *testing.T) {
 		machine01Filter := func(m *pb.MachineInfo) bool {
 			return m.Name == c.Machines[0].Name || m.Name == c.Machines[1].Name
 		}
-		strategy := &client.RollingStrategy{MachineFilter: machine01Filter}
+		strategy := &deploy.RollingStrategy{MachineFilter: machine01Filter}
 
-		deploy, err := cli.NewDeployment(spec, strategy)
-		require.NoError(t, err)
-
-		_, err = deploy.Run(ctx)
+		deployment := cli.NewDeployment(spec, strategy)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		// Verify service has 2 containers on machines 0 and 1.
@@ -612,11 +587,9 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[2].Name
 		}
 
-		strategy = &client.RollingStrategy{MachineFilter: machine2Filter}
-		deploy, err = cli.NewDeployment(spec, strategy)
-		require.NoError(t, err)
-
-		_, err = deploy.Run(ctx)
+		strategy = &deploy.RollingStrategy{MachineFilter: machine2Filter}
+		deployment = cli.NewDeployment(spec, strategy)
+		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		// Verify service now has containers only on machine 2.
@@ -663,7 +636,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		t.Cleanup(func() {
 			err := cli.RemoveContainer(ctx, serviceID, resp.ID, container.RemoveOptions{Force: true})
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -738,7 +711,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		t.Cleanup(func() {
 			err := cli.RemoveContainer(ctx, serviceID, resp.ID, container.RemoveOptions{Force: true})
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -803,7 +776,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		t.Cleanup(func() {
 			err := cli.RemoveContainer(ctx, serviceID, ctr.ID, container.RemoveOptions{Force: true})
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -819,7 +792,7 @@ func TestServiceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 
 		err = cli.RemoveContainer(ctx, serviceID, ctr.ID, container.RemoveOptions{})
-		require.ErrorIs(t, err, client.ErrNotFound)
+		require.ErrorIs(t, err, api.ErrNotFound)
 	})
 
 	t.Run("1 replica", func(t *testing.T) {
@@ -828,12 +801,12 @@ func TestServiceLifecycle(t *testing.T) {
 		name := "1-replica"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
 			_, err = cli.InspectService(ctx, name)
-			require.ErrorIs(t, err, client.ErrNotFound)
+			require.ErrorIs(t, err, api.ErrNotFound)
 		})
 
 		resp, err := cli.RunService(ctx, api.ServiceSpec{
@@ -878,7 +851,7 @@ func TestServiceLifecycle(t *testing.T) {
 		name := "1-replica-ports"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
@@ -930,7 +903,7 @@ func TestServiceLifecycle(t *testing.T) {
 		name := "global"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, client.ErrNotFound) {
+			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})

@@ -1,4 +1,4 @@
-package client
+package deploy
 
 import (
 	"context"
@@ -17,7 +17,7 @@ type Strategy interface {
 	Type() string
 	// Plan returns the operation to reconcile the service to the desired state.
 	// If the service does not exist (new deployment), svc will be nil.
-	Plan(ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec) (Plan, error)
+	Plan(ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec) (Plan, error)
 }
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
@@ -32,7 +32,7 @@ func (s *RollingStrategy) Type() string {
 }
 
 func (s *RollingStrategy) Plan(
-	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
+	ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
 	// We can assume that the spec is valid at this point because it has been validated by the deployment.
 	switch spec.Mode {
@@ -49,7 +49,7 @@ func (s *RollingStrategy) Plan(
 // For replicated services, we want to maintain a specific number of containers (replicas) across the available machines
 // in the cluster.
 func (s *RollingStrategy) planReplicated(
-	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
+	ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
 	plan, err := newEmptyPlan(svc, spec)
 	if err != nil {
@@ -211,7 +211,7 @@ func (s *RollingStrategy) planReplicated(
 // It handles multiple containers per machine (though this should not occur in normal operation) and skips machines
 // that are down.
 func (s *RollingStrategy) planGlobal(
-	ctx context.Context, cli *Client, svc *api.Service, spec api.ServiceSpec,
+	ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
 	plan, err := newEmptyPlan(svc, spec)
 	if err != nil {

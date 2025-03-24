@@ -7,16 +7,28 @@ import (
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/deploy"
 )
 
-func NewDeployment(ctx context.Context, cli *client.Client, project *types.Project) (*Deployment, error) {
+type Client interface {
+	api.DNSClient
+	deploy.Client
+}
+
+type Deployment struct {
+	Client       Client
+	Project      *types.Project
+	SpecResolver *deploy.ServiceSpecResolver
+	plan         *deploy.SequenceOperation
+}
+
+func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
 	domain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, client.ErrNotFound) {
+	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return nil, fmt.Errorf("get cluster domain: %w", err)
 	}
 
-	resolver := &client.ServiceSpecResolver{
+	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: domain,
 		// TODO: provide an image resolver.
@@ -29,19 +41,12 @@ func NewDeployment(ctx context.Context, cli *client.Client, project *types.Proje
 	}, nil
 }
 
-type Deployment struct {
-	Client       *client.Client
-	Project      *types.Project
-	SpecResolver *client.ServiceSpecResolver
-	plan         *client.SequenceOperation
-}
-
-func (d *Deployment) Plan(ctx context.Context) (client.SequenceOperation, error) {
+func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error) {
 	if d.plan != nil {
 		return *d.plan, nil
 	}
 
-	plan := client.SequenceOperation{}
+	plan := deploy.SequenceOperation{}
 	err := graph.InDependencyOrder(ctx, d.Project,
 		func(ctx context.Context, name string, _ types.ServiceConfig) error {
 			spec, err := d.ServiceSpec(name)
@@ -49,13 +54,10 @@ func (d *Deployment) Plan(ctx context.Context) (client.SequenceOperation, error)
 				return fmt.Errorf("convert compose service '%s' to service spec: %w", name, err)
 			}
 
-			// TODO: properly handle dependency conditions in the service deployment plan as the first operation.
-			deploy, err := d.Client.NewDeployment(spec, nil)
-			if err != nil {
-				return fmt.Errorf("create deployment for service '%s': %w", name, err)
-			}
+			// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
+			deployment := deploy.NewDeployment(d.Client, spec, nil)
 
-			servicePlan, err := deploy.Plan(ctx)
+			servicePlan, err := deployment.Plan(ctx)
 			if err != nil {
 				return fmt.Errorf("create deployment plan for service '%s': %w", name, err)
 			}

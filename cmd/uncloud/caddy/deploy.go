@@ -8,7 +8,9 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/deploy"
 	"github.com/spf13/cobra"
 	"maps"
 	"slices"
@@ -31,7 +33,7 @@ func NewDeployCommand() *cobra.Command {
 			"A rolling update is performed when updating existing containers to minimise disruption.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return deploy(cmd.Context(), uncli, opts)
+			return runDeploy(cmd.Context(), uncli, opts)
 		},
 	}
 
@@ -47,7 +49,7 @@ func NewDeployCommand() *cobra.Command {
 	return cmd
 }
 
-func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
+func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -56,7 +58,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 	svc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
 	if err != nil {
-		if !errors.Is(err, client.ErrNotFound) {
+		if !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect caddy service: %w", err)
 		}
 		fmt.Printf("Service: %s (not running)\n", client.CaddyServiceName)
@@ -85,7 +87,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	fmt.Println()
 	fmt.Println("Preparing a deployment plan...")
 
-	var filter client.MachineFilter
+	var filter deploy.MachineFilter
 	if opts.machine != "" {
 		machines := strings.Split(opts.machine, ",")
 		for i, m := range machines {
@@ -105,7 +107,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 	plan, err := d.Plan(ctx)
 	if err != nil {
-		if errors.Is(err, client.ErrNoMatchingMachines) {
+		if errors.Is(err, deploy.ErrNoMatchingMachines) {
 			return fmt.Errorf("no machines found matching: %s", opts.machine)
 		}
 		return fmt.Errorf("plan caddy deployment: %w", err)
@@ -169,7 +171,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, progressOut *streams.Out) error {
 	if _, err := clusterClient.GetDomain(ctx); err != nil {
-		if errors.Is(err, client.ErrNotFound) {
+		if errors.Is(err, api.ErrNotFound) {
 			fmt.Println("Skipping DNS records update as no cluster domain is reserved (see 'uc dns').")
 			return nil
 		}
@@ -213,7 +215,7 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 	return nil
 }
 
-func machineFilter(machines []string) client.MachineFilter {
+func machineFilter(machines []string) deploy.MachineFilter {
 	if len(machines) == 0 {
 		return nil
 	}

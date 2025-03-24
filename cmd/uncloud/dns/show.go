@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +42,7 @@ func show(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 
 	domain, err := clusterClient.GetDomain(ctx)
 	if err != nil {
-		if errors.Is(err, client.ErrNotFound) {
+		if errors.Is(err, api.ErrNotFound) {
 			return errors.New("no domain reserved")
 		}
 		return err

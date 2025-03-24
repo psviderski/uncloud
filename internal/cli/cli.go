@@ -10,6 +10,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/sshexec"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/connector"
 	"net/netip"
@@ -56,7 +57,7 @@ func (cli *CLI) CreateCluster(name string) error {
 
 func (cli *CLI) SetCurrentCluster(name string) error {
 	if _, ok := cli.config.Clusters[name]; !ok {
-		return client.ErrNotFound
+		return api.ErrNotFound
 	}
 	cli.config.CurrentCluster = name
 	return cli.config.Save()
