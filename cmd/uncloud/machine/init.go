@@ -132,7 +132,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	}
 
 	if !opts.noCaddy {
-		d, err := client.NewCaddyDeployment(ctx, "", nil)
+		d, err := client.NewCaddyDeployment("", nil)
 		if err != nil {
 			return fmt.Errorf("create caddy deployment: %w", err)
 		}

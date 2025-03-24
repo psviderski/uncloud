@@ -55,7 +55,7 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 			}
 
 			// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
-			deployment, err := deploy.NewDeployment(ctx, d.Client, spec, nil)
+			deployment := deploy.NewDeployment(d.Client, spec, nil)
 			if err != nil {
 				return fmt.Errorf("create deployment for service '%s': %w", name, err)
 			}

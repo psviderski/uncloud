@@ -96,7 +96,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		filter = machineFilter(machines)
 	}
 
-	d, err := clusterClient.NewCaddyDeployment(ctx, opts.image, filter)
+	d, err := clusterClient.NewCaddyDeployment(opts.image, filter)
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}

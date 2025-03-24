@@ -18,12 +18,11 @@ type Client interface {
 // Deployment manages the process of creating or updating a service to match a desired state.
 // It coordinates the validation, planning, and execution of deployment operations.
 type Deployment struct {
-	Service      *api.Service
-	Spec         api.ServiceSpec
-	Strategy     Strategy
-	cli          Client
-	specResolver *ServiceSpecResolver
-	plan         *Plan
+	Service  *api.Service
+	Spec     api.ServiceSpec
+	Strategy Strategy
+	cli      Client
+	plan     *Plan
 }
 
 type Plan struct {
@@ -40,27 +39,16 @@ var ErrNoMatchingMachines = errors.New("no machines match the filter")
 
 // NewDeployment creates a new deployment for the given service specification.
 // If strategy is nil, a default RollingStrategy will be used.
-func NewDeployment(ctx context.Context, cli Client, spec api.ServiceSpec, strategy Strategy) (*Deployment, error) {
+func NewDeployment(cli Client, spec api.ServiceSpec, strategy Strategy) *Deployment {
 	if strategy == nil {
 		strategy = &RollingStrategy{}
 	}
 
-	clusterDomain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, api.ErrNotFound) {
-		return nil, fmt.Errorf("get cluster domain: %w", err)
-	}
-
-	specResolver := &ServiceSpecResolver{
-		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: clusterDomain,
-	}
-
 	return &Deployment{
-		Spec:         spec,
-		Strategy:     strategy,
-		cli:          cli,
-		specResolver: specResolver,
-	}, nil
+		Spec:     spec,
+		Strategy: strategy,
+		cli:      cli,
+	}
 }
 
 // Plan returns a plan of operations to reconcile the service to the desired state.
@@ -75,7 +63,17 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		return Plan{}, fmt.Errorf("invalid deployment: %w", err)
 	}
 
-	resolvedSpec, err := d.specResolver.Resolve(d.Spec)
+	clusterDomain, err := d.cli.GetDomain(ctx)
+	if err != nil && !errors.Is(err, api.ErrNotFound) {
+		return Plan{}, fmt.Errorf("get cluster domain: %w", err)
+	}
+
+	specResolver := &ServiceSpecResolver{
+		// If the domain is not found (not reserved), an empty domain is used for the resolver.
+		ClusterDomain: clusterDomain,
+	}
+
+	resolvedSpec, err := specResolver.Resolve(d.Spec)
 	if err != nil {
 		return Plan{}, fmt.Errorf("resolve service spec: %w", err)
 	}

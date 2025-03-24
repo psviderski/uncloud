@@ -88,12 +88,7 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 	}
 
 	spec.Replicas = opts.replicas
-
-	deployment, err := clusterClient.NewDeployment(ctx, spec, nil)
-	if err != nil {
-		return fmt.Errorf("create deployment: %w", err)
-	}
-
+	deployment := clusterClient.NewDeployment(spec, nil)
 	plan, err := deployment.Plan(ctx)
 	if err != nil {
 		return fmt.Errorf("plan deployment: %w", err)

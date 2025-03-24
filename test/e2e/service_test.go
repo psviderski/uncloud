@@ -57,8 +57,7 @@ func TestDeployment(t *testing.T) {
 				Image: "portainer/pause:latest",
 			},
 		}
-		deployment, err := cli.NewDeployment(ctx, spec, nil)
-		require.NoError(t, err)
+		deployment := cli.NewDeployment(spec, nil)
 
 		err = deployment.Validate(ctx)
 		require.NoError(t, err)
@@ -102,8 +101,7 @@ func TestDeployment(t *testing.T) {
 				},
 			},
 		}
-		deployment, err = cli.NewDeployment(ctx, specWithPort, nil)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(specWithPort, nil)
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
@@ -143,8 +141,7 @@ func TestDeployment(t *testing.T) {
 				},
 			},
 		}
-		deployment, err = cli.NewDeployment(ctx, specWithPortAndInit, nil)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(specWithPortAndInit, nil)
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
@@ -167,8 +164,7 @@ func TestDeployment(t *testing.T) {
 		// Deploying the same spec should be a no-op.
 		initialContainers = containers
 
-		deployment, err = cli.NewDeployment(ctx, specWithPortAndInit, nil)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(specWithPortAndInit, nil)
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
@@ -203,9 +199,7 @@ func TestDeployment(t *testing.T) {
 				Image: "portainer/pause:latest",
 			},
 		}
-
-		deployment, err := cli.NewDeployment(ctx, spec, nil)
-		require.NoError(t, err)
+		deployment := cli.NewDeployment(spec, nil)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -229,9 +223,7 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
 		}
 		strategy := &deploy.RollingStrategy{MachineFilter: filter}
-
-		deployment, err = cli.NewDeployment(ctx, specWithInit, strategy)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(specWithInit, strategy)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -277,10 +269,7 @@ func TestDeployment(t *testing.T) {
 				Mode:          api.PortModeHost,
 			},
 		}
-
-		deployment, err = cli.NewDeployment(ctx, specWithPort, nil)
-		require.NoError(t, err)
-
+		deployment = cli.NewDeployment(specWithPort, nil)
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
@@ -310,7 +299,7 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
-		deployment, err := cli.NewCaddyDeployment(ctx, "", nil)
+		deployment, err := cli.NewCaddyDeployment("", nil)
 		require.NoError(t, err)
 
 		_, err = deployment.Run(ctx)
@@ -362,7 +351,7 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[0].Name
 		}
 
-		deployment, err := cli.NewCaddyDeployment(ctx, "", filter)
+		deployment, err := cli.NewCaddyDeployment("", filter)
 		require.NoError(t, err)
 		image := deployment.Spec.Container.Image
 
@@ -382,8 +371,7 @@ func TestDeployment(t *testing.T) {
 		filter = func(m *pb.MachineInfo) bool {
 			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
 		}
-
-		deployment, err = cli.NewCaddyDeployment(ctx, image, filter)
+		deployment, err = cli.NewCaddyDeployment(image, filter)
 		require.NoError(t, err)
 
 		_, err = deployment.Run(ctx)
@@ -427,9 +415,7 @@ func TestDeployment(t *testing.T) {
 			},
 			Replicas: 2,
 		}
-
-		deployment, err := cli.NewDeployment(ctx, spec, nil)
-		require.NoError(t, err)
+		deployment := cli.NewDeployment(spec, nil)
 
 		err = deployment.Validate(ctx)
 		require.NoError(t, err)
@@ -458,9 +444,7 @@ func TestDeployment(t *testing.T) {
 		init := true
 		updatedSpec := spec
 		updatedSpec.Container.Init = &init
-
-		deployment, err = cli.NewDeployment(ctx, updatedSpec, nil)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(updatedSpec, nil)
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
@@ -487,9 +471,7 @@ func TestDeployment(t *testing.T) {
 
 		threeReplicaSpec := updatedSpec
 		threeReplicaSpec.Replicas = 3
-
-		deployment, err = cli.NewDeployment(ctx, threeReplicaSpec, nil)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(threeReplicaSpec, nil)
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
@@ -514,9 +496,7 @@ func TestDeployment(t *testing.T) {
 		fourReplicaSpec := updatedSpec
 		fourReplicaSpec.Container.Command = []string{"updated"}
 		fourReplicaSpec.Replicas = 5
-
-		deployment, err = cli.NewDeployment(ctx, fourReplicaSpec, nil)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(fourReplicaSpec, nil)
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
@@ -544,8 +524,7 @@ func TestDeployment(t *testing.T) {
 		// 5. Redeploy the exact same spec and verify it's a noop.
 		initialContainers = containers // Reset container tracking.
 
-		deployment, err = cli.NewDeployment(ctx, fourReplicaSpec, nil)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(fourReplicaSpec, nil)
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
@@ -586,9 +565,7 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[0].Name || m.Name == c.Machines[1].Name
 		}
 		strategy := &deploy.RollingStrategy{MachineFilter: machine01Filter}
-
-		deployment, err := cli.NewDeployment(ctx, spec, strategy)
-		require.NoError(t, err)
+		deployment := cli.NewDeployment(spec, strategy)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -615,10 +592,8 @@ func TestDeployment(t *testing.T) {
 		machine2Filter := func(m *pb.MachineInfo) bool {
 			return m.Name == c.Machines[2].Name
 		}
-
 		strategy = &deploy.RollingStrategy{MachineFilter: machine2Filter}
-		deployment, err = cli.NewDeployment(ctx, spec, strategy)
-		require.NoError(t, err)
+		deployment = cli.NewDeployment(spec, strategy)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)

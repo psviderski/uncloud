@@ -42,11 +42,7 @@ func (cli *Client) RunService(
 		}
 	}
 
-	deployment, err := cli.NewDeployment(ctx, spec, &deploy.RollingStrategy{MachineFilter: filter})
-	if err != nil {
-		return resp, fmt.Errorf("create deployment: %w", err)
-	}
-
+	deployment := cli.NewDeployment(spec, &deploy.RollingStrategy{MachineFilter: filter})
 	plan, err := deployment.Plan(ctx)
 	if err != nil {
 		return resp, fmt.Errorf("plan deployment: %w", err)

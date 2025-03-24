@@ -136,7 +136,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 		}
 	}
 
-	d, err := machineClient.NewCaddyDeployment(ctx, caddyImage, filter)
+	d, err := machineClient.NewCaddyDeployment(caddyImage, filter)
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}

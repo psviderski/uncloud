@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"fmt"
 	"github.com/Masterminds/semver"
 	"github.com/distribution/reference"
@@ -23,9 +22,7 @@ var caddyImageTagRegex = regexp.MustCompile(`^2\.\d+\.\d+$`)
 // NewCaddyDeployment creates a new deployment for a Caddy reverse proxy service.
 // The service is deployed in global mode to all machines in the cluster. If the image is not provided, the latest
 // version of the official Caddy Docker image is used.
-func (cli *Client) NewCaddyDeployment(
-	ctx context.Context, image string, filter deploy.MachineFilter,
-) (*deploy.Deployment, error) {
+func (cli *Client) NewCaddyDeployment(image string, filter deploy.MachineFilter) (*deploy.Deployment, error) {
 	latest, err := LatestCaddyImage()
 	if err != nil {
 		return nil, fmt.Errorf("look up latest Caddy image: %w", err)
@@ -59,7 +56,7 @@ func (cli *Client) NewCaddyDeployment(
 		},
 	}
 
-	return cli.NewDeployment(ctx, spec, &deploy.RollingStrategy{MachineFilter: filter})
+	return cli.NewDeployment(spec, &deploy.RollingStrategy{MachineFilter: filter}), nil
 }
 
 // LatestCaddyImage returns the latest image of the official Caddy Docker image on Docker Hub.
