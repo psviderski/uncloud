@@ -1,4 +1,4 @@
-package client
+package compose
 
 import (
 	"context"
@@ -7,41 +7,41 @@ import (
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/compose"
+	"github.com/psviderski/uncloud/pkg/client"
 )
 
-func (cli *Client) NewComposeDeployment(ctx context.Context, project *types.Project) (*ComposeDeployment, error) {
+func NewDeployment(ctx context.Context, cli *client.Client, project *types.Project) (*Deployment, error) {
 	domain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, ErrNotFound) {
+	if err != nil && !errors.Is(err, client.ErrNotFound) {
 		return nil, fmt.Errorf("get cluster domain: %w", err)
 	}
 
-	resolver := &ServiceSpecResolver{
+	resolver := &client.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: domain,
 		// TODO: provide an image resolver.
 	}
 
-	return &ComposeDeployment{
+	return &Deployment{
 		Client:       cli,
 		Project:      project,
 		SpecResolver: resolver,
 	}, nil
 }
 
-type ComposeDeployment struct {
-	Client       *Client
+type Deployment struct {
+	Client       *client.Client
 	Project      *types.Project
-	SpecResolver *ServiceSpecResolver
-	plan         *SequenceOperation
+	SpecResolver *client.ServiceSpecResolver
+	plan         *client.SequenceOperation
 }
 
-func (d *ComposeDeployment) Plan(ctx context.Context) (SequenceOperation, error) {
+func (d *Deployment) Plan(ctx context.Context) (client.SequenceOperation, error) {
 	if d.plan != nil {
 		return *d.plan, nil
 	}
 
-	plan := SequenceOperation{}
+	plan := client.SequenceOperation{}
 	err := graph.InDependencyOrder(ctx, d.Project,
 		func(ctx context.Context, name string, _ types.ServiceConfig) error {
 			spec, err := d.ServiceSpec(name)
@@ -75,13 +75,13 @@ func (d *ComposeDeployment) Plan(ctx context.Context) (SequenceOperation, error)
 }
 
 // ServiceSpec returns the service specification for the given compose service that is ready for deployment.
-func (d *ComposeDeployment) ServiceSpec(name string) (api.ServiceSpec, error) {
+func (d *Deployment) ServiceSpec(name string) (api.ServiceSpec, error) {
 	service, err := d.Project.GetService(name)
 	if err != nil {
 		return api.ServiceSpec{}, fmt.Errorf("get config for compose service '%s': %w", name, err)
 	}
 
-	spec, err := compose.ServiceSpecFromCompose(name, service)
+	spec, err := ServiceSpecFromCompose(name, service)
 	if err != nil {
 		return spec, fmt.Errorf("convert compose service '%s' to service spec: %w", name, err)
 	}
@@ -100,7 +100,7 @@ func (d *ComposeDeployment) ServiceSpec(name string) (api.ServiceSpec, error) {
 	return spec, nil
 }
 
-func (d *ComposeDeployment) Run(ctx context.Context) error {
+func (d *Deployment) Run(ctx context.Context) error {
 	plan, err := d.Plan(ctx)
 	if err != nil {
 		return fmt.Errorf("create plan: %w", err)

@@ -36,7 +36,7 @@ func TestComposeDeployment(t *testing.T) {
 		project, err := compose.LoadProject(ctx, []string{"fixtures/basic-compose.yaml"})
 		require.NoError(t, err)
 
-		deploy, err := cli.NewComposeDeployment(ctx, project)
+		deploy, err := compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
 		plan, err := deploy.Plan(ctx)

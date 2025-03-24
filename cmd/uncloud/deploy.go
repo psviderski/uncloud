@@ -67,7 +67,7 @@ func deploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 	defer clusterClient.Close()
 
-	composeDeploy, err := clusterClient.NewComposeDeployment(ctx, project)
+	composeDeploy, err := compose.NewDeployment(ctx, clusterClient, project)
 	if err != nil {
 		return fmt.Errorf("create compose deployment: %w", err)
 	}
