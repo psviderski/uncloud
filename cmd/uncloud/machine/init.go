@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/compose/v2/pkg/progress"
-	"github.com/spf13/cobra"
-	"net/netip"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
+	"github.com/spf13/cobra"
+	"net/netip"
 )
 
 type initOptions struct {
@@ -132,7 +132,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	}
 
 	if !opts.noCaddy {
-		d, err := client.NewCaddyDeployment("", nil)
+		d, err := client.NewCaddyDeployment(ctx, "", nil)
 		if err != nil {
 			return fmt.Errorf("create caddy deployment: %w", err)
 		}

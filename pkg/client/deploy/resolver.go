@@ -19,10 +19,12 @@ type ServiceSpecResolver struct {
 }
 
 // Resolve transforms a service spec into its fully resolved form ready for deployment.
-func (r *ServiceSpecResolver) Resolve(spec *api.ServiceSpec) error {
+func (r *ServiceSpecResolver) Resolve(spec api.ServiceSpec) (api.ServiceSpec, error) {
 	if err := spec.Validate(); err != nil {
-		return fmt.Errorf("invalid service spec: %w", err)
+		return spec, fmt.Errorf("invalid service spec: %w", err)
 	}
+
+	spec = spec.Clone()
 
 	steps := []func(*api.ServiceSpec) error{
 		r.applyDefaults,
@@ -32,12 +34,12 @@ func (r *ServiceSpecResolver) Resolve(spec *api.ServiceSpec) error {
 	}
 
 	for _, step := range steps {
-		if err := step(spec); err != nil {
-			return err
+		if err := step(&spec); err != nil {
+			return spec, err
 		}
 	}
 
-	return nil
+	return spec, nil
 }
 
 func (r *ServiceSpecResolver) applyDefaults(spec *api.ServiceSpec) error {
@@ -52,6 +54,7 @@ func (r *ServiceSpecResolver) applyDefaults(spec *api.ServiceSpec) error {
 	return nil
 }
 
+// resolveServiceName generates a service name from the image when not provided.
 func (r *ServiceSpecResolver) resolveServiceName(spec *api.ServiceSpec) error {
 	if spec.Name != "" {
 		return nil

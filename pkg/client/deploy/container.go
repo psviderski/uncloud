@@ -24,6 +24,8 @@ func CompareContainerToSpec(ctr api.Container, spec api.ServiceSpec) (ContainerS
 	}
 
 	// TODO: compare mutable properties such as memory or CPU limits when they are implemented.
+	
+	// TODO: compare ports
 
 	return ContainerUpToDate, nil
 }

@@ -120,6 +120,18 @@ func (s *ServiceSpec) Equals(spec ServiceSpec) bool {
 	return reflect.DeepEqual(*s, spec)
 }
 
+func (s *ServiceSpec) Clone() ServiceSpec {
+	spec := *s
+
+	if s.Ports != nil {
+		spec.Ports = make([]PortSpec, len(s.Ports))
+		copy(spec.Ports, s.Ports)
+	}
+	spec.Container = s.Container.Clone()
+
+	return spec
+}
+
 type ContainerSpec struct {
 	// Command overrides the default CMD of the image to be executed when running a container.
 	Command []string
@@ -138,6 +150,25 @@ func (s *ContainerSpec) Validate() error {
 	}
 
 	return nil
+}
+
+func (s *ContainerSpec) Clone() ContainerSpec {
+	spec := *s
+
+	if s.Command != nil {
+		spec.Command = make([]string, len(s.Command))
+		copy(spec.Command, s.Command)
+	}
+	if s.Entrypoint != nil {
+		spec.Entrypoint = make([]string, len(s.Entrypoint))
+		copy(spec.Entrypoint, s.Entrypoint)
+	}
+	if s.Volumes != nil {
+		spec.Volumes = make([]string, len(s.Volumes))
+		copy(spec.Volumes, s.Volumes)
+	}
+
+	return spec
 }
 
 type Service struct {

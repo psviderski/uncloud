@@ -17,25 +17,6 @@ import (
 	"sync"
 )
 
-func (cli *Client) PrepareDeploymentSpec(ctx context.Context, spec api.ServiceSpec) (api.ServiceSpec, error) {
-	domain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, api.ErrNotFound) {
-		return spec, fmt.Errorf("get cluster domain: %w", err)
-	}
-
-	resolver := deploy.ServiceSpecResolver{
-		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: domain,
-		// TODO: provide an image resolver.
-	}
-
-	if err = resolver.Resolve(&spec); err != nil {
-		return spec, err
-	}
-
-	return spec, nil
-}
-
 type RunServiceResponse struct {
 	ID   string
 	Name string
@@ -61,15 +42,18 @@ func (cli *Client) RunService(
 		}
 	}
 
-	var err error
-	if spec, err = cli.PrepareDeploymentSpec(ctx, spec); err != nil {
-		return resp, fmt.Errorf("prepare service spec ready for deployment: %w", err)
+	deployment, err := cli.NewDeployment(ctx, spec, &deploy.RollingStrategy{MachineFilter: filter})
+	if err != nil {
+		return resp, fmt.Errorf("create deployment: %w", err)
+	}
+
+	plan, err := deployment.Plan(ctx)
+	if err != nil {
+		return resp, fmt.Errorf("plan deployment: %w", err)
 	}
 
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		deployment := cli.NewDeployment(spec, &deploy.RollingStrategy{MachineFilter: filter})
-
-		plan, err := deployment.Run(ctx)
+		_, err = deployment.Run(ctx)
 		if err != nil {
 			return err
 		}
@@ -78,7 +62,7 @@ func (cli *Client) RunService(
 		resp.Name = plan.ServiceName
 
 		return nil
-	}, cli.progressOut(), fmt.Sprintf("Running service %s (%s mode)", spec.Name, spec.Mode))
+	}, cli.progressOut(), fmt.Sprintf("Running service %s (%s mode)", plan.ServiceName, spec.Mode))
 
 	return resp, err
 }

@@ -55,7 +55,10 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 			}
 
 			// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
-			deployment := deploy.NewDeployment(d.Client, spec, nil)
+			deployment, err := deploy.NewDeployment(ctx, d.Client, spec, nil)
+			if err != nil {
+				return fmt.Errorf("create deployment for service '%s': %w", name, err)
+			}
 
 			servicePlan, err := deployment.Plan(ctx)
 			if err != nil {
@@ -93,9 +96,6 @@ func (d *Deployment) ServiceSpec(name string) (api.ServiceSpec, error) {
 	//    - Broadcast request if any machine contains a particular image and resolve it to image@digest.
 	//    - If not found, broadcast request to resolve an image using a registry, and resolve it to image@digest.
 	// TODO: configure placement filter based on the supported platforms of the image.
-	if err = d.SpecResolver.Resolve(&spec); err != nil {
-		return spec, fmt.Errorf("resolve service spec '%s': %w", name, err)
-	}
 
 	// TODO: maybe instantiate ImageResolver here based on PullPolicy of each service?
 

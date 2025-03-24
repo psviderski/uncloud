@@ -11,10 +11,12 @@ import (
 
 func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpec) {
 	assert.Equal(t, spec.Name, svc.Name)
-	assert.Equal(t, spec.Mode, svc.Mode)
 
 	if svc.Mode == api.ServiceModeReplicated {
+		assert.Contains(t, []string{"", api.ServiceModeReplicated}, spec.Mode)
 		assert.Len(t, svc.Containers, int(spec.Replicas), "Expected %d replicas", spec.Replicas)
+	} else {
+		assert.Equal(t, spec.Mode, svc.Mode)
 	}
 
 	for _, mc := range svc.Containers {

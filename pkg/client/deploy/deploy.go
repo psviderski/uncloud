@@ -10,6 +10,7 @@ import (
 
 type Client interface {
 	api.ContainerClient
+	api.DNSClient
 	api.MachineClient
 	api.ServiceClient
 }
@@ -17,11 +18,12 @@ type Client interface {
 // Deployment manages the process of creating or updating a service to match a desired state.
 // It coordinates the validation, planning, and execution of deployment operations.
 type Deployment struct {
-	Service  *api.Service
-	Spec     api.ServiceSpec
-	Strategy Strategy
-	cli      Client
-	plan     *Plan
+	Service      *api.Service
+	Spec         api.ServiceSpec
+	Strategy     Strategy
+	cli          Client
+	specResolver *ServiceSpecResolver
+	plan         *Plan
 }
 
 type Plan struct {
@@ -38,16 +40,27 @@ var ErrNoMatchingMachines = errors.New("no machines match the filter")
 
 // NewDeployment creates a new deployment for the given service specification.
 // If strategy is nil, a default RollingStrategy will be used.
-func NewDeployment(cli Client, spec api.ServiceSpec, strategy Strategy) *Deployment {
+func NewDeployment(ctx context.Context, cli Client, spec api.ServiceSpec, strategy Strategy) (*Deployment, error) {
 	if strategy == nil {
 		strategy = &RollingStrategy{}
 	}
 
-	return &Deployment{
-		Spec:     spec,
-		Strategy: strategy,
-		cli:      cli,
+	clusterDomain, err := cli.GetDomain(ctx)
+	if err != nil && !errors.Is(err, api.ErrNotFound) {
+		return nil, fmt.Errorf("get cluster domain: %w", err)
 	}
+
+	specResolver := &ServiceSpecResolver{
+		// If the domain is not found (not reserved), an empty domain is used for the resolver.
+		ClusterDomain: clusterDomain,
+	}
+
+	return &Deployment{
+		Spec:         spec,
+		Strategy:     strategy,
+		cli:          cli,
+		specResolver: specResolver,
+	}, nil
 }
 
 // Plan returns a plan of operations to reconcile the service to the desired state.
@@ -57,12 +70,17 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		return *d.plan, nil
 	}
 
-	// Validate the new spec before planning.
+	// Validate the user-provided spec before resolving it.
 	if err := d.Validate(ctx); err != nil {
 		return Plan{}, fmt.Errorf("invalid deployment: %w", err)
 	}
 
-	plan, err := d.Strategy.Plan(ctx, d.cli, d.Service, d.Spec)
+	resolvedSpec, err := d.specResolver.Resolve(d.Spec)
+	if err != nil {
+		return Plan{}, fmt.Errorf("resolve service spec: %w", err)
+	}
+
+	plan, err := d.Strategy.Plan(ctx, d.cli, d.Service, resolvedSpec)
 	if err != nil {
 		return Plan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
 	}
@@ -75,9 +93,6 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 func (d *Deployment) Validate(ctx context.Context) error {
 	if err := d.Spec.Validate(); err != nil {
 		return fmt.Errorf("invalid service spec: %w", err)
-	}
-	if d.Spec.Name == "" {
-		return errors.New("service name is required")
 	}
 
 	if d.Service == nil {
@@ -96,10 +111,19 @@ func (d *Deployment) Validate(ctx context.Context) error {
 	if d.Service.Name != d.Spec.Name {
 		return errors.New("service name cannot be changed")
 	}
-	if d.Service.Mode != d.Spec.Mode {
+
+	// Resolve the default mode if not specified.
+	mode := d.Spec.Mode
+	if mode == "" {
+		mode = api.ServiceModeReplicated
+	}
+
+	if mode != d.Service.Mode {
 		return errors.New("service mode cannot be changed")
 	}
-	if d.Spec.Mode == api.ServiceModeReplicated && d.Spec.Replicas < 1 {
+	if mode == api.ServiceModeReplicated && d.Spec.Replicas < 1 {
+		// Scaling down to zero is not allowed as this would effectively remove the service without preserving
+		// its configuration, making it impossible to scale back up.
 		return errors.New("number of replicas must be at least 1")
 	}
 

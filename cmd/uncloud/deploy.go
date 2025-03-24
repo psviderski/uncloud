@@ -40,7 +40,7 @@ func NewDeployCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
-		"One or more Compose files to deploy services from. (default compose.yaml)")
+		"One or more Compose files to deploy services from. (default compose-ports-long.yaml)")
 	cmd.Flags().StringVarP(&opts.cluster, "cluster", "c", "",
 		"Name of the cluster to deploy to (default is the current cluster)")
 

@@ -37,10 +37,10 @@ func TestDeployment(t *testing.T) {
 	cli, err := c.Machines[0].Connect(ctx)
 	require.NoError(t, err)
 
-	t.Run("global", func(t *testing.T) {
+	t.Run("global auto-generated name", func(t *testing.T) {
 		t.Parallel()
 
-		name := "global-deployment"
+		name := "" // auto-generated and updated
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if !errors.Is(err, api.ErrNotFound) {
@@ -52,25 +52,29 @@ func TestDeployment(t *testing.T) {
 		})
 
 		spec := api.ServiceSpec{
-			Name: name,
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
 		}
-		deployment := cli.NewDeployment(spec, nil)
+		deployment, err := cli.NewDeployment(ctx, spec, nil)
+		require.NoError(t, err)
+
 		err = deployment.Validate(ctx)
 		require.NoError(t, err)
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.NotEmpty(t, plan.ServiceID)
-		assert.Equal(t, name, plan.ServiceName)
+		assert.NotEmpty(t, plan.ServiceName)
 		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 run
 
 		runPlan, err := deployment.Run(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, plan, runPlan)
+
+		name = plan.ServiceName
+		spec.Name = name // update spec to match the service and assert with assertServiceMatchesSpec
 
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
@@ -98,7 +102,9 @@ func TestDeployment(t *testing.T) {
 				},
 			},
 		}
-		deployment = cli.NewDeployment(specWithPort, nil)
+		deployment, err = cli.NewDeployment(ctx, specWithPort, nil)
+		require.NoError(t, err)
+
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 6) // 3 run + 3 remove
@@ -137,7 +143,9 @@ func TestDeployment(t *testing.T) {
 				},
 			},
 		}
-		deployment = cli.NewDeployment(specWithPortAndInit, nil)
+		deployment, err = cli.NewDeployment(ctx, specWithPortAndInit, nil)
+		require.NoError(t, err)
+
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 9) // 3 stop + 3 run + 3 remove
@@ -159,7 +167,9 @@ func TestDeployment(t *testing.T) {
 		// Deploying the same spec should be a no-op.
 		initialContainers = containers
 
-		deployment = cli.NewDeployment(specWithPortAndInit, nil)
+		deployment, err = cli.NewDeployment(ctx, specWithPortAndInit, nil)
+		require.NoError(t, err)
+
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 0) // no-op
@@ -194,7 +204,9 @@ func TestDeployment(t *testing.T) {
 			},
 		}
 
-		deployment := cli.NewDeployment(spec, nil)
+		deployment, err := cli.NewDeployment(ctx, spec, nil)
+		require.NoError(t, err)
+
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
@@ -218,7 +230,9 @@ func TestDeployment(t *testing.T) {
 		}
 		strategy := &deploy.RollingStrategy{MachineFilter: filter}
 
-		deployment = cli.NewDeployment(specWithInit, strategy)
+		deployment, err = cli.NewDeployment(ctx, specWithInit, strategy)
+		require.NoError(t, err)
+
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
@@ -264,7 +278,9 @@ func TestDeployment(t *testing.T) {
 			},
 		}
 
-		deployment = cli.NewDeployment(specWithPort, nil)
+		deployment, err = cli.NewDeployment(ctx, specWithPort, nil)
+		require.NoError(t, err)
+
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
@@ -294,7 +310,7 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
-		deployment, err := cli.NewCaddyDeployment("", nil)
+		deployment, err := cli.NewCaddyDeployment(ctx, "", nil)
 		require.NoError(t, err)
 
 		_, err = deployment.Run(ctx)
@@ -346,8 +362,9 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[0].Name
 		}
 
-		deployment, err := cli.NewCaddyDeployment("", filter)
+		deployment, err := cli.NewCaddyDeployment(ctx, "", filter)
 		require.NoError(t, err)
+		image := deployment.Spec.Container.Image
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -366,7 +383,7 @@ func TestDeployment(t *testing.T) {
 			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
 		}
 
-		deployment, err = cli.NewCaddyDeployment("", filter)
+		deployment, err = cli.NewCaddyDeployment(ctx, image, filter)
 		require.NoError(t, err)
 
 		_, err = deployment.Run(ctx)
@@ -411,7 +428,9 @@ func TestDeployment(t *testing.T) {
 			Replicas: 2,
 		}
 
-		deployment := cli.NewDeployment(spec, nil)
+		deployment, err := cli.NewDeployment(ctx, spec, nil)
+		require.NoError(t, err)
+
 		err = deployment.Validate(ctx)
 		require.NoError(t, err)
 
@@ -440,7 +459,9 @@ func TestDeployment(t *testing.T) {
 		updatedSpec := spec
 		updatedSpec.Container.Init = &init
 
-		deployment = cli.NewDeployment(updatedSpec, nil)
+		deployment, err = cli.NewDeployment(ctx, updatedSpec, nil)
+		require.NoError(t, err)
+
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 4, "Expected 2 run + 2 remove operations")
@@ -467,7 +488,9 @@ func TestDeployment(t *testing.T) {
 		threeReplicaSpec := updatedSpec
 		threeReplicaSpec.Replicas = 3
 
-		deployment = cli.NewDeployment(threeReplicaSpec, nil)
+		deployment, err = cli.NewDeployment(ctx, threeReplicaSpec, nil)
+		require.NoError(t, err)
+
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 1, "Expected 1 run operation")
@@ -492,7 +515,9 @@ func TestDeployment(t *testing.T) {
 		fourReplicaSpec.Container.Command = []string{"updated"}
 		fourReplicaSpec.Replicas = 5
 
-		deployment = cli.NewDeployment(fourReplicaSpec, nil)
+		deployment, err = cli.NewDeployment(ctx, fourReplicaSpec, nil)
+		require.NoError(t, err)
+
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 8, "Expected 5 run + 3 remove operations")
@@ -519,7 +544,9 @@ func TestDeployment(t *testing.T) {
 		// 5. Redeploy the exact same spec and verify it's a noop.
 		initialContainers = containers // Reset container tracking.
 
-		deployment = cli.NewDeployment(fourReplicaSpec, nil)
+		deployment, err = cli.NewDeployment(ctx, fourReplicaSpec, nil)
+		require.NoError(t, err)
+
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Empty(t, plan.Operations, "Redeploying the same spec should be a no-op")
@@ -560,7 +587,9 @@ func TestDeployment(t *testing.T) {
 		}
 		strategy := &deploy.RollingStrategy{MachineFilter: machine01Filter}
 
-		deployment := cli.NewDeployment(spec, strategy)
+		deployment, err := cli.NewDeployment(ctx, spec, strategy)
+		require.NoError(t, err)
+
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
@@ -588,7 +617,9 @@ func TestDeployment(t *testing.T) {
 		}
 
 		strategy = &deploy.RollingStrategy{MachineFilter: machine2Filter}
-		deployment = cli.NewDeployment(spec, strategy)
+		deployment, err = cli.NewDeployment(ctx, spec, strategy)
+		require.NoError(t, err)
+
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
@@ -756,8 +787,16 @@ func TestServiceLifecycle(t *testing.T) {
 		assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
 	})
 
-	// TODO: create container invalid spec.
-	//  - service Name is required
+	t.Run("create container invalid service", func(t *testing.T) {
+		t.Parallel()
+
+		invalidIDs := []string{"", "invalid", "651aef23ae90"}
+
+		for _, invalidID := range invalidIDs {
+			_, err := cli.CreateContainer(ctx, invalidID, api.ServiceSpec{}, c.Machines[0].Name)
+			require.ErrorContains(t, err, "invalid service ID")
+		}
+	})
 
 	t.Run("container lifecycle", func(t *testing.T) {
 		t.Parallel()
