@@ -51,6 +51,10 @@ func (r *ServiceSpecResolver) applyDefaults(spec *api.ServiceSpec) error {
 		spec.Replicas = 1
 	}
 
+	if spec.Container.PullPolicy == "" {
+		spec.Container.PullPolicy = api.PullPolicyMissing
+	}
+
 	return nil
 }
 

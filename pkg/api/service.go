@@ -16,6 +16,16 @@ import (
 const (
 	ServiceModeReplicated = "replicated"
 	ServiceModeGlobal     = "global"
+
+	// PullPolicyAlways means the latest image is always pulled from the registry.
+	PullPolicyAlways = "always"
+	// PullPolicyMissing means the latest image is pulled from the registry only if it's not available in the cluster
+	// (missing on all machines). If the image is available on any machine, its registry digest is used which may result
+	// in pulling the image on machines where it's not available. This is the default pull policy.
+	PullPolicyMissing = "missing"
+	// PullPolicyNever means the image is never pulled from the registry. A service with this pull policy can only be
+	// deployed to machines where the image is already available.
+	PullPolicyNever = "never"
 )
 
 var serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
@@ -140,6 +150,9 @@ type ContainerSpec struct {
 	Image      string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
+	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.
+	// Default is PullPolicyMissing if empty.
+	PullPolicy string
 	// List of volumes to bind mount into the container.
 	Volumes []string
 }
