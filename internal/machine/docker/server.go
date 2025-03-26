@@ -4,19 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"io"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.
@@ -263,6 +268,45 @@ func (s *Server) InspectImage(ctx context.Context, req *pb.InspectImageRequest) 
 		Messages: []*pb.Image{
 			{
 				Image: respBytes,
+			},
+		},
+	}, nil
+}
+
+// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's Docker auth
+// credentials if necessary.
+func (s *Server) InspectRemoteImage(
+	_ context.Context, req *pb.InspectRemoteImageRequest,
+) (*pb.InspectRemoteImageResponse, error) {
+	ref, err := name.ParseReference(req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "parse image: %v", err)
+	}
+
+	desc, err := remote.Get(ref, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "fetch image manifest: %v", err)
+	}
+
+	namedRef, err := reference.ParseNormalizedNamed(ref.String())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "parse image: %v", err)
+	}
+
+	var canonicalRef reference.Canonical
+	if _, ok := namedRef.(reference.Canonical); ok {
+		canonicalRef = namedRef.(reference.Canonical)
+	} else {
+		if canonicalRef, err = reference.WithDigest(namedRef, digest.Digest(desc.Digest.String())); err != nil {
+			return nil, status.Errorf(codes.Internal, "add digest to image: %v", err)
+		}
+	}
+
+	return &pb.InspectRemoteImageResponse{
+		Messages: []*pb.RemoteImage{
+			{
+				Reference: reference.FamiliarString(canonicalRef),
+				Manifest:  desc.Manifest,
 			},
 		},
 	}, nil

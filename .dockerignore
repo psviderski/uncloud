@@ -4,6 +4,7 @@
 # Allow files and directories.
 !cmd/
 !internal/
+!pkg/
 !scripts/docker/
 !go.*
 

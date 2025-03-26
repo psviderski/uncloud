@@ -118,6 +118,8 @@ message InspectRemoteImageResponse {
 
 message RemoteImage {
   Metadata metadata = 1;
-  // Raw manifest data (JSON).
-  bytes manifest = 2;
+  // Image reference in the canonical form with the digest.
+  string reference = 2;
+  // Raw JSON manifest from the registry.
+  bytes manifest = 3;
 }

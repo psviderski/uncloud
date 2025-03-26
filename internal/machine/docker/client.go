@@ -3,14 +3,18 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/jsonmessage"
+	regtypes "github.com/google/go-containerregistry/pkg/v1/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -228,13 +232,8 @@ func (c *Client) PullImage(ctx context.Context, image string) (<-chan PullImageM
 	return ch, nil
 }
 
-type MachineImage struct {
-	Metadata *pb.Metadata
-	Image    types.ImageInspect
-}
-
-// ImageInspect returns the image information for the given image ID.
-func (c *Client) ImageInspect(ctx context.Context, id string) ([]MachineImage, error) {
+// InspectImage returns the image information for the given image ID. The request may be sent to multiple machines.
+func (c *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImage, error) {
 	resp, err := c.grpcClient.InspectImage(ctx, &pb.InspectImageRequest{Id: id})
 	if err != nil {
 		// If the request was sent to only one machine, err is an actual error from the machine.
@@ -246,7 +245,7 @@ func (c *Client) ImageInspect(ctx context.Context, id string) ([]MachineImage, e
 
 	notFoundCount := 0
 	for _, msg := range resp.Messages {
-		if msg.Metadata != nil && codes.Code(msg.Metadata.Status.Code) == codes.NotFound {
+		if msg.Metadata != nil && msg.Metadata.Status != nil && codes.Code(msg.Metadata.Status.Code) == codes.NotFound {
 			notFoundCount++
 		}
 	}
@@ -254,7 +253,7 @@ func (c *Client) ImageInspect(ctx context.Context, id string) ([]MachineImage, e
 		return nil, errdefs.NotFound(fmt.Errorf("image not found: %s", id))
 	}
 
-	images := make([]MachineImage, len(resp.Messages))
+	images := make([]api.MachineImage, len(resp.Messages))
 	for i, msg := range resp.Messages {
 		images[i].Metadata = msg.Metadata
 		if msg.Metadata != nil && msg.Metadata.Error != "" {
@@ -267,4 +266,76 @@ func (c *Client) ImageInspect(ctx context.Context, id string) ([]MachineImage, e
 	}
 
 	return images, nil
+}
+
+// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's Docker auth
+// credentials if necessary. If the response from a machine doesn't contain an error, the api.RemoteImage will either
+// contain an IndexManifest or an ImageManifest.
+func (c *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.MachineRemoteImage, error) {
+	resp, err := c.grpcClient.InspectRemoteImage(ctx, &pb.InspectRemoteImageRequest{Id: id})
+	if err != nil {
+		return nil, err
+	}
+
+	images := make([]api.MachineRemoteImage, 0, len(resp.Messages))
+	var parseErr error
+	for _, msg := range resp.Messages {
+		mri, err := parseRemoteImageMessage(msg)
+		if err != nil {
+			parseErr = errors.Join(parseErr, err)
+			continue
+		}
+		images = append(images, mri)
+	}
+
+	return images, parseErr
+}
+
+type manifestMediaType struct {
+	MediaType regtypes.MediaType `json:"mediaType"`
+}
+
+func parseRemoteImageMessage(msg *pb.RemoteImage) (api.MachineRemoteImage, error) {
+	mri := api.MachineRemoteImage{
+		Metadata: msg.Metadata,
+	}
+	if msg.Metadata != nil && msg.Metadata.Error != "" {
+		return mri, nil
+	}
+
+	ref, err := reference.ParseNormalizedNamed(msg.Reference)
+	if err != nil {
+		// The reference is the string representation of a valid canonical reference from the server which
+		// is expected to be parseable.
+		return mri, fmt.Errorf("parse reference: %w", err)
+	}
+	if canonicalRef, ok := ref.(reference.Canonical); ok {
+		mri.Image.Reference = canonicalRef
+	} else {
+		return mri, fmt.Errorf("unexpected non-canonical image reference: %s", msg.Reference)
+	}
+
+	manifest := manifestMediaType{}
+	if err = json.Unmarshal(msg.Manifest, &manifest); err != nil {
+		return mri, fmt.Errorf("unmarshal manifest: %w", err)
+	}
+
+	switch {
+	case manifest.MediaType.IsIndex():
+		index := &ocispec.Index{}
+		if err = json.Unmarshal(msg.Manifest, index); err != nil {
+			return mri, fmt.Errorf("unmarshal index manifest: %w", err)
+		}
+		mri.Image.IndexManifest = index
+	case manifest.MediaType.IsImage():
+		image := &ocispec.Manifest{}
+		if err = json.Unmarshal(msg.Manifest, image); err != nil {
+			return mri, fmt.Errorf("unmarshal image manifest: %w", err)
+		}
+		mri.Image.ImageManifest = image
+	default:
+		return mri, fmt.Errorf("unexpected manifest media type: %s", manifest.MediaType)
+	}
+
+	return mri, nil
 }
