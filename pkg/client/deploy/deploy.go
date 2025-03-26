@@ -11,6 +11,7 @@ import (
 type Client interface {
 	api.ContainerClient
 	api.DNSClient
+	api.ImageClient
 	api.MachineClient
 	api.ServiceClient
 }
@@ -67,10 +68,15 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return Plan{}, fmt.Errorf("get cluster domain: %w", err)
 	}
-
+	// TODO: enable image resolver when it's ready to pin digests and look up existing images.
+	//imageResolver := &ImageDigestResolver{
+	//	Ctx:    ctx,
+	//	Client: d.cli,
+	//}
 	specResolver := &ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: clusterDomain,
+		//ImageResolver: imageResolver,
 	}
 
 	resolvedSpec, err := specResolver.Resolve(d.Spec)
