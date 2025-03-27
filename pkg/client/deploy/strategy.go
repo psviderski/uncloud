@@ -48,6 +48,7 @@ func (s *RollingStrategy) Plan(
 // planReplicated creates a plan for a replicated service deployment.
 // For replicated services, we want to maintain a specific number of containers (replicas) across the available machines
 // in the cluster.
+// TODO: schedule containers only on machines that contain the image if pull policy is set to 'never'.
 func (s *RollingStrategy) planReplicated(
 	ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {

@@ -110,10 +110,25 @@ func (cli *Client) CreateContainer(
 
 	pw := progress.ContextWriter(ctx)
 	eventID := fmt.Sprintf("Container %s on %s", containerName, machine.Machine.Name)
-
 	pw.Event(progress.CreatingEvent(eventID))
+
+	if spec.Container.PullPolicy == api.PullPolicyAlways {
+		if err = cli.pullImageWithProgress(ctx, config.Image, machine.Machine.Name, eventID); err != nil {
+			return resp, err
+		}
+	}
+
 	resp, err = cli.Docker.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName)
 	if err != nil {
+		switch spec.Container.PullPolicy {
+		case api.PullPolicyAlways, api.PullPolicyNever:
+			return resp, err
+		case api.PullPolicyMissing:
+		default:
+			return resp, fmt.Errorf("unsupported pull policy: '%s'", spec.Container.PullPolicy)
+		}
+
+		// Not found error is expected if the image is missing.
 		if !dockerclient.IsErrNotFound(err) {
 			return resp, err
 		}

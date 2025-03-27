@@ -21,6 +21,7 @@ type runOptions struct {
 	mode              string
 	name              string
 	publish           []string
+	pull              string
 	replicas          uint
 	volumes           []string
 
@@ -50,8 +51,8 @@ func NewRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.entrypoint, "entrypoint", "",
 		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it.")
 	cmd.Flags().StringVar(&opts.mode, "mode", api.ServiceModeReplicated,
-		fmt.Sprintf("Replication mode of the service: either %q (a specified number of containers across "+
-			"the machines) or %q (one container on every machine).",
+		fmt.Sprintf("Replication mode of the service: either '%s' (a specified number of containers across "+
+			"the machines) or '%s' (one container on every machine).",
 			api.ServiceModeReplicated, api.ServiceModeGlobal))
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Placement constraint by machine name, limiting which machines the service can run on. Can be specified "+
@@ -68,6 +69,9 @@ func NewRunCommand() *cobra.Command {
 			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via load balancer with custom hostname\n"+
 			"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via load balancer\n"+
 			"  -p 53:5353/udp@host            Bind UDP port 5353 to host port 53")
+	cmd.Flags().StringVar(&opts.pull, "pull", api.PullPolicyMissing,
+		fmt.Sprintf("Pull image from the registry before running service containers ('%s', '%s', '%s').",
+			api.PullPolicyAlways, api.PullPolicyMissing, api.PullPolicyNever))
 	cmd.Flags().UintVar(&opts.replicas, "replicas", 1,
 		"Number of containers to run for the service. Only valid for a replicated service.")
 	cmd.Flags().StringSliceVarP(&opts.volumes, "volume", "v", nil,
@@ -86,7 +90,13 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	switch opts.mode {
 	case api.ServiceModeReplicated, api.ServiceModeGlobal:
 	default:
-		return fmt.Errorf("invalid replication mode: %q", opts.mode)
+		return fmt.Errorf("invalid replication mode: '%s'", opts.mode)
+	}
+
+	switch opts.pull {
+	case api.PullPolicyAlways, api.PullPolicyMissing, api.PullPolicyNever:
+	default:
+		return fmt.Errorf("invalid pull policy: '%s'", opts.pull)
 	}
 
 	var machineFilter deploy.MachineFilter
@@ -124,9 +134,10 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Command: opts.command,
-			Image:   opts.image,
-			Volumes: opts.volumes,
+			Command:    opts.command,
+			Image:      opts.image,
+			PullPolicy: opts.pull,
+			Volumes:    opts.volumes,
 		},
 		Mode:     opts.mode,
 		Name:     opts.name,
