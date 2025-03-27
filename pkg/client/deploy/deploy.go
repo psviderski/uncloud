@@ -125,11 +125,6 @@ func (d *Deployment) Validate(ctx context.Context) error {
 	if mode != d.Service.Mode {
 		return errors.New("service mode cannot be changed")
 	}
-	if mode == api.ServiceModeReplicated && d.Spec.Replicas < 1 {
-		// Scaling down to zero is not allowed as this would effectively remove the service without preserving
-		// its configuration, making it impossible to scale back up.
-		return errors.New("number of replicas must be at least 1")
-	}
 
 	return nil
 }
