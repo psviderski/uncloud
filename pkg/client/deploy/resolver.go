@@ -151,6 +151,14 @@ type ImageDigestResolver struct {
 	Client ImageResolverClient
 }
 
+// Resolve resolves the image to the image with the digest according to the pull policy:
+//   - always: Fetch the latest digest for the image tag in the registry.
+//   - missing: Find the latest image matching the tag on any machine and use its digest, if it exists.
+//     When there is no matching image on any machine, it behaves like 'always'.
+//   - never: !Not implemented! Similar to 'missing' but when there is no matching image on any machine,
+//     it returns an error.
+//
+// If the image is already pinned to a digest, it is returned as is.
 func (r *ImageDigestResolver) Resolve(image, policy string) (string, error) {
 	if r.Ctx == nil {
 		r.Ctx = context.Background()

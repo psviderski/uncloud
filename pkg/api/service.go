@@ -17,14 +17,16 @@ const (
 	ServiceModeReplicated = "replicated"
 	ServiceModeGlobal     = "global"
 
-	// PullPolicyAlways means the latest image is always pulled from the registry.
+	// PullPolicyAlways means the image is always pulled from the registry.
 	PullPolicyAlways = "always"
-	// PullPolicyMissing means the latest image is pulled from the registry only if it's not available in the cluster
-	// (missing on all machines). If the image is available on any machine, its registry digest is used which may result
-	// in pulling the image on machines where it's not available. This is the default pull policy.
+	// PullPolicyMissing means the image is pulled from the registry only if it's not available on the machine where
+	// a container is started. This is the default pull policy.
+	// TODO: make each machine aware of the images on other machines and it possible to pull from them.
+	// 	Pull from the registry only if the image is missing on all machines.
 	PullPolicyMissing = "missing"
 	// PullPolicyNever means the image is never pulled from the registry. A service with this pull policy can only be
 	// deployed to machines where the image is already available.
+	// TODO: see the TODO above for PullPolicyMissing. Pull from other machines in the cluster if available.
 	PullPolicyNever = "never"
 )
 
