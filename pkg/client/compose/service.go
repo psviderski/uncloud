@@ -7,11 +7,24 @@ import (
 )
 
 func ServiceSpecFromCompose(name string, service types.ServiceConfig) (api.ServiceSpec, error) {
+	pullPolicy := ""
+	switch service.PullPolicy {
+	case types.PullPolicyAlways:
+		pullPolicy = api.PullPolicyAlways
+	case "", types.PullPolicyMissing, types.PullPolicyIfNotPresent:
+		pullPolicy = api.PullPolicyMissing
+	case types.PullPolicyNever:
+		pullPolicy = api.PullPolicyNever
+	default:
+		return api.ServiceSpec{}, fmt.Errorf("unsupported pull policy: '%s'", service.PullPolicy)
+	}
+
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Command: service.Command,
-			Image:   service.Image,
-			Init:    service.Init,
+			Command:    service.Command,
+			Image:      service.Image,
+			Init:       service.Init,
+			PullPolicy: pullPolicy,
 			// TODO: env
 			// TODO: volumes
 		},
