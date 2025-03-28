@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -11,17 +12,22 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"io"
+	"strconv"
+	"strings"
 )
 
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.
@@ -310,4 +316,113 @@ func (s *Server) InspectRemoteImage(
 			},
 		},
 	}, nil
+}
+
+// CreateServiceContainer creates a new container for the service with the given specifications.
+func (s *Server) CreateServiceContainer(
+	ctx context.Context, req *pb.CreateServiceContainerRequest,
+) (*pb.CreateContainerResponse, error) {
+	if !api.ValidateServiceID(req.ServiceId) {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid service ID: '%s'", req.ServiceId)
+	}
+
+	var spec api.ServiceSpec
+	if err := json.Unmarshal(req.ServiceSpec, &spec); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unmarshal service spec: %v", err)
+	}
+	spec.ApplyDefaults()
+	if err := spec.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid service spec: %v", err)
+	}
+
+	containerName := req.ContainerName
+	if containerName == "" {
+		suffix, err := secret.RandomAlphaNumeric(4)
+		if err != nil {
+			return nil, fmt.Errorf("generate random suffix: %w", err)
+		}
+		containerName = fmt.Sprintf("%s-%s", spec.Name, suffix)
+	}
+
+	// TODO: do not set the immutable hash as container label once container diff uses the spec stored in DB.
+	specHash, err := spec.ImmutableHash()
+	if err != nil {
+		return nil, fmt.Errorf("calculate immutable hash for service spec: %w", err)
+	}
+
+	config := &container.Config{
+		Cmd:        spec.Container.Command,
+		Entrypoint: spec.Container.Entrypoint,
+		Hostname:   containerName,
+		Image:      spec.Container.Image,
+		Labels: map[string]string{
+			api.LabelServiceID:       req.ServiceId,
+			api.LabelServiceName:     spec.Name,
+			api.LabelServiceMode:     spec.Mode,
+			api.LabelServiceSpecHash: specHash,
+			api.LabelManaged:         "",
+		},
+	}
+	if spec.Mode == "" {
+		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
+	}
+
+	// TODO: do not set the ports as container labels once migrated to retrieve them from the spec in DB.
+	if len(spec.Ports) > 0 {
+		encodedPorts := make([]string, len(spec.Ports))
+		for i, p := range spec.Ports {
+			encodedPorts[i], err = p.String()
+			if err != nil {
+				return nil, fmt.Errorf("encode service port spec: %w", err)
+			}
+		}
+
+		config.Labels[api.LabelServicePorts] = strings.Join(encodedPorts, ",")
+	}
+
+	portBindings := make(nat.PortMap)
+	for _, p := range spec.Ports {
+		if p.Mode != api.PortModeHost {
+			continue
+		}
+		port := nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, p.Protocol))
+		portBindings[port] = []nat.PortBinding{
+			{
+				HostPort: strconv.Itoa(int(p.PublishedPort)),
+			},
+		}
+		if p.HostIP.IsValid() {
+			portBindings[port][0].HostIP = p.HostIP.String()
+		}
+	}
+	hostConfig := &container.HostConfig{
+		Binds:        spec.Container.Volumes,
+		Init:         spec.Container.Init,
+		PortBindings: portBindings,
+		// Always restart service containers if they exit or a machine restarts.
+		// For one-off containers and batch jobs we plan to use a different service type/mode.
+		RestartPolicy: container.RestartPolicy{
+			Name: container.RestartPolicyAlways,
+		},
+	}
+	networkConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			NetworkName: {},
+		},
+	}
+
+	resp, err := s.client.ContainerCreate(ctx, config, hostConfig, networkConfig, nil, containerName)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+	}
+
+	return &pb.CreateContainerResponse{Response: respBytes}, nil
 }

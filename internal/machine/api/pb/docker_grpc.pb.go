@@ -20,15 +20,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Docker_CreateContainer_FullMethodName    = "/api.Docker/CreateContainer"
-	Docker_InspectContainer_FullMethodName   = "/api.Docker/InspectContainer"
-	Docker_StartContainer_FullMethodName     = "/api.Docker/StartContainer"
-	Docker_StopContainer_FullMethodName      = "/api.Docker/StopContainer"
-	Docker_ListContainers_FullMethodName     = "/api.Docker/ListContainers"
-	Docker_RemoveContainer_FullMethodName    = "/api.Docker/RemoveContainer"
-	Docker_PullImage_FullMethodName          = "/api.Docker/PullImage"
-	Docker_InspectImage_FullMethodName       = "/api.Docker/InspectImage"
-	Docker_InspectRemoteImage_FullMethodName = "/api.Docker/InspectRemoteImage"
+	Docker_CreateContainer_FullMethodName        = "/api.Docker/CreateContainer"
+	Docker_InspectContainer_FullMethodName       = "/api.Docker/InspectContainer"
+	Docker_StartContainer_FullMethodName         = "/api.Docker/StartContainer"
+	Docker_StopContainer_FullMethodName          = "/api.Docker/StopContainer"
+	Docker_ListContainers_FullMethodName         = "/api.Docker/ListContainers"
+	Docker_RemoveContainer_FullMethodName        = "/api.Docker/RemoveContainer"
+	Docker_PullImage_FullMethodName              = "/api.Docker/PullImage"
+	Docker_InspectImage_FullMethodName           = "/api.Docker/InspectImage"
+	Docker_InspectRemoteImage_FullMethodName     = "/api.Docker/InspectRemoteImage"
+	Docker_CreateServiceContainer_FullMethodName = "/api.Docker/CreateServiceContainer"
 )
 
 // DockerClient is the client API for Docker service.
@@ -46,6 +47,7 @@ type DockerClient interface {
 	// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(ctx context.Context, in *InspectRemoteImageRequest, opts ...grpc.CallOption) (*InspectRemoteImageResponse, error)
+	CreateServiceContainer(ctx context.Context, in *CreateServiceContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
 }
 
 type dockerClient struct {
@@ -155,6 +157,16 @@ func (c *dockerClient) InspectRemoteImage(ctx context.Context, in *InspectRemote
 	return out, nil
 }
 
+func (c *dockerClient) CreateServiceContainer(ctx context.Context, in *CreateServiceContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateContainerResponse)
+	err := c.cc.Invoke(ctx, Docker_CreateServiceContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DockerServer is the server API for Docker service.
 // All implementations must embed UnimplementedDockerServer
 // for forward compatibility.
@@ -170,6 +182,7 @@ type DockerServer interface {
 	// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(context.Context, *InspectRemoteImageRequest) (*InspectRemoteImageResponse, error)
+	CreateServiceContainer(context.Context, *CreateServiceContainerRequest) (*CreateContainerResponse, error)
 	mustEmbedUnimplementedDockerServer()
 }
 
@@ -206,6 +219,9 @@ func (UnimplementedDockerServer) InspectImage(context.Context, *InspectImageRequ
 }
 func (UnimplementedDockerServer) InspectRemoteImage(context.Context, *InspectRemoteImageRequest) (*InspectRemoteImageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectRemoteImage not implemented")
+}
+func (UnimplementedDockerServer) CreateServiceContainer(context.Context, *CreateServiceContainerRequest) (*CreateContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateServiceContainer not implemented")
 }
 func (UnimplementedDockerServer) mustEmbedUnimplementedDockerServer() {}
 func (UnimplementedDockerServer) testEmbeddedByValue()                {}
@@ -383,6 +399,24 @@ func _Docker_InspectRemoteImage_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_CreateServiceContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateServiceContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).CreateServiceContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_CreateServiceContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).CreateServiceContainer(ctx, req.(*CreateServiceContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Docker_ServiceDesc is the grpc.ServiceDesc for Docker service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -421,6 +455,10 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InspectRemoteImage",
 			Handler:    _Docker_InspectRemoteImage_Handler,
+		},
+		{
+			MethodName: "CreateServiceContainer",
+			Handler:    _Docker_CreateServiceContainer_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -6,15 +6,11 @@ import (
 	"fmt"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/go-connections/nat"
-	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/status"
-	"strconv"
 	"strings"
 )
 
@@ -24,8 +20,9 @@ func (cli *Client) CreateContainer(
 ) (container.CreateResponse, error) {
 	var resp container.CreateResponse
 
-	if !api.ValidateServiceID(serviceID) {
-		return resp, fmt.Errorf("invalid service ID: '%s'", serviceID)
+	spec.ApplyDefaults()
+	if err := spec.Validate(); err != nil {
+		return resp, fmt.Errorf("invalid service spec: %w", err)
 	}
 	// TODO: validate spec.Name is consistent with serviceID if this is not the first container in the service.
 
@@ -40,71 +37,6 @@ func (cli *Client) CreateContainer(
 	}
 	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
 
-	specHash, err := spec.ImmutableHash()
-	if err != nil {
-		return resp, fmt.Errorf("calculate immutable hash for service spec: %w", err)
-	}
-
-	config := &container.Config{
-		Cmd:        spec.Container.Command,
-		Entrypoint: spec.Container.Entrypoint,
-		Hostname:   containerName,
-		Image:      spec.Container.Image,
-		Labels: map[string]string{
-			api.LabelServiceID:       serviceID,
-			api.LabelServiceName:     spec.Name,
-			api.LabelServiceMode:     spec.Mode,
-			api.LabelServiceSpecHash: specHash,
-			api.LabelManaged:         "",
-		},
-	}
-	if spec.Mode == "" {
-		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
-	}
-
-	if len(spec.Ports) > 0 {
-		encodedPorts := make([]string, len(spec.Ports))
-		for i, p := range spec.Ports {
-			encodedPorts[i], err = p.String()
-			if err != nil {
-				return resp, fmt.Errorf("encode service port spec: %w", err)
-			}
-		}
-
-		config.Labels[api.LabelServicePorts] = strings.Join(encodedPorts, ",")
-	}
-
-	portBindings := make(nat.PortMap)
-	for _, p := range spec.Ports {
-		if p.Mode != api.PortModeHost {
-			continue
-		}
-		port := nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, p.Protocol))
-		portBindings[port] = []nat.PortBinding{
-			{
-				HostPort: strconv.Itoa(int(p.PublishedPort)),
-			},
-		}
-		if p.HostIP.IsValid() {
-			portBindings[port][0].HostIP = p.HostIP.String()
-		}
-	}
-	hostConfig := &container.HostConfig{
-		Binds:        spec.Container.Volumes,
-		Init:         spec.Container.Init,
-		PortBindings: portBindings,
-		// Always restart service containers if they exit or a machine restarts.
-		// For one-off containers and batch jobs we plan to use a different service type/mode.
-		RestartPolicy: container.RestartPolicy{
-			Name: container.RestartPolicyAlways,
-		},
-	}
-	netConfig := &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{
-			machinedocker.NetworkName: {},
-		},
-	}
-
 	// Proxy Docker gRPC requests to the selected machine.
 	ctx = proxyToMachine(ctx, machine.Machine)
 
@@ -113,12 +45,12 @@ func (cli *Client) CreateContainer(
 	pw.Event(progress.CreatingEvent(eventID))
 
 	if spec.Container.PullPolicy == api.PullPolicyAlways {
-		if err = cli.pullImageWithProgress(ctx, config.Image, machine.Machine.Name, eventID); err != nil {
+		if err = cli.pullImageWithProgress(ctx, spec.Container.Image, machine.Machine.Name, eventID); err != nil {
 			return resp, err
 		}
 	}
 
-	resp, err = cli.Docker.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName)
+	resp, err = cli.Docker.CreateServiceContainer(ctx, serviceID, spec, containerName)
 	if err != nil {
 		switch spec.Container.PullPolicy {
 		case api.PullPolicyAlways, api.PullPolicyNever:
@@ -134,10 +66,10 @@ func (cli *Client) CreateContainer(
 		}
 
 		// Pull the missing image and create the container again.
-		if err = cli.pullImageWithProgress(ctx, config.Image, machine.Machine.Name, eventID); err != nil {
+		if err = cli.pullImageWithProgress(ctx, spec.Container.Image, machine.Machine.Name, eventID); err != nil {
 			return resp, err
 		}
-		if resp, err = cli.Docker.CreateContainer(ctx, config, hostConfig, netConfig, nil, containerName); err != nil {
+		if resp, err = cli.Docker.CreateServiceContainer(ctx, serviceID, spec, containerName); err != nil {
 			return resp, err
 		}
 	}

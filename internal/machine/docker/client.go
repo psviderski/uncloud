@@ -339,3 +339,31 @@ func parseRemoteImageMessage(msg *pb.RemoteImage) (api.MachineRemoteImage, error
 
 	return mri, nil
 }
+
+// CreateServiceContainer creates a new container for the service with the given specifications.
+func (c *Client) CreateServiceContainer(
+	ctx context.Context, serviceID string, spec api.ServiceSpec, containerName string,
+) (container.CreateResponse, error) {
+	var resp container.CreateResponse
+
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return resp, fmt.Errorf("marshal service spec: %w", err)
+	}
+	grpcResp, err := c.grpcClient.CreateServiceContainer(ctx, &pb.CreateServiceContainerRequest{
+		ServiceId:     serviceID,
+		ServiceSpec:   specBytes,
+		ContainerName: containerName,
+	})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return resp, errdefs.NotFound(err)
+		}
+		return resp, err
+	}
+
+	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
+		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
+	}
+	return resp, nil
+}

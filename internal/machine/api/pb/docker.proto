@@ -19,6 +19,8 @@ service Docker {
   // InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
   // Docker auth credentials if necessary.
   rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
+
+  rpc CreateServiceContainer(CreateServiceContainerRequest) returns (CreateContainerResponse);
 }
 
 message CreateContainerRequest {
@@ -122,4 +124,11 @@ message RemoteImage {
   string reference = 2;
   // Raw JSON manifest from the registry.
   bytes manifest = 3;
+}
+
+message CreateServiceContainerRequest {
+  string service_id = 1;
+  // JSON serialised api.ServiceSpec.
+  bytes service_spec = 2;
+  string container_name = 3;
 }

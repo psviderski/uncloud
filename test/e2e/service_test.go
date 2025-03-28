@@ -766,9 +766,15 @@ func TestServiceLifecycle(t *testing.T) {
 		t.Parallel()
 
 		invalidIDs := []string{"", "invalid", "651aef23ae90"}
+		spec := api.ServiceSpec{
+			Name: "invalid-service-id",
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+		}
 
 		for _, invalidID := range invalidIDs {
-			_, err := cli.CreateContainer(ctx, invalidID, api.ServiceSpec{}, c.Machines[0].Name)
+			_, err := cli.CreateContainer(ctx, invalidID, spec, c.Machines[0].Name)
 			require.ErrorContains(t, err, "invalid service ID")
 		}
 	})

@@ -32,6 +32,7 @@ require (
 	github.com/ipfs/go-ipld-format v0.6.0
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/lmittmann/tint v1.0.5
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/siderolabs/discovery-api v0.1.4
 	github.com/siderolabs/discovery-client v0.1.9
@@ -44,7 +45,7 @@ require (
 	golang.org/x/crypto v0.32.0
 	golang.org/x/net v0.34.0
 	golang.org/x/sync v0.10.0
-	golang.org/x/sys v0.29.0
+	golang.org/x/sys v0.31.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576
@@ -119,7 +120,7 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-sql-driver/mysql v1.7.1 // indirect
+	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
@@ -133,7 +134,7 @@ require (
 	github.com/google/cel-go v0.20.1 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
+	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
@@ -171,11 +172,13 @@ require (
 	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/jackc/pgx/v4 v4.18.3 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
+	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/libdns/libdns v0.2.2 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-libp2p v0.35.4 // indirect
@@ -226,7 +229,6 @@ require (
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pires/go-proxyproto v0.7.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

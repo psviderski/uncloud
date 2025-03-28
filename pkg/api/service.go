@@ -44,7 +44,21 @@ type ServiceSpec struct {
 	// Ports defines what service ports to publish to make the service accessible outside the cluster.
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
-	Replicas uint
+	Replicas uint `json:",omitempty"`
+}
+
+func (s *ServiceSpec) ApplyDefaults() {
+	if s.Mode == "" {
+		s.Mode = ServiceModeReplicated
+	}
+	// Ensure the replicated service has at least one replica.
+	if s.Mode == ServiceModeReplicated && s.Replicas == 0 {
+		s.Replicas = 1
+	}
+
+	if s.Container.PullPolicy == "" {
+		s.Container.PullPolicy = PullPolicyMissing
+	}
 }
 
 func (s *ServiceSpec) Validate() error {
@@ -57,6 +71,8 @@ func (s *ServiceSpec) Validate() error {
 	default:
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
+
+	// TODO: validate the service name is a valid DNS label.
 
 	for _, p := range s.Ports {
 		if (p.Mode == "" || p.Mode == PortModeIngress) &&
