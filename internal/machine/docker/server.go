@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -31,6 +33,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+var fullDockerIDRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.
 type Server struct {
@@ -449,4 +453,35 @@ func (s *Server) CreateServiceContainer(
 	}
 
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
+}
+
+// RemoveServiceContainer stops (kills after grace period) and removes a service container with the given ID.
+// The difference between this method and RemoveContainer is that it also removes the container from the machine
+// database.
+func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveContainerRequest) (*emptypb.Empty, error) {
+	ctrID := req.Id
+	// If the ID is not a full Docker ID, inspect the container to get its full ID.
+	if !fullDockerIDRegex.MatchString(req.Id) {
+		ctr, err := s.client.ContainerInspect(ctx, req.Id)
+		if err != nil {
+			if client.IsErrNotFound(err) {
+				return nil, status.Error(codes.NotFound, err.Error())
+			}
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+		ctrID = ctr.ID
+	}
+
+	resp, err := s.RemoveContainer(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err = s.db.ExecContext(ctx, `DELETE FROM containers WHERE id = $1`, ctrID); err != nil {
+		slog.Error("Failed to remove container from machine database.", "err", err, "id", ctrID)
+		// Do not return an error because the container has already been removed from the Docker daemon.
+		// The orphaned db record will be ignored and eventually cleaned up by the garbage collector.
+	}
+
+	return resp, nil
 }

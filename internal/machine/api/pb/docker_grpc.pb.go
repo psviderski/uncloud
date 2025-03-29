@@ -30,6 +30,7 @@ const (
 	Docker_InspectImage_FullMethodName           = "/api.Docker/InspectImage"
 	Docker_InspectRemoteImage_FullMethodName     = "/api.Docker/InspectRemoteImage"
 	Docker_CreateServiceContainer_FullMethodName = "/api.Docker/CreateServiceContainer"
+	Docker_RemoveServiceContainer_FullMethodName = "/api.Docker/RemoveServiceContainer"
 )
 
 // DockerClient is the client API for Docker service.
@@ -48,6 +49,7 @@ type DockerClient interface {
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(ctx context.Context, in *InspectRemoteImageRequest, opts ...grpc.CallOption) (*InspectRemoteImageResponse, error)
 	CreateServiceContainer(ctx context.Context, in *CreateServiceContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
+	RemoveServiceContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type dockerClient struct {
@@ -167,6 +169,16 @@ func (c *dockerClient) CreateServiceContainer(ctx context.Context, in *CreateSer
 	return out, nil
 }
 
+func (c *dockerClient) RemoveServiceContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Docker_RemoveServiceContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DockerServer is the server API for Docker service.
 // All implementations must embed UnimplementedDockerServer
 // for forward compatibility.
@@ -183,6 +195,7 @@ type DockerServer interface {
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(context.Context, *InspectRemoteImageRequest) (*InspectRemoteImageResponse, error)
 	CreateServiceContainer(context.Context, *CreateServiceContainerRequest) (*CreateContainerResponse, error)
+	RemoveServiceContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDockerServer()
 }
 
@@ -222,6 +235,9 @@ func (UnimplementedDockerServer) InspectRemoteImage(context.Context, *InspectRem
 }
 func (UnimplementedDockerServer) CreateServiceContainer(context.Context, *CreateServiceContainerRequest) (*CreateContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateServiceContainer not implemented")
+}
+func (UnimplementedDockerServer) RemoveServiceContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveServiceContainer not implemented")
 }
 func (UnimplementedDockerServer) mustEmbedUnimplementedDockerServer() {}
 func (UnimplementedDockerServer) testEmbeddedByValue()                {}
@@ -417,6 +433,24 @@ func _Docker_CreateServiceContainer_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_RemoveServiceContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).RemoveServiceContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_RemoveServiceContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).RemoveServiceContainer(ctx, req.(*RemoveContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Docker_ServiceDesc is the grpc.ServiceDesc for Docker service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -459,6 +493,10 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateServiceContainer",
 			Handler:    _Docker_CreateServiceContainer_Handler,
+		},
+		{
+			MethodName: "RemoveServiceContainer",
+			Handler:    _Docker_RemoveServiceContainer_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

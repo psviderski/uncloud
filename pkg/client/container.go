@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
@@ -11,7 +13,6 @@ import (
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/status"
-	"strings"
 )
 
 // CreateContainer creates a new container for the given service on the specified machine.
@@ -263,9 +264,9 @@ func (cli *Client) StopContainer(
 
 // RemoveContainer removes the specified container within the service.
 func (cli *Client) RemoveContainer(
-	ctx context.Context, serviceID, containerID string, opts container.RemoveOptions,
+	ctx context.Context, serviceID, containerNameOrID string, opts container.RemoveOptions,
 ) error {
-	ctr, err := cli.InspectContainer(ctx, serviceID, containerID)
+	ctr, err := cli.InspectContainer(ctx, serviceID, containerNameOrID)
 	if err != nil {
 		return err
 	}
@@ -280,7 +281,7 @@ func (cli *Client) RemoveContainer(
 	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.NameWithoutSlash(), machine.Machine.Name)
 
 	pw.Event(progress.RemovingEvent(eventID))
-	if err = cli.Docker.RemoveContainer(ctx, ctr.Container.ID, opts); err != nil {
+	if err = cli.Docker.RemoveServiceContainer(ctx, ctr.Container.ID, opts); err != nil {
 		return err
 	}
 	pw.Event(progress.RemovedEvent(eventID))

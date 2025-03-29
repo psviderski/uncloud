@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -18,7 +20,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
 )
 
 // Client is a gRPC client for the Docker service that provides a similar interface to the Docker HTTP client.
@@ -366,4 +367,24 @@ func (c *Client) CreateServiceContainer(
 		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
 	}
 	return resp, nil
+}
+
+// RemoveServiceContainer stops (kills after grace period) and removes a service container with the given ID.
+// A service container is a container that has been created with CreateServiceContainer.
+func (c *Client) RemoveServiceContainer(ctx context.Context, id string, opts container.RemoveOptions) error {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return fmt.Errorf("marshal options: %w", err)
+	}
+
+	_, err = c.grpcClient.RemoveServiceContainer(ctx, &pb.RemoveContainerRequest{
+		Id:      id,
+		Options: optsBytes,
+	})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return errdefs.NotFound(err)
+		}
+	}
+	return err
 }

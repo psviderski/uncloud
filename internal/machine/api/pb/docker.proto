@@ -21,6 +21,7 @@ service Docker {
   rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
 
   rpc CreateServiceContainer(CreateServiceContainerRequest) returns (CreateContainerResponse);
+  rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
 }
 
 message CreateContainerRequest {
