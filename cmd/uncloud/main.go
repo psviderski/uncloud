@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/netip"
+	"strings"
+
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/cmd/uncloud/machine"
@@ -11,8 +14,6 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/spf13/cobra"
-	"net/netip"
-	"strings"
 )
 
 type globalOptions struct {

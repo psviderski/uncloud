@@ -5,14 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/docker/docker/client"
-	"github.com/docker/go-connections/sockets"
-	"github.com/siderolabs/grpc-proxy/proxy"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -21,6 +13,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+
+	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/sockets"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -32,6 +27,12 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/siderolabs/grpc-proxy/proxy"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (
@@ -209,7 +210,13 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Docker client: %w", err)
 	}
-	dockerServer := machinedocker.NewServer(dockerCli)
+
+	dbFilePath := filepath.Join(config.DataDir, DBFileName)
+	db, err := NewDB(dbFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("init machine database: %w", err)
+	}
+	dockerServer := machinedocker.NewServer(dockerCli, db)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, APIPort)

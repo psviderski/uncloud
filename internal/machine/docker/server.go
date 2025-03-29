@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
+	"strings"
+
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -16,6 +20,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/jmoiron/sqlx"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -25,20 +30,21 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"io"
-	"strconv"
-	"strings"
 )
 
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.
 type Server struct {
 	pb.UnimplementedDockerServer
 	client *client.Client
+	db     *sqlx.DB
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker client.
-func NewServer(cli *client.Client) *Server {
-	return &Server{client: cli}
+func NewServer(cli *client.Client, db *sqlx.DB) *Server {
+	return &Server{
+		client: cli,
+		db:     db,
+	}
 }
 
 // CreateContainer creates a new container based on the given configuration.
@@ -422,6 +428,24 @@ func (s *Server) CreateServiceContainer(
 	respBytes, err := json.Marshal(resp)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+	}
+
+	// Store the container spec in the database or remove the container with its anonymous volumes if storing fails.
+	removeContainer := func() {
+		_ = s.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{RemoveVolumes: true})
+	}
+
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		removeContainer()
+		return nil, status.Errorf(codes.Internal, "marshal service spec: %v", err)
+	}
+
+	if _, err = s.db.ExecContext(ctx,
+		`INSERT INTO containers (id, service_id, service_spec) VALUES ($1, $2, $3)`,
+		resp.ID, req.ServiceId, string(specBytes)); err != nil {
+		removeContainer()
+		return nil, status.Errorf(codes.Internal, "store container in database: %v", err)
 	}
 
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
