@@ -57,9 +57,9 @@ type Config struct {
 	// DockerClient manages system and user containers using the local Docker daemon.
 	DockerClient *client.Client
 
-	// CaddyfilePath specifies where the machine generates the Caddy reverse proxy configuration file for routing
-	// external traffic to service containers across the internal network. Default is DataDir/caddy/Caddyfile.
-	CaddyfilePath string
+	// CaddyConfigPath specifies where the machine generates the Caddy reverse proxy configuration file for routing
+	// external traffic to service containers across the internal network. Default is DataDir/caddy/caddy.json.
+	CaddyConfigPath string
 }
 
 // SetDefaults returns a new Config with default values set where not provided.
@@ -122,8 +122,8 @@ func (c *Config) SetDefaults() (*Config, error) {
 		}
 	}
 
-	if cfg.CaddyfilePath == "" {
-		cfg.CaddyfilePath = filepath.Join(cfg.DataDir, "caddy", "caddy.json")
+	if cfg.CaddyConfigPath == "" {
+		cfg.CaddyConfigPath = filepath.Join(cfg.DataDir, "caddy", "caddy.json")
 	}
 
 	return &cfg, nil
@@ -360,7 +360,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 					// Create a new Caddyfile controller for managing the Caddy reverse proxy configuration.
 					// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
-					caddyfileCtrl, err := caddyfile.NewController(m.store, m.config.CaddyfilePath, m.state.ID)
+					caddyfileCtrl, err := caddyfile.NewController(m.store, m.config.CaddyConfigPath, m.state.ID)
 					if err != nil {
 						return fmt.Errorf("create Caddyfile controller: %w", err)
 					}
