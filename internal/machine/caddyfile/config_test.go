@@ -1,6 +1,9 @@
 package caddyfile
 
 import (
+	"strings"
+	"testing"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -8,20 +11,18 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
 )
 
 func TestGenerateConfig(t *testing.T) {
 	tests := []struct {
 		name       string
-		containers []api.Container
+		containers []api.ServiceContainer
 		want       string
 		wantErr    bool
 	}{
 		{
 			name:       "empty containers",
-			containers: []api.Container{},
+			containers: []api.ServiceContainer{},
 			want: `{
                 "servers": {
                     "http": {
@@ -45,7 +46,7 @@ func TestGenerateConfig(t *testing.T) {
 
 		{
 			name: "HTTP container",
-			containers: []api.Container{
+			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2", "app.example.com:8080/http"),
 			},
 			want: `{
@@ -79,7 +80,7 @@ func TestGenerateConfig(t *testing.T) {
 		},
 		{
 			name: "load balancing multiple containers",
-			containers: []api.Container{
+			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2", "app.example.com:8080/http"),
 				newContainer("10.210.0.3", "app.example.com:8080/http"),
 			},
@@ -117,7 +118,7 @@ func TestGenerateConfig(t *testing.T) {
 		},
 		{
 			name: "HTTPS container",
-			containers: []api.Container{
+			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2", "secure.example.com:8000/https"),
 			},
 			want: `{
@@ -153,7 +154,7 @@ func TestGenerateConfig(t *testing.T) {
 		},
 		{
 			name: "mixed HTTP and HTTPS",
-			containers: []api.Container{
+			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2",
 					"app.example.com:8080/http",
 					"web.example.com:8000/http"),
@@ -227,7 +228,7 @@ func TestGenerateConfig(t *testing.T) {
 		},
 		{
 			name: "container without uncloud network ignored",
-			containers: []api.Container{
+			containers: []api.ServiceContainer{
 				newContainerWithoutNetwork("ignored.example.com:8080/http"),
 			},
 			want: `{
@@ -252,7 +253,7 @@ func TestGenerateConfig(t *testing.T) {
 		},
 		{
 			name: "container with invalid port ignored",
-			containers: []api.Container{
+			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2", "invalid-port"),
 			},
 			want: `{
@@ -277,7 +278,7 @@ func TestGenerateConfig(t *testing.T) {
 		},
 		{
 			name: "containers with unsupported protocols ignored",
-			containers: []api.Container{
+			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2", "5000/tcp"),
 				newContainer("10.210.0.3", "5000/udp"),
 				newContainer("10.210.0.4", "80:8080/tcp@host"),
@@ -322,44 +323,40 @@ func TestGenerateConfig(t *testing.T) {
 	}
 }
 
-func newContainer(ip string, ports ...string) api.Container {
+func newContainer(ip string, ports ...string) api.ServiceContainer {
 	portsLabel := strings.Join(ports, ",")
-	return api.Container{
-		ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{},
-			NetworkSettings: &types.NetworkSettings{
-				Networks: map[string]*network.EndpointSettings{
-					docker.NetworkName: {
-						IPAddress: ip,
-					},
-				},
-			},
-			Config: &container.Config{
-				Labels: map[string]string{
-					api.LabelServicePorts: portsLabel,
+	return api.ServiceContainer{Container: api.Container{ContainerJSON: types.ContainerJSON{
+		ContainerJSONBase: &types.ContainerJSONBase{},
+		NetworkSettings: &types.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				docker.NetworkName: {
+					IPAddress: ip,
 				},
 			},
 		},
-	}
+		Config: &container.Config{
+			Labels: map[string]string{
+				api.LabelServicePorts: portsLabel,
+			},
+		},
+	}}}
 }
 
-func newContainerWithoutNetwork(ports ...string) api.Container {
+func newContainerWithoutNetwork(ports ...string) api.ServiceContainer {
 	portsLabel := strings.Join(ports, ",")
-	return api.Container{
-		ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{},
-			NetworkSettings: &types.NetworkSettings{
-				Networks: map[string]*network.EndpointSettings{
-					"other-network": {
-						IPAddress: "172.17.0.2",
-					},
-				},
-			},
-			Config: &container.Config{
-				Labels: map[string]string{
-					api.LabelServicePorts: portsLabel,
+	return api.ServiceContainer{Container: api.Container{ContainerJSON: types.ContainerJSON{
+		ContainerJSONBase: &types.ContainerJSONBase{},
+		NetworkSettings: &types.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				"other-network": {
+					IPAddress: "172.17.0.2",
 				},
 			},
 		},
-	}
+		Config: &container.Config{
+			Labels: map[string]string{
+				api.LabelServicePorts: portsLabel,
+			},
+		},
+	}}}
 }

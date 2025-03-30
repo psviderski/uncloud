@@ -20,17 +20,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Docker_CreateContainer_FullMethodName        = "/api.Docker/CreateContainer"
-	Docker_InspectContainer_FullMethodName       = "/api.Docker/InspectContainer"
-	Docker_StartContainer_FullMethodName         = "/api.Docker/StartContainer"
-	Docker_StopContainer_FullMethodName          = "/api.Docker/StopContainer"
-	Docker_ListContainers_FullMethodName         = "/api.Docker/ListContainers"
-	Docker_RemoveContainer_FullMethodName        = "/api.Docker/RemoveContainer"
-	Docker_PullImage_FullMethodName              = "/api.Docker/PullImage"
-	Docker_InspectImage_FullMethodName           = "/api.Docker/InspectImage"
-	Docker_InspectRemoteImage_FullMethodName     = "/api.Docker/InspectRemoteImage"
-	Docker_CreateServiceContainer_FullMethodName = "/api.Docker/CreateServiceContainer"
-	Docker_RemoveServiceContainer_FullMethodName = "/api.Docker/RemoveServiceContainer"
+	Docker_CreateContainer_FullMethodName         = "/api.Docker/CreateContainer"
+	Docker_InspectContainer_FullMethodName        = "/api.Docker/InspectContainer"
+	Docker_StartContainer_FullMethodName          = "/api.Docker/StartContainer"
+	Docker_StopContainer_FullMethodName           = "/api.Docker/StopContainer"
+	Docker_ListContainers_FullMethodName          = "/api.Docker/ListContainers"
+	Docker_RemoveContainer_FullMethodName         = "/api.Docker/RemoveContainer"
+	Docker_PullImage_FullMethodName               = "/api.Docker/PullImage"
+	Docker_InspectImage_FullMethodName            = "/api.Docker/InspectImage"
+	Docker_InspectRemoteImage_FullMethodName      = "/api.Docker/InspectRemoteImage"
+	Docker_CreateServiceContainer_FullMethodName  = "/api.Docker/CreateServiceContainer"
+	Docker_InspectServiceContainer_FullMethodName = "/api.Docker/InspectServiceContainer"
+	Docker_ListServiceContainers_FullMethodName   = "/api.Docker/ListServiceContainers"
+	Docker_RemoveServiceContainer_FullMethodName  = "/api.Docker/RemoveServiceContainer"
 )
 
 // DockerClient is the client API for Docker service.
@@ -49,6 +51,8 @@ type DockerClient interface {
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(ctx context.Context, in *InspectRemoteImageRequest, opts ...grpc.CallOption) (*InspectRemoteImageResponse, error)
 	CreateServiceContainer(ctx context.Context, in *CreateServiceContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
+	InspectServiceContainer(ctx context.Context, in *InspectContainerRequest, opts ...grpc.CallOption) (*ServiceContainer, error)
+	ListServiceContainers(ctx context.Context, in *ListServiceContainersRequest, opts ...grpc.CallOption) (*ListServiceContainersResponse, error)
 	RemoveServiceContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
@@ -169,6 +173,26 @@ func (c *dockerClient) CreateServiceContainer(ctx context.Context, in *CreateSer
 	return out, nil
 }
 
+func (c *dockerClient) InspectServiceContainer(ctx context.Context, in *InspectContainerRequest, opts ...grpc.CallOption) (*ServiceContainer, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ServiceContainer)
+	err := c.cc.Invoke(ctx, Docker_InspectServiceContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dockerClient) ListServiceContainers(ctx context.Context, in *ListServiceContainersRequest, opts ...grpc.CallOption) (*ListServiceContainersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListServiceContainersResponse)
+	err := c.cc.Invoke(ctx, Docker_ListServiceContainers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dockerClient) RemoveServiceContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -195,6 +219,8 @@ type DockerServer interface {
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(context.Context, *InspectRemoteImageRequest) (*InspectRemoteImageResponse, error)
 	CreateServiceContainer(context.Context, *CreateServiceContainerRequest) (*CreateContainerResponse, error)
+	InspectServiceContainer(context.Context, *InspectContainerRequest) (*ServiceContainer, error)
+	ListServiceContainers(context.Context, *ListServiceContainersRequest) (*ListServiceContainersResponse, error)
 	RemoveServiceContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDockerServer()
 }
@@ -235,6 +261,12 @@ func (UnimplementedDockerServer) InspectRemoteImage(context.Context, *InspectRem
 }
 func (UnimplementedDockerServer) CreateServiceContainer(context.Context, *CreateServiceContainerRequest) (*CreateContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateServiceContainer not implemented")
+}
+func (UnimplementedDockerServer) InspectServiceContainer(context.Context, *InspectContainerRequest) (*ServiceContainer, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectServiceContainer not implemented")
+}
+func (UnimplementedDockerServer) ListServiceContainers(context.Context, *ListServiceContainersRequest) (*ListServiceContainersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListServiceContainers not implemented")
 }
 func (UnimplementedDockerServer) RemoveServiceContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveServiceContainer not implemented")
@@ -433,6 +465,42 @@ func _Docker_CreateServiceContainer_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_InspectServiceContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InspectContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).InspectServiceContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_InspectServiceContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).InspectServiceContainer(ctx, req.(*InspectContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Docker_ListServiceContainers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListServiceContainersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).ListServiceContainers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_ListServiceContainers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).ListServiceContainers(ctx, req.(*ListServiceContainersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Docker_RemoveServiceContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RemoveContainerRequest)
 	if err := dec(in); err != nil {
@@ -493,6 +561,14 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateServiceContainer",
 			Handler:    _Docker_CreateServiceContainer_Handler,
+		},
+		{
+			MethodName: "InspectServiceContainer",
+			Handler:    _Docker_InspectServiceContainer_Handler,
+		},
+		{
+			MethodName: "ListServiceContainers",
+			Handler:    _Docker_ListServiceContainers_Handler,
 		},
 		{
 			MethodName: "RemoveServiceContainer",

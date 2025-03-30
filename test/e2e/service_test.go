@@ -3,6 +3,10 @@ package e2e
 import (
 	"context"
 	"errors"
+	"net/netip"
+	"strings"
+	"testing"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -14,9 +18,6 @@ import (
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/netip"
-	"strings"
-	"testing"
 )
 
 func newServiceID() string {
@@ -246,7 +247,7 @@ func TestDeployment(t *testing.T) {
 				assert.NotEqual(t, oldContainerID, ctr.Container.ID,
 					"Container on machine %s should have been updated", machine.Machine.Name)
 
-				svcSpec, err := ctr.Container.ServiceSpec()
+				svcSpec := ctr.Container.ServiceSpec
 				require.NoError(t, err)
 				assert.NotNil(t, svcSpec.Container.Init)
 				assert.True(t, *svcSpec.Container.Init,
@@ -279,7 +280,7 @@ func TestDeployment(t *testing.T) {
 
 		// Verify all containers are updated with a published port.
 		for _, ctr := range svc.Containers {
-			svcSpec, err := ctr.Container.ServiceSpec()
+			svcSpec := ctr.Container.ServiceSpec
 			require.NoError(t, err)
 			assert.Nil(t, svcSpec.Container.Init,
 				"Container on machine %s should have init disabled", ctr.MachineID)
@@ -382,7 +383,7 @@ func TestDeployment(t *testing.T) {
 		assert.Len(t, svc.Containers, 2)
 
 		// Existing container ctr0 on machine #0 should be left unchanged.
-		var ctr2 api.MachineContainer
+		var ctr2 api.MachineServiceContainer
 		if ctr0.Container.ID == svc.Containers[0].Container.ID {
 			ctr2 = svc.Containers[1]
 		} else {
@@ -652,7 +653,7 @@ func TestServiceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		ctr := mc.Container
 
-		assert.True(t, strings.HasPrefix(ctr.Name, "/container-spec-defaults-"))
+		assert.True(t, strings.HasPrefix(ctr.Name, "container-spec-defaults-"))
 		assert.Equal(t, "portainer/pause:latest", ctr.Config.Image)
 
 		// Verify default settings.
@@ -727,7 +728,7 @@ func TestServiceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		ctr := mc.Container
 
-		assert.True(t, strings.HasPrefix(ctr.Name, "/container-spec-full-"))
+		assert.True(t, strings.HasPrefix(ctr.Name, "container-spec-full-"))
 		assert.Equal(t, "portainer/pause:latest", ctr.Config.Image)
 
 		assert.EqualValues(t, spec.Container.Command, ctr.Config.Cmd)

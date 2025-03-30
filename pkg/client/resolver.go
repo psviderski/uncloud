@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -46,7 +47,7 @@ func (cli *Client) ServiceOperationNameResolver(ctx context.Context, svc api.Ser
 	}
 	containerNames := make(map[string]string, len(svc.Containers))
 	for _, c := range svc.Containers {
-		containerNames[c.Container.ID] = c.Container.NameWithoutSlash()
+		containerNames[c.Container.ID] = c.Container.Name
 	}
 
 	return NewNameResolver(machineNames, containerNames), nil

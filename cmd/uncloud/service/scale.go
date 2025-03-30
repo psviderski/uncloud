@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
+
 	"github.com/charmbracelet/huh"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
-	"strconv"
 )
 
 type scaleOptions struct {
@@ -81,12 +82,7 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 
 	// TODO: Check if all containers have the same spec. If not, prompt user to choose which one to scale.
 	//  This can happen if a service deployment failed midway and some containers were not updated.
-	// Derive the service spec from the first container.
-	spec, err := svc.Containers[0].Container.ServiceSpec()
-	if err != nil {
-		return fmt.Errorf("get service spec from container: %w", err)
-	}
-
+	spec := svc.Containers[0].Container.ServiceSpec
 	spec.Replicas = opts.replicas
 	deployment := clusterClient.NewDeployment(spec, nil)
 	plan, err := deployment.Plan(ctx)

@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/go-units"
 	"strings"
 	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/go-units"
 )
 
 const (
@@ -19,73 +21,6 @@ const (
 
 type Container struct {
 	types.ContainerJSON
-}
-
-// NameWithoutSlash returns the container name without the leading slash.
-// TODO: modify Name in original ContainerJSON structure when inspecting a Docker container and get rid of this method.
-func (c *Container) NameWithoutSlash() string {
-	return c.Name[1:]
-}
-
-// ServiceID returns the ID of the service this container belongs to.
-func (c *Container) ServiceID() string {
-	return c.Config.Labels[LabelServiceID]
-}
-
-// ServiceName returns the name of the service this container belongs to.
-func (c *Container) ServiceName() string {
-	return c.Config.Labels[LabelServiceName]
-}
-
-// ServiceMode returns the replication mode of the service this container belongs to.
-func (c *Container) ServiceMode() string {
-	return c.Config.Labels[LabelServiceMode]
-}
-
-// ServicePorts returns the ports this container publishes as part of its service.
-func (c *Container) ServicePorts() ([]PortSpec, error) {
-	encoded, ok := c.Config.Labels[LabelServicePorts]
-	if !ok {
-		return nil, nil
-	}
-	if strings.TrimSpace(encoded) == "" {
-		return nil, nil
-	}
-
-	publishPorts := strings.Split(encoded, ",")
-	ports := make([]PortSpec, len(publishPorts))
-	for i, p := range publishPorts {
-		port, err := ParsePortSpec(strings.TrimSpace(p))
-		if err != nil {
-			return nil, err
-		}
-		ports[i] = port
-	}
-
-	return ports, nil
-}
-
-// ServiceSpec constructs a service spec from the container's configuration.
-func (c *Container) ServiceSpec() (ServiceSpec, error) {
-	ports, err := c.ServicePorts()
-	if err != nil {
-		return ServiceSpec{}, fmt.Errorf("get service ports: %w", err)
-	}
-
-	// TODO: many properties on the container such as Config.Cmd or Config.Entrypoint are populated when the container
-	//  is created. Figure out how to get a spec that is equal to the initial spec.
-	return ServiceSpec{
-		Container: ContainerSpec{
-			Command:    c.Config.Cmd,
-			Entrypoint: c.Config.Entrypoint,
-			Image:      c.Config.Image,
-			Init:       c.HostConfig.Init,
-			Volumes:    c.HostConfig.Binds,
-		},
-		Mode:  c.ServiceMode(),
-		Name:  c.ServiceName(),
-		Ports: ports,
-	}, nil
 }
 
 // Healthy determines if the container is running and healthy.
@@ -156,8 +91,71 @@ func (c *Container) HumanState() (string, error) {
 		c.State.ExitCode, units.HumanDuration(time.Now().UTC().Sub(finishedAt))), nil
 }
 
+func (c *Container) UnmarshalJSON(data []byte) error {
+	// A temporary type that's identical to Container but doesn't have the UnmarshalJSON method.
+	type ContainerAlias Container
+
+	var temp ContainerAlias
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	*c = Container(temp)
+	c.Name = strings.TrimPrefix(c.Name, "/")
+
+	return nil
+}
+
+type ServiceContainer struct {
+	Container
+	ServiceSpec ServiceSpec
+}
+
+type MachineContainer struct {
+	MachineID string
+	Container Container
+}
+
+// ServiceID returns the ID of the service this container belongs to.
+func (c *ServiceContainer) ServiceID() string {
+	return c.Config.Labels[LabelServiceID]
+}
+
+// ServiceName returns the name of the service this container belongs to.
+func (c *ServiceContainer) ServiceName() string {
+	return c.Config.Labels[LabelServiceName]
+}
+
+// ServiceMode returns the replication mode of the service this container belongs to.
+func (c *ServiceContainer) ServiceMode() string {
+	return c.Config.Labels[LabelServiceMode]
+}
+
+// ServicePorts returns the ports this container publishes as part of its service.
+func (c *ServiceContainer) ServicePorts() ([]PortSpec, error) {
+	encoded, ok := c.Config.Labels[LabelServicePorts]
+	if !ok {
+		return nil, nil
+	}
+	if strings.TrimSpace(encoded) == "" {
+		return nil, nil
+	}
+
+	publishPorts := strings.Split(encoded, ",")
+	ports := make([]PortSpec, len(publishPorts))
+	for i, p := range publishPorts {
+		port, err := ParsePortSpec(strings.TrimSpace(p))
+		if err != nil {
+			return nil, err
+		}
+		ports[i] = port
+	}
+
+	return ports, nil
+}
+
 // ConflictingServicePorts returns a list of service ports that conflict with the given ports.
-func (c *Container) ConflictingServicePorts(ports []PortSpec) ([]PortSpec, error) {
+func (c *ServiceContainer) ConflictingServicePorts(ports []PortSpec) ([]PortSpec, error) {
 	svcPorts, err := c.ServicePorts()
 	if err != nil {
 		return nil, fmt.Errorf("get service ports: %w", err)

@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"slices"
+	"sync"
+
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"slices"
-	"sync"
 )
 
 type RunServiceResponse struct {
@@ -64,8 +65,8 @@ func (cli *Client) RunService(
 }
 
 // InspectService returns detailed information about a service and its containers.
-// The id parameter can be either a service ID or name.
-func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, error) {
+// The nameOrID parameter can be either a service name or ID.
+func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Service, error) {
 	var svc api.Service
 
 	machines, err := cli.ListMachines(ctx)
@@ -87,22 +88,16 @@ func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, 
 	}
 	listCtx := metadata.NewOutgoingContext(ctx, md)
 
-	// List only uncloud-managed containers that belong to some service.
-	opts := container.ListOptions{
-		All: true,
-		Filters: filters.NewArgs(
-			filters.Arg("label", api.LabelServiceID),
-			filters.Arg("label", api.LabelManaged),
-		),
-	}
-	machineContainers, err := cli.Docker.ListContainers(listCtx, opts)
+	// List all service containers including stopped ones.
+	opts := container.ListOptions{All: true}
+	machineContainers, err := cli.Docker.ListServiceContainers(listCtx, nameOrID, opts)
 	if err != nil {
 		return svc, fmt.Errorf("list containers: %w", err)
 	}
 
 	// Collect all containers on all machines that belong to the specified service.
 	foundByID := false
-	var containers []api.MachineContainer
+	var containers []api.MachineServiceContainer
 	for _, mc := range machineContainers {
 		// Metadata can be nil if the request was broadcasted to only one machine.
 		if mc.Metadata == nil && len(machineContainers) > 1 {
@@ -130,15 +125,14 @@ func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, 
 			}
 		}
 
-		for _, c := range mc.Containers {
-			ctr := api.Container{ContainerJSON: c}
-			if ctr.ServiceID() == id || ctr.ServiceName() == id {
-				containers = append(containers, api.MachineContainer{
+		for _, ctr := range mc.Containers {
+			if ctr.ServiceID() == nameOrID || ctr.ServiceName() == nameOrID {
+				containers = append(containers, api.MachineServiceContainer{
 					MachineID: machineID,
 					Container: ctr,
 				})
 
-				if ctr.ServiceID() == id {
+				if ctr.ServiceID() == nameOrID {
 					foundByID = true
 				}
 			}
@@ -153,15 +147,15 @@ func (cli *Client) InspectService(ctx context.Context, id string) (api.Service, 
 	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
 	// priority over matching by name.
 	if foundByID {
-		containers = slices.DeleteFunc(containers, func(mc api.MachineContainer) bool {
-			return mc.Container.ServiceID() != id
+		containers = slices.DeleteFunc(containers, func(mc api.MachineServiceContainer) bool {
+			return mc.Container.ServiceID() != nameOrID
 		})
 	} else {
 		// Matched only by name but there could be multiple services with the same name.
 		serviceID := containers[0].Container.ServiceID()
 		for _, mc := range containers[1:] {
 			if mc.Container.ServiceID() != serviceID {
-				return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", id)
+				return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
 			}
 		}
 	}
@@ -273,15 +267,9 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	}
 	listCtx := metadata.NewOutgoingContext(ctx, md)
 
-	// List only uncloud-managed containers that belong to some service.
-	opts := container.ListOptions{
-		All: true,
-		Filters: filters.NewArgs(
-			filters.Arg("label", api.LabelServiceID),
-			filters.Arg("label", api.LabelManaged),
-		),
-	}
-	machineContainers, err := cli.Docker.ListContainers(listCtx, opts)
+	// List all containers including stopped ones.
+	opts := container.ListOptions{All: true}
+	machineContainers, err := cli.Docker.ListServiceContainers(listCtx, "", opts)
 	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
@@ -292,13 +280,12 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	for _, mc := range machineContainers {
 		if mc.Metadata != nil && mc.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
-			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
+			fmt.Fprintf(os.Stderr, "WARNING: failed to list containers on machine '%s': %s\n",
 				mc.Metadata.Machine, mc.Metadata.Error)
 			continue
 		}
 
-		for _, c := range mc.Containers {
-			ctr := api.Container{ContainerJSON: c}
+		for _, ctr := range mc.Containers {
 			if _, ok := servicesByID[ctr.ServiceID()]; ok {
 				continue
 			}

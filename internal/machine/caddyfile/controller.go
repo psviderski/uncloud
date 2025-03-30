@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/psviderski/uncloud/internal/fs"
-	"github.com/psviderski/uncloud/internal/machine/store"
-	"github.com/psviderski/uncloud/pkg/api"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const (
@@ -89,15 +90,20 @@ func (c *Controller) Run(ctx context.Context) error {
 // filterAvailableContainers filters out containers from this machine that are likely unavailable. The availability
 // is determined by the cluster membership state of the machine that the container is running on.
 // TODO: implement machine membership check using Corrossion Admin client.
-func (c *Controller) filterAvailableContainers(containerRecords []store.ContainerRecord) ([]api.Container, error) {
-	containers := make([]api.Container, len(containerRecords))
+func (c *Controller) filterAvailableContainers(
+	containerRecords []store.ContainerRecord,
+) ([]api.ServiceContainer, error) {
+	containers := make([]api.ServiceContainer, len(containerRecords))
 	for i, cr := range containerRecords {
-		containers[i] = cr.Container
+		containers[i] = api.ServiceContainer{
+			Container: cr.Container,
+			// TODO: restore ServiceSpec from the container record once it's saved in the store.
+		}
 	}
 	return containers, nil
 }
 
-func (c *Controller) generateConfig(containers []api.Container) error {
+func (c *Controller) generateConfig(containers []api.ServiceContainer) error {
 	config, err := GenerateConfig(containers, c.verifyResponse)
 	if err != nil {
 		return err

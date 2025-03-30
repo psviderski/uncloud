@@ -369,6 +369,75 @@ func (c *Client) CreateServiceContainer(
 	return resp, nil
 }
 
+// InspectServiceContainer returns the container information and service specification that was used to create the
+// container with the given ID.
+func (c *Client) InspectServiceContainer(ctx context.Context, id string) (api.ServiceContainer, error) {
+	var resp api.ServiceContainer
+
+	grpcResp, err := c.grpcClient.InspectServiceContainer(ctx, &pb.InspectContainerRequest{Id: id})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return resp, errdefs.NotFound(err)
+		}
+		return resp, err
+	}
+
+	if err = json.Unmarshal(grpcResp.Container, &resp.Container); err != nil {
+		return resp, fmt.Errorf("unmarshal container: %w", err)
+	}
+	if err = json.Unmarshal(grpcResp.ServiceSpec, &resp.ServiceSpec); err != nil {
+		return resp, fmt.Errorf("unmarshal service spec: %w", err)
+	}
+
+	return resp, nil
+}
+
+type MachineServiceContainers struct {
+	Metadata   *pb.Metadata
+	Containers []api.ServiceContainer
+}
+
+// ListServiceContainers returns all containers on requested machines that belong to the service with the given
+// name or ID. If serviceNameOrID is empty, all service containers are returned.
+func (c *Client) ListServiceContainers(
+	ctx context.Context, serviceNameOrID string, opts container.ListOptions,
+) ([]MachineServiceContainers, error) {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	resp, err := c.grpcClient.ListServiceContainers(ctx, &pb.ListServiceContainersRequest{
+		ServiceId: serviceNameOrID,
+		Options:   optsBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	machineContainers := make([]MachineServiceContainers, len(resp.Messages))
+	for i, msg := range resp.Messages {
+		machineContainers[i].Metadata = msg.Metadata
+		if msg.Metadata != nil && msg.Metadata.Error != "" {
+			continue
+		}
+
+		containers := make([]api.ServiceContainer, len(msg.Containers))
+		for j, sc := range msg.Containers {
+			if err = json.Unmarshal(sc.Container, &containers[j].Container); err != nil {
+				return nil, fmt.Errorf("unmarshal container: %w", err)
+			}
+			if err = json.Unmarshal(sc.ServiceSpec, &containers[j].ServiceSpec); err != nil {
+				return nil, fmt.Errorf("unmarshal service spec: %w", err)
+			}
+		}
+
+		machineContainers[i].Containers = containers
+	}
+
+	return machineContainers, nil
+}
+
 // RemoveServiceContainer stops (kills after grace period) and removes a service container with the given ID.
 // A service container is a container that has been created with CreateServiceContainer.
 func (c *Client) RemoveServiceContainer(ctx context.Context, id string, opts container.RemoveOptions) error {

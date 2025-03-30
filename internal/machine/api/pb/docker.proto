@@ -21,23 +21,25 @@ service Docker {
   rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
 
   rpc CreateServiceContainer(CreateServiceContainerRequest) returns (CreateContainerResponse);
+  rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
+  rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
 }
 
 message CreateContainerRequest {
-  // JSON serialized container.Config.
+  // JSON serialised container.Config.
   bytes config = 1;
-  // JSON serialized container.HostConfig.
+  // JSON serialised container.HostConfig.
   bytes host_config = 2;
-  // JSON serialized network.NetworkingConfig.
+  // JSON serialised network.NetworkingConfig.
   bytes network_config = 3;
-  // JSON serialized ocispec.Platform.
+  // JSON serialised ocispec.Platform.
   bytes platform = 4;
   string name = 5;
 }
 
 message CreateContainerResponse {
-  // JSON serialized container.CreateResponse.
+  // JSON serialised container.CreateResponse.
   bytes response = 1;
 }
 
@@ -46,24 +48,24 @@ message InspectContainerRequest {
 }
 
 message InspectContainerResponse {
-  // JSON serialized container.InspectResponse.
+  // JSON serialised container.InspectResponse.
   bytes response = 1;
 }
 
 message StartContainerRequest {
   string id = 1;
-  // JSON serialized container.StartOptions.
+  // JSON serialised container.StartOptions.
   bytes options = 2;
 }
 
 message StopContainerRequest {
   string id = 1;
-  // JSON serialized container.StopOptions.
+  // JSON serialised container.StopOptions.
   bytes options = 2;
 }
 
 message ListContainersRequest {
-  // JSON serialized container.ListOptions.
+  // JSON serialised container.ListOptions.
   bytes options = 1;
 }
 
@@ -74,24 +76,24 @@ message ListContainersResponse {
 
 message MachineContainers {
   Metadata metadata = 1;
-  // JSON serialized []container.ContainerJSON.
+  // JSON serialised []container.InspectResponse.
   bytes containers = 2;
 }
 
 message RemoveContainerRequest {
   string id = 1;
-  // JSON serialized container.RemoveOptions.
+  // JSON serialised container.RemoveOptions.
   bytes options = 2;
 }
 
 message PullImageRequest {
   string image = 1;
-  // JSON serialized image.PullOptions.
+  // JSON serialised image.PullOptions.
   bytes options = 2;
 }
 
 message JSONMessage {
-  // JSON serialized jsonmessage.JSONMessage.
+  // JSON serialised jsonmessage.JSONMessage.
   bytes message = 1;
 }
 
@@ -106,7 +108,7 @@ message InspectImageResponse {
 
 message Image {
   Metadata metadata = 1;
-  // JSON serialized types.ImageInspect.
+  // JSON serialised types.ImageInspect.
   bytes image = 2;
 }
 
@@ -132,4 +134,28 @@ message CreateServiceContainerRequest {
   // JSON serialised api.ServiceSpec.
   bytes service_spec = 2;
   string container_name = 3;
+}
+
+message ServiceContainer {
+  // JSON serialised container.InspectResponse.
+  bytes container = 1;
+  // JSON serialised api.ServiceSpec.
+  bytes service_spec = 2;
+}
+
+message ListServiceContainersRequest {
+  string service_id = 1;
+  // JSON serialised container.ListOptions.
+  bytes options = 2;
+}
+
+message ListServiceContainersResponse {
+  // Must contain only one repeated messages field to allow broadcasting ListServiceContainers requests
+  // to multiple machines.
+  repeated MachineServiceContainers messages = 1;
+}
+
+message MachineServiceContainers {
+  Metadata metadata = 1;
+  repeated ServiceContainer containers = 2;
 }

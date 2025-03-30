@@ -3,11 +3,12 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
+	"slices"
+
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
-	"math/rand/v2"
-	"slices"
 )
 
 // Strategy defines how a service should be deployed or updated. Different implementations can provide various
@@ -89,7 +90,7 @@ func (s *RollingStrategy) planReplicated(
 	})
 
 	// Organise existing containers by machine.
-	containersOnMachine := make(map[string][]api.Container)
+	containersOnMachine := make(map[string][]api.ServiceContainer)
 	upToDateContainersOnMachine := make(map[string]int)
 	containerSpecStatuses := make(map[string]ContainerSpecStatus)
 	if svc != nil {
@@ -111,7 +112,7 @@ func (s *RollingStrategy) planReplicated(
 		}
 
 		// Sort containers such that running containers with the desired spec are first.
-		slices.SortFunc(svc.Containers, func(c1, c2 api.MachineContainer) int {
+		slices.SortFunc(svc.Containers, func(c1, c2 api.MachineServiceContainer) int {
 			if status, ok := containerSpecStatuses[c1.Container.ID]; ok && status == ContainerUpToDate {
 				return -1
 			}
@@ -222,7 +223,7 @@ func (s *RollingStrategy) planGlobal(
 	// Map machineID to service containers on that machine. For the global mode, there should be at most one
 	// container per machine but we use a slice to handle multiple containers that may exist due to a bug
 	// or interruption in the previous deployment.
-	containersOnMachine := make(map[string][]api.MachineContainer)
+	containersOnMachine := make(map[string][]api.MachineServiceContainer)
 	if svc != nil {
 		for _, c := range svc.Containers {
 			containersOnMachine[c.MachineID] = append(containersOnMachine[c.MachineID], c)
@@ -271,7 +272,7 @@ func (s *RollingStrategy) planGlobal(
 // It ensures exactly one container with the desired spec is running on the machine by creating a new container and
 // removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
-	containers []api.MachineContainer, spec api.ServiceSpec, serviceID, machineID string,
+	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string,
 ) ([]Operation, error) {
 	var ops []Operation
 

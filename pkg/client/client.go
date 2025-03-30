@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"os"
 )
 
 // Client is a client for the machine API.

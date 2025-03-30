@@ -190,29 +190,26 @@ func toPullProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
 }
 
 // InspectContainer returns the information about the specified container within the service.
-func (cli *Client) InspectContainer(ctx context.Context, serviceID, containerID string) (api.MachineContainer, error) {
-	var ctr api.MachineContainer
-
-	svc, err := cli.InspectService(ctx, serviceID)
+func (cli *Client) InspectContainer(
+	ctx context.Context, serviceNameOrID, containerNameOrID string,
+) (api.MachineServiceContainer, error) {
+	svc, err := cli.InspectService(ctx, serviceNameOrID)
 	if err != nil {
-		return ctr, fmt.Errorf("inspect service: %w", err)
+		return api.MachineServiceContainer{}, fmt.Errorf("inspect service: %w", err)
 	}
 
 	for _, c := range svc.Containers {
-		if c.Container.ID == containerID || c.Container.NameWithoutSlash() == containerID {
-			ctr = c
+		if c.Container.ID == containerNameOrID || c.Container.Name == containerNameOrID {
+			return c, nil
 		}
 	}
-	if ctr.MachineID == "" {
-		return ctr, api.ErrNotFound
-	}
 
-	return ctr, nil
+	return api.MachineServiceContainer{}, api.ErrNotFound
 }
 
 // StartContainer starts the specified container within the service.
-func (cli *Client) StartContainer(ctx context.Context, serviceID, containerID string) error {
-	ctr, err := cli.InspectContainer(ctx, serviceID, containerID)
+func (cli *Client) StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error {
+	ctr, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
 	if err != nil {
 		return err
 	}
@@ -224,7 +221,7 @@ func (cli *Client) StartContainer(ctx context.Context, serviceID, containerID st
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.NameWithoutSlash(), machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
 
 	pw.Event(progress.StartingEvent(eventID))
 	if err = cli.Docker.StartContainer(ctx, ctr.Container.ID, container.StartOptions{}); err != nil {
@@ -237,9 +234,9 @@ func (cli *Client) StartContainer(ctx context.Context, serviceID, containerID st
 
 // StopContainer stops the specified container within the service.
 func (cli *Client) StopContainer(
-	ctx context.Context, serviceID, containerID string, opts container.StopOptions,
+	ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions,
 ) error {
-	ctr, err := cli.InspectContainer(ctx, serviceID, containerID)
+	ctr, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
 	if err != nil {
 		return err
 	}
@@ -251,7 +248,7 @@ func (cli *Client) StopContainer(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.NameWithoutSlash(), machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
 
 	pw.Event(progress.StoppingEvent(eventID))
 	if err = cli.Docker.StopContainer(ctx, ctr.Container.ID, opts); err != nil {
@@ -264,9 +261,9 @@ func (cli *Client) StopContainer(
 
 // RemoveContainer removes the specified container within the service.
 func (cli *Client) RemoveContainer(
-	ctx context.Context, serviceID, containerNameOrID string, opts container.RemoveOptions,
+	ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions,
 ) error {
-	ctr, err := cli.InspectContainer(ctx, serviceID, containerNameOrID)
+	ctr, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
 	if err != nil {
 		return err
 	}
@@ -278,7 +275,7 @@ func (cli *Client) RemoveContainer(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.NameWithoutSlash(), machine.Machine.Name)
+	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
 
 	pw.Event(progress.RemovingEvent(eventID))
 	if err = cli.Docker.RemoveServiceContainer(ctx, ctr.Container.ID, opts); err != nil {

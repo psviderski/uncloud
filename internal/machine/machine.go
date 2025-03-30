@@ -27,6 +27,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -751,10 +752,11 @@ func (m *Machine) InspectService(
 		}
 	}
 
+	ctr := api.ServiceContainer{Container: records[0].Container}
 	svc := &pb.Service{
-		Id:         records[0].Container.ServiceID(),
-		Name:       records[0].Container.ServiceName(),
-		Mode:       records[0].Container.ServiceMode(),
+		Id:         ctr.ServiceID(),
+		Name:       ctr.ServiceName(),
+		Mode:       ctr.ServiceMode(),
 		Containers: containers,
 	}
 	return &pb.InspectServiceResponse{Service: svc}, nil

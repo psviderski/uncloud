@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"fmt"
+
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -11,7 +12,8 @@ const ContainerUpToDate ContainerSpecStatus = "up-to-date"
 const ContainerNeedsUpdate ContainerSpecStatus = "needs-update"
 const ContainerNeedsRecreate ContainerSpecStatus = "needs-recreate"
 
-func CompareContainerToSpec(ctr api.Container, spec api.ServiceSpec) (ContainerSpecStatus, error) {
+func CompareContainerToSpec(ctr api.ServiceContainer, spec api.ServiceSpec) (ContainerSpecStatus, error) {
+	// TODO: replace the hash comparison with a more detailed comparison of ctr.ServiceSpec and spec.
 	specHash, err := spec.ImmutableHash()
 	if err != nil {
 		return "", fmt.Errorf("calculate immutable hash for service spec: %w", err)

@@ -4,21 +4,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/caddyserver/caddy/v2"
-	"github.com/caddyserver/caddy/v2/caddyconfig"
-	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
-	"github.com/caddyserver/caddy/v2/modules/caddyhttp/reverseproxy"
-	"github.com/psviderski/uncloud/internal/machine/docker"
-	"github.com/psviderski/uncloud/pkg/api"
 	"log/slog"
 	"maps"
 	"net"
 	"net/http"
 	"slices"
 	"strconv"
+
+	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp/reverseproxy"
+	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
-func GenerateConfig(containers []api.Container, verifyResponse string) (*caddy.Config, error) {
+func GenerateConfig(containers []api.ServiceContainer, verifyResponse string) (*caddy.Config, error) {
 	// Maps hostnames to lists of upstreams (container IP:port pairs).
 	httpHostUpstreams := make(map[string][]string)
 	httpsHostUpstreams := make(map[string][]string)

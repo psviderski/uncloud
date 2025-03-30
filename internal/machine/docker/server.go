@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -453,6 +454,125 @@ func (s *Server) CreateServiceContainer(
 	}
 
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
+}
+
+// InspectServiceContainer returns the container information and service specification that was used to create the
+// container with the given ID.
+func (s *Server) InspectServiceContainer(
+	ctx context.Context, req *pb.InspectContainerRequest,
+) (*pb.ServiceContainer, error) {
+	ctr, err := s.client.ContainerInspect(ctx, req.Id)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+
+	ctrBytes, err := json.Marshal(ctr)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+	}
+
+	var specBytes []byte
+	err = s.db.QueryRowContext(ctx, `SELECT service_spec FROM containers WHERE id = $1`, ctr.ID).Scan(&specBytes)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "service spec not found for container: '%s'", ctr.ID)
+		}
+		return nil, status.Errorf(codes.Internal, "get service spec for container '%s' from machine database: %v",
+			ctr.ID, err)
+	}
+
+	return &pb.ServiceContainer{
+		Container:   ctrBytes,
+		ServiceSpec: specBytes,
+	}, nil
+}
+
+// ListServiceContainers returns all containers that belong to the service with the given name or ID.
+// If req.ServiceId is empty, all service containers are returned.
+func (s *Server) ListServiceContainers(
+	ctx context.Context, req *pb.ListServiceContainersRequest,
+) (*pb.ListServiceContainersResponse, error) {
+	var opts container.ListOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+
+		// Handle filters separately because they implement custom JSON unmarshalling.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(req.Options, &raw); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options to raw map: %v", err)
+		}
+
+		if filtersBytes, ok := raw["Filters"]; ok {
+			args, err := filters.FromJSON(string(filtersBytes))
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
+			}
+			opts.Filters = args
+		} else {
+			opts.Filters = filters.NewArgs()
+		}
+	}
+	// Only uncloud-managed containers that belong to some service.
+	opts.Filters.Add("label", api.LabelServiceID)
+	opts.Filters.Add("label", api.LabelManaged)
+
+	containerSummaries, err := s.client.ContainerList(ctx, opts)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	containers := make([]*pb.ServiceContainer, 0, len(containerSummaries))
+	for _, cs := range containerSummaries {
+		if req.ServiceId != "" &&
+			cs.Labels[api.LabelServiceID] != req.ServiceId && cs.Labels[api.LabelServiceName] != req.ServiceId {
+			continue
+		}
+
+		ctr, err := s.client.ContainerInspect(ctx, cs.ID)
+		if err != nil {
+			if client.IsErrNotFound(err) {
+				// The listed container may have been removed while we were inspecting other containers.
+				continue
+			}
+			return nil, status.Errorf(codes.Internal, "inspect container %s: %v", cs.ID, err)
+		}
+		ctrBytes, err := json.Marshal(ctr)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "marshal container: %v", err)
+		}
+
+		var specBytes []byte
+		err = s.db.QueryRowContext(ctx, `SELECT service_spec FROM containers WHERE id = $1`, ctr.ID).Scan(&specBytes)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// If this happens, there is a bug in the code, or someone manually removed the container from the DB,
+				// or created a managed container out of band.
+				slog.Error("Service container not found in machine database.", "id", ctr.ID)
+				// Just ignore such a container to not fail the list operation as it's not easily recoverable.
+				continue
+			}
+			return nil, status.Errorf(codes.Internal, "get service spec for container '%s' from machine database: %v",
+				ctr.ID, err)
+		}
+
+		containers = append(containers, &pb.ServiceContainer{
+			Container:   ctrBytes,
+			ServiceSpec: specBytes,
+		})
+	}
+
+	return &pb.ListServiceContainersResponse{
+		Messages: []*pb.MachineServiceContainers{
+			{
+				Containers: containers,
+			},
+		},
+	}, nil
 }
 
 // RemoveServiceContainer stops (kills after grace period) and removes a service container with the given ID.

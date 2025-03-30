@@ -5,12 +5,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/distribution/reference"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"maps"
 	"reflect"
 	"regexp"
 	"slices"
+
+	"github.com/distribution/reference"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 const (
@@ -206,12 +207,12 @@ type Service struct {
 	ID         string
 	Name       string
 	Mode       string
-	Containers []MachineContainer
+	Containers []MachineServiceContainer
 }
 
-type MachineContainer struct {
+type MachineServiceContainer struct {
 	MachineID string
-	Container Container
+	Container ServiceContainer
 }
 
 // Endpoints returns the exposed HTTP and HTTPS endpoints of the service.
@@ -261,7 +262,7 @@ func (s *Service) Endpoints() []string {
 
 func ServiceFromProto(s *pb.Service) (Service, error) {
 	var err error
-	containers := make([]MachineContainer, len(s.Containers))
+	containers := make([]MachineServiceContainer, len(s.Containers))
 	for i, sc := range s.Containers {
 		containers[i], err = machineContainerFromProto(sc)
 		if err != nil {
@@ -277,14 +278,14 @@ func ServiceFromProto(s *pb.Service) (Service, error) {
 	}, nil
 }
 
-func machineContainerFromProto(sc *pb.Service_Container) (MachineContainer, error) {
+func machineContainerFromProto(sc *pb.Service_Container) (MachineServiceContainer, error) {
 	var c Container
 	if err := json.Unmarshal(sc.Container, &c); err != nil {
-		return MachineContainer{}, fmt.Errorf("unmarshal container: %w", err)
+		return MachineServiceContainer{}, fmt.Errorf("unmarshal container: %w", err)
 	}
 
-	return MachineContainer{
+	return MachineServiceContainer{
 		MachineID: sc.MachineId,
-		Container: c,
+		Container: ServiceContainer{Container: c},
 	}, nil
 }
