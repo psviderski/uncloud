@@ -1,8 +1,6 @@
 package api
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -37,6 +35,8 @@ func ValidateServiceID(id string) bool {
 	return serviceIDRegexp.MatchString(id)
 }
 
+// ServiceSpec defines the desired state of a service.
+// ATTENTION: after changing this struct, verify if deploy.EvalContainerSpecChange needs to be updated.
 type ServiceSpec struct {
 	Container ContainerSpec
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
@@ -48,18 +48,19 @@ type ServiceSpec struct {
 	Replicas uint `json:",omitempty"`
 }
 
-func (s *ServiceSpec) ApplyDefaults() {
-	if s.Mode == "" {
-		s.Mode = ServiceModeReplicated
+func (s *ServiceSpec) SetDefaults() ServiceSpec {
+	spec := s.Clone()
+
+	if spec.Mode == "" {
+		spec.Mode = ServiceModeReplicated
 	}
 	// Ensure the replicated service has at least one replica.
-	if s.Mode == ServiceModeReplicated && s.Replicas == 0 {
-		s.Replicas = 1
+	if spec.Mode == ServiceModeReplicated && spec.Replicas == 0 {
+		spec.Replicas = 1
 	}
+	spec.Container = spec.Container.SetDefaults()
 
-	if s.Container.PullPolicy == "" {
-		s.Container.PullPolicy = PullPolicyMissing
-	}
+	return spec
 }
 
 func (s *ServiceSpec) Validate() error {
@@ -87,68 +88,6 @@ func (s *ServiceSpec) Validate() error {
 	return nil
 }
 
-// ImmutableHash returns a hash of the immutable parts of the ServiceSpec that require container recreation if changed.
-func (s *ServiceSpec) ImmutableHash() (string, error) {
-	var err error
-	// Serialise and sort the ports to ensure the hash is consistent.
-	ports := make([]string, len(s.Ports))
-	for i, p := range s.Ports {
-		ports[i], err = p.String()
-		if err != nil {
-			return "", fmt.Errorf("encode service port spec: %w", err)
-		}
-	}
-	slices.Sort(ports)
-
-	volumes := make([]string, 0, len(s.Container.Volumes))
-	volumes = append(volumes, s.Container.Volumes...)
-	slices.Sort(volumes)
-
-	hashSpec := immutableHashSpec{
-		Command:    s.Container.Command,
-		Entrypoint: s.Container.Entrypoint,
-		Image:      s.Container.Image,
-		Init:       s.Container.Init,
-		Ports:      ports,
-		Volumes:    volumes,
-	}
-
-	data, err := json.Marshal(hashSpec)
-	if err != nil {
-		return "", fmt.Errorf("marshal immutable hash spec: %w", err)
-	}
-
-	hasher := sha256.New()
-	if _, err = hasher.Write(data); err != nil {
-		return "", fmt.Errorf("write to SHA256 hasher: %w", err)
-	}
-
-	return hex.EncodeToString(hasher.Sum(nil)), nil
-}
-
-// immutableHashSpec contains only the immutable fields from ServiceSpec that require container recreation if changed.
-type immutableHashSpec struct {
-	Command    []string `json:",omitempty"`
-	Entrypoint []string `json:",omitempty"`
-	Image      string
-	Init       *bool `json:",omitempty"`
-	// Ports are set as labels on the container which are immutable.
-	// TODO: store ingress ports in the cluster store instead of as labels which will allow changing them without
-	//  recreating the container.
-	Ports   []string `json:",omitempty"`
-	Volumes []string `json:",omitempty"`
-}
-
-// Equals returns true if the service spec is equal to the given spec ignoring the number of replicas.
-func (s *ServiceSpec) Equals(spec ServiceSpec) bool {
-	// TODO: ignore order of ports.
-	sCopy := *s
-	// Ignore the number of replicas when comparing.
-	sCopy.Replicas = 0
-	spec.Replicas = 0
-	return reflect.DeepEqual(*s, spec)
-}
-
 func (s *ServiceSpec) Clone() ServiceSpec {
 	spec := *s
 
@@ -161,6 +100,8 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 	return spec
 }
 
+// ContainerSpec defines the desired state of a container in a service.
+// ATTENTION: after changing this struct, verify if deploy.EvalContainerSpecChange needs to be updated.
 type ContainerSpec struct {
 	// Command overrides the default CMD of the image to be executed when running a container.
 	Command []string
@@ -176,12 +117,32 @@ type ContainerSpec struct {
 	Volumes []string
 }
 
+// SetDefaults returns a copy of the container spec with default values set.
+func (s *ContainerSpec) SetDefaults() ContainerSpec {
+	spec := s.Clone()
+	if spec.PullPolicy == "" {
+		spec.PullPolicy = PullPolicyMissing
+	}
+
+	return spec
+}
+
 func (s *ContainerSpec) Validate() error {
 	if _, err := reference.ParseDockerRef(s.Image); err != nil {
 		return fmt.Errorf("invalid image: %w", err)
 	}
 
 	return nil
+}
+
+func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
+	orig := s.SetDefaults()
+	spec = spec.SetDefaults()
+
+	slices.Sort(orig.Volumes)
+	slices.Sort(spec.Volumes)
+
+	return reflect.DeepEqual(orig, spec)
 }
 
 func (s *ContainerSpec) Clone() ContainerSpec {

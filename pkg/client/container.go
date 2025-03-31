@@ -21,7 +21,7 @@ func (cli *Client) CreateContainer(
 ) (container.CreateResponse, error) {
 	var resp container.CreateResponse
 
-	spec.ApplyDefaults()
+	spec = spec.SetDefaults()
 	if err := spec.Validate(); err != nil {
 		return resp, fmt.Errorf("invalid service spec: %w", err)
 	}

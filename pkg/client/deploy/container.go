@@ -1,8 +1,6 @@
 package deploy
 
 import (
-	"fmt"
-
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -12,30 +10,30 @@ const ContainerUpToDate ContainerSpecStatus = "up-to-date"
 const ContainerNeedsUpdate ContainerSpecStatus = "needs-update"
 const ContainerNeedsRecreate ContainerSpecStatus = "needs-recreate"
 
-func CompareContainerToSpec(ctr api.ServiceContainer, spec api.ServiceSpec) (ContainerSpecStatus, error) {
-	// TODO: replace the hash comparison with a more detailed comparison of ctr.ServiceSpec and spec.
-	specHash, err := spec.ImmutableHash()
-	if err != nil {
-		return "", fmt.Errorf("calculate immutable hash for service spec: %w", err)
+func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) ContainerSpecStatus {
+	current = current.SetDefaults()
+	new = new.SetDefaults()
+
+	// Pull policy doesn't affect the container configuration.
+	new.Container.PullPolicy = current.Container.PullPolicy
+	if !current.Container.Equals(new.Container) {
+		return ContainerNeedsRecreate
 	}
 
-	// Is the hash label is unset, there is no easy way to compare its configuration with the spec,
-	// so let's recreate as well.
-	if ctr.Config.Labels[api.LabelServiceSpecHash] != specHash {
-		return ContainerNeedsRecreate, nil
+	if current.Mode != new.Mode {
+		return ContainerNeedsRecreate
+	}
+	if current.Name != new.Name {
+		return ContainerNeedsRecreate
 	}
 
 	// TODO: compare mutable properties such as memory or CPU limits when they are implemented.
 
-	// TODO: remove ports check when ports are stored in the local machine store instead of as labels.
-	ports, err := ctr.ServicePorts()
-	if err != nil {
-		return "", fmt.Errorf("get service ports: %w", err)
+	// TODO: change ports check to ContainerNeedsUpdate when ingress ports are stored only the machine DB instead
+	//  of as labels ans synced to the cluster store. Host ports changes should be handled as ContainerNeedsRecreate.
+	if !api.PortsEqual(current.Ports, new.Ports) {
+		return ContainerNeedsRecreate
 	}
 
-	if !api.PortsEqual(ports, spec.Ports) {
-		return ContainerNeedsRecreate, nil
-	}
-
-	return ContainerUpToDate, nil
+	return ContainerUpToDate
 }

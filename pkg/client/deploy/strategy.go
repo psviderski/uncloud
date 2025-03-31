@@ -100,10 +100,7 @@ func (s *RollingStrategy) planReplicated(
 				continue
 			}
 
-			status, err := CompareContainerToSpec(c.Container, spec)
-			if err != nil {
-				return plan, fmt.Errorf("compare container to spec: %w", err)
-			}
+			status := EvalContainerSpecChange(c.Container.ServiceSpec, spec)
 			containerSpecStatuses[c.Container.ID] = status
 
 			if status == ContainerUpToDate {
@@ -294,10 +291,7 @@ func reconcileGlobalContainer(
 			continue
 		}
 
-		status, err := CompareContainerToSpec(c.Container, spec)
-		if err != nil {
-			return nil, fmt.Errorf("compare container to spec: %w", err)
-		}
+		status := EvalContainerSpecChange(c.Container.ServiceSpec, spec)
 		if status == ContainerUpToDate {
 			// The container is already running with the same spec.
 			upToDate = true

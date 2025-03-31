@@ -341,7 +341,7 @@ func (s *Server) CreateServiceContainer(
 	if err := json.Unmarshal(req.ServiceSpec, &spec); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unmarshal service spec: %v", err)
 	}
-	spec.ApplyDefaults()
+	spec = spec.SetDefaults()
 	if err := spec.Validate(); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid service spec: %v", err)
 	}
@@ -355,23 +355,16 @@ func (s *Server) CreateServiceContainer(
 		containerName = fmt.Sprintf("%s-%s", spec.Name, suffix)
 	}
 
-	// TODO: do not set the immutable hash as container label once container diff uses the spec stored in DB.
-	specHash, err := spec.ImmutableHash()
-	if err != nil {
-		return nil, fmt.Errorf("calculate immutable hash for service spec: %w", err)
-	}
-
 	config := &container.Config{
 		Cmd:        spec.Container.Command,
 		Entrypoint: spec.Container.Entrypoint,
 		Hostname:   containerName,
 		Image:      spec.Container.Image,
 		Labels: map[string]string{
-			api.LabelServiceID:       req.ServiceId,
-			api.LabelServiceName:     spec.Name,
-			api.LabelServiceMode:     spec.Mode,
-			api.LabelServiceSpecHash: specHash,
-			api.LabelManaged:         "",
+			api.LabelServiceID:   req.ServiceId,
+			api.LabelServiceName: spec.Name,
+			api.LabelServiceMode: spec.Mode,
+			api.LabelManaged:     "",
 		},
 	}
 	if spec.Mode == "" {
@@ -379,6 +372,7 @@ func (s *Server) CreateServiceContainer(
 	}
 
 	// TODO: do not set the ports as container labels once migrated to retrieve them from the spec in DB.
+	var err error
 	if len(spec.Ports) > 0 {
 		encodedPorts := make([]string, len(spec.Ports))
 		for i, p := range spec.Ports {
