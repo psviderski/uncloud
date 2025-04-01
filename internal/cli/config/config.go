@@ -2,14 +2,15 @@ package config
 
 import (
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Clusters       map[string]*Cluster `toml:"clusters"`
-	CurrentCluster string              `toml:"current_cluster"`
+	CurrentContext string              `yaml:"current_context"`
+	Contexts       map[string]*Context `yaml:"contexts"`
 
 	// path is the file path config is read from.
 	path string
@@ -18,10 +19,10 @@ type Config struct {
 func NewFromFile(path string) (*Config, error) {
 	_, err := os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("check file permissions %q: %w", path, err)
+		return nil, fmt.Errorf("check file permissions '%s': %w", path, err)
 	}
 	c := &Config{
-		Clusters: map[string]*Cluster{},
+		Contexts: map[string]*Context{},
 		path:     path,
 	}
 	if os.IsNotExist(err) {
@@ -34,30 +35,38 @@ func NewFromFile(path string) (*Config, error) {
 	return c, nil
 }
 
+func (c *Config) Path() string {
+	return c.path
+}
+
 func (c *Config) Read() error {
-	_, err := toml.DecodeFile(c.path, c)
+	data, err := os.ReadFile(c.path)
 	if err != nil {
-		return fmt.Errorf("read config file %q: %w", c.path, err)
+		return fmt.Errorf("read config file '%s': %w", c.path, err)
 	}
+	if err = yaml.Unmarshal(data, c); err != nil {
+		return fmt.Errorf("parse config file '%s': %w", c.path, err)
+	}
+
 	return nil
 }
 
 func (c *Config) Save() error {
 	dir, _ := filepath.Split(c.path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("create config directory %q: %w", dir, err)
+		return fmt.Errorf("create config directory '%s': %w", dir, err)
 	}
 
 	f, err := os.OpenFile(c.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("write config file %q: %w", c.path, err)
+		return fmt.Errorf("write config file '%s': %w", c.path, err)
 	}
 
-	encoder := toml.NewEncoder(f)
-	encoder.Indent = ""
+	encoder := yaml.NewEncoder(f)
+	encoder.SetIndent(2)
 	if err = encoder.Encode(c); err != nil {
 		_ = f.Close()
-		return fmt.Errorf("encode config file %q: %w", c.path, err)
+		return fmt.Errorf("encode config file '%s': %w", c.path, err)
 	}
 	return f.Close()
 }

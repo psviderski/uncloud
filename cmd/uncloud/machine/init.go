@@ -3,6 +3,8 @@ package machine
 import (
 	"context"
 	"fmt"
+	"net/netip"
+
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
@@ -11,7 +13,6 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/spf13/cobra"
-	"net/netip"
 )
 
 type initOptions struct {
@@ -22,15 +23,16 @@ type initOptions struct {
 	noDNS       bool
 	publicIP    string
 	sshKey      string
-	cluster     string
+	context     string
 }
 
 func NewInitCommand() *cobra.Command {
 	opts := initOptions{}
 	cmd := &cobra.Command{
 		Use:   "init [USER@HOST:PORT]",
-		Short: "Initialise a new cluster that consists of the local or remote machine.",
-		// TODO: include usage examples of initialising a local and remote machine.
+		Short: "Initialise a new cluster with a remote machine as the first member.",
+		// TODO: include usage examples of initialising a remote machine.
+		// TODO: support initialising a cluster on the local machine.
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
@@ -80,8 +82,8 @@ func NewInitCommand() *cobra.Command {
 		"Path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
 	)
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster in the local config if initialising a remote machine.",
+		&opts.context, "context", "c", "",
+		"Name of the cluster context in the local config.",
 	)
 
 	return cmd
@@ -107,7 +109,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		publicIP = &ip
 	}
 
-	client, err := uncli.InitCluster(ctx, remoteMachine, opts.cluster, opts.name, netPrefix, publicIP)
+	client, err := uncli.InitCluster(ctx, remoteMachine, opts.context, opts.name, netPrefix, publicIP)
 	if err != nil {
 		return err
 	}

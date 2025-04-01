@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"github.com/psviderski/uncloud/internal/cli"
 )
 
 type releaseOptions struct {
-	cluster string
+	context string
 }
 
 func NewReleaseCommand() *cobra.Command {
@@ -28,15 +29,15 @@ func NewReleaseCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster. (default is the current cluster)",
+		&opts.context, "context", "c", "",
+		"Name of the cluster context. (default is the current context)",
 	)
 
 	return cmd
 }
 
 func release(ctx context.Context, uncli *cli.CLI, opts releaseOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.cluster)
+	client, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -12,15 +16,12 @@ import (
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
-	"maps"
-	"slices"
-	"strings"
 )
 
 type deployOptions struct {
 	image   string
 	machine string
-	cluster string
+	context string
 }
 
 func NewDeployCommand() *cobra.Command {
@@ -42,15 +43,15 @@ func NewDeployCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Machine names to deploy to (comma-separated). (default is all machines)")
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster to deploy to. (default is the current cluster)",
+		&opts.context, "context", "c", "",
+		"Name of the cluster context to deploy to. (default is the current context)",
 	)
 
 	return cmd
 }
 
 func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

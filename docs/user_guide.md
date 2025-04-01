@@ -16,7 +16,7 @@ In addition, any ports for any workloads you want to expose will need to be open
 
 ### Configuration
 
-Uncloud stores its configuration in `~/.config/uncloud/config.toml`. If you wish to reinitialise a cluster, simply remove it from this config.
+Uncloud stores its configuration in `~/.config/uncloud/config.yaml`. If you wish to reinitialise a cluster, simply remove it from this config.
 
 ### Initialisation
 

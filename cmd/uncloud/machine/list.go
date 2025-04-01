@@ -3,29 +3,30 @@ package machine
 import (
 	"context"
 	"fmt"
-	"github.com/spf13/cobra"
 	"net/netip"
 	"os"
 	"strings"
 	"text/tabwriter"
+
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/spf13/cobra"
 )
 
 func NewListCommand() *cobra.Command {
-	var cluster string
+	var clusterContext string
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List machines in a cluster.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return list(cmd.Context(), uncli, cluster)
+			return list(cmd.Context(), uncli, clusterContext)
 		},
 	}
 	cmd.Flags().StringVarP(
-		&cluster, "cluster", "c", "",
-		"Name of the cluster. (default is the current cluster)",
+		&clusterContext, "context", "c", "",
+		"Name of the cluster context. (default is the current context)",
 	)
 	return cmd
 }

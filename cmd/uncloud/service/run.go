@@ -3,13 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
+
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
-	"slices"
-	"strings"
 )
 
 type runOptions struct {
@@ -79,8 +80,8 @@ func NewRunCommand() *cobra.Command {
 			"/host/path:/container/path[:ro]. Can be specified multiple times.")
 
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster to run the service in. (default is the current cluster)",
+		&opts.cluster, "context", "c", "",
+		"Name of the cluster context to run the service in. (default is the current context)",
 	)
 
 	return cmd

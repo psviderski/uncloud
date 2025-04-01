@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+
 	"github.com/psviderski/uncloud/internal/secret"
 )
 
@@ -14,11 +15,11 @@ const (
 )
 
 type MachineConnection struct {
-	SSH        SSHDestination `toml:"ssh,omitempty"`
-	SSHKeyFile string         `toml:"ssh_key_file,omitempty"`
-	TCP        netip.AddrPort `toml:"tcp,omitempty"`
-	Host       string         `toml:"host,omitempty"`
-	PublicKey  secret.Secret  `toml:"public_key,omitempty"`
+	SSH        SSHDestination `yaml:"ssh,omitempty"`
+	SSHKeyFile string         `yaml:"ssh_key_file,omitempty"`
+	TCP        netip.AddrPort `yaml:"tcp,omitempty"`
+	Host       string         `yaml:"host,omitempty"`
+	PublicKey  secret.Secret  `yaml:"public_key,omitempty"`
 }
 
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".

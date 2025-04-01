@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -11,14 +13,13 @@ import (
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
-	"strings"
 )
 
 type deployOptions struct {
 	files    []string
 	services []string
 
-	cluster string
+	context string
 }
 
 // NewDeployCommand creates a new command to deploy services from a Compose file.
@@ -41,8 +42,8 @@ func NewDeployCommand() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
 		"One or more Compose files to deploy services from. (default compose-ports-long.yaml)")
-	cmd.Flags().StringVarP(&opts.cluster, "cluster", "c", "",
-		"Name of the cluster to deploy to (default is the current cluster)")
+	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
+		"Name of the cluster context to deploy to (default is the current context)")
 
 	return cmd
 }
@@ -62,7 +63,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 	}
 
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

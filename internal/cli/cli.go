@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
+	"os"
+
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -13,14 +16,12 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/connector"
-	"net/netip"
-	"os"
 
 	"github.com/charmbracelet/huh"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-const defaultClusterName = "default"
+const defaultContextName = "default"
 
 type CLI struct {
 	config *config.Config
@@ -45,61 +46,68 @@ func New(configPath string, conn *config.MachineConnection) (*CLI, error) {
 	}, nil
 }
 
-func (cli *CLI) CreateCluster(name string) error {
-	if _, ok := cli.config.Clusters[name]; ok {
-		return fmt.Errorf("cluster %q already exists", name)
+func (cli *CLI) CreateContext(name string) error {
+	if _, ok := cli.config.Contexts[name]; ok {
+		return fmt.Errorf("context '%s' already exists", name)
 	}
-	cli.config.Clusters[name] = &config.Cluster{
+	cli.config.Contexts[name] = &config.Context{
 		Name: name,
 	}
 	return cli.config.Save()
 }
 
-func (cli *CLI) SetCurrentCluster(name string) error {
-	if _, ok := cli.config.Clusters[name]; !ok {
+func (cli *CLI) SetCurrentContext(name string) error {
+	if _, ok := cli.config.Contexts[name]; !ok {
 		return api.ErrNotFound
 	}
-	cli.config.CurrentCluster = name
+	cli.config.CurrentContext = name
 	return cli.config.Save()
 }
 
-// ConnectCluster connects to a cluster using the given cluster name or the current cluster if not specified.
+// ConnectCluster connects to a cluster using the given context name or the current context if not specified.
 // If the CLI was initialised with a machine connection, the config is ignored and the connection is used instead.
-func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client.Client, error) {
+func (cli *CLI) ConnectCluster(ctx context.Context, contextName string) (*client.Client, error) {
 	if cli.conn != nil {
 		return connectCluster(ctx, *cli.conn)
 	}
 
-	if len(cli.config.Clusters) == 0 {
-		return nil, errors.New(
-			"no clusters found in the Uncloud config. " +
-				"Please initialise a cluster with `uncloud machine init` first",
+	if len(cli.config.Contexts) == 0 {
+		return nil, fmt.Errorf(
+			"no cluster contexts found in the Uncloud config (%s). "+
+				"Please initialise a cluster with 'uncloud machine init' first",
+			cli.config.Path(),
 		)
 	}
-	if clusterName == "" {
+	if contextName == "" {
 		// If the cluster is not specified, use the current cluster if set.
-		if cli.config.CurrentCluster == "" {
-			return nil, errors.New(
-				"the current cluster is not set in the Uncloud config. " +
-					"Please specify a cluster with the --cluster flag or set current_cluster in the config",
-			)
-		}
-		if _, ok := cli.config.Clusters[cli.config.CurrentCluster]; !ok {
+		if cli.config.CurrentContext == "" {
 			return nil, fmt.Errorf(
-				"current cluster %q not found in the config. "+
-					"Please specify a cluster with the --cluster flag or update current_cluster in the config",
-				cli.config.CurrentCluster,
+				"the current cluster context is not set in the Uncloud config (%s). "+
+					"Please specify the context with the '--context' flag or set 'current_context' in the config",
+				cli.config.Path(),
 			)
 		}
-		clusterName = cli.config.CurrentCluster
+		if _, ok := cli.config.Contexts[cli.config.CurrentContext]; !ok {
+			return nil, fmt.Errorf(
+				"current cluster context '%s' not found in the Uncloud config (%s). "+
+					"Please specify the context with the '--context' flag or update 'current_context' in the config",
+				cli.config.CurrentContext,
+				cli.config.Path(),
+			)
+		}
+		contextName = cli.config.CurrentContext
 	}
 
-	cfg, ok := cli.config.Clusters[clusterName]
+	cfg, ok := cli.config.Contexts[contextName]
 	if !ok {
-		return nil, fmt.Errorf("cluster %q not found in the config", clusterName)
+		return nil, fmt.Errorf("cluster context '%s' not found in the Uncloud config (%s)",
+			contextName, cli.config.Path())
 	}
 	if len(cfg.Connections) == 0 {
-		return nil, fmt.Errorf("no connection configurations found for cluster %q in the config", clusterName)
+		return nil, fmt.Errorf(
+			"no connection configurations found for cluster context '%s' in the Uncloud config (%s)",
+			contextName, cli.config.Path(),
+		)
 	}
 
 	// TODO: iterate over all connections and try to connect to the cluster using the first successful connection.
@@ -107,7 +115,7 @@ func (cli *CLI) ConnectCluster(ctx context.Context, clusterName string) (*client
 
 	c, err := connectCluster(ctx, conn)
 	if err != nil {
-		return nil, errors.New("no valid connection configuration found for the cluster")
+		return nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
 	}
 
 	return c, nil
@@ -141,13 +149,13 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 func (cli *CLI) InitCluster(
 	ctx context.Context,
 	remoteMachine *RemoteMachine,
-	clusterName,
+	contextName,
 	machineName string,
 	netPrefix netip.Prefix,
 	publicIP *netip.Addr,
 ) (*client.Client, error) {
 	if remoteMachine != nil {
-		return cli.initRemoteMachine(ctx, *remoteMachine, clusterName, machineName, netPrefix, publicIP)
+		return cli.initRemoteMachine(ctx, *remoteMachine, contextName, machineName, netPrefix, publicIP)
 	}
 	// TODO: implement local machine initialisation
 	return nil, fmt.Errorf("local machine initialisation is not implemented yet")
@@ -156,16 +164,16 @@ func (cli *CLI) InitCluster(
 func (cli *CLI) initRemoteMachine(
 	ctx context.Context,
 	remoteMachine RemoteMachine,
-	clusterName,
+	contextName,
 	machineName string,
 	netPrefix netip.Prefix,
 	publicIP *netip.Addr,
 ) (*client.Client, error) {
-	if clusterName == "" {
-		clusterName = defaultClusterName
+	if contextName == "" {
+		contextName = defaultContextName
 	}
-	if _, ok := cli.config.Clusters[clusterName]; ok {
-		return nil, fmt.Errorf("cluster %q already exists", clusterName)
+	if _, ok := cli.config.Contexts[contextName]; ok {
+		return nil, fmt.Errorf("cluster %q already exists", contextName)
 	}
 
 	machineClient, err := cli.provisionRemoteMachine(ctx, remoteMachine)
@@ -207,24 +215,24 @@ func (cli *CLI) initRemoteMachine(
 	if err != nil {
 		return nil, fmt.Errorf("init cluster: %w", err)
 	}
-	fmt.Printf("Cluster %q initialised with machine %q\n", clusterName, resp.Machine.Name)
-
-	if err = cli.CreateCluster(clusterName); err != nil {
-		return nil, fmt.Errorf("save cluster to config: %w", err)
+	fmt.Printf("Cluster initialised with machine '%s' and saved as context '%s' in your local config (%s)\n",
+		resp.Machine.Name, contextName, cli.config.Path())
+	if err = cli.CreateContext(contextName); err != nil {
+		return nil, fmt.Errorf("save cluster context to config: %w", err)
 	}
 	// Set the current cluster to the just created one if it is the only cluster in the config.
-	if len(cli.config.Clusters) == 1 {
-		if err = cli.SetCurrentCluster(clusterName); err != nil {
-			return nil, fmt.Errorf("set current cluster: %w", err)
+	if len(cli.config.Contexts) == 1 {
+		if err = cli.SetCurrentContext(contextName); err != nil {
+			return nil, fmt.Errorf("set current cluster context: %w", err)
 		}
 	}
 
-	// Save the machine's SSH connection details in the cluster config.
+	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
 		SSH:        config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
 		SSHKeyFile: remoteMachine.KeyPath,
 	}
-	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
+	cli.config.Contexts[contextName].Connections = append(cli.config.Contexts[contextName].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {
 		return nil, fmt.Errorf("save config: %w", err)
 	}
@@ -234,11 +242,11 @@ func (cli *CLI) initRemoteMachine(
 // AddMachine provisions a remote machine and adds it to the cluster. It returns a client to interact with the machine
 // which should be closed after use by the caller.
 func (cli *CLI) AddMachine(
-	ctx context.Context, remoteMachine RemoteMachine, clusterName, machineName string, publicIP *netip.Addr,
+	ctx context.Context, remoteMachine RemoteMachine, contextName, machineName string, publicIP *netip.Addr,
 ) (*client.Client, error) {
-	c, err := cli.ConnectCluster(ctx, clusterName)
+	c, err := cli.ConnectCluster(ctx, contextName)
 	if err != nil {
-		return nil, fmt.Errorf("connect to cluster: %w", err)
+		return nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
 	}
 	defer c.Close()
 
@@ -295,7 +303,7 @@ func (cli *CLI) AddMachine(
 
 	addResp, err := c.AddMachine(ctx, addReq)
 	if err != nil {
-		return nil, fmt.Errorf("add machine to cluster: %w", err)
+		return nil, fmt.Errorf("add machine to cluster (context '%s'): %w", contextName, err)
 	}
 
 	// List other machines in the cluster to include them in the join request.
@@ -319,17 +327,17 @@ func (cli *CLI) AddMachine(
 		return nil, fmt.Errorf("join cluster: %w", err)
 	}
 
-	fmt.Printf("Machine %q added to cluster\n", addResp.Machine.Name)
+	fmt.Printf("Machine '%s' added to the cluster (context '%s').\n", addResp.Machine.Name, contextName)
 
-	// Save the machine's SSH connection details in the cluster config.
+	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
 		SSH:        config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
 		SSHKeyFile: remoteMachine.KeyPath,
 	}
-	if clusterName == "" {
-		clusterName = cli.config.CurrentCluster
+	if contextName == "" {
+		contextName = cli.config.CurrentContext
 	}
-	cli.config.Clusters[clusterName].Connections = append(cli.config.Clusters[clusterName].Connections, connCfg)
+	cli.config.Contexts[contextName].Connections = append(cli.config.Contexts[contextName].Connections, connCfg)
 	if err = cli.config.Save(); err != nil {
 		return nil, fmt.Errorf("save config: %w", err)
 	}
@@ -396,7 +404,8 @@ func (cli *CLI) promptResetMachine() error {
 		return fmt.Errorf("remote machine is already initialised as a cluster member")
 	}
 	// TODO: implement resetting the remote machine.
-	return fmt.Errorf("resetting the remote machine is not implemented yet")
+	return fmt.Errorf("resetting the remote machine is not implemented yet. " +
+		"Please manually run 'uncloud-uninstall' on the remote machine to fully uninstall Uncloud from it")
 }
 
 // ProgressOut returns an output stream for progress writer.

@@ -53,7 +53,7 @@ func main() {
 			configPath := fs.ExpandHomeDir(opts.configPath)
 			uncli, err := cli.New(configPath, conn)
 			if err != nil {
-				return fmt.Errorf("initialize CLI: %w", err)
+				return fmt.Errorf("initialise CLI: %w", err)
 			}
 			cmd.SetContext(context.WithValue(cmd.Context(), "cli", uncli))
 			return nil
@@ -64,9 +64,9 @@ func main() {
 		"Connect to a remote cluster machine without using the Uncloud configuration file.\n"+
 			"Format: [ssh://]user@host[:port] or tcp://host:port")
 	// TODO: allow to override using UNCLOUD_CONFIG env var.
-	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.toml",
+	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"Path to the Uncloud configuration file.")
-	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "toml")
+	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
 
 	cmd.AddCommand(
 		NewDeployCommand(),

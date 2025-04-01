@@ -3,11 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/spf13/cobra"
 	"os"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/spf13/cobra"
 )
 
 func NewListCommand() *cobra.Command {
@@ -22,8 +23,8 @@ func NewListCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(
-		&cluster, "cluster", "c", "",
-		"Name of the cluster. (default is the current cluster)",
+		&cluster, "context", "c", "",
+		"Name of the cluster context. (default is the current context)",
 	)
 	return cmd
 }

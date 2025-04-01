@@ -52,6 +52,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.36.3
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.36.3
 )
 
@@ -310,7 +311,6 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto v0.0.0-20240401170217-c3f982113cda // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259 // indirect
 	howett.net/plist v1.0.0 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect

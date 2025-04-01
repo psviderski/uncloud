@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
 type showOptions struct {
-	cluster string
+	context string
 }
 
 func NewShowCommand() *cobra.Command {
@@ -26,15 +27,15 @@ func NewShowCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster. (default is the current cluster)",
+		&opts.context, "context", "c", "",
+		"Name of the cluster context. (default is the current context)",
 	)
 
 	return cmd
 }
 
 func show(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

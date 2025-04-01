@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/docker/docker/client"
-	"github.com/spf13/cobra"
 	"os"
 	"strings"
+
+	"github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/cmd/ucind/cluster"
 	"github.com/psviderski/uncloud/internal/ucind"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -44,9 +45,9 @@ func main() {
 	}
 
 	// TODO: allow to override using UNCLOUD_CONFIG env var.
-	cmd.PersistentFlags().StringVar(&configPath, "uncloud-config", "~/.config/uncloud/config.toml",
+	cmd.PersistentFlags().StringVar(&configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"path to the Uncloud configuration file.")
-	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "toml")
+	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
 
 	cmd.AddCommand(
 		cluster.NewRootCommand(),

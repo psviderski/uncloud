@@ -40,8 +40,8 @@ func NewScaleCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster. (default is the current cluster)",
+		&opts.cluster, "context", "c", "",
+		"Name of the cluster context. (default is the current context)",
 	)
 
 	return cmd

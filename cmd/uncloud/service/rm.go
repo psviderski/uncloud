@@ -3,11 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 type rmOptions struct {
@@ -29,8 +30,8 @@ func NewRmCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster. (default is the current cluster)",
+		&opts.cluster, "context", "c", "",
+		"Name of the cluster context. (default is the current context)",
 	)
 	return cmd
 }

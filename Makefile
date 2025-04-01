@@ -31,7 +31,7 @@ reset-dev:
 	ssh ubuntu@152.67.101.197 "sudo systemctl stop uncloud && sudo rm -rf /var/lib/uncloud"
 
 demo-reset:
-	rm -fv ~/.config/uncloud/config.toml
+	rm -fv ~/.config/uncloud/config.yaml
 	ssh ubuntu@152.67.101.197 "AUTO_CONFIRM=true sudo -E uncloud-uninstall && docker rmi caddy:2.9.1"
 	ssh root@5.223.45.199 "AUTO_CONFIRM=true sudo -E uncloud-uninstall"
 	ssh spy@192.168.40.243 "AUTO_CONFIRM=true sudo -E uncloud-uninstall"

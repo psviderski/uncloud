@@ -2,6 +2,7 @@ package ucind
 
 import (
 	"fmt"
+
 	"github.com/psviderski/uncloud/internal/cli/config"
 )
 
@@ -19,11 +20,11 @@ func (u *ConfigUpdater) AddCluster(c Cluster) error {
 		return fmt.Errorf("read Uncloud config: %w", err)
 	}
 
-	if _, ok := cfg.Clusters[c.Name]; ok {
-		return fmt.Errorf("cluster '%s' already exists", c.Name)
+	if _, ok := cfg.Contexts[c.Name]; ok {
+		return fmt.Errorf("cluster context '%s' already exists", c.Name)
 	}
 
-	clusterCfg := &config.Cluster{
+	clusterCfg := &config.Context{
 		Name:        c.Name,
 		Connections: make([]config.MachineConnection, len(c.Machines)),
 	}
@@ -33,8 +34,8 @@ func (u *ConfigUpdater) AddCluster(c Cluster) error {
 		}
 	}
 
-	cfg.Clusters[c.Name] = clusterCfg
-	cfg.CurrentCluster = c.Name
+	cfg.Contexts[c.Name] = clusterCfg
+	cfg.CurrentContext = c.Name
 
 	if err = cfg.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
@@ -48,17 +49,17 @@ func (u *ConfigUpdater) RemoveCluster(name string) error {
 		return fmt.Errorf("read Uncloud config: %w", err)
 	}
 
-	if _, ok := cfg.Clusters[name]; !ok {
+	if _, ok := cfg.Contexts[name]; !ok {
 		return nil
 	}
 
-	delete(cfg.Clusters, name)
+	delete(cfg.Contexts, name)
 
-	if cfg.CurrentCluster == name {
-		cfg.CurrentCluster = ""
+	if cfg.CurrentContext == name {
+		cfg.CurrentContext = ""
 	}
-	if _, ok := cfg.Clusters["default"]; ok {
-		cfg.CurrentCluster = "default"
+	if _, ok := cfg.Contexts["default"]; ok {
+		cfg.CurrentContext = "default"
 	}
 
 	if err = cfg.Save(); err != nil {

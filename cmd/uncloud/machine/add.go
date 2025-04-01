@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
+	"time"
+
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
@@ -16,8 +19,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"net/netip"
-	"time"
 )
 
 type addOptions struct {
@@ -25,7 +26,7 @@ type addOptions struct {
 	noCaddy  bool
 	publicIP string
 	sshKey   string
-	cluster  string
+	context  string
 }
 
 func NewAddCommand() *cobra.Command {
@@ -66,8 +67,8 @@ func NewAddCommand() *cobra.Command {
 		"path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
 	)
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster to add the machine to. (default is the current cluster)",
+		&opts.context, "context", "c", "",
+		"Name of the cluster context to add the machine to. (default is the current context)",
 	)
 	return cmd
 }
@@ -87,7 +88,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 		publicIP = &ip
 	}
 
-	machineClient, err := uncli.AddMachine(ctx, remoteMachine, opts.cluster, opts.name, publicIP)
+	machineClient, err := uncli.AddMachine(ctx, remoteMachine, opts.context, opts.name, publicIP)
 	if err != nil {
 		return err
 	}

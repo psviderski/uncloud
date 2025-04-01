@@ -3,14 +3,15 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/docker/docker/pkg/stringid"
-	"github.com/docker/go-units"
 	"os"
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/docker/docker/pkg/stringid"
+	"github.com/docker/go-units"
+
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/spf13/cobra"
 )
 
 type inspectOptions struct {
@@ -31,8 +32,8 @@ func NewInspectCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(
-		&opts.cluster, "cluster", "c", "",
-		"Name of the cluster. (default is the current cluster)",
+		&opts.cluster, "context", "c", "",
+		"Name of the cluster context. (default is the current context)",
 	)
 	return cmd
 }
