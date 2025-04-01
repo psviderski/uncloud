@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
+	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/cmd/uncloud/machine"
 	"github.com/psviderski/uncloud/cmd/uncloud/service"
@@ -67,10 +68,12 @@ func main() {
 	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"Path to the Uncloud configuration file.")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
+	// TODO: make --context a global flag and pass it as a value of the command context.
 
 	cmd.AddCommand(
 		NewDeployCommand(),
 		caddy.NewRootCommand(),
+		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),

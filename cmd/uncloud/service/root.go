@@ -6,8 +6,9 @@ import (
 
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "service",
-		Short: "Manage services in an Uncloud cluster.",
+		Use:     "service",
+		Aliases: []string{"svc"},
+		Short:   "Manage services in an Uncloud cluster.",
 	}
 	cmd.AddCommand(
 		NewInspectCommand(),
