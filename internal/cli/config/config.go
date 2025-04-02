@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 type Config struct {
@@ -45,7 +45,7 @@ func (c *Config) Read() error {
 		return fmt.Errorf("read config file '%s': %w", c.path, err)
 	}
 	if err = yaml.Unmarshal(data, c); err != nil {
-		return fmt.Errorf("parse config file '%s': %w", c.path, err)
+		return fmt.Errorf("parse config file '%s': %s", c.path, yaml.FormatError(err, true, true))
 	}
 
 	return nil
@@ -62,8 +62,7 @@ func (c *Config) Save() error {
 		return fmt.Errorf("write config file '%s': %w", c.path, err)
 	}
 
-	encoder := yaml.NewEncoder(f)
-	encoder.SetIndent(2)
+	encoder := yaml.NewEncoder(f, yaml.Indent(2), yaml.IndentSequence(true))
 	if err = encoder.Encode(c); err != nil {
 		_ = f.Close()
 		return fmt.Errorf("encode config file '%s': %w", c.path, err)

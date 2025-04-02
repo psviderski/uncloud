@@ -38,7 +38,7 @@ func main() {
 						return fmt.Errorf("parse TCP address: %w", err)
 					}
 					conn = &config.MachineConnection{
-						TCP: addrPort,
+						TCP: &addrPort,
 					}
 				} else {
 					dest := opts.connect

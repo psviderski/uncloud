@@ -137,8 +137,8 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 			KeyPath: keyPath,
 		}
 		return client.New(ctx, connector.NewSSHConnector(sshConfig))
-	} else if conn.TCP.IsValid() {
-		return client.New(ctx, connector.NewTCPConnector(conn.TCP))
+	} else if conn.TCP != nil && conn.TCP.IsValid() {
+		return client.New(ctx, connector.NewTCPConnector(*conn.TCP))
 	}
 
 	return nil, errors.New("connection configuration is invalid")

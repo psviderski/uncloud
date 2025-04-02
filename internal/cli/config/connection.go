@@ -17,9 +17,11 @@ const (
 type MachineConnection struct {
 	SSH        SSHDestination `yaml:"ssh,omitempty"`
 	SSHKeyFile string         `yaml:"ssh_key_file,omitempty"`
-	TCP        netip.AddrPort `yaml:"tcp,omitempty"`
-	Host       string         `yaml:"host,omitempty"`
-	PublicKey  secret.Secret  `yaml:"public_key,omitempty"`
+	// TCP is the address and port of the machine's API server.
+	// The pointer is used to omit the field when not set. Otherwise, yaml marshalling includes an empty object.
+	TCP       *netip.AddrPort `yaml:"tcp,omitempty"`
+	Host      string          `yaml:"host,omitempty"`
+	PublicKey secret.Secret   `yaml:"public_key,omitempty"`
 }
 
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".

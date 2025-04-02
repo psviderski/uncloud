@@ -30,7 +30,7 @@ func (u *ConfigUpdater) AddCluster(c Cluster) error {
 	}
 	for i, m := range c.Machines {
 		clusterCfg.Connections[i] = config.MachineConnection{
-			TCP: m.APIAddress,
+			TCP: &m.APIAddress,
 		}
 	}
 

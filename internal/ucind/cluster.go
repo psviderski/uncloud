@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
+	"time"
+
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"net/netip"
-	"time"
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (
@@ -79,7 +80,7 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 		if err = p.configUpdater.AddCluster(c); err != nil {
 			return c, fmt.Errorf("add cluster to Uncloud config: %w", err)
 		}
-		fmt.Printf("Cluster '%s' added to Uncloud config.\n", c.Name)
+		fmt.Printf("Cluster '%s' added to Uncloud config as the current context.\n", name)
 	}
 
 	return c, nil
