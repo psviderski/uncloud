@@ -1,22 +1,24 @@
 package context
 
 import (
+	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
 )
 
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "context",
-		Aliases: []string{"ctx"},
+		Use:     "ctx",
+		Aliases: []string{"context"},
 		Short:   "Switch between different cluster contexts. Contains subcommands to manage contexts.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO
-			return nil
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return selectContext(uncli)
 		},
 	}
 
 	cmd.AddCommand(
 		NewListCommand(),
+		NewUseCommand(),
 	)
 
 	return cmd

@@ -15,8 +15,8 @@ func NewListCommand() *cobra.Command {
 	var clusterContext string
 
 	cmd := &cobra.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
+		Use:     "ls",
+		Aliases: []string{"list"},
 		Short:   "List available cluster contexts.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
