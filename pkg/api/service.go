@@ -107,7 +107,9 @@ type ContainerSpec struct {
 	Command []string
 	// Entrypoint overrides the default ENTRYPOINT of the image.
 	Entrypoint []string
-	Image      string
+	// Env defines the environment variables to set inside the container.
+	Env   EnvVars
+	Image string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.
@@ -162,6 +164,20 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	}
 
 	return spec
+}
+
+type EnvVars map[string]string
+
+// ToSlice converts the environment variables to a slice of strings in the format "key=value".
+func (e EnvVars) ToSlice() []string {
+	env := make([]string, 0, len(e))
+	for k, v := range e {
+		if k == "" {
+			continue
+		}
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+	return env
 }
 
 type Service struct {

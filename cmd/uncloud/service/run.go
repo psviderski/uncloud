@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
@@ -17,6 +18,7 @@ type runOptions struct {
 	command           []string
 	entrypoint        string
 	entrypointChanged bool
+	env               []string
 	image             string
 	machines          []string
 	mode              string
@@ -51,6 +53,9 @@ func NewRunCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.entrypoint, "entrypoint", "",
 		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it.")
+	cmd.Flags().StringSliceVarP(&opts.env, "env", "e", nil,
+		"Set an environment variable for service containers. Can be specified multiple times.\n"+
+			"Format: VAR=value or just VAR to use the value from the local environment.")
 	cmd.Flags().StringVar(&opts.mode, "mode", api.ServiceModeReplicated,
 		fmt.Sprintf("Replication mode of the service: either '%s' (a specified number of containers across "+
 			"the machines) or '%s' (one container on every machine).",
@@ -88,6 +93,11 @@ func NewRunCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
+	env, err := parseEnv(opts.env)
+	if err != nil {
+		return err
+	}
+
 	switch opts.mode {
 	case api.ServiceModeReplicated, api.ServiceModeGlobal:
 	default:
@@ -136,6 +146,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command:    opts.command,
+			Env:        env,
 			Image:      opts.image,
 			PullPolicy: opts.pull,
 			Volumes:    opts.volumes,
@@ -183,4 +194,26 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	}
 
 	return nil
+}
+
+// parseEnv parses the environment variables from the command line arguments.
+// It supports two formats: "VAR=value" or just "VAR" to use the value from the local environment.
+func parseEnv(env []string) (api.EnvVars, error) {
+	envVars := make(api.EnvVars)
+	for _, e := range env {
+		key, value, hasValue := strings.Cut(e, "=")
+		if key == "" {
+			return nil, fmt.Errorf("invalid environment variable: '%s'", e)
+		}
+
+		if hasValue {
+			envVars[key] = value
+		} else {
+			if localEnvValue, ok := os.LookupEnv(key); ok {
+				envVars[key] = localEnvValue
+			}
+		}
+	}
+
+	return envVars, nil
 }

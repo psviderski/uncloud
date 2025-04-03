@@ -2,6 +2,7 @@ package compose
 
 import (
 	"fmt"
+
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -19,13 +20,23 @@ func ServiceSpecFromCompose(name string, service types.ServiceConfig) (api.Servi
 		return api.ServiceSpec{}, fmt.Errorf("unsupported pull policy: '%s'", service.PullPolicy)
 	}
 
+	env := make(map[string]string, len(service.Environment))
+	for k, v := range service.Environment {
+		if v == nil {
+			// nil value means the variable misses a value in the compose file, and it hasn't been resolved
+			// to a variable from the local environment running this code.
+			continue
+		}
+		env[k] = *v
+	}
+
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command:    service.Command,
+			Env:        env,
 			Image:      service.Image,
 			Init:       service.Init,
 			PullPolicy: pullPolicy,
-			// TODO: env
 			// TODO: volumes
 		},
 		Name: name,

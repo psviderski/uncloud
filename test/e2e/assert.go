@@ -47,6 +47,11 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 		assert.EqualValues(t, spec.Container.Entrypoint, ctr.Config.Entrypoint)
 	}
 
+	expectedEnvs := spec.Container.Env.ToSlice()
+	for _, env := range expectedEnvs {
+		assert.Contains(t, ctr.Config.Env, env)
+	}
+
 	assert.Equal(t, spec.Container.Image, ctr.Config.Image)
 	assert.Equal(t, spec.Container.Init, ctr.HostConfig.Init)
 	assert.ElementsMatch(t, spec.Container.Volumes, ctr.HostConfig.Binds)

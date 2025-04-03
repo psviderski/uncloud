@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -31,7 +32,6 @@ func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*De
 	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: domain,
-		// TODO: provide an image resolver.
 	}
 
 	return &Deployment{

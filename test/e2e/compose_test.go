@@ -3,12 +3,13 @@ package e2e
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestComposeDeployment(t *testing.T) {
@@ -52,6 +53,11 @@ func TestComposeDeployment(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
+				Env: map[string]string{
+					"VAR":   "value",
+					"BOOL":  "true",
+					"EMPTY": "",
+				},
 				// TODO: resolve image digest and substitute the image with the image@digest.
 				Image: "portainer/pause:3.9",
 			},

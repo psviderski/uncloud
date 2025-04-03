@@ -659,6 +659,8 @@ func TestServiceLifecycle(t *testing.T) {
 		// Verify default settings.
 		assert.Empty(t, ctr.Config.Cmd)
 		assert.EqualValues(t, []string{"/pause"}, ctr.Config.Entrypoint) // Populated by the image.
+		assert.Equal(t, []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}, ctr.Config.Env)
+
 		assert.Nil(t, ctr.HostConfig.Init)
 		assert.Empty(t, ctr.HostConfig.Binds)
 		assert.Empty(t, ctr.HostConfig.PortBindings)
@@ -691,9 +693,15 @@ func TestServiceLifecycle(t *testing.T) {
 				Command: []string{"sleep", "infinity"},
 				// Extra slashes is not a typo, it changes the spec but Linux ignores them and uses the default /pause.
 				Entrypoint: []string{"///pause"},
-				Image:      "portainer/pause:latest",
-				Init:       &init,
-				Volumes:    []string{"/host/path:/container/path:ro"},
+				Env: map[string]string{
+					"VAR":   "value",
+					"EMTPY": "",
+					"BOOL":  "true",
+					"":      "ignored",
+				},
+				Image:   "portainer/pause:latest",
+				Init:    &init,
+				Volumes: []string{"/host/path:/container/path:ro"},
 			},
 			Ports: []api.PortSpec{
 				{
@@ -733,6 +741,15 @@ func TestServiceLifecycle(t *testing.T) {
 
 		assert.EqualValues(t, spec.Container.Command, ctr.Config.Cmd)
 		assert.EqualValues(t, spec.Container.Entrypoint, ctr.Config.Entrypoint)
+
+		expectedEnv := []string{
+			"BOOL=true",
+			"EMTPY=",
+			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+			"VAR=value",
+		}
+		assert.ElementsMatch(t, expectedEnv, ctr.Config.Env)
+
 		assert.True(t, *ctr.HostConfig.Init)
 		assert.Len(t, ctr.HostConfig.Binds, 1)
 		assert.Contains(t, ctr.HostConfig.Binds, spec.Container.Volumes[0])

@@ -357,6 +357,7 @@ func (s *Server) CreateServiceContainer(
 
 	config := &container.Config{
 		Cmd:        spec.Container.Command,
+		Env:        spec.Container.Env.ToSlice(),
 		Entrypoint: spec.Container.Entrypoint,
 		Hostname:   containerName,
 		Image:      spec.Container.Image,
