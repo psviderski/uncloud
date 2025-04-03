@@ -279,7 +279,12 @@ func (p *Provisioner) RemoveCluster(ctx context.Context, name string) error {
 		return fmt.Errorf("list Docker containers with cluster name '%s': %w", name, err)
 	}
 	for _, c := range containers {
-		if err = p.dockerCli.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true}); err != nil {
+		removeOpts := container.RemoveOptions{
+			// Remove anonymous volumes attached to the container (typically /var/lib/docker).
+			RemoveVolumes: true,
+			Force:         true,
+		}
+		if err = p.dockerCli.ContainerRemove(ctx, c.ID, removeOpts); err != nil {
 			return fmt.Errorf("remove Docker container '%s': %w", c.ID, err)
 		}
 	}
