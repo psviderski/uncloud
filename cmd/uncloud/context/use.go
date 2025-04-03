@@ -20,7 +20,11 @@ func NewUseCommand() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			if len(args) == 1 {
-				return uncli.SetCurrentContext(args[0])
+				if err := uncli.SetCurrentContext(args[0]); err != nil {
+					return fmt.Errorf("failed to set the current cluster context to '%s': %w", args[0], err)
+				}
+				fmt.Printf("Current cluster context is now '%s'.\n", args[0])
+				return nil
 			}
 
 			return selectContext(uncli)
