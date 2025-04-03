@@ -27,8 +27,9 @@ go.work.sum
 .env
 .idea/
 
-data
-dist/
+/data/
+/dist/
+/uc
 
 # Web
 node_modules/
