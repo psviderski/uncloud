@@ -173,7 +173,7 @@ func (cli *CLI) initRemoteMachine(
 		contextName = defaultContextName
 	}
 	if _, ok := cli.Config.Contexts[contextName]; ok {
-		return nil, fmt.Errorf("cluster %q already exists", contextName)
+		return nil, fmt.Errorf("cluster context '%s' already exists", contextName)
 	}
 
 	machineClient, err := cli.provisionRemoteMachine(ctx, remoteMachine)
@@ -220,12 +220,10 @@ func (cli *CLI) initRemoteMachine(
 	if err = cli.CreateContext(contextName); err != nil {
 		return nil, fmt.Errorf("save cluster context to config: %w", err)
 	}
-	// Set the current cluster to the just created one if it is the only cluster in the config.
-	if len(cli.Config.Contexts) == 1 {
-		if err = cli.SetCurrentContext(contextName); err != nil {
-			return nil, fmt.Errorf("set current cluster context: %w", err)
-		}
+	if err = cli.SetCurrentContext(contextName); err != nil {
+		return nil, fmt.Errorf("set current cluster context: %w", err)
 	}
+	fmt.Printf("Current cluster context is now '%s'.\n", contextName)
 
 	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{

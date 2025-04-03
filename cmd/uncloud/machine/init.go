@@ -82,8 +82,8 @@ func NewInitCommand() *cobra.Command {
 		"Path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
 	)
 	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context in the local config.",
+		&opts.context, "context", "c", "default",
+		"Name of the created context for the initialised cluster in the Uncloud config.",
 	)
 
 	return cmd
