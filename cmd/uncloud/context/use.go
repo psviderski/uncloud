@@ -39,7 +39,7 @@ func selectContext(uncli *cli.CLI) error {
 		return fmt.Errorf("context management is not available: Uncloud configuration file is not being used")
 	}
 	if len(uncli.Config.Contexts) == 0 {
-		return fmt.Errorf("no contexts found in Uncloud config (%s)", uncli.Config.Path)
+		return fmt.Errorf("no contexts found in Uncloud config (%s)", uncli.Config.Path())
 	}
 
 	contextNames := slices.Sorted(maps.Keys(uncli.Config.Contexts))
