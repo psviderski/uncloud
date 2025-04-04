@@ -115,7 +115,8 @@ type ContainerSpec struct {
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.
 	// Default is PullPolicyMissing if empty.
 	PullPolicy string
-	// List of volumes to bind mount into the container.
+	// Volumes is list of data volumes to mount into the container.
+	// TODO: replace with []VolumeSpec
 	Volumes []string
 }
 
