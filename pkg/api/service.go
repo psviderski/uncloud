@@ -46,6 +46,8 @@ type ServiceSpec struct {
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
+	// Volumes is list of data volumes that can be mounted into the container.
+	Volumes []VolumeSpec
 }
 
 func (s *ServiceSpec) SetDefaults() ServiceSpec {
@@ -85,6 +87,20 @@ func (s *ServiceSpec) Validate() error {
 
 	// TODO: validate there is no conflict between ports.
 
+	for _, v := range s.Volumes {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("invalid volume: %w", err)
+		}
+	}
+	for _, m := range s.Container.VolumeMounts {
+		if !slices.ContainsFunc(s.Volumes, func(v VolumeSpec) bool {
+			return v.Name == m.VolumeName
+		}) {
+			return fmt.Errorf("volume mount references a volume that doesn't exist in the service spec: '%s'",
+				m.VolumeName)
+		}
+	}
+
 	return nil
 }
 
@@ -115,8 +131,11 @@ type ContainerSpec struct {
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.
 	// Default is PullPolicyMissing if empty.
 	PullPolicy string
+	// VolumeMounts specifies how volumes are mounted into the container filesystem.
+	// Each mount references a volume defined in ServiceSpec.Volumes.
+	VolumeMounts []VolumeMount
 	// Volumes is list of data volumes to mount into the container.
-	// TODO: replace with []VolumeSpec
+	// TODO: replace with []VolumeMounts
 	Volumes []string
 }
 
@@ -133,6 +152,12 @@ func (s *ContainerSpec) SetDefaults() ContainerSpec {
 func (s *ContainerSpec) Validate() error {
 	if _, err := reference.ParseDockerRef(s.Image); err != nil {
 		return fmt.Errorf("invalid image: %w", err)
+	}
+
+	for _, m := range s.VolumeMounts {
+		if err := m.Validate(); err != nil {
+			return fmt.Errorf("invalid volume mount: %w", err)
+		}
 	}
 
 	return nil
