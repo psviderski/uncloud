@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -329,6 +330,80 @@ func (s *Server) InspectRemoteImage(
 	}, nil
 }
 
+// CreateVolume creates a new volume with the given options.
+func (s *Server) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
+	var opts volume.CreateOptions
+	if err := json.Unmarshal(req.Options, &opts); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+	}
+
+	vol, err := s.client.VolumeCreate(ctx, opts)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	volBytes, err := json.Marshal(vol)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal volume: %v", err)
+	}
+
+	return &pb.CreateVolumeResponse{Volume: volBytes}, nil
+}
+
+// ListVolumes returns a list of all volumes matching the filter.
+func (s *Server) ListVolumes(ctx context.Context, req *pb.ListVolumesRequest) (*pb.ListVolumesResponse, error) {
+	var opts volume.ListOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+
+		// Handle filters separately because they implement custom JSON unmarshalling.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(req.Options, &raw); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options to raw map: %v", err)
+		}
+
+		if filtersBytes, ok := raw["Filters"]; ok {
+			args, err := filters.FromJSON(string(filtersBytes))
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
+			}
+			opts.Filters = args
+		}
+	}
+
+	resp, err := s.client.VolumeList(ctx, opts)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+	}
+
+	return &pb.ListVolumesResponse{
+		Messages: []*pb.MachineVolumes{
+			{
+				Response: respBytes,
+			},
+		},
+	}, nil
+}
+
+// RemoveVolume removes a volume with the given ID.
+func (s *Server) RemoveVolume(ctx context.Context, req *pb.RemoveVolumeRequest) (*emptypb.Empty, error) {
+	if err := s.client.VolumeRemove(ctx, req.Id, req.Force); err != nil {
+		if client.IsErrNotFound(err) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // CreateServiceContainer creates a new container for the service with the given specifications.
 func (s *Server) CreateServiceContainer(
 	ctx context.Context, req *pb.CreateServiceContainerRequest,
@@ -450,6 +525,55 @@ func (s *Server) CreateServiceContainer(
 
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
 }
+
+//func toMounts(volumes []api.VolumeSpec) ([]mount.Mount, error) {
+//	mounts := make([]mount.Mount, 0, len(volumes))
+//	for _, vol := range volumes {
+//		m := mount.Mount{
+//			Type:     mount.Type(vol.Type),
+//			Source:   vol.Source,
+//			Target:   vol.Target,
+//			ReadOnly: vol.ReadOnly,
+//		}
+//
+//		// Set type-specific options.
+//		switch vol.Type {
+//		case api.VolumeTypeBind:
+//			if vol.BindOptions != nil {
+//				m.BindOptions = &mount.BindOptions{
+//					Propagation:  vol.BindOptions.Propagation,
+//					NonRecursive: false,
+//				}
+//				if vol.BindOptions.CreateHostPath {
+//					m.BindOptions.CreateMountpoint = true
+//				}
+//				// Handle SELinux options if specified
+//				if vol.BindOptions.SELinux == api.SELinuxShared {
+//					m.BindOptions.Propagation = mount.PropagationShared
+//				} else if vol.BindOptions.SELinux == api.SELinuxUnshared {
+//					m.BindOptions.Propagation = mount.PropagationPrivate
+//				}
+//			}
+//		case api.VolumeTypeVolume:
+//			if vol.VolumeOptions != nil {
+//				m.VolumeOptions = &mount.VolumeOptions{
+//					NoCopy:       vol.VolumeOptions.NoCopy,
+//					Labels:       vol.VolumeOptions.Labels,
+//					DriverConfig: vol.VolumeOptions.Driver,
+//					Subpath:      vol.VolumeOptions.Subpath,
+//				}
+//			}
+//		case api.VolumeTypeTmpfs:
+//			m.TmpfsOptions = vol.TmpfsOptions
+//		default:
+//			return nil, fmt.Errorf("invalid volume type: '%s' (must be one of %s, %s, %s)",
+//				vol.Type, api.VolumeTypeBind, api.VolumeTypeVolume, api.VolumeTypeTmpfs)
+//		}
+//
+//		mounts = append(mounts, m)
+//	}
+//	return mounts
+//}
 
 // InspectServiceContainer returns the container information and service specification that was used to create the
 // container with the given ID.

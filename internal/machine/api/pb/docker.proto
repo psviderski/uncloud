@@ -14,11 +14,16 @@ service Docker {
   rpc StopContainer(StopContainerRequest) returns (google.protobuf.Empty);
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
+
   rpc PullImage(PullImageRequest) returns (stream JSONMessage);
   rpc InspectImage(InspectImageRequest) returns (InspectImageResponse);
   // InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
   // Docker auth credentials if necessary.
   rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
+
+  rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
+  rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
+  rpc RemoveVolume(RemoveVolumeRequest) returns (google.protobuf.Empty);
 
   rpc CreateServiceContainer(CreateServiceContainerRequest) returns (CreateContainerResponse);
   rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
@@ -127,6 +132,37 @@ message RemoteImage {
   string reference = 2;
   // Raw JSON manifest from the registry.
   bytes manifest = 3;
+}
+
+message CreateVolumeRequest {
+  // JSON serialised volume.CreateOptions.
+  bytes options = 1;
+}
+
+message CreateVolumeResponse {
+  // JSON serialised volume.Volume.
+  bytes volume = 1;
+}
+
+message ListVolumesRequest {
+  // JSON serialised volume.ListOptions.
+  bytes options = 1;
+}
+
+message ListVolumesResponse {
+  // Must contain only one repeated messages field to allow broadcasting ListVolumes requests to multiple machines.
+  repeated MachineVolumes messages = 1;
+}
+
+message MachineVolumes {
+  Metadata metadata = 1;
+  // JSON serialised volume.ListResponse.
+  bytes response = 2;
+}
+
+message RemoveVolumeRequest {
+  string id = 1;
+  bool force = 2;
 }
 
 message CreateServiceContainerRequest {

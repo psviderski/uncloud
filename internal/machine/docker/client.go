@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/jsonmessage"
 	regtypes "github.com/google/go-containerregistry/pkg/v1/types"
@@ -339,6 +340,75 @@ func parseRemoteImageMessage(msg *pb.RemoteImage) (api.MachineRemoteImage, error
 	}
 
 	return mri, nil
+}
+
+// CreateVolume creates a new volume with the given options.
+func (c *Client) CreateVolume(ctx context.Context, opts volume.CreateOptions) (volume.Volume, error) {
+	var vol volume.Volume
+
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return vol, fmt.Errorf("marshal options: %w", err)
+	}
+
+	resp, err := c.grpcClient.CreateVolume(ctx, &pb.CreateVolumeRequest{Options: optsBytes})
+	if err != nil {
+		return vol, err
+	}
+
+	if err = json.Unmarshal(resp.Volume, &vol); err != nil {
+		return vol, fmt.Errorf("unmarshal volume: %w", err)
+	}
+
+	return vol, nil
+}
+
+// MachineVolumes represents a volume list response from a machine.
+type MachineVolumes struct {
+	Metadata *pb.Metadata
+	Response volume.ListResponse
+}
+
+// ListVolumes returns a list of all volumes matching the filter.
+func (c *Client) ListVolumes(ctx context.Context, opts volume.ListOptions) ([]MachineVolumes, error) {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	resp, err := c.grpcClient.ListVolumes(ctx, &pb.ListVolumesRequest{Options: optsBytes})
+	if err != nil {
+		return nil, err
+	}
+
+	machineVolumes := make([]MachineVolumes, len(resp.Messages))
+	for i, msg := range resp.Messages {
+		machineVolumes[i].Metadata = msg.Metadata
+		if msg.Metadata != nil && msg.Metadata.Error != "" {
+			continue
+		}
+
+		if err = json.Unmarshal(msg.Response, &machineVolumes[i].Response); err != nil {
+			return nil, fmt.Errorf("unmarshal response: %w", err)
+		}
+	}
+
+	return machineVolumes, nil
+}
+
+// RemoveVolume removes a volume with the given ID.
+func (c *Client) RemoveVolume(ctx context.Context, id string, force bool) error {
+	_, err := c.grpcClient.RemoveVolume(ctx, &pb.RemoveVolumeRequest{
+		Id:    id,
+		Force: force,
+	})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return errdefs.NotFound(err)
+		}
+	}
+
+	return err
 }
 
 // CreateServiceContainer creates a new container for the service with the given specifications.
