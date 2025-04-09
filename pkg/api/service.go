@@ -62,6 +62,10 @@ func (s *ServiceSpec) SetDefaults() ServiceSpec {
 	}
 	spec.Container = spec.Container.SetDefaults()
 
+	for i, v := range spec.Volumes {
+		spec.Volumes[i] = v.SetDefaults()
+	}
+
 	return spec
 }
 
@@ -87,11 +91,17 @@ func (s *ServiceSpec) Validate() error {
 
 	// TODO: validate there is no conflict between ports.
 
+	volumeNames := make(map[string]struct{})
 	for _, v := range s.Volumes {
 		if err := v.Validate(); err != nil {
 			return fmt.Errorf("invalid volume: %w", err)
 		}
+		if _, ok := volumeNames[v.Name]; ok {
+			return fmt.Errorf("duplicate volume name: '%s'", v.Name)
+		}
+		volumeNames[v.Name] = struct{}{}
 	}
+
 	for _, m := range s.Container.VolumeMounts {
 		if !slices.ContainsFunc(s.Volumes, func(v VolumeSpec) bool {
 			return v.Name == m.VolumeName
@@ -112,6 +122,13 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 		copy(spec.Ports, s.Ports)
 	}
 	spec.Container = s.Container.Clone()
+
+	if s.Volumes != nil {
+		spec.Volumes = make([]VolumeSpec, len(s.Volumes))
+		for i, v := range s.Volumes {
+			spec.Volumes[i] = v.Clone()
+		}
+	}
 
 	return spec
 }
@@ -170,6 +187,9 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 	slices.Sort(orig.Volumes)
 	slices.Sort(spec.Volumes)
 
+	sortVolumeMounts(orig.VolumeMounts)
+	sortVolumeMounts(spec.VolumeMounts)
+
 	return reflect.DeepEqual(orig, spec)
 }
 
@@ -187,6 +207,10 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	if s.Volumes != nil {
 		spec.Volumes = make([]string, len(s.Volumes))
 		copy(spec.Volumes, s.Volumes)
+	}
+	if s.VolumeMounts != nil {
+		spec.VolumeMounts = make([]VolumeMount, len(s.VolumeMounts))
+		copy(spec.VolumeMounts, s.VolumeMounts)
 	}
 
 	return spec

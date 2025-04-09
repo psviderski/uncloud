@@ -1,6 +1,8 @@
 package deploy
 
 import (
+	"sort"
+
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -35,5 +37,27 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		return ContainerNeedsRecreate
 	}
 
+	// Compare volumes.
+	if len(current.Volumes) != len(new.Volumes) {
+		return ContainerNeedsRecreate
+	}
+	sortVolumes(current.Volumes)
+	sortVolumes(new.Volumes)
+	for i := range current.Volumes {
+		if !current.Volumes[i].Equals(new.Volumes[i]) {
+			// TODO: require only spec update for cases (see TODOs in tests):
+			//  * bind volumes with different CreateHostPath
+			//  * changed reference name in spec but preserved original volume name
+			// TODO: should defined but not used (no corresponding mounts) volumes be simply ignored?
+			return ContainerNeedsRecreate
+		}
+	}
+
 	return ContainerUpToDate
+}
+
+func sortVolumes(volumes []api.VolumeSpec) {
+	sort.Slice(volumes, func(i, j int) bool {
+		return volumes[i].Name < volumes[j].Name
+	})
 }

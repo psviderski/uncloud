@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
@@ -461,6 +463,14 @@ func (s *Server) CreateServiceContainer(
 		config.Labels[api.LabelServicePorts] = strings.Join(encodedPorts, ",")
 	}
 
+	mounts, err := toDockerMounts(spec.Volumes, spec.Container.VolumeMounts)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.verifyDockerVolumesExist(ctx, mounts); err != nil {
+		return nil, err
+	}
+
 	portBindings := make(nat.PortMap)
 	for _, p := range spec.Ports {
 		if p.Mode != api.PortModeHost {
@@ -479,6 +489,7 @@ func (s *Server) CreateServiceContainer(
 	hostConfig := &container.HostConfig{
 		Binds:        spec.Container.Volumes,
 		Init:         spec.Container.Init,
+		Mounts:       mounts,
 		PortBindings: portBindings,
 		// Always restart service containers if they exit or a machine restarts.
 		// For one-off containers and batch jobs we plan to use a different service type/mode.
@@ -526,54 +537,100 @@ func (s *Server) CreateServiceContainer(
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
 }
 
-//func toMounts(volumes []api.VolumeSpec) ([]mount.Mount, error) {
-//	mounts := make([]mount.Mount, 0, len(volumes))
-//	for _, vol := range volumes {
-//		m := mount.Mount{
-//			Type:     mount.Type(vol.Type),
-//			Source:   vol.Source,
-//			Target:   vol.Target,
-//			ReadOnly: vol.ReadOnly,
-//		}
-//
-//		// Set type-specific options.
-//		switch vol.Type {
-//		case api.VolumeTypeBind:
-//			if vol.BindOptions != nil {
-//				m.BindOptions = &mount.BindOptions{
-//					Propagation:  vol.BindOptions.Propagation,
-//					NonRecursive: false,
-//				}
-//				if vol.BindOptions.CreateHostPath {
-//					m.BindOptions.CreateMountpoint = true
-//				}
-//				// Handle SELinux options if specified
-//				if vol.BindOptions.SELinux == api.SELinuxShared {
-//					m.BindOptions.Propagation = mount.PropagationShared
-//				} else if vol.BindOptions.SELinux == api.SELinuxUnshared {
-//					m.BindOptions.Propagation = mount.PropagationPrivate
-//				}
-//			}
-//		case api.VolumeTypeVolume:
-//			if vol.VolumeOptions != nil {
-//				m.VolumeOptions = &mount.VolumeOptions{
-//					NoCopy:       vol.VolumeOptions.NoCopy,
-//					Labels:       vol.VolumeOptions.Labels,
-//					DriverConfig: vol.VolumeOptions.Driver,
-//					Subpath:      vol.VolumeOptions.Subpath,
-//				}
-//			}
-//		case api.VolumeTypeTmpfs:
-//			m.TmpfsOptions = vol.TmpfsOptions
-//		default:
-//			return nil, fmt.Errorf("invalid volume type: '%s' (must be one of %s, %s, %s)",
-//				vol.Type, api.VolumeTypeBind, api.VolumeTypeVolume, api.VolumeTypeTmpfs)
-//		}
-//
-//		mounts = append(mounts, m)
-//	}
-//	return mounts
-//}
+func toDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount.Mount, error) {
+	dockerMounts := make([]mount.Mount, 0, len(mounts))
+	for _, m := range mounts {
+		idx := slices.IndexFunc(volumes, func(v api.VolumeSpec) bool {
+			return v.Name == m.VolumeName
+		})
+		if idx == -1 {
+			return nil, fmt.Errorf("volume mount references a volume that doesn't exist in the volumes spec: '%s'",
+				m.VolumeName)
+		}
+
+		vol := volumes[idx]
+		if err := vol.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid volume: %w", err)
+		}
+
+		dm := mount.Mount{
+			Type:     mount.Type(vol.Type),
+			Target:   m.ContainerPath,
+			ReadOnly: m.ReadOnly,
+		}
+
+		switch vol.Type {
+		case api.VolumeTypeBind:
+			dm.Source = vol.BindOptions.HostPath
+			dm.BindOptions = toDockerBindOptions(vol.BindOptions)
+		case api.VolumeTypeVolume:
+			dm.Source = vol.Name
+
+			if vol.VolumeOptions != nil {
+				dm.VolumeOptions = &mount.VolumeOptions{
+					NoCopy:       vol.VolumeOptions.NoCopy,
+					Labels:       vol.VolumeOptions.Labels,
+					Subpath:      vol.VolumeOptions.SubPath,
+					DriverConfig: vol.VolumeOptions.Driver,
+				}
+
+				if vol.VolumeOptions.Name != "" {
+					dm.Source = vol.VolumeOptions.Name
+				}
+			}
+		case api.VolumeTypeTmpfs:
+			dm.TmpfsOptions = vol.TmpfsOptions
+		default:
+			return nil, fmt.Errorf("unsupported volume type: '%s'", vol.Type)
+		}
+
+		dockerMounts = append(dockerMounts, dm)
+	}
+
+	return dockerMounts, nil
+}
+
+func toDockerBindOptions(opts *api.BindOptions) *mount.BindOptions {
+	if opts == nil {
+		return nil
+	}
+
+	dockerOpts := &mount.BindOptions{
+		Propagation:      opts.Propagation,
+		CreateMountpoint: opts.CreateHostPath,
+	}
+
+	switch opts.Recursive {
+	case "disabled":
+		dockerOpts.NonRecursive = true
+	case "writable":
+		dockerOpts.ReadOnlyNonRecursive = true
+	case "readonly":
+		dockerOpts.ReadOnlyForceRecursive = true
+	}
+
+	return dockerOpts
+}
+
+// verifyDockerVolumesExist checks if the Docker named volumes referenced in the mounts exist on the machine.
+func (s *Server) verifyDockerVolumesExist(ctx context.Context, mounts []mount.Mount) error {
+	for _, m := range mounts {
+		if m.Type != mount.TypeVolume {
+			continue
+		}
+
+		// TODO: non-local volume drivers should likely be handled differently (needs proper investigation).
+		if _, err := s.client.VolumeInspect(ctx, m.Source); err != nil {
+			if client.IsErrNotFound(err) {
+				return status.Errorf(codes.NotFound, "volume '%s' not found", m.Source)
+			}
+			return status.Errorf(codes.Internal, "inspect volume '%s': %v", m.Source, err.Error())
+		}
+		// TODO: check if the volume driver and options are the same as in the mount and fail if not.
+	}
+
+	return nil
+}
 
 // InspectServiceContainer returns the container information and service specification that was used to create the
 // container with the given ID.
