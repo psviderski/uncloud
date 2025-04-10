@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"net/netip"
-	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/go-connections/nat"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -651,34 +650,7 @@ func TestServiceLifecycle(t *testing.T) {
 		// Verify container configuration.
 		mc, err := cli.InspectContainer(ctx, serviceID, resp.ID)
 		require.NoError(t, err)
-		ctr := mc.Container
-
-		assert.True(t, strings.HasPrefix(ctr.Name, "container-spec-defaults-"))
-		assert.Equal(t, "portainer/pause:latest", ctr.Config.Image)
-
-		// Verify default settings.
-		assert.Empty(t, ctr.Config.Cmd)
-		assert.EqualValues(t, []string{"/pause"}, ctr.Config.Entrypoint) // Populated by the image.
-		assert.Equal(t, []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}, ctr.Config.Env)
-
-		assert.Nil(t, ctr.HostConfig.Init)
-		assert.Empty(t, ctr.HostConfig.Binds)
-		assert.Empty(t, ctr.HostConfig.PortBindings)
-		assert.Equal(t, container.RestartPolicy{
-			Name:              container.RestartPolicyAlways,
-			MaximumRetryCount: 0,
-		}, ctr.HostConfig.RestartPolicy)
-
-		// Verify labels.
-		assert.Equal(t, serviceID, ctr.Config.Labels[api.LabelServiceID])
-		assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
-		assert.Equal(t, api.ServiceModeReplicated, ctr.Config.Labels[api.LabelServiceMode])
-		assert.NotContains(t, ctr.Config.Labels, api.LabelServicePorts) // No ports set.
-		assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
-
-		// Verify network settings.
-		assert.Len(t, ctr.NetworkSettings.Networks, 1)
-		assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
+		assertContainerMatchesSpec(t, mc.Container, spec)
 	})
 
 	t.Run("create container with full spec", func(t *testing.T) {
@@ -699,9 +671,28 @@ func TestServiceLifecycle(t *testing.T) {
 					"BOOL":  "true",
 					"":      "ignored",
 				},
-				Image:   "portainer/pause:latest",
-				Init:    &init,
-				Volumes: []string{"/host/path:/container/path:ro"},
+				Image: "portainer/pause:latest",
+				Init:  &init,
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    "hostpath",
+						ContainerPath: "/volumes/hostpath",
+						ReadOnly:      true,
+					},
+					{
+						VolumeName:    "container-spec-full-default-volume",
+						ContainerPath: "/volumes/default-volume",
+					},
+					{
+						VolumeName:    "custom-volume",
+						ContainerPath: "/volumes/custom-volume",
+						ReadOnly:      true,
+					},
+					{
+						VolumeName:    "tmpfs",
+						ContainerPath: "/volumes/tmpfs",
+					},
+				},
 			},
 			Ports: []api.PortSpec{
 				{
@@ -718,6 +709,55 @@ func TestServiceLifecycle(t *testing.T) {
 					Mode:          api.PortModeIngress,
 				},
 			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: "hostpath",
+					Type: api.VolumeTypeBind,
+					BindOptions: &api.BindOptions{
+						HostPath:       "/tmp/container-spec-full/host/path",
+						CreateHostPath: true,
+					},
+				},
+				{
+					Name: "container-spec-full-default-volume",
+					Type: api.VolumeTypeVolume,
+				},
+				{
+					Name: "custom-volume",
+					Type: api.VolumeTypeVolume,
+					VolumeOptions: &api.VolumeOptions{
+						Driver: &mount.Driver{
+							Name: "local",
+						},
+						Labels: map[string]string{
+							"key": "value",
+						},
+						Name:   "container-spec-full-custom-volume",
+						NoCopy: true,
+					},
+				},
+				{
+					Name: "tmpfs",
+					Type: api.VolumeTypeTmpfs,
+				},
+			},
+		}
+
+		// Create the volumes before creating the container as they must be managed externally.
+		volumeNames := []string{
+			"container-spec-full-default-volume",
+			"container-spec-full-custom-volume",
+		}
+		for _, name := range volumeNames {
+			_, err = cli.CreateVolume(ctx, c.Machines[0].Name, volume.CreateOptions{Name: name})
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				err := cli.RemoveVolume(ctx, c.Machines[0].Name, name, false)
+				if !errors.Is(err, api.ErrNotFound) {
+					require.NoError(t, err)
+				}
+			})
 		}
 
 		resp, err := cli.CreateContainer(ctx, serviceID, spec, c.Machines[0].Name)
@@ -734,50 +774,7 @@ func TestServiceLifecycle(t *testing.T) {
 		// Verify container configuration.
 		mc, err := cli.InspectContainer(ctx, serviceID, resp.ID)
 		require.NoError(t, err)
-		ctr := mc.Container
-
-		assert.True(t, strings.HasPrefix(ctr.Name, "container-spec-full-"))
-		assert.Equal(t, "portainer/pause:latest", ctr.Config.Image)
-
-		assert.EqualValues(t, spec.Container.Command, ctr.Config.Cmd)
-		assert.EqualValues(t, spec.Container.Entrypoint, ctr.Config.Entrypoint)
-
-		expectedEnv := []string{
-			"BOOL=true",
-			"EMTPY=",
-			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-			"VAR=value",
-		}
-		assert.ElementsMatch(t, expectedEnv, ctr.Config.Env)
-
-		assert.True(t, *ctr.HostConfig.Init)
-		assert.Len(t, ctr.HostConfig.Binds, 1)
-		assert.Contains(t, ctr.HostConfig.Binds, spec.Container.Volumes[0])
-
-		assert.Len(t, ctr.HostConfig.PortBindings, 1)
-		expectedPort := []nat.PortBinding{
-			{
-				HostIP:   "127.0.0.1",
-				HostPort: "80",
-			},
-		}
-		assert.Equal(t, expectedPort, ctr.HostConfig.PortBindings[nat.Port("8080/tcp")])
-
-		assert.Equal(t, container.RestartPolicy{
-			Name:              container.RestartPolicyAlways,
-			MaximumRetryCount: 0,
-		}, ctr.HostConfig.RestartPolicy)
-
-		// Verify labels.
-		assert.Equal(t, serviceID, ctr.Config.Labels[api.LabelServiceID])
-		assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
-		assert.Equal(t, api.ServiceModeGlobal, ctr.Config.Labels[api.LabelServiceMode])
-		assert.Equal(t, "127.0.0.1:80:8080/tcp@host,app.example.com:8000/https", ctr.Config.Labels[api.LabelServicePorts])
-		assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
-
-		// Verify network settings.
-		assert.Len(t, ctr.NetworkSettings.Networks, 1)
-		assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
+		assertContainerMatchesSpec(t, mc.Container, spec)
 	})
 
 	t.Run("create container invalid service", func(t *testing.T) {

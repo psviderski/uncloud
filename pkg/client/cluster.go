@@ -2,19 +2,20 @@ package client
 
 import (
 	"context"
+
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (cli *Client) InspectMachine(ctx context.Context, id string) (*pb.MachineMember, error) {
+func (cli *Client) InspectMachine(ctx context.Context, nameOrID string) (*pb.MachineMember, error) {
 	machines, err := cli.ListMachines(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, m := range machines {
-		if m.Machine.Id == id || m.Machine.Name == id {
+		if m.Machine.Id == nameOrID || m.Machine.Name == nameOrID {
 			return m, nil
 		}
 	}
@@ -22,7 +23,8 @@ func (cli *Client) InspectMachine(ctx context.Context, id string) (*pb.MachineMe
 	return nil, api.ErrNotFound
 }
 
-func (cli *Client) ListMachines(ctx context.Context) ([]*pb.MachineMember, error) {
+// ListMachines returns a list of all machines registered in the cluster.
+func (cli *Client) ListMachines(ctx context.Context) (api.MachineMembersList, error) {
 	resp, err := cli.ClusterClient.ListMachines(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, err

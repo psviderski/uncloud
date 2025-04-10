@@ -1,16 +1,21 @@
 package e2e
 
 import (
+	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/go-connections/nat"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpec) {
@@ -34,6 +39,7 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 
 	spec = spec.SetDefaults()
 	// Verify labels.
+	assert.True(t, api.ValidateServiceID(ctr.Config.Labels[api.LabelServiceID]))
 	assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
 	assert.Equal(t, spec.Mode, ctr.Config.Labels[api.LabelServiceMode])
 	assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
@@ -54,7 +60,11 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 
 	assert.Equal(t, spec.Container.Image, ctr.Config.Image)
 	assert.Equal(t, spec.Container.Init, ctr.HostConfig.Init)
+	assert.True(t, strings.HasPrefix(ctr.Name, spec.Name+"-"))
+
+	assert.Empty(t, ctr.HostConfig.Binds, "Expected empty binds as all volumes should be mapped to mounts")
 	assert.ElementsMatch(t, spec.Container.Volumes, ctr.HostConfig.Binds)
+	assertContainerMountsMatchSpec(t, ctr.HostConfig.Mounts, spec)
 
 	// Compare host ports.
 	portBindings := make(nat.PortMap)
@@ -82,6 +92,25 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 	// Verify network settings.
 	assert.Len(t, ctr.NetworkSettings.Networks, 1)
 	assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
+}
+
+func assertContainerMountsMatchSpec(t *testing.T, mounts []mount.Mount, spec api.ServiceSpec) {
+	expectedMounts, err := machinedocker.ToDockerMounts(spec.Volumes, spec.Container.VolumeMounts)
+	require.NoError(t, err)
+
+	sortMounts(mounts)
+	sortMounts(expectedMounts)
+
+	assert.Len(t, mounts, len(expectedMounts), "Expected %d mounts", len(expectedMounts))
+	for i, m := range mounts {
+		assert.True(t, reflect.DeepEqual(m, expectedMounts[i]), "Expected mount type=%s,src=%s,dst=%s to match spec")
+	}
+}
+
+func sortMounts(mounts []mount.Mount) {
+	slices.SortFunc(mounts, func(a, b mount.Mount) int {
+		return strings.Compare(a.Target, b.Target)
+	})
 }
 
 // serviceContainersByMachine returns a map of machine ID to service containers on that machine.

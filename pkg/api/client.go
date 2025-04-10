@@ -39,7 +39,7 @@ type ImageClient interface {
 
 type MachineClient interface {
 	InspectMachine(ctx context.Context, id string) (*pb.MachineMember, error)
-	ListMachines(ctx context.Context) ([]*pb.MachineMember, error)
+	ListMachines(ctx context.Context) (MachineMembersList, error)
 }
 
 type ServiceClient interface {

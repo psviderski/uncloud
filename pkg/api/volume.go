@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/volume"
 )
 
 const (
@@ -43,6 +44,8 @@ type BindOptions struct {
 // VolumeOptions represents options for a managed volume.
 type VolumeOptions struct {
 	// Driver specifies the volume driver and its options for volume creation.
+	// TODO: It seems we don't really need Driver and Labels if we only support externally managed volumes.
+	//  However we may need them in the future if we add support for isolated container-scoped volumes.
 	Driver *mount.Driver `json:",omitempty"`
 	// Labels are key-value metadata to apply to the volume if creating a new volume.
 	Labels map[string]string `json:",omitempty"`
@@ -181,4 +184,14 @@ func sortVolumeMounts(mounts []VolumeMount) {
 		}
 		return false
 	})
+}
+
+// MachineVolume represents a volume on a specific machine.
+type MachineVolume struct {
+	// MachineID is the ID of the machine where the volume exists.
+	MachineID string
+	// MachineName is the name of the machine where the volume exists.
+	MachineName string
+	// Volume is the Docker volume model.
+	Volume volume.Volume
 }

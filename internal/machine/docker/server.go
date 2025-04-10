@@ -463,7 +463,7 @@ func (s *Server) CreateServiceContainer(
 		config.Labels[api.LabelServicePorts] = strings.Join(encodedPorts, ",")
 	}
 
-	mounts, err := toDockerMounts(spec.Volumes, spec.Container.VolumeMounts)
+	mounts, err := ToDockerMounts(spec.Volumes, spec.Container.VolumeMounts)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +537,7 @@ func (s *Server) CreateServiceContainer(
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
 }
 
-func toDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount.Mount, error) {
+func ToDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount.Mount, error) {
 	dockerMounts := make([]mount.Mount, 0, len(mounts))
 	for _, m := range mounts {
 		idx := slices.IndexFunc(volumes, func(v api.VolumeSpec) bool {
@@ -627,6 +627,8 @@ func (s *Server) verifyDockerVolumesExist(ctx context.Context, mounts []mount.Mo
 			return status.Errorf(codes.Internal, "inspect volume '%s': %v", m.Source, err.Error())
 		}
 		// TODO: check if the volume driver and options are the same as in the mount and fail if not.
+		//  Should we even ignore driver-specific options in the volume spec for externally managed volumes?
+		//  Instead, just inspect the existing volume and construct the mount from it.
 	}
 
 	return nil

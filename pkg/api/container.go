@@ -110,11 +110,6 @@ type ServiceContainer struct {
 	ServiceSpec ServiceSpec
 }
 
-type MachineContainer struct {
-	MachineID string
-	Container Container
-}
-
 // ServiceID returns the ID of the service this container belongs to.
 func (c *ServiceContainer) ServiceID() string {
 	return c.Config.Labels[LabelServiceID]
