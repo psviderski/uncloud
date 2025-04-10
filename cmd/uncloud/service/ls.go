@@ -12,6 +12,7 @@ import (
 )
 
 func NewListCommand() *cobra.Command {
+	// TODO(lhf): rename to context
 	var cluster string
 	cmd := &cobra.Command{
 		Use:     "ls",

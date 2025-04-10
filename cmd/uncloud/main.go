@@ -11,6 +11,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/cmd/uncloud/machine"
 	"github.com/psviderski/uncloud/cmd/uncloud/service"
+	"github.com/psviderski/uncloud/cmd/uncloud/volume"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -82,6 +83,7 @@ func main() {
 		service.NewRmCommand(),
 		service.NewRunCommand(),
 		service.NewScaleCommand(),
+		volume.NewRootCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())
 }
