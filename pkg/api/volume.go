@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -194,4 +195,48 @@ type MachineVolume struct {
 	MachineName string
 	// Volume is the Docker volume model.
 	Volume volume.Volume
+}
+
+// VolumeFilter defines criteria to filter volumes in ListVolumes.
+type VolumeFilter struct {
+	// Driver filters volumes by storage driver name.
+	Driver string
+	// Labels filters volumes by label key-value pairs. Volumes must match all labels.
+	Labels map[string]string
+	// MachineIDs filters volumes to those on the specified machines (names or IDs).
+	Machines []string
+	// Names filters volumes by name. Volumes must match one of the names.
+	Names []string
+}
+
+// MatchesFilter checks if a volume matches the specified filter criteria.
+func (v *MachineVolume) MatchesFilter(filter *VolumeFilter) bool {
+	if filter == nil {
+		return true
+	}
+	// Filter by name.
+	if len(filter.Names) > 0 && !slices.Contains(filter.Names, v.Volume.Name) {
+		return false
+	}
+	// Filter by driver.
+	if filter.Driver != "" && v.Volume.Driver != filter.Driver {
+		return false
+	}
+	// Filter by labels.
+	for key, value := range filter.Labels {
+		labelValue, exists := v.Volume.Labels[key]
+		if !exists || labelValue != value {
+			return false
+		}
+	}
+	// Filter by machines.
+	if len(filter.Machines) > 0 {
+		if !slices.ContainsFunc(filter.Machines, func(nameOrID string) bool {
+			return v.MachineName == nameOrID || v.MachineID == nameOrID
+		}) {
+			return false
+		}
+	}
+
+	return true
 }

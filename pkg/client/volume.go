@@ -34,7 +34,7 @@ func (cli *Client) CreateVolume(
 
 	vol, err := cli.Docker.CreateVolume(ctx, opts)
 	if err != nil {
-		return resp, fmt.Errorf("create volume on machine '%s': %w", machine.Machine.Name, err)
+		return resp, err
 	}
 
 	resp = api.MachineVolume{
@@ -48,21 +48,21 @@ func (cli *Client) CreateVolume(
 }
 
 // ListVolumes returns a list of all volumes on the cluster machines.
-func (cli *Client) ListVolumes(ctx context.Context) ([]api.MachineVolume, error) {
-	machines, err := cli.ListMachines(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list machines: %w", err)
+func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([]api.MachineVolume, error) {
+	// Broadcast the volume list request to the specified machines in the filter or all machines if filter is nil.
+	var proxyMachines []string
+	if filter != nil {
+		proxyMachines = filter.Machines
 	}
 
-	// Broadcast the volume list request to all machines.
-	listCtx, err := api.ProxyMachinesContext(ctx, cli, nil)
+	listCtx, machines, err := api.ProxyMachinesContext(ctx, cli, proxyMachines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to all machines: %w", err)
 	}
 
 	machineVolumes, err := cli.Docker.ListVolumes(listCtx, volume.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("list volumes: %w", err)
+		return nil, err
 	}
 
 	var volumes []api.MachineVolume
@@ -95,6 +95,17 @@ func (cli *Client) ListVolumes(ctx context.Context) ([]api.MachineVolume, error)
 		}
 	}
 
+	// Filter volumes based on the provided filter criteria.
+	if filter != nil {
+		var filteredVolumes []api.MachineVolume
+		for _, vol := range volumes {
+			if vol.MatchesFilter(filter) {
+				filteredVolumes = append(filteredVolumes, vol)
+			}
+		}
+		volumes = filteredVolumes
+	}
+
 	return volumes, nil
 }
 
@@ -115,8 +126,7 @@ func (cli *Client) RemoveVolume(ctx context.Context, machineNameOrID, volumeName
 		if dockerclient.IsErrNotFound(err) {
 			return api.ErrNotFound
 		}
-		return fmt.Errorf("remove volume '%s' from machine '%s': %w",
-			volumeName, machine.Machine.Name, err)
+		return err
 	}
 	pw.Event(progress.RemovedEvent(eventID))
 

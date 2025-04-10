@@ -48,20 +48,24 @@ type ServiceClient interface {
 
 // ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
 // If namesOrIDs is nil, all machines are included.
-func ProxyMachinesContext(ctx context.Context, cli MachineClient, namesOrIDs []string) (context.Context, error) {
+func ProxyMachinesContext(
+	ctx context.Context, cli MachineClient, namesOrIDs []string,
+) (context.Context, MachineMembersList, error) {
 	machines, err := cli.ListMachines(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list machines: %w", err)
+		return nil, nil, fmt.Errorf("list machines: %w", err)
 	}
 
+	var proxiedMachines MachineMembersList
 	md := metadata.New(nil)
 	for _, m := range machines {
-		if namesOrIDs == nil ||
+		if len(namesOrIDs) == 0 ||
 			slices.Contains(namesOrIDs, m.Machine.Name) || slices.Contains(namesOrIDs, m.Machine.Id) {
+			proxiedMachines = append(proxiedMachines, m)
 			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
 			md.Append("machines", machineIP.String())
 		}
 	}
 
-	return metadata.NewOutgoingContext(ctx, md), nil
+	return metadata.NewOutgoingContext(ctx, md), proxiedMachines, nil
 }

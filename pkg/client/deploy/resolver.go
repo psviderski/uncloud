@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/opencontainers/go-digest"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
-	"strings"
-	"time"
 )
 
 // ServiceSpecResolver transforms user-provided service specs into deployment-ready form.
@@ -187,7 +188,7 @@ func (r *ImageDigestResolver) Resolve(image, policy string) (string, error) {
 // resolveAlways resolves the image to the image with the digest by querying the registry from all machines.
 func (r *ImageDigestResolver) resolveAlways(image string) (string, error) {
 	// TODO: broadcast to a subset of machines in large clusters to avoid being rate-limited by the registry.
-	ctx, err := api.ProxyMachinesContext(r.Ctx, r.Client, nil)
+	ctx, _, err := api.ProxyMachinesContext(r.Ctx, r.Client, nil)
 	if err != nil {
 		return "", fmt.Errorf("create request context to broadcast to all machines: %w", err)
 	}
@@ -215,7 +216,7 @@ func (r *ImageDigestResolver) resolveAlways(image string) (string, error) {
 }
 
 func (r *ImageDigestResolver) resolveMissing(image string) (string, error) {
-	ctx, err := api.ProxyMachinesContext(r.Ctx, r.Client, nil)
+	ctx, _, err := api.ProxyMachinesContext(r.Ctx, r.Client, nil)
 	if err != nil {
 		return "", fmt.Errorf("create request context to broadcast to all machines: %w", err)
 	}

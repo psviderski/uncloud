@@ -18,3 +18,13 @@ func (m MachineMembersList) FindByManagementIP(ip string) *pb.MachineMember {
 
 	return nil
 }
+
+func (m MachineMembersList) FindByNameOrID(nameOrID string) *pb.MachineMember {
+	for _, machine := range m {
+		if machine.Machine.Id == nameOrID || machine.Machine.Name == nameOrID {
+			return machine
+		}
+	}
+
+	return nil
+}
