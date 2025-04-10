@@ -325,6 +325,7 @@ func (cli *CLI) AddMachine(
 		return nil, fmt.Errorf("join cluster: %w", err)
 	}
 
+	// TODO: fix empty context name when using the current context (contextName == "").
 	fmt.Printf("Machine '%s' added to the cluster (context '%s').\n", addResp.Machine.Name, contextName)
 
 	// Save the machine's SSH connection details in the context config.
