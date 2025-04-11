@@ -300,7 +300,7 @@ func parseVolumeFlagValue(volume string) (api.VolumeSpec, api.VolumeMount, error
 	parts := strings.Split(volume, ":")
 	switch len(parts) {
 	case 1:
-		return spec, mount, fmt.Errorf("invalid format, must contain at least one separator ':'", volume)
+		return spec, mount, fmt.Errorf("invalid format, must contain at least one separator ':'")
 	case 2, 3:
 		// Format: (volume_name|/host/path):/container/path[:opts]
 		if !strings.HasPrefix(parts[1], "/") {
