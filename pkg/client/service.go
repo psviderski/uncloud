@@ -8,7 +8,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -44,22 +43,13 @@ func (cli *Client) RunService(
 	}
 
 	deployment := cli.NewDeployment(spec, &deploy.RollingStrategy{MachineFilter: filter})
-	plan, err := deployment.Plan(ctx)
+	plan, err := deployment.Run(ctx)
 	if err != nil {
-		return resp, fmt.Errorf("plan deployment: %w", err)
+		return resp, err
 	}
 
-	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		_, err = deployment.Run(ctx)
-		if err != nil {
-			return err
-		}
-
-		resp.ID = plan.ServiceID
-		resp.Name = plan.ServiceName
-
-		return nil
-	}, cli.progressOut(), fmt.Sprintf("Running service %s (%s mode)", plan.ServiceName, spec.Mode))
+	resp.ID = plan.ServiceID
+	resp.Name = plan.ServiceName
 
 	return resp, err
 }

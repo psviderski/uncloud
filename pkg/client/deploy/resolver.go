@@ -67,25 +67,9 @@ func (r *ServiceSpecResolver) resolveServiceName(spec *api.ServiceSpec) error {
 		return nil
 	}
 
-	// Generate a random service name from the image when not provided.
-	img, err := reference.ParseDockerRef(spec.Container.Image)
-	if err != nil {
-		return fmt.Errorf("invalid image: %w", err)
-	}
-	// Get the image name without the repository and tag/digest parts.
-	imageName := reference.FamiliarName(img)
-	// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
-	if i := strings.LastIndex(imageName, "/"); i != -1 {
-		imageName = imageName[i+1:]
-	}
-	// Append a random suffix to the image name to generate an optimistically unique service name.
-	suffix, err := secret.RandomAlphaNumeric(4)
-	if err != nil {
-		return fmt.Errorf("generate random suffix: %w", err)
-	}
-	spec.Name = fmt.Sprintf("%s-%s", imageName, suffix)
-
-	return nil
+	var err error
+	spec.Name, err = GenerateServiceName(spec.Container.Image)
+	return err
 }
 
 // expandIngressPorts processes HTTP(S) ingress ports in a service spec by:
@@ -140,6 +124,25 @@ func (r *ServiceSpecResolver) resolveImageDigest(spec *api.ServiceSpec) error {
 	spec.Container.Image = image
 
 	return nil
+}
+
+func GenerateServiceName(image string) (string, error) {
+	img, err := reference.ParseDockerRef(image)
+	if err != nil {
+		return "", fmt.Errorf("invalid image '%s': %w", image, err)
+	}
+	// Get the image name without the repository and tag/digest parts.
+	imageName := reference.FamiliarName(img)
+	// Get the last part of the image name (path), e.g. "nginx" from "bitnami/nginx".
+	if i := strings.LastIndex(imageName, "/"); i != -1 {
+		imageName = imageName[i+1:]
+	}
+	// Append a random suffix to the image name to generate an optimistically unique service name.
+	suffix, err := secret.RandomAlphaNumeric(4)
+	if err != nil {
+		return "", fmt.Errorf("generate random suffix: %w", err)
+	}
+	return fmt.Sprintf("%s-%s", imageName, suffix), nil
 }
 
 type ImageResolverClient interface {

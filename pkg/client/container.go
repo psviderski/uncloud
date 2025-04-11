@@ -61,8 +61,8 @@ func (cli *Client) CreateContainer(
 			return resp, fmt.Errorf("unsupported pull policy: '%s'", spec.Container.PullPolicy)
 		}
 
-		// Not found error is expected if the image is missing.
-		if !dockerclient.IsErrNotFound(err) {
+		// NotFound (No such image) error is expected if the image is missing.
+		if !dockerclient.IsErrNotFound(err) || !strings.Contains(err.Error(), "No such image") {
 			return resp, err
 		}
 

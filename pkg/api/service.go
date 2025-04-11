@@ -168,7 +168,7 @@ func (s *ContainerSpec) SetDefaults() ContainerSpec {
 
 func (s *ContainerSpec) Validate() error {
 	if _, err := reference.ParseDockerRef(s.Image); err != nil {
-		return fmt.Errorf("invalid image: %w", err)
+		return fmt.Errorf("invalid image '%s': %w", s.Image, err)
 	}
 
 	for _, m := range s.VolumeMounts {
