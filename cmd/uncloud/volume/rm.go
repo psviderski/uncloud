@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -60,16 +59,7 @@ func remove(ctx context.Context, uncli *cli.CLI, names []string, opts removeOpti
 	}
 
 	if len(opts.machines) > 0 {
-		// Expand comma-separated machine names.
-		var machines []string
-		for _, m := range opts.machines {
-			for _, nameOrID := range strings.Split(m, ",") {
-				if nameOrID = strings.TrimSpace(nameOrID); nameOrID != "" {
-					machines = append(machines, nameOrID)
-				}
-			}
-		}
-
+		machines := cli.ExpandCommaSeparatedValues(opts.machines)
 		filter.Machines = machines
 	}
 

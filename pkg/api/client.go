@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"google.golang.org/grpc/metadata"
 )
@@ -16,6 +17,7 @@ type Client interface {
 	ImageClient
 	MachineClient
 	ServiceClient
+	VolumeClient
 }
 
 type ContainerClient interface {
@@ -39,11 +41,17 @@ type ImageClient interface {
 
 type MachineClient interface {
 	InspectMachine(ctx context.Context, id string) (*pb.MachineMember, error)
-	ListMachines(ctx context.Context) (MachineMembersList, error)
+	ListMachines(ctx context.Context, filter *MachineFilter) (MachineMembersList, error)
 }
 
 type ServiceClient interface {
 	InspectService(ctx context.Context, id string) (Service, error)
+}
+
+type VolumeClient interface {
+	CreateVolume(ctx context.Context, machineNameOrID string, opts volume.CreateOptions) (MachineVolume, error)
+	ListVolumes(ctx context.Context, filter *VolumeFilter) ([]MachineVolume, error)
+	RemoveVolume(ctx context.Context, machineNameOrID, volumeName string, force bool) error
 }
 
 // ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
@@ -51,7 +59,7 @@ type ServiceClient interface {
 func ProxyMachinesContext(
 	ctx context.Context, cli MachineClient, namesOrIDs []string,
 ) (context.Context, MachineMembersList, error) {
-	machines, err := cli.ListMachines(ctx)
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list machines: %w", err)
 	}

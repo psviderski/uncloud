@@ -37,7 +37,7 @@ func (r *MapNameResolver) ContainerName(containerID string) string {
 // ServiceOperationNameResolver returns a machine and container name resolver for a service that can be used to format
 // deployment operations.
 func (cli *Client) ServiceOperationNameResolver(ctx context.Context, svc api.Service) (*MapNameResolver, error) {
-	machines, err := cli.ListMachines(ctx)
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("list machines: %w", err)
 	}

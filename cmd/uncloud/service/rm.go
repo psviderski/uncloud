@@ -3,9 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
 
-	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
@@ -49,7 +47,7 @@ func rm(ctx context.Context, uncli *cli.CLI, opts rmOptions) error {
 				return fmt.Errorf("remove service '%s': %w", s, err)
 			}
 			return nil
-		}, streams.NewOut(os.Stdout), "Removing service "+s)
+		}, uncli.ProgressOut(), "Removing service "+s)
 	}
 
 	return nil

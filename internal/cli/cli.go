@@ -305,7 +305,7 @@ func (cli *CLI) AddMachine(
 	}
 
 	// List other machines in the cluster to include them in the join request.
-	machines, err := c.ListMachines(ctx)
+	machines, err := c.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("list cluster machines: %w", err)
 	}

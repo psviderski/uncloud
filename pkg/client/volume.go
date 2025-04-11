@@ -47,7 +47,7 @@ func (cli *Client) CreateVolume(
 	return resp, nil
 }
 
-// ListVolumes returns a list of all volumes on the cluster machines.
+// ListVolumes returns a list of all volumes on the cluster machines that match the filter.
 func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([]api.MachineVolume, error) {
 	// Broadcast the volume list request to the specified machines in the filter or all machines if filter is nil.
 	var proxyMachines []string

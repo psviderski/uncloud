@@ -85,7 +85,7 @@ func create(ctx context.Context, uncli *cli.CLI, name string, opts createOptions
 
 	// List machines and filter by the specified machine name or ID.
 	// If no machine is specified, prompt the user to select one.
-	machines, err := client.ListMachines(ctx)
+	machines, err := client.ListMachines(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}

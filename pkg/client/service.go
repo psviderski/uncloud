@@ -69,7 +69,7 @@ func (cli *Client) RunService(
 func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Service, error) {
 	var svc api.Service
 
-	machines, err := cli.ListMachines(ctx)
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return svc, fmt.Errorf("list machines: %w", err)
 	}
@@ -204,7 +204,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 		return err
 	}
 
-	machines, err := cli.ListMachines(ctx)
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
@@ -251,7 +251,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 
 // ListServices returns a list of all services and their containers.
 func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
-	machines, err := cli.ListMachines(ctx)
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("list machines: %w", err)
 	}

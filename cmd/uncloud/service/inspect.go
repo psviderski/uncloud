@@ -50,7 +50,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 		return fmt.Errorf("inspect service: %w", err)
 	}
 
-	machines, err := client.ListMachines(ctx)
+	machines, err := client.ListMachines(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}

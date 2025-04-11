@@ -58,7 +58,7 @@ func (s *RollingStrategy) planReplicated(
 		return plan, err
 	}
 
-	machines, err := cli.ListMachines(ctx)
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return plan, fmt.Errorf("list machines: %w", err)
 	}
@@ -227,7 +227,7 @@ func (s *RollingStrategy) planGlobal(
 		}
 	}
 
-	machines, err := cli.ListMachines(ctx)
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return plan, fmt.Errorf("list machines: %w", err)
 	}

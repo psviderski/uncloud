@@ -163,7 +163,7 @@ func waitClusterInitialised(ctx context.Context, client *client.Client) error {
 	), ctx)
 
 	check := func() error {
-		_, err := client.ListMachines(ctx)
+		_, err := client.ListMachines(ctx, nil)
 		if err == nil {
 			return nil
 		}

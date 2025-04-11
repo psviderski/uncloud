@@ -3,6 +3,10 @@ package e2e
 import (
 	"context"
 	"errors"
+	"os"
+	"testing"
+	"time"
+
 	dockerclient "github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/ucind"
@@ -11,9 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"os"
-	"testing"
-	"time"
 )
 
 func createTestCluster(
@@ -79,7 +80,7 @@ func TestClusterLifecycle(t *testing.T) {
 		for i, cli := range clients {
 			// Wait for the machine to reconcile the cluster store.
 			require.Eventually(t, func() bool {
-				machines, err := cli.ListMachines(ctx)
+				machines, err := cli.ListMachines(ctx, nil)
 				if err != nil {
 					// FailedPrecondition "cluster is not initialised" is expected until the store is reconciled.
 					if s, ok := status.FromError(err); ok {

@@ -239,7 +239,7 @@ func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout t
 	), ctx)
 
 	checkMachinesUp := func() error {
-		machines, err := cli.ListMachines(ctx)
+		machines, err := cli.ListMachines(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("list machines: %w", err)
 		}

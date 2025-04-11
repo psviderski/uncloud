@@ -38,7 +38,7 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 	}
 	defer client.Close()
 
-	machines, err := client.ListMachines(ctx)
+	machines, err := client.ListMachines(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}

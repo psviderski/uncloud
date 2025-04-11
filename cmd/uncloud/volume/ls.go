@@ -54,16 +54,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	// Apply machine filter if specified.
 	var filter *api.VolumeFilter
 	if len(opts.machines) > 0 {
-		// Expand comma-separated machine names.
-		var machines []string
-		for _, m := range opts.machines {
-			for _, nameOrID := range strings.Split(m, ",") {
-				if nameOrID = strings.TrimSpace(nameOrID); nameOrID != "" {
-					machines = append(machines, nameOrID)
-				}
-			}
-		}
-
+		machines := cli.ExpandCommaSeparatedValues(opts.machines)
 		filter = &api.VolumeFilter{
 			Machines: machines,
 		}
