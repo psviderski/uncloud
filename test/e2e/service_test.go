@@ -611,6 +611,36 @@ func TestDeployment(t *testing.T) {
 		assert.Equal(t, c.Machines[2].Name, machine.Machine.Name, "Containers should only be on machine #2")
 	})
 
+	// Deployments with volumes.
+	t.Run("fails when volume doesn't exist", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-nonexistent-volume"
+		spec := api.ServiceSpec{
+			Name: name,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    "non-existent-volume",
+						ContainerPath: "/data",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: "non-existent-volume",
+					Type: api.VolumeTypeVolume,
+				},
+			},
+		}
+
+		d := deploy.NewDeployment(cli, spec, nil)
+		_, err := d.Run(ctx)
+		require.Error(t, err, "Deployment should fail when volume doesn't exist")
+		require.Contains(t, err.Error(), "volume 'non-existent-volume' not found")
+	})
+
 	// TODO: test deployments with unreachable machines. See https://github.com/psviderski/uncloud/issues/29.
 }
 
