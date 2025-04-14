@@ -58,35 +58,34 @@ func (s *RollingStrategy) planReplicated(
 		return plan, err
 	}
 
-	machines, err := cli.ListMachines(ctx, nil)
+	availableMachines, err := cli.ListMachines(ctx, &api.MachineFilter{Available: true})
 	if err != nil {
 		return plan, fmt.Errorf("list machines: %w", err)
 	}
-	// Filter machines that are not DOWN and match the machine filter if provided.
-	var availableMachines []*pb.MachineInfo
+
+	// Filter machines that match the machine filter if provided.
+	var matchedMachines []*pb.MachineInfo
 	var unmatchedMachines []*pb.MachineInfo
-	var downMachines []*pb.MachineInfo
-	for _, m := range machines {
-		if m.State == pb.MachineMember_DOWN {
-			downMachines = append(downMachines, m.Machine)
+	for _, m := range availableMachines {
+		if s.MachineFilter == nil || s.MachineFilter(m.Machine) {
+			matchedMachines = append(matchedMachines, m.Machine)
 		} else {
-			if s.MachineFilter == nil || s.MachineFilter(m.Machine) {
-				availableMachines = append(availableMachines, m.Machine)
-			} else {
-				unmatchedMachines = append(unmatchedMachines, m.Machine)
-			}
+			unmatchedMachines = append(unmatchedMachines, m.Machine)
 		}
 	}
 
-	if len(availableMachines) == 0 {
+	if len(matchedMachines) == 0 {
 		if s.MachineFilter != nil {
 			return plan, ErrNoMatchingMachines
 		}
 		return plan, fmt.Errorf("no available machines to deploy service")
 	}
+
+	// TODO: filter machines that contain the service volumes if the service uses any.s
+
 	// Randomise the order of machines to avoid always deploying to the same machines first.
-	rand.Shuffle(len(availableMachines), func(i, j int) {
-		availableMachines[i], availableMachines[j] = availableMachines[j], availableMachines[i]
+	rand.Shuffle(len(matchedMachines), func(i, j int) {
+		matchedMachines[i], matchedMachines[j] = matchedMachines[j], matchedMachines[i]
 	})
 
 	// Organise existing containers by machine.
@@ -125,7 +124,7 @@ func (s *RollingStrategy) planReplicated(
 
 		// Sort machines such that machines with the most up-to-date containers are first, followed by machines with
 		// existing containers, and finally machines without containers.
-		slices.SortFunc(availableMachines, func(m1, m2 *pb.MachineInfo) int {
+		slices.SortFunc(matchedMachines, func(m1, m2 *pb.MachineInfo) int {
 			if upToDateContainersOnMachine[m1.Id] > 0 && upToDateContainersOnMachine[m2.Id] > 0 {
 				return upToDateContainersOnMachine[m2.Id] - upToDateContainersOnMachine[m1.Id]
 			}
@@ -142,7 +141,7 @@ func (s *RollingStrategy) planReplicated(
 	// Spread the containers across the available machines evenly using a simple round-robin approach, starting with
 	// machines that already have containers and prioritising machines with containers that match the desired spec.
 	for i := 0; i < int(spec.Replicas); i++ {
-		m := availableMachines[i%len(availableMachines)]
+		m := matchedMachines[i%len(matchedMachines)]
 		containers := containersOnMachine[m.Id]
 
 		if len(containers) == 0 {
