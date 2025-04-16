@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/netip"
+	"time"
+
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
@@ -13,10 +18,6 @@ import (
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/connector"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"io"
-	"net"
-	"net/netip"
-	"time"
 )
 
 const (
@@ -29,6 +30,7 @@ const (
 type Machine struct {
 	ClusterName   string
 	ContainerName string
+	ID            string
 	Name          string
 	APIAddress    netip.AddrPort
 }
@@ -185,7 +187,7 @@ func randomMachineName() (string, error) {
 }
 
 // WaitMachineReady waits for the machine API to respond.
-func (p *Provisioner) WaitMachineReady(ctx context.Context, m Machine, timeout time.Duration) error {
+func WaitMachineReady(ctx context.Context, m Machine, timeout time.Duration) error {
 	cli, err := m.Connect(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to machine over TCP '%s': %w", m.APIAddress, err)

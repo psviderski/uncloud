@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +46,9 @@ func createTestCluster(
 	require.NoError(t, err)
 	assert.Equal(t, name, c.Name)
 	assert.Len(t, c.Machines, opts.Machines)
+	for _, m := range c.Machines {
+		assert.NotEmpty(t, m.ID)
+	}
 
 	t.Cleanup(func() {
 		require.NoError(t, p.RemoveCluster(ctx, name))
@@ -69,7 +73,7 @@ func TestClusterLifecycle(t *testing.T) {
 		// Create a client for each machine and wait for it to be ready.
 		clients := make([]*client.Client, len(c.Machines))
 		for i, m := range c.Machines {
-			require.NoError(t, p.WaitMachineReady(ctx, m, 5*time.Second))
+			require.NoError(t, ucind.WaitMachineReady(ctx, m, 5*time.Second))
 			clients[i], err = m.Connect(ctx)
 			require.NoError(t, err)
 			//goland:noinspection GoDeferInLoop
@@ -103,6 +107,18 @@ func TestClusterLifecycle(t *testing.T) {
 
 				return true
 			}, 15*time.Second, 50*time.Millisecond, "cluster store not reconciled on machine #%d", i+1)
+		}
+	})
+
+	t.Run("inspect", func(t *testing.T) {
+		cluster, err := p.InspectCluster(ctx, name)
+		require.NoError(t, err)
+
+		assert.Equal(t, name, cluster.Name)
+		assert.Len(t, cluster.Machines, 3)
+		for _, m := range cluster.Machines {
+			assert.NotEmpty(t, m.ID)
+			assert.True(t, strings.HasPrefix(m.Name, "machine-"))
 		}
 	})
 

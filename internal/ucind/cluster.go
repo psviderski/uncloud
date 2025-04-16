@@ -32,6 +32,29 @@ type CreateClusterOptions struct {
 	Machines int
 }
 
+func (c *Cluster) PopulateMachineIDs(ctx context.Context) error {
+	for i := range c.Machines {
+		if c.Machines[i].ID != "" {
+			continue
+		}
+
+		cli, err := c.Machines[i].Connect(ctx)
+		if err != nil {
+			return fmt.Errorf("connect to machine '%s': %w", c.Machines[i].Name, err)
+		}
+		//goland:noinspection GoDeferInLoop
+		defer cli.Close()
+
+		m, err := cli.Inspect(ctx, &emptypb.Empty{})
+		if err != nil {
+			return fmt.Errorf("inspect machine '%s': %w", c.Machines[i].Name, err)
+		}
+		c.Machines[i].ID = m.Id
+	}
+
+	return nil
+}
+
 func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts CreateClusterOptions) (Cluster, error) {
 	var c Cluster
 
@@ -75,6 +98,9 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 	if err = p.initCluster(ctx, c.Machines); err != nil {
 		return c, err
 	}
+	if err = c.PopulateMachineIDs(ctx); err != nil {
+		return c, fmt.Errorf("populate machine IDs: %w", err)
+	}
 
 	if p.configUpdater != nil {
 		if err = p.configUpdater.AddCluster(c); err != nil {
@@ -90,7 +116,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 	// Init a new cluster on the first machine.
 	initMachine := machines[0]
 
-	if err := p.WaitMachineReady(ctx, initMachine, 30*time.Second); err != nil {
+	if err := WaitMachineReady(ctx, initMachine, 30*time.Second); err != nil {
 		return fmt.Errorf("wait for machine %q to be ready: %w", initMachine.Name, err)
 	}
 
@@ -112,7 +138,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 
 	// Join the rest of the machines to the cluster.
 	for _, m := range machines[1:] {
-		if err = p.WaitMachineReady(ctx, m, 5*time.Second); err != nil {
+		if err = WaitMachineReady(ctx, m, 5*time.Second); err != nil {
 			return fmt.Errorf("wait for machine %q to be ready: %w", m.Name, err)
 		}
 
@@ -216,13 +242,17 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 		c.Machines = append(c.Machines, m)
 	}
 
+	if err = c.PopulateMachineIDs(ctx); err != nil {
+		return c, fmt.Errorf("populate machine IDs: %w", err)
+	}
+
 	return c, nil
 }
 
 // WaitClusterReady waits for all machines in the cluster to be ready and UP.
 func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout time.Duration) error {
 	firstMachine := c.Machines[0]
-	if err := p.WaitMachineReady(ctx, firstMachine, timeout); err != nil {
+	if err := WaitMachineReady(ctx, firstMachine, timeout); err != nil {
 		return fmt.Errorf("wait for machine '%s' to be ready: %w", firstMachine.Name, err)
 	}
 
