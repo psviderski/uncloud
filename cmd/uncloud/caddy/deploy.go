@@ -14,7 +14,6 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
-	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
 )
 
@@ -196,13 +195,4 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 	}
 
 	return nil
-}
-
-func machineFilter(machines []string) deploy.MachineFilter {
-	if len(machines) == 0 {
-		return nil
-	}
-	return func(m *pb.MachineInfo) bool {
-		return slices.Contains(machines, m.Name)
-	}
 }

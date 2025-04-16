@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -33,12 +32,6 @@ type Plan struct {
 	ServiceName string
 	SequenceOperation
 }
-
-// MachineFilter determines which machines participate in a deployment operation by returning true for
-// machines that should be included.
-type MachineFilter func(m *pb.MachineInfo) bool
-
-var ErrNoMatchingMachines = errors.New("no machines match the filter")
 
 // NewDeployment creates a new deployment for the given service specification.
 // If strategy is nil, a default RollingStrategy will be used.
