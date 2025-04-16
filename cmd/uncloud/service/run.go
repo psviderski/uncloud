@@ -11,7 +11,6 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/daemon/names"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -66,7 +65,7 @@ func NewRunCommand() *cobra.Command {
 			"the machines) or '%s' (one container on every machine).",
 			api.ServiceModeReplicated, api.ServiceModeGlobal))
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
-		"Placement constraint by machine name, limiting which machines the service can run on. Can be specified "+
+		"Placement constraint by machine names, limiting which machines the service can run on. Can be specified "+
 			"multiple times or as a comma-separated list of machine names. (default is any suitable machine)")
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "",
 		"Assign a name to the service. A random name is generated if not specified.")
@@ -114,25 +113,14 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	}
 	defer clusterClient.Close()
 
-	var deployFilter deploy.MachineFilter
-	machines := cli.ExpandCommaSeparatedValues(opts.machines)
-	if len(machines) > 0 {
-		deployFilter = func(m *pb.MachineInfo) bool {
-			return slices.Contains(machines, m.Name)
-		}
-	}
-
-	machineIDForVolumes, missingVolumes, err := selectMachineForVolumes(ctx, clusterClient, spec.Volumes, machines)
+	machineIDForVolumes, missingVolumes, err := selectMachineForVolumes(
+		ctx,
+		clusterClient,
+		spec.Volumes,
+		spec.Placement.Machines,
+	)
 	if err != nil {
 		return err
-	}
-	// machineIDForVolumes is not empty if the spec includes named volumes.
-	if machineIDForVolumes != "" {
-		// The service must be deployed on the machine where the existing volumes are located and the missing ones
-		// will be created.
-		deployFilter = func(m *pb.MachineInfo) bool {
-			return m.Id == machineIDForVolumes
-		}
 	}
 
 	var resp client.RunServiceResponse
@@ -145,7 +133,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 			}
 		}
 
-		resp, err = clusterClient.RunService(ctx, spec, deployFilter)
+		resp, err = clusterClient.RunService(ctx, spec)
 		if err != nil {
 			return fmt.Errorf("run service: %w", err)
 		}
@@ -207,6 +195,10 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 		return spec, err
 	}
 
+	placement := api.Placement{
+		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
+	}
+
 	spec = api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command:      opts.command,
@@ -215,11 +207,12 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 			PullPolicy:   opts.pull,
 			VolumeMounts: mounts,
 		},
-		Mode:     opts.mode,
-		Name:     opts.name,
-		Ports:    ports,
-		Replicas: opts.replicas,
-		Volumes:  volumes,
+		Mode:      opts.mode,
+		Name:      opts.name,
+		Placement: placement,
+		Ports:     ports,
+		Replicas:  opts.replicas,
+		Volumes:   volumes,
 	}
 
 	// Overwrite the default ENTRYPOINT of the image or reset it if an empty string is passed.
@@ -372,9 +365,9 @@ func selectMachineForVolumes(
 	ctx context.Context, clusterClient *client.Client, volumes []api.VolumeSpec, machinesFilter []string,
 ) (machineID string, missingVolumes []api.VolumeSpec, err error) {
 	var volumeNames []string
-	for _, volume := range volumes {
-		if volume.Type == api.VolumeTypeVolume {
-			volumeNames = append(volumeNames, volume.Name)
+	for _, v := range volumes {
+		if v.Type == api.VolumeTypeVolume {
+			volumeNames = append(volumeNames, v.Name)
 		}
 	}
 	if len(volumeNames) == 0 {
@@ -424,15 +417,15 @@ func selectMachineForVolumes(
 	}
 
 	// Find missing volumes that need to be created on the selected machine.
-	for _, volume := range volumes {
-		if volume.Type != api.VolumeTypeVolume {
+	for _, v := range volumes {
+		if v.Type != api.VolumeTypeVolume {
 			continue
 		}
 
-		if !slices.ContainsFunc(vols, func(v api.MachineVolume) bool {
-			return v.Volume.Name == volume.Name && v.MachineID == machineID
+		if !slices.ContainsFunc(vols, func(mv api.MachineVolume) bool {
+			return mv.Volume.Name == v.Name && mv.MachineID == machineID
 		}) {
-			missingVolumes = append(missingVolumes, volume)
+			missingVolumes = append(missingVolumes, v)
 		}
 	}
 

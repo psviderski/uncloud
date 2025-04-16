@@ -12,6 +12,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -134,7 +135,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	}
 
 	if !opts.noCaddy {
-		d, err := client.NewCaddyDeployment("", nil)
+		d, err := client.NewCaddyDeployment("", api.Placement{})
 		if err != nil {
 			return fmt.Errorf("create caddy deployment: %w", err)
 		}

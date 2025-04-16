@@ -42,6 +42,8 @@ type ServiceSpec struct {
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
 	Mode string
 	Name string
+	// Placement defines the placement constraints for the service.
+	Placement Placement
 	// Ports defines what service ports to publish to make the service accessible outside the cluster.
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.

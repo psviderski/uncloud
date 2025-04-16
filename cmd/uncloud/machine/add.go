@@ -12,13 +12,11 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type addOptions struct {
@@ -105,14 +103,6 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 		return fmt.Errorf("wait for cluster to be initialised on machine: %w", err)
 	}
 
-	// Inspect the added machine to get its ID to create a filter for the Caddy deployment.
-	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
-	if err != nil {
-		return fmt.Errorf("inspect machine: %w", err)
-	}
-	filter := func(m *pb.MachineInfo) bool {
-		return m.Id == minfo.Id
-	}
 	// Deploy a Caddy service container to the added machine. If caddy service is already deployed on other machines,
 	// use the deployed image version. Otherwise, use the latest version.
 	caddyImage := ""
@@ -137,7 +127,9 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 		}
 	}
 
-	d, err := machineClient.NewCaddyDeployment(caddyImage, filter)
+	// TODO: scale the existing Caddy service to the new machine instead of running a new deployment
+	//  that may cause a small downtime.
+	d, err := machineClient.NewCaddyDeployment(caddyImage, api.Placement{})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}

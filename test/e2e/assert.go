@@ -114,7 +114,7 @@ func sortMounts(mounts []mount.Mount) {
 }
 
 // serviceContainersByMachine returns a map of machine ID to service containers on that machine.
-func serviceContainersByMachine(t *testing.T, svc api.Service) map[string][]api.ServiceContainer {
+func serviceContainersByMachine(svc api.Service) map[string][]api.ServiceContainer {
 	containers := make(map[string][]api.ServiceContainer)
 	for _, c := range svc.Containers {
 		containers[c.MachineID] = append(containers[c.MachineID], c.Container)
@@ -122,7 +122,7 @@ func serviceContainersByMachine(t *testing.T, svc api.Service) map[string][]api.
 	return containers
 }
 
-func serviceMachines(t *testing.T, svc api.Service) mapset.Set[string] {
+func serviceMachines(svc api.Service) mapset.Set[string] {
 	machines := mapset.NewSet[string]()
 	for _, c := range svc.Containers {
 		machines.Add(c.MachineID)
@@ -131,7 +131,7 @@ func serviceMachines(t *testing.T, svc api.Service) mapset.Set[string] {
 	return machines
 }
 
-func serviceContainerIDs(t *testing.T, svc api.Service) mapset.Set[string] {
+func serviceContainerIDs(svc api.Service) mapset.Set[string] {
 	ids := mapset.NewSet[string]()
 	for _, c := range svc.Containers {
 		ids.Add(c.Container.ID)

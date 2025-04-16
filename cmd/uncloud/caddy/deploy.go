@@ -19,9 +19,9 @@ import (
 )
 
 type deployOptions struct {
-	image   string
-	machine string
-	context string
+	image    string
+	machines []string
+	context  string
 }
 
 func NewDeployCommand() *cobra.Command {
@@ -40,8 +40,9 @@ func NewDeployCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.image, "image", "",
 		"Caddy Docker image to deploy. (default caddy:LATEST_VERSION)")
-	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
-		"Machine names to deploy to (comma-separated). (default is all machines)")
+	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
+		"Machine names to deploy to. Can be specified multiple times or as a comma-separated "+
+			"list of machine names. (default is all machines)")
 	cmd.Flags().StringVarP(
 		&opts.context, "context", "c", "",
 		"Name of the cluster context to deploy to. (default is the current context)",
@@ -88,16 +89,10 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	fmt.Println()
 	fmt.Println("Preparing a deployment plan...")
 
-	var filter deploy.MachineFilter
-	if opts.machine != "" {
-		machines := strings.Split(opts.machine, ",")
-		for i, m := range machines {
-			machines[i] = strings.TrimSpace(m)
-		}
-		filter = machineFilter(machines)
+	placement := api.Placement{
+		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
 	}
-
-	d, err := clusterClient.NewCaddyDeployment(opts.image, filter)
+	d, err := clusterClient.NewCaddyDeployment(opts.image, placement)
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}
@@ -108,30 +103,17 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 	plan, err := d.Plan(ctx)
 	if err != nil {
-		if errors.Is(err, deploy.ErrNoMatchingMachines) {
-			return fmt.Errorf("no machines found matching: %s", opts.machine)
-		}
 		return fmt.Errorf("plan caddy deployment: %w", err)
 	}
 
 	if len(plan.Operations) == 0 {
-		if opts.machine != "" {
-			fmt.Printf("%s service is up to date on selected machines.\n", client.CaddyServiceName)
-		} else {
-			fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
-		}
+		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
 	} else {
 		if svc.ID == "" {
-			if opts.machine != "" {
-				fmt.Println("This will run a Caddy container on selected machines.")
+			if len(opts.machines) > 0 {
+				fmt.Println("This will run a Caddy container on each selected machine.")
 			} else {
 				fmt.Println("This will run a Caddy container on each machine.")
-			}
-		} else {
-			if opts.machine != "" {
-				fmt.Println("This will perform a rolling update of Caddy containers on selected machines.")
-			} else {
-				fmt.Println("This will perform a rolling update of Caddy containers on each machine.")
 			}
 		}
 

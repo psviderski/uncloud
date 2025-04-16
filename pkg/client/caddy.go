@@ -2,13 +2,14 @@ package client
 
 import (
 	"fmt"
+	"regexp"
+
 	"github.com/Masterminds/semver"
 	"github.com/distribution/reference"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
-	"regexp"
 )
 
 const (
@@ -22,7 +23,7 @@ var caddyImageTagRegex = regexp.MustCompile(`^2\.\d+\.\d+$`)
 // NewCaddyDeployment creates a new deployment for a Caddy reverse proxy service.
 // The service is deployed in global mode to all machines in the cluster. If the image is not provided, the latest
 // version of the official Caddy Docker image is used.
-func (cli *Client) NewCaddyDeployment(image string, filter deploy.MachineFilter) (*deploy.Deployment, error) {
+func (cli *Client) NewCaddyDeployment(image string, placement api.Placement) (*deploy.Deployment, error) {
 	latest, err := LatestCaddyImage()
 	if err != nil {
 		return nil, fmt.Errorf("look up latest Caddy image: %w", err)
@@ -36,10 +37,16 @@ func (cli *Client) NewCaddyDeployment(image string, filter deploy.MachineFilter)
 		Container: api.ContainerSpec{
 			Command: []string{"caddy", "run", "-c", "/config/caddy.json", "--watch"},
 			Image:   image,
-			Volumes: []string{"/var/lib/uncloud/caddy:/config"},
+			VolumeMounts: []api.VolumeMount{
+				{
+					VolumeName:    "config",
+					ContainerPath: "/config",
+				},
+			},
 		},
-		Mode: api.ServiceModeGlobal,
-		Name: CaddyServiceName,
+		Mode:      api.ServiceModeGlobal,
+		Name:      CaddyServiceName,
+		Placement: placement,
 		Ports: []api.PortSpec{
 			{
 				PublishedPort: 80,
@@ -54,9 +61,18 @@ func (cli *Client) NewCaddyDeployment(image string, filter deploy.MachineFilter)
 				Mode:          api.PortModeHost,
 			},
 		},
+		Volumes: []api.VolumeSpec{
+			{
+				Name: "config",
+				Type: api.VolumeTypeBind,
+				BindOptions: &api.BindOptions{
+					HostPath: "/var/lib/uncloud/caddy",
+				},
+			},
+		},
 	}
 
-	return cli.NewDeployment(spec, &deploy.RollingStrategy{MachineFilter: filter}), nil
+	return cli.NewDeployment(spec, nil), nil
 }
 
 // LatestCaddyImage returns the latest image of the official Caddy Docker image on Docker Hub.

@@ -16,10 +16,22 @@ type Constraint interface {
 }
 
 func constraintsFromSpec(spec api.ServiceSpec) []Constraint {
-	return []Constraint{}
+	var constraints []Constraint
+
+	if len(spec.Placement.Machines) > 0 {
+		constraints = append(constraints, &PlacementConstraint{
+			Machines: spec.Placement.Machines,
+		})
+	}
+
+	// TODO: inspect and add VolumeConstraint.
+
+	return constraints
 }
 
 type PlacementConstraint struct {
+	// Machines is a list of machine names or IDs where service containers are allowed to be deployed.
+	// If empty, containers can be deployed to any available machine in the cluster.
 	Machines []string
 }
 

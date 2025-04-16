@@ -15,6 +15,7 @@ type Client interface {
 	api.ImageClient
 	api.MachineClient
 	api.ServiceClient
+	api.VolumeClient
 }
 
 // Deployment manages the process of creating or updating a service to match a desired state.

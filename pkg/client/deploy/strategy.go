@@ -9,6 +9,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
 // Strategy defines how a service should be deployed or updated. Different implementations can provide various
@@ -18,22 +19,19 @@ type Strategy interface {
 	Type() string
 	// Plan returns the operation to reconcile the service to the desired state.
 	// If the service does not exist (new deployment), svc will be nil.
-	Plan(ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec) (Plan, error)
+	Plan(ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec) (Plan, error)
 }
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
 // to minimize service disruption.
-type RollingStrategy struct {
-	// MachineFilter optionally restricts which machines can be used for deployment.
-	MachineFilter MachineFilter
-}
+type RollingStrategy struct{}
 
 func (s *RollingStrategy) Type() string {
 	return "rolling"
 }
 
 func (s *RollingStrategy) Plan(
-	ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec,
+	ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
 	// We can assume that the spec is valid at this point because it has been validated by the deployment.
 	switch spec.Mode {
@@ -51,37 +49,29 @@ func (s *RollingStrategy) Plan(
 // in the cluster.
 // TODO: schedule containers only on machines that contain the image if pull policy is set to 'never'.
 func (s *RollingStrategy) planReplicated(
-	ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec,
+	ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
 	plan, err := newEmptyPlan(svc, spec)
 	if err != nil {
 		return plan, err
 	}
 
-	availableMachines, err := cli.ListMachines(ctx, &api.MachineFilter{Available: true})
+	sched, err := scheduler.NewServiceScheduler(ctx, cli, spec)
 	if err != nil {
-		return plan, fmt.Errorf("list machines: %w", err)
+		return plan, err
+	}
+	// TODO: return a detailed report on required constraints and which ones are satisfied?
+	availableMachines, err := sched.AvailableMachines()
+	if err != nil {
+		return plan, err
 	}
 
-	// Filter machines that match the machine filter if provided.
 	var matchedMachines []*pb.MachineInfo
-	var unmatchedMachines []*pb.MachineInfo
 	for _, m := range availableMachines {
-		if s.MachineFilter == nil || s.MachineFilter(m.Machine) {
-			matchedMachines = append(matchedMachines, m.Machine)
-		} else {
-			unmatchedMachines = append(unmatchedMachines, m.Machine)
-		}
+		matchedMachines = append(matchedMachines, m.Info)
 	}
 
-	if len(matchedMachines) == 0 {
-		if s.MachineFilter != nil {
-			return plan, ErrNoMatchingMachines
-		}
-		return plan, fmt.Errorf("no available machines to deploy service")
-	}
-
-	// TODO: filter machines that contain the service volumes if the service uses any.s
+	// TODO: filter machines that contain the service volumes if the service uses any.
 
 	// Randomise the order of machines to avoid always deploying to the same machines first.
 	rand.Shuffle(len(matchedMachines), func(i, j int) {
@@ -209,7 +199,7 @@ func (s *RollingStrategy) planReplicated(
 // It handles multiple containers per machine (though this should not occur in normal operation) and skips machines
 // that are down.
 func (s *RollingStrategy) planGlobal(
-	ctx context.Context, cli api.MachineClient, svc *api.Service, spec api.ServiceSpec,
+	ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
 	plan, err := newEmptyPlan(svc, spec)
 	if err != nil {
@@ -226,39 +216,36 @@ func (s *RollingStrategy) planGlobal(
 		}
 	}
 
-	machines, err := cli.ListMachines(ctx, nil)
+	sched, err := scheduler.NewServiceScheduler(ctx, cli, spec)
 	if err != nil {
-		return plan, fmt.Errorf("list machines: %w", err)
-	}
-	// Filter machines if a machine filter is provided.
-	// TODO: not sure this is the right behaviour to ignore other machines that might run service containers.
-	//  Maybe there should be another filter to specify which machines to deploy to but keep the rest running.
-	//  Could be useful to test a new version on a subset of machines before rolling out to all.
-	if s.MachineFilter != nil {
-		machines = slices.DeleteFunc(machines, func(m *pb.MachineMember) bool {
-			return !s.MachineFilter(m.Machine)
-		})
-		if len(machines) == 0 {
-			return plan, ErrNoMatchingMachines
-		}
+		return plan, err
 	}
 
-	// TODO: figure out how to return a warning if there are machines down. Embed the machinesDown in the plan?
-	var machinesDown []*pb.MachineInfo
-	for _, m := range machines {
-		// Skip machines that are down but collect them to report a warning later.
-		if m.State == pb.MachineMember_DOWN {
-			machinesDown = append(machinesDown, m.Machine)
-			fmt.Printf("WARNING: failed to run a service container on machine '%s' which is Down.\n", m.Machine.Id)
-			continue
-		}
+	availableMachines, err := sched.AvailableMachines()
+	if err != nil {
+		return plan, err
+	}
 
-		containers := containersOnMachine[m.Machine.Id]
-		ops, err := reconcileGlobalContainer(containers, spec, plan.ServiceID, m.Machine.Id)
+	for _, m := range availableMachines {
+		containers := containersOnMachine[m.Info.Id]
+		ops, err := reconcileGlobalContainer(containers, spec, plan.ServiceID, m.Info.Id)
 		if err != nil {
 			return plan, err
 		}
 		plan.Operations = append(plan.Operations, ops...)
+
+		delete(containersOnMachine, m.Info.Id)
+	}
+
+	// Remove any remaining containers on machines that don't match the new placement constraints.
+	for _, containers := range containersOnMachine {
+		for _, c := range containers {
+			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
+				ServiceID:   plan.ServiceID,
+				ContainerID: c.Container.ID,
+				MachineID:   c.MachineID,
+			})
+		}
 	}
 
 	return plan, nil

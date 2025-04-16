@@ -9,7 +9,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -80,11 +79,11 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, spec)
 
 		assert.Len(t, svc.Containers, 3)
-		machines := serviceMachines(t, svc)
+		machines := serviceMachines(svc)
 		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
 
 		// Deploy a published port.
-		initialContainers := serviceContainerIDs(t, svc)
+		initialContainers := serviceContainerIDs(svc)
 
 		specWithPort := api.ServiceSpec{
 			Name: name,
@@ -115,9 +114,9 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, specWithPort)
 
 		assert.Len(t, svc.Containers, 3)
-		machines = serviceMachines(t, svc)
+		machines = serviceMachines(svc)
 		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
-		containers := serviceContainerIDs(t, svc)
+		containers := serviceContainerIDs(svc)
 		assert.Empty(t, initialContainers.Intersect(containers).ToSlice(),
 			"All existing containers should be replaced")
 
@@ -155,9 +154,9 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, specWithPortAndInit)
 
 		assert.Len(t, svc.Containers, 3)
-		machines = serviceMachines(t, svc)
+		machines = serviceMachines(svc)
 		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
-		containers = serviceContainerIDs(t, svc)
+		containers = serviceContainerIDs(svc)
 		assert.Empty(t, initialContainers.Intersect(containers).ToSlice(),
 			"All existing containers should be replaced")
 
@@ -176,14 +175,14 @@ func TestDeployment(t *testing.T) {
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
 
-		containers = serviceContainerIDs(t, svc)
+		containers = serviceContainerIDs(svc)
 		assert.ElementsMatch(t, initialContainers.ToSlice(), containers.ToSlice())
 	})
 
-	t.Run("global with machine filter", func(t *testing.T) {
+	t.Run("global with machine placement", func(t *testing.T) {
 		t.Parallel()
 
-		name := "global-deployment-filtered"
+		name := "test-global-deployment-machine-placement"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if !errors.Is(err, api.ErrNotFound) {
@@ -191,12 +190,15 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
-		// First deploy globally without filter to get containers on all machines.
+		// First deploy globally to machines #0 and #1.
 		spec := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
+			},
+			Placement: api.Placement{
+				Machines: []string{c.Machines[0].Name, c.Machines[1].Name},
 			},
 		}
 		deployment := cli.NewDeployment(spec, nil)
@@ -206,89 +208,57 @@ func TestDeployment(t *testing.T) {
 
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
-		assert.Len(t, svc.Containers, 3, "expected 1 container on each machine")
+		assertServiceMatchesSpec(t, svc, spec)
 
-		// Store initial container IDs by machine.
-		initialContainers := make(map[string]string) // machineID -> containerID
-		for _, ctr := range svc.Containers {
-			initialContainers[ctr.MachineID] = ctr.Container.ID
-		}
+		assert.Len(t, svc.Containers, 2, "Expected 1 container on machines %s and %s",
+			c.Machines[0].Name, c.Machines[1].Name)
+		initialMachines := serviceMachines(svc)
+		assert.ElementsMatch(t, initialMachines.ToSlice(), []string{c.Machines[0].ID, c.Machines[1].ID})
+
+		initialContainers := serviceContainerIDs(svc)
 
 		// Update spec with Init=true, but only deploy to machines #0 and #2.
 		init := true
 		specWithInit := spec
 		specWithInit.Container.Init = &init
+		specWithInit.Placement.Machines = []string{c.Machines[0].Name, c.Machines[2].Name}
 
-		filter := func(m *pb.MachineInfo) bool {
-			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
-		}
-		strategy := &deploy.RollingStrategy{MachineFilter: filter}
-		deployment = cli.NewDeployment(specWithInit, strategy)
+		deployment = cli.NewDeployment(specWithInit, nil)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
-		assert.Len(t, svc.Containers, 3, "still 1 container on each machine")
+		assertServiceMatchesSpec(t, svc, specWithInit)
 
-		// Verify:
-		// 1. Containers on machines #0 and #2 were updated (new IDs, init enabled)
-		// 2. Container on machine #1 remains unchanged (same ID, no init)
-		for _, ctr := range svc.Containers {
-			machine, err := cli.InspectMachine(ctx, ctr.MachineID)
-			require.NoError(t, err)
+		assert.Len(t, svc.Containers, 2, "Expected 1 container on machines %s and %s",
+			c.Machines[0].Name, c.Machines[2].Name)
+		machines := serviceMachines(svc)
+		assert.ElementsMatch(t, machines.ToSlice(), []string{c.Machines[0].ID, c.Machines[2].ID})
 
-			oldContainerID := initialContainers[ctr.MachineID]
-			switch machine.Machine.Name {
-			case c.Machines[0].Name, c.Machines[2].Name:
-				// These containers should be updated.
-				assert.NotEqual(t, oldContainerID, ctr.Container.ID,
-					"Container on machine %s should have been updated", machine.Machine.Name)
+		containers := serviceContainerIDs(svc)
+		assert.Empty(t, initialContainers.Intersect(containers).ToSlice(),
+			"All initial containers should be replaced")
 
-				svcSpec := ctr.Container.ServiceSpec
-				require.NoError(t, err)
-				assert.NotNil(t, svcSpec.Container.Init)
-				assert.True(t, *svcSpec.Container.Init,
-					"Container on machine %s should have init enabled", machine.Machine.Name)
-			case c.Machines[1].Name:
-				// This container should remain unchanged.
-				assert.Equal(t, oldContainerID, ctr.Container.ID,
-					"Container on machine %s should not have been updated", machine.Machine.Name)
-			}
-		}
+		// Now deploy the same spec without a placement constraint.
+		initialContainers = containers // Reset container tracking.
+		specWithInit.Placement = api.Placement{}
 
-		// Now deploy another update without filter - should affect all machines.
-		init = false
-		specWithPort := spec
-		specWithPort.Ports = []api.PortSpec{
-			{
-				PublishedPort: 8001,
-				ContainerPort: 8001,
-				Protocol:      api.ProtocolTCP,
-				Mode:          api.PortModeHost,
-			},
-		}
-		deployment = cli.NewDeployment(specWithPort, nil)
+		deployment = cli.NewDeployment(specWithInit, nil)
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, specWithInit)
 		assert.Len(t, svc.Containers, 3)
 
-		// Verify all containers are updated with a published port.
-		for _, ctr := range svc.Containers {
-			svcSpec := ctr.Container.ServiceSpec
-			require.NoError(t, err)
-			assert.Nil(t, svcSpec.Container.Init,
-				"Container on machine %s should have init disabled", ctr.MachineID)
+		machines = serviceMachines(svc)
+		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
 
-			ports, err := ctr.Container.ServicePorts()
-			require.NoError(t, err)
-			assert.Equal(t, specWithPort.Ports, ports,
-				"Container on machine %s should have updated port", ctr.MachineID)
-		}
+		containers = serviceContainerIDs(svc)
+		assert.True(t, initialContainers.IsSubset(containers), "Expected all initial containers to remain")
 	})
 
 	t.Run("caddy", func(t *testing.T) {
@@ -299,7 +269,7 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
-		deployment, err := cli.NewCaddyDeployment("", nil)
+		deployment, err := cli.NewCaddyDeployment("", api.Placement{})
 		require.NoError(t, err)
 
 		_, err = deployment.Run(ctx)
@@ -338,7 +308,7 @@ func TestDeployment(t *testing.T) {
 		}, ctr.HostConfig.RestartPolicy)
 	})
 
-	t.Run("caddy with machine filter", func(t *testing.T) {
+	t.Run("caddy with machine placement", func(t *testing.T) {
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, client.CaddyServiceName)
 			if !errors.Is(err, api.ErrNotFound) {
@@ -346,12 +316,10 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
-		// Deploy to machine #0
-		filter := func(m *pb.MachineInfo) bool {
-			return m.Name == c.Machines[0].Name
-		}
-
-		deployment, err := cli.NewCaddyDeployment("", filter)
+		// Deploy to machine #0.
+		deployment, err := cli.NewCaddyDeployment("", api.Placement{
+			Machines: []string{c.Machines[0].Name},
+		})
 		require.NoError(t, err)
 		image := deployment.Spec.Container.Image
 
@@ -361,17 +329,13 @@ func TestDeployment(t *testing.T) {
 		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 1)
-		ctr0 := svc.Containers[0]
+		assertServiceMatchesSpec(t, svc, deployment.Spec)
 
-		machine0, err := cli.InspectMachine(ctx, ctr0.MachineID)
-		require.NoError(t, err)
-		assert.Equal(t, c.Machines[0].Name, machine0.Machine.Name)
+		assert.Equal(t, c.Machines[0].ID, svc.Containers[0].MachineID)
+		initialContainerID := svc.Containers[0].Container.ID
 
-		// Deploy to machines #0 and #2
-		filter = func(m *pb.MachineInfo) bool {
-			return m.Name == c.Machines[0].Name || m.Name == c.Machines[2].Name
-		}
-		deployment, err = cli.NewCaddyDeployment(image, filter)
+		// Deploy to all machines without a placement constraint.
+		deployment, err = cli.NewCaddyDeployment(image, api.Placement{})
 		require.NoError(t, err)
 
 		_, err = deployment.Run(ctx)
@@ -379,26 +343,20 @@ func TestDeployment(t *testing.T) {
 
 		svc, err = cli.InspectService(ctx, client.CaddyServiceName)
 		require.NoError(t, err)
-		assert.Len(t, svc.Containers, 2)
+		assert.Len(t, svc.Containers, 3)
+		assertServiceMatchesSpec(t, svc, deployment.Spec)
 
-		// Existing container ctr0 on machine #0 should be left unchanged.
-		var ctr2 api.MachineServiceContainer
-		if ctr0.Container.ID == svc.Containers[0].Container.ID {
-			ctr2 = svc.Containers[1]
-		} else {
-			assert.Equal(t, ctr0.Container.ID, svc.Containers[1].Container.ID)
-			ctr2 = svc.Containers[0]
-		}
-
-		machine2, err := cli.InspectMachine(ctx, ctr2.MachineID)
-		require.NoError(t, err)
-		assert.Equal(t, c.Machines[2].Name, machine2.Machine.Name)
+		// Initial container on machine #0 should be left unchanged.
+		machines := serviceMachines(svc)
+		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
+		containers := serviceContainerIDs(svc)
+		assert.True(t, containers.Contains(initialContainerID), "Expected initial container to remain")
 	})
 
 	t.Run("replicated", func(t *testing.T) {
 		t.Parallel()
 
-		name := "replicated-deployment"
+		name := "test-replicated-deployment"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if !errors.Is(err, api.ErrNotFound) {
@@ -436,9 +394,9 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, spec)
 
 		// Verify containers are on different machines for balanced distribution.
-		initialMachines := serviceMachines(t, svc)
+		initialMachines := serviceMachines(svc)
 		assert.Len(t, initialMachines.ToSlice(), 2, "Expected 2 containers on 2 different machines")
-		initialContainers := serviceContainerIDs(t, svc)
+		initialContainers := serviceContainerIDs(svc)
 
 		// 2. Update the service with a new configuration.
 		init := true
@@ -458,10 +416,10 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, updatedSpec)
 
 		// Verify containers are on the same machines as before but the initial containers were replaced.
-		machines := serviceMachines(t, svc)
+		machines := serviceMachines(svc)
 		assert.ElementsMatch(t, initialMachines.ToSlice(), machines.ToSlice(),
 			"Expected containers on the same machines")
-		containers := serviceContainerIDs(t, svc)
+		containers := serviceContainerIDs(svc)
 		assert.Empty(t, initialContainers.Intersect(containers).ToSlice(),
 			"All existing containers should be replaced")
 
@@ -485,9 +443,9 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, threeReplicaSpec)
 
 		// Verify existing containers remain and a new one was added on a different machine.
-		machines = serviceMachines(t, svc)
+		machines = serviceMachines(svc)
 		assert.Len(t, machines.ToSlice(), 3, "Expected 3 containers on 3 different machines")
-		containers = serviceContainerIDs(t, svc)
+		containers = serviceContainerIDs(svc)
 		assert.Len(t, containers.Intersect(initialContainers).ToSlice(), 2, "Expected 2 initial containers to remain")
 
 		// 4. Update to 5 replicas with a different configuration.
@@ -510,13 +468,13 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, fourReplicaSpec)
 
 		// Verify all existing containers were replaced and new ones are evenly distributed.
-		machines = serviceMachines(t, svc)
+		machines = serviceMachines(svc)
 		assert.Len(t, machines.ToSlice(), 3, "Expected containers on 3 different machines")
-		containers = serviceContainerIDs(t, svc)
+		containers = serviceContainerIDs(svc)
 		assert.Empty(t, containers.Intersect(initialContainers).ToSlice(),
 			"All existing containers should be replaced")
 
-		machineContainers := serviceContainersByMachine(t, svc)
+		machineContainers := serviceContainersByMachine(svc)
 		for _, ctrs := range machineContainers {
 			assert.LessOrEqual(t, len(ctrs), 2, "Expected at most 2 containers on each machine")
 		}
@@ -536,14 +494,14 @@ func TestDeployment(t *testing.T) {
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
 
-		containers = serviceContainerIDs(t, svc)
+		containers = serviceContainerIDs(svc)
 		assert.ElementsMatch(t, initialContainers.ToSlice(), containers.ToSlice())
 	})
 
-	t.Run("replicated with machine filter", func(t *testing.T) {
+	t.Run("replicated with machine placement", func(t *testing.T) {
 		t.Parallel()
 
-		name := "replicated-deployment-filtered"
+		name := "test-replicated-deployment-machine-placement"
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, name)
 			if !errors.Is(err, api.ErrNotFound) {
@@ -551,21 +509,20 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
-		// Create a replicated service with 2 replicas but limit to machines 0 and 1
+		// Create a replicated service with 2 replicas but limit to machines 0 and 1.
 		spec := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
+			Placement: api.Placement{
+				Machines: []string{c.Machines[0].Name, c.Machines[1].Name},
+			},
 			Replicas: 2,
 		}
 
-		machine01Filter := func(m *pb.MachineInfo) bool {
-			return m.Name == c.Machines[0].Name || m.Name == c.Machines[1].Name
-		}
-		strategy := &deploy.RollingStrategy{MachineFilter: machine01Filter}
-		deployment := cli.NewDeployment(spec, strategy)
+		deployment := cli.NewDeployment(spec, nil)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -573,27 +530,17 @@ func TestDeployment(t *testing.T) {
 		// Verify service has 2 containers on machines 0 and 1.
 		svc, err := cli.InspectService(ctx, name)
 		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
 
 		assert.Len(t, svc.Containers, 2)
-		assert.NotEqual(t, svc.Containers[0].MachineID, svc.Containers[1].MachineID,
-			"Expected containers on different machines")
-
-		machineNames := make(map[string]string)
-		for _, ctr := range svc.Containers {
-			machine, err := cli.InspectMachine(ctx, ctr.MachineID)
-			require.NoError(t, err)
-			machineNames[ctr.MachineID] = machine.Machine.Name
-
-			// Should only be on machines 0 or 1.
-			assert.Contains(t, []string{c.Machines[0].Name, c.Machines[1].Name}, machine.Machine.Name)
-		}
+		machines := serviceMachines(svc)
+		assert.ElementsMatch(t, machines.ToSlice(), []string{c.Machines[0].ID, c.Machines[1].ID})
 
 		// Now update the filter to only allow machine 2
-		machine2Filter := func(m *pb.MachineInfo) bool {
-			return m.Name == c.Machines[2].Name
+		spec.Placement = api.Placement{
+			Machines: []string{c.Machines[2].Name},
 		}
-		strategy = &deploy.RollingStrategy{MachineFilter: machine2Filter}
-		deployment = cli.NewDeployment(spec, strategy)
+		deployment = cli.NewDeployment(spec, nil)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -601,14 +548,11 @@ func TestDeployment(t *testing.T) {
 		// Verify service now has containers only on machine 2.
 		svc, err = cli.InspectService(ctx, name)
 		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
 
 		assert.Len(t, svc.Containers, 2) // Still 2 replicas.
-		assert.Equal(t, svc.Containers[0].MachineID, svc.Containers[1].MachineID,
-			"Expected containers on the same machine")
-
-		machine, err := cli.InspectMachine(ctx, svc.Containers[0].MachineID)
-		require.NoError(t, err)
-		assert.Equal(t, c.Machines[2].Name, machine.Machine.Name, "Containers should only be on machine #2")
+		machines = serviceMachines(svc)
+		assert.Equal(t, machines.ToSlice(), []string{c.Machines[2].ID}, "Expected containers on machine 2 only")
 	})
 
 	// Deployments with volumes.
@@ -880,7 +824,7 @@ func TestServiceLifecycle(t *testing.T) {
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
-		}, nil)
+		})
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, resp.ID)
@@ -949,7 +893,7 @@ func TestServiceLifecycle(t *testing.T) {
 				},
 			},
 		}
-		resp, err := cli.RunService(ctx, spec, nil)
+		resp, err := cli.RunService(ctx, spec)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, resp.ID)
@@ -979,7 +923,7 @@ func TestServiceLifecycle(t *testing.T) {
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
 			},
-		}, nil)
+		})
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, resp.ID)

@@ -1,32 +1,38 @@
 package scheduler
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
 type ServiceScheduler struct {
-	machines    []*Machine
-	spec        api.ServiceSpec
-	constraints []Constraint
+	Machines    []*Machine
+	Spec        api.ServiceSpec
+	Constraints []Constraint
 }
 
-func NewServiceScheduler(machines []*Machine, spec api.ServiceSpec, constraints []Constraint) *ServiceScheduler {
-	specConstraints := constraintsFromSpec(spec)
-	specConstraints = append(specConstraints, constraints...)
+func NewServiceScheduler(ctx context.Context, cli Client, spec api.ServiceSpec) (*ServiceScheduler, error) {
+	machines, err := InspectMachines(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf("inspect machines: %w", err)
+	}
+
+	constraints := constraintsFromSpec(spec)
 
 	return &ServiceScheduler{
-		machines:    machines,
-		spec:        spec,
-		constraints: specConstraints,
-	}
+		Machines:    machines,
+		Spec:        spec,
+		Constraints: constraints,
+	}, nil
 }
 
 func (s *ServiceScheduler) AvailableMachines() ([]*Machine, error) {
 	var available []*Machine
-	for _, machine := range s.machines {
+	for _, machine := range s.Machines {
 		if s.evaluateConstraints(machine) {
 			available = append(available, machine)
 		}
@@ -38,7 +44,7 @@ func (s *ServiceScheduler) AvailableMachines() ([]*Machine, error) {
 }
 
 func (s *ServiceScheduler) evaluateConstraints(machine *Machine) bool {
-	for _, c := range s.constraints {
+	for _, c := range s.Constraints {
 		if !c.Evaluate(machine) {
 			return false
 		}

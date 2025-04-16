@@ -22,9 +22,7 @@ type RunServiceResponse struct {
 	Name string
 }
 
-func (cli *Client) RunService(
-	ctx context.Context, spec api.ServiceSpec, filter deploy.MachineFilter,
-) (RunServiceResponse, error) {
+func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
 	var resp RunServiceResponse
 
 	if err := spec.Validate(); err != nil {
@@ -42,7 +40,7 @@ func (cli *Client) RunService(
 		}
 	}
 
-	deployment := cli.NewDeployment(spec, &deploy.RollingStrategy{MachineFilter: filter})
+	deployment := cli.NewDeployment(spec, &deploy.RollingStrategy{})
 	plan, err := deployment.Run(ctx)
 	if err != nil {
 		return resp, err
