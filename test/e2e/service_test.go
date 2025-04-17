@@ -582,8 +582,210 @@ func TestDeployment(t *testing.T) {
 		d := deploy.NewDeployment(cli, spec, nil)
 		_, err := d.Run(ctx)
 		require.Error(t, err, "Deployment should fail when volume doesn't exist")
-		require.Contains(t, err.Error(), "volume 'non-existent-volume' not found")
+		require.Contains(t, err.Error(), "no machines available")
+		// TODO: implement and check for more details about the failed constraints.
+		//require.Contains(t, err.Error(), "volume 'non-existent-volume' not found")
 	})
+
+	// Tests that when a volume exists on a single machine, all requested replicas will be deployed to that machine,
+	// regardless of how many replicas are requested.
+	t.Run("replicated with volume on single machine", func(t *testing.T) {
+		t.Parallel()
+
+		serviceName := "test-replicated-with-volume-single-machine"
+		volumeName := serviceName
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, serviceName)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+
+			err = cli.RemoveVolume(ctx, c.Machines[1].Name, volumeName, false)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+		})
+
+		vol, err := cli.CreateVolume(ctx, c.Machines[1].Name, volume.CreateOptions{Name: volumeName})
+		require.NoError(t, err, "Failed to create test volume")
+
+		spec := api.ServiceSpec{
+			Name: serviceName,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    volumeName,
+						ContainerPath: "/data",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: volumeName,
+					Type: api.VolumeTypeVolume,
+				},
+			},
+			Replicas: 3,
+		}
+
+		d := deploy.NewDeployment(cli, spec, nil)
+		_, err = d.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, serviceName)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
+
+		for _, ctr := range svc.Containers {
+			assert.Equal(t, vol.MachineID, ctr.MachineID,
+				"All containers should be on the machine where the volume is located")
+		}
+	})
+
+	// Tests replica distribution across machines that have the same volume.
+	t.Run("replicated with volume on multiple machines", func(t *testing.T) {
+		t.Parallel()
+
+		serviceName := "test-replicated-with-volume-multi-machine"
+		volumeName := serviceName
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, serviceName)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+
+			err = cli.RemoveVolume(ctx, c.Machines[0].Name, volumeName, false)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+			err = cli.RemoveVolume(ctx, c.Machines[1].Name, volumeName, false)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+		})
+
+		vol1, err := cli.CreateVolume(ctx, c.Machines[0].Name, volume.CreateOptions{Name: volumeName})
+		require.NoError(t, err, "Failed to create volume on first machine")
+		vol2, err := cli.CreateVolume(ctx, c.Machines[1].Name, volume.CreateOptions{Name: volumeName})
+		require.NoError(t, err, "Failed to create volume on second machine")
+
+		spec := api.ServiceSpec{
+			Name: serviceName,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    volumeName,
+						ContainerPath: "/data",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: volumeName,
+					Type: api.VolumeTypeVolume,
+				},
+			},
+			Replicas: 3,
+		}
+
+		d := deploy.NewDeployment(cli, spec, nil)
+		_, err = d.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, serviceName)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
+
+		machines := serviceMachines(svc)
+		assert.ElementsMatch(t, machines.ToSlice(), []string{vol1.MachineID, vol2.MachineID},
+			"Containers should be distributed across machines with the same volume")
+	})
+
+	// Tests that a service requiring multiple volumes is correctly deployed to a machine that has all of those volumes.
+	t.Run("replicated with multiple volumes on single machine", func(t *testing.T) {
+		t.Parallel()
+
+		serviceName := "test-replicated-with-multi-volume-single-machine"
+		vol1Name := serviceName + "1"
+		vol2Name := serviceName + "2"
+
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, serviceName)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+
+			err = cli.RemoveVolume(ctx, c.Machines[0].Name, vol1Name, false)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+			err = cli.RemoveVolume(ctx, c.Machines[1].Name, vol1Name, false)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+			err = cli.RemoveVolume(ctx, c.Machines[1].Name, vol2Name, false)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+			err = cli.RemoveVolume(ctx, c.Machines[2].Name, vol2Name, false)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+		})
+
+		_, err := cli.CreateVolume(ctx, c.Machines[0].Name, volume.CreateOptions{Name: vol1Name})
+		require.NoError(t, err)
+		_, err = cli.CreateVolume(ctx, c.Machines[1].Name, volume.CreateOptions{Name: vol1Name})
+		require.NoError(t, err)
+		_, err = cli.CreateVolume(ctx, c.Machines[1].Name, volume.CreateOptions{Name: vol2Name})
+		require.NoError(t, err)
+		_, err = cli.CreateVolume(ctx, c.Machines[2].Name, volume.CreateOptions{Name: vol2Name})
+		require.NoError(t, err)
+
+		spec := api.ServiceSpec{
+			Name: serviceName,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    vol1Name,
+						ContainerPath: "/data1",
+					},
+					{
+						VolumeName:    vol2Name,
+						ContainerPath: "/data2",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: vol1Name,
+					Type: api.VolumeTypeVolume,
+				},
+				{
+					Name: vol2Name,
+					Type: api.VolumeTypeVolume,
+				},
+			},
+			Replicas: 3,
+		}
+
+		d := deploy.NewDeployment(cli, spec, nil)
+		_, err = d.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, serviceName)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
+
+		machines := serviceMachines(svc)
+		assert.ElementsMatch(t, machines.ToSlice(), []string{c.Machines[1].ID},
+			"Containers should be deployed to the machine that has both volumes")
+	})
+
+	// TODO: global deployment with a volume
 
 	// TODO: test deployments with unreachable machines. See https://github.com/psviderski/uncloud/issues/29.
 }

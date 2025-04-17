@@ -53,5 +53,7 @@ func (s *ServiceScheduler) evaluateConstraints(machine *Machine) bool {
 }
 
 func (s *ServiceScheduler) ScheduleContainer() ([]*pb.MachineInfo, error) {
+	// TODO: organise machines in a heap and supply a sort function from the strategy. Each scheduled container
+	//  should update the machine and reorder it in the heap.
 	return nil, errors.New("not implemented")
 }

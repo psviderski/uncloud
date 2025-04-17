@@ -14,7 +14,7 @@ import (
 const (
 	// VolumeTypeBind is the type for mounting a host path.
 	VolumeTypeBind = "bind"
-	// VolumeTypeVolume is the type for mounting a managed volume.
+	// VolumeTypeVolume is the type for mounting a named Docker volume.
 	VolumeTypeVolume = "volume"
 	// VolumeTypeTmpfs is the type for mounting a temporary file system stored in the host memory.
 	VolumeTypeTmpfs = "tmpfs"
@@ -42,7 +42,7 @@ type BindOptions struct {
 	Recursive      string            `json:",omitempty"`
 }
 
-// VolumeOptions represents options for a managed volume.
+// VolumeOptions represents options for a named Docker volume.
 type VolumeOptions struct {
 	// Driver specifies the volume driver and its options for volume creation.
 	// TODO: It seems we don't really need Driver and Labels if we only support externally managed volumes.
@@ -50,12 +50,22 @@ type VolumeOptions struct {
 	Driver *mount.Driver `json:",omitempty"`
 	// Labels are key-value metadata to apply to the volume if creating a new volume.
 	Labels map[string]string `json:",omitempty"`
-	// Name of the managed volume to use. If not specified, defaults to the VolumeSpec.Name.
+	// Name of the named Docker volume to use. If not specified, defaults to the VolumeSpec.Name.
 	Name string `json:",omitempty"`
 	// NoCopy prevents automatic copying of data from the container mount path to the volume.
 	NoCopy bool `json:",omitempty"`
 	// SubPath is the path within the volume to mount instead of its root.
 	SubPath string `json:",omitempty"`
+}
+
+func (v *VolumeSpec) DockerVolumeName() string {
+	if v.Type != VolumeTypeVolume {
+		return ""
+	}
+	if v.VolumeOptions != nil && v.VolumeOptions.Name != "" {
+		return v.VolumeOptions.Name
+	}
+	return v.Name
 }
 
 func (v *VolumeSpec) SetDefaults() VolumeSpec {

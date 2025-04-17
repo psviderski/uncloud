@@ -52,6 +52,15 @@ type ServiceSpec struct {
 	Volumes []VolumeSpec
 }
 
+func (s *ServiceSpec) Volume(name string) (VolumeSpec, bool) {
+	for _, v := range s.Volumes {
+		if v.Name == name {
+			return v, true
+		}
+	}
+	return VolumeSpec{}, false
+}
+
 func (s *ServiceSpec) SetDefaults() ServiceSpec {
 	spec := s.Clone()
 
