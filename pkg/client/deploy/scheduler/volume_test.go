@@ -3,10 +3,12 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVolumeScheduler_Schedule(t *testing.T) {
@@ -30,6 +32,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service1",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -74,6 +77,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service1",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -91,6 +95,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service2",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -138,6 +143,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service1",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -178,6 +184,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						Machines: []string{"machine2"},
 					},
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -225,6 +232,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						Machines: []string{"machine1"},
 					},
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -245,6 +253,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						Machines: []string{"machine2"},
 					},
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -290,6 +299,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						Machines: []string{"machine2"},
 					},
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -328,6 +338,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service1",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -353,6 +364,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service2",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol2",
@@ -378,6 +390,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service3",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol3",
@@ -458,6 +471,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service1",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol3",
@@ -483,6 +497,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service2",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -516,13 +531,14 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service3",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol2",
 								ContainerPath: "/data2",
 							},
 							{
-								VolumeName:    "vol4",
+								VolumeName:    "vol4-alias",
 								ContainerPath: "/data4",
 							},
 						},
@@ -533,18 +549,24 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 							Type: api.VolumeTypeVolume,
 						},
 						{
-							// TODO: use vol4-alias name and Docker name in VolumeOptions
-							Name: "vol4",
+							Name: "vol4-alias",
 							Type: api.VolumeTypeVolume,
+							VolumeOptions: &api.VolumeOptions{
+								Name: "vol4",
+								Driver: &mount.Driver{
+									Name: api.VolumeDriverLocal,
+								},
+							},
 						},
 					},
 				},
 				{
 					Name: "service4",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
-								VolumeName:    "vol2",
+								VolumeName:    "vol2-alias",
 								ContainerPath: "/data2",
 							},
 							{
@@ -555,8 +577,14 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 					},
 					Volumes: []api.VolumeSpec{
 						{
-							Name: "vol2",
+							Name: "vol2-alias",
 							Type: api.VolumeTypeVolume,
+							VolumeOptions: &api.VolumeOptions{
+								Name: "vol2",
+								Driver: &mount.Driver{
+									Name: api.VolumeDriverLocal,
+								},
+							},
 						},
 						{
 							Name: "vol5",
@@ -607,6 +635,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						Machines: []string{"machine1"},
 					},
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -635,6 +664,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						Machines: []string{"machine2"},
 					},
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol2",
@@ -689,6 +719,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service1",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol1",
@@ -714,6 +745,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				{
 					Name: "service2",
 					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
 						VolumeMounts: []api.VolumeMount{
 							{
 								VolumeName:    "vol3",
@@ -757,7 +789,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			scheduler, err := NewVolumeSchedulerWithMachines(tt.machines, tt.serviceSpecs)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			result, err := scheduler.Schedule()
 
 			if tt.wantErr != "" {

@@ -11,7 +11,12 @@ import (
 )
 
 // VolumeScheduler determines what missing volumes should be created and where for a multi-service deployment.
-// TODO: add rules that if a volume exists, it should be used instead of creating a new one.
+// It must satisfy the following constraints:
+//   - Services that share a volume must be placed on the same machine where the volume is located.
+//     If the volume is located on multiple machines, services can be placed on any of them.
+//   - Services must respect their individual placement constraints.
+//   - If a volume already exists on a machine, it must be used instead of creating a new one.
+//   - A missing volume must only be created on one machine.
 type VolumeScheduler struct {
 	// machines is a list of available machines in the cluster.
 	machines []*Machine
@@ -19,6 +24,8 @@ type VolumeScheduler struct {
 	serviceSpecs []api.ServiceSpec
 	// volumeSpecs is a map of volume names to their specifications from the service specs in a canonical form.
 	volumeSpecs map[string]api.VolumeSpec
+	// volumeServices is a map of volume names to the list of service names that use the volume.
+	volumeServices map[string][]string
 	// existingVolumeMachines is a map of volume names to the set of machine IDs where those volumes are located.
 	// Contains only volumes that are used by at least one service in serviceSpecs.
 	existingVolumeMachines map[string]mapset.Set[string]
@@ -37,16 +44,21 @@ func NewVolumeSchedulerWithClient(ctx context.Context, cli Client, specs []api.S
 // NewVolumeSchedulerWithMachines creates a new VolumeScheduler with the given cluster machines
 // and service specifications.
 func NewVolumeSchedulerWithMachines(machines []*Machine, specs []api.ServiceSpec) (*VolumeScheduler, error) {
-	// TODO: validate specs before scheduling, need to update tests to use helper functions to create specs with images.
 	var specsWithVolumes []api.ServiceSpec
 	// Docker volume name -> VolumeSpec.
 	volumeSpecs := make(map[string]api.VolumeSpec)
+	// Volume name -> list of service names that use the volume.
+	volumeServices := make(map[string][]string)
 	// Volume name -> set of machine IDs where the volume is located.
-	volumeMachines := make(map[string]mapset.Set[string])
+	existingVolumeMachines := make(map[string]mapset.Set[string])
 
 	// Validate all service names are unique to avoid scheduling conflicts.
 	serviceNames := make(map[string]struct{}, len(specs))
 	for _, spec := range specs {
+		if err := spec.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid service spec: %w", err)
+		}
+
 		if _, exists := serviceNames[spec.Name]; exists {
 			return nil, fmt.Errorf("duplicate service name: '%s'", spec.Name)
 		}
@@ -59,16 +71,19 @@ func NewVolumeSchedulerWithMachines(machines []*Machine, specs []api.ServiceSpec
 		specsWithVolumes = append(specsWithVolumes, spec)
 
 		for _, v := range mountedVolumes {
-			if seenVolume, ok := volumeSpecs[v.DockerVolumeName()]; ok {
+			v = v.SetDefaults()
+			// Reset any aliases in a service spec to the actual Docker volume name.
+			v.Name = v.DockerVolumeName()
+
+			if seenVolume, ok := volumeSpecs[v.Name]; ok {
 				if !seenVolume.Equals(v) {
-					return nil, fmt.Errorf("volume '%s' is defined multiple times with different options",
-						v.DockerVolumeName())
+					return nil, fmt.Errorf("volume '%s' is defined multiple times with different options", v.Name)
 				}
 			} else {
-				v = v.SetDefaults()
-				v.Name = v.DockerVolumeName() // Reset any aliases in a service spec to the actual Docker volume name.
 				volumeSpecs[v.Name] = v
 			}
+
+			volumeServices[v.Name] = append(volumeServices[v.Name], spec.Name)
 		}
 	}
 
@@ -82,10 +97,10 @@ func NewVolumeSchedulerWithMachines(machines []*Machine, specs []api.ServiceSpec
 						"on machine '%s'", vol.Name, machine.Info.Name)
 				}
 
-				if _, setInitialised := volumeMachines[vol.Name]; !setInitialised {
-					volumeMachines[vol.Name] = mapset.NewSet[string]()
+				if _, setInitialised := existingVolumeMachines[vol.Name]; !setInitialised {
+					existingVolumeMachines[vol.Name] = mapset.NewSet[string]()
 				}
-				volumeMachines[vol.Name].Add(machine.Info.Id)
+				existingVolumeMachines[vol.Name].Add(machine.Info.Id)
 			}
 		}
 	}
@@ -94,7 +109,8 @@ func NewVolumeSchedulerWithMachines(machines []*Machine, specs []api.ServiceSpec
 		machines:               machines,
 		serviceSpecs:           specsWithVolumes,
 		volumeSpecs:            volumeSpecs,
-		existingVolumeMachines: volumeMachines,
+		volumeServices:         volumeServices,
+		existingVolumeMachines: existingVolumeMachines,
 	}, nil
 }
 
@@ -110,7 +126,6 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 	// Service name -> set of machine IDs where the service can be scheduled.
 	serviceEligibleMachines := make(map[string]mapset.Set[string])
 	// Volume name -> list of service names that use the volume.
-	volumeServices := make(map[string][]string)
 	// Get eligible machines for each service without considering its volume mounts.
 	for _, spec := range s.serviceSpecs {
 		machineIDs, err := s.serviceEligibleMachinesWithoutVolumes(spec)
@@ -118,12 +133,6 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 			return nil, err
 		}
 		serviceEligibleMachines[spec.Name] = machineIDs
-
-		// Populate volumeServices with Docker volumes used by this service.
-		for _, v := range spec.MountedDockerVolumes() {
-			volumeName := v.DockerVolumeName()
-			volumeServices[volumeName] = append(volumeServices[volumeName], spec.Name)
-		}
 	}
 
 	// For each volume that exists on any machine(s) (which shouldn't be created), intersect each service's
@@ -131,7 +140,7 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 	// Service name -> list of processed volume names (quoted) to format the error message.
 	quotedServiceVolumes := make(map[string][]string)
 	for volumeName, volumeMachines := range s.existingVolumeMachines {
-		for _, serviceName := range volumeServices[volumeName] {
+		for _, serviceName := range s.volumeServices[volumeName] {
 			quotedServiceVolumes[serviceName] = append(quotedServiceVolumes[serviceName],
 				fmt.Sprintf("'%s'", volumeName))
 			newEligibleMachines := serviceEligibleMachines[serviceName].Intersect(volumeMachines)
@@ -144,51 +153,52 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 		}
 	}
 
-	for serviceName, eligibleMachines := range serviceEligibleMachines {
-		fmt.Printf("### Service '%s' can be scheduled on machines: %v\n", serviceName, eligibleMachines.ToSlice())
+	// Skip constraints propagation for volumes that already exist on machines as the propagation only works
+	// for missing volumes.
+	placedVolumes := make(map[string]struct{})
+	for volumeName := range s.existingVolumeMachines {
+		placedVolumes[volumeName] = struct{}{}
 	}
 
-	// For each missing volume, intersect the eligible machines for all services using the volume
-	// and choose the first machine in the sorted intersection to create the volume on.
+	if err := s.propagateConstraintsUntilConvergence(serviceEligibleMachines, placedVolumes); err != nil {
+		return nil, err
+	}
+
+	// Schedule each missing volume on one of its eligible machines.
 	scheduledVolumes := make(map[string][]api.VolumeSpec)
 	for missingVolumeName, missingVolumeSpec := range s.volumeSpecs {
+		// Skip volumes that already exist on machines.
 		if _, ok := s.existingVolumeMachines[missingVolumeName]; ok {
-			// This volume already exists, no need to create it.
 			continue
 		}
 
-		var eligibleMachines mapset.Set[string]
-		var quotedServiceNames []string // Used to format the error message.
-		for i, serviceName := range volumeServices[missingVolumeName] {
-			if i == 0 {
-				eligibleMachines = serviceEligibleMachines[serviceName]
-			} else {
-				eligibleMachines = serviceEligibleMachines[serviceName].Intersect(eligibleMachines)
-			}
-			quotedServiceNames = append(quotedServiceNames, fmt.Sprintf("'%s'", serviceName))
-		}
-
-		if eligibleMachines == nil {
+		serviceNames := s.volumeServices[missingVolumeName]
+		if len(serviceNames) == 0 {
 			return nil, fmt.Errorf("bug detected: no services using volume '%s'", missingVolumeName)
 		}
+
+		// Get the current eligible machines (any service using the volume will have the same set after convergence).
+		eligibleMachines := serviceEligibleMachines[serviceNames[0]]
 		if eligibleMachines.Cardinality() == 0 {
-			return nil, fmt.Errorf("unable to find a machine that satisfies placement constraints "+
-				"for services %s that must be placed together to share volume '%s'",
-				strings.Join(quotedServiceNames, ", "), missingVolumeName)
+			return nil, fmt.Errorf("bug detected: no eligible machines for volume '%s'", missingVolumeName)
 		}
 
-		// Choose the first machine in the sorted eligible machines to create the volume on.
+		// Choose the first machine in the sorted eligible machines to schedule the volume on.
 		// Sort the eligible machines to ensure deterministic behavior.
-		// TODO: the first machine might not be the optimal one. Ideally, we need to do the intersection for all volumes
-		// 	multiple times until they converge. Then picking any machine is fine.
 		sortedEligibleMachines := eligibleMachines.ToSlice()
 		slices.Sort(sortedEligibleMachines)
 		machineID := sortedEligibleMachines[0]
+		// Update constraints for all services that use this volume to be placed on the selected machine.
+		for _, serviceName := range serviceNames {
+			serviceEligibleMachines[serviceName] = mapset.NewSet(machineID)
+		}
+		placedVolumes[missingVolumeName] = struct{}{}
 		scheduledVolumes[machineID] = append(scheduledVolumes[machineID], missingVolumeSpec)
-		// Update the eligible machines to the chosen machine for all services using this volume.
-		eligibleMachines = mapset.NewSet(machineID)
-		for _, serviceName := range volumeServices[missingVolumeName] {
-			serviceEligibleMachines[serviceName] = eligibleMachines
+
+		// Propagate the updated constraints.
+		if err := s.propagateConstraintsUntilConvergence(serviceEligibleMachines, placedVolumes); err != nil {
+			return nil, fmt.Errorf("unexpected error while propagating constraints after "+
+				"scheduling volume '%s' on machine '%s': %w", missingVolumeName, machineID, err)
 		}
 	}
 
@@ -213,4 +223,74 @@ func (s *VolumeScheduler) serviceEligibleMachinesWithoutVolumes(spec api.Service
 	}
 
 	return machineIDs, nil
+}
+
+// propagateConstraintsUntilConvergence iteratively narrows down eligible machines for services by propagating
+// constraints through shared volumes until convergence. It only processes volumes that need to be created (not
+// existing volumes) and ensures services sharing a volume converge to the same set of eligible machines.
+// If skipVolumes is provided, those volumes are excluded from constraint propagation.
+// Returns an error if any services have no eligible machines after constraint propagation.
+func (s *VolumeScheduler) propagateConstraintsUntilConvergence(
+	serviceEligibleMachines map[string]mapset.Set[string],
+	skipVolumes map[string]struct{},
+) error {
+	changed := true
+	// Loop until no more changes occur.
+	for changed {
+		changed = false
+
+		// For each volume, find the intersection of eligible machines for all services using that volume and update
+		// their eligible machines with the intersection. This will narrow down the machines where the volume can
+		// be created.
+		for volumeName, serviceNames := range s.volumeServices {
+			if skipVolumes != nil {
+				if _, ok := skipVolumes[volumeName]; ok {
+					continue
+				}
+			}
+			// Skip if there are no services using this volume (shouldn't happen).
+			if len(serviceNames) == 0 {
+				continue
+			}
+
+			// Find the intersection of eligible machines for all services using this volume.
+			var eligibleMachinesForVolume mapset.Set[string]
+			first := true
+			for _, serviceName := range serviceNames {
+				if first {
+					// First service: initialise the intersection.
+					eligibleMachinesForVolume = serviceEligibleMachines[serviceName].Clone()
+					first = false
+				} else {
+					eligibleMachinesForVolume = serviceEligibleMachines[serviceName].Intersect(
+						eligibleMachinesForVolume)
+				}
+			}
+
+			// If no machines are eligible for this volume, we have a constraint violation.
+			//goland:noinspection GoDfaNilDereference
+			if eligibleMachinesForVolume.Cardinality() == 0 {
+				var quotedServiceNames []string // Used to format the error message.
+				for _, svcName := range serviceNames {
+					quotedServiceNames = append(quotedServiceNames, fmt.Sprintf("'%s'", svcName))
+				}
+				return fmt.Errorf("unable to find a machine that satisfies placement constraints "+
+					"for services %s that must be placed together to share volume '%s'",
+					strings.Join(quotedServiceNames, ", "), volumeName)
+			}
+
+			// Update eligible machines for all services using this volume.
+			newCount := eligibleMachinesForVolume.Cardinality()
+			for _, serviceName := range serviceNames {
+				oldCount := serviceEligibleMachines[serviceName].Cardinality()
+				serviceEligibleMachines[serviceName] = eligibleMachinesForVolume
+
+				if oldCount != newCount {
+					changed = true
+				}
+			}
+		}
+	}
+
+	return nil
 }
