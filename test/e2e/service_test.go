@@ -1388,6 +1388,65 @@ func TestServiceLifecycle(t *testing.T) {
 		assert.Equal(t, spec.Ports, ports)
 	})
 
+	t.Run("3 replicas with volume auto-created", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-3-replicas-volume-auto-created"
+		volumeName := name
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+
+			volumes, err := cli.ListVolumes(ctx, &api.VolumeFilter{Names: []string{volumeName}})
+			require.NoError(t, err)
+			for _, v := range volumes {
+				err = cli.RemoveVolume(ctx, v.MachineID, v.Volume.Name, false)
+				assert.NoError(t, err)
+			}
+		})
+
+		volumes, err := cli.ListVolumes(ctx, &api.VolumeFilter{Names: []string{volumeName}})
+		require.NoError(t, err)
+		assert.Len(t, volumes, 0, "Volume should not exist before service creation")
+
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    volumeName,
+						ContainerPath: "/data",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: volumeName,
+					Type: api.VolumeTypeVolume,
+				},
+			},
+		}
+		resp, err := cli.RunService(ctx, spec)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, resp.ID)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
+
+		volumes, err = cli.ListVolumes(ctx, &api.VolumeFilter{Names: []string{volumeName}})
+		require.NoError(t, err)
+		assert.Len(t, volumes, 1, "Volume should be created automatically")
+		assert.Equal(t, volumeName, volumes[0].Volume.Name)
+
+		machines := serviceMachines(svc)
+		assert.Equal(t, []string{volumes[0].MachineID}, machines.ToSlice(),
+			"Replicas should be on the same machine as the volume")
+	})
+
 	t.Run("global mode", func(t *testing.T) {
 		t.Parallel()
 
