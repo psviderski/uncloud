@@ -61,6 +61,18 @@ func (s *ServiceSpec) Volume(name string) (VolumeSpec, bool) {
 	return VolumeSpec{}, false
 }
 
+// MountedDockerVolumes returns the list of volumes of VolumeTypeVolume type that are mounted into the container.
+func (s *ServiceSpec) MountedDockerVolumes() []VolumeSpec {
+	volumes := make(map[string]VolumeSpec)
+	for _, m := range s.Container.VolumeMounts {
+		if v, ok := s.Volume(m.VolumeName); ok && v.Type == VolumeTypeVolume {
+			volumes[v.Name] = v
+		}
+	}
+
+	return slices.Collect(maps.Values(volumes))
+}
+
 func (s *ServiceSpec) SetDefaults() ServiceSpec {
 	spec := s.Clone()
 

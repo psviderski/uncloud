@@ -18,6 +18,9 @@ const (
 	VolumeTypeVolume = "volume"
 	// VolumeTypeTmpfs is the type for mounting a temporary file system stored in the host memory.
 	VolumeTypeTmpfs = "tmpfs"
+
+	// VolumeDriverLocal is the default volume driver for local named Docker volumes.
+	VolumeDriverLocal = "local"
 )
 
 // VolumeSpec defines a volume mount specification. As of April 2025, the volume must be created before deploying
@@ -76,7 +79,7 @@ func (v *VolumeSpec) SetDefaults() VolumeSpec {
 			spec.VolumeOptions = &VolumeOptions{}
 		}
 		if spec.VolumeOptions.Driver == nil {
-			spec.VolumeOptions.Driver = &mount.Driver{Name: "local"}
+			spec.VolumeOptions.Driver = &mount.Driver{Name: VolumeDriverLocal}
 		}
 		if spec.VolumeOptions.Name == "" {
 			spec.VolumeOptions.Name = spec.Name
@@ -111,6 +114,33 @@ func (v *VolumeSpec) Equals(other VolumeSpec) bool {
 	other = other.SetDefaults()
 
 	return reflect.DeepEqual(vol, other)
+}
+
+// MatchesDockerVolume checks if this VolumeSpec is compatible with the given named Docker volume.
+// In other words, it checks if the spec could be used to create the volume.
+func (v *VolumeSpec) MatchesDockerVolume(vol volume.Volume) bool {
+	if v.Type != VolumeTypeVolume {
+		return false
+	}
+	spec := v.SetDefaults()
+
+	if spec.DockerVolumeName() != vol.Name {
+		return false
+	}
+
+	volDriver := vol.Driver
+	if volDriver == "" {
+		volDriver = VolumeDriverLocal
+	}
+	if spec.VolumeOptions.Driver.Name != volDriver {
+		return false
+	}
+
+	if !reflect.DeepEqual(spec.VolumeOptions.Driver.Options, vol.Options) {
+		return false
+	}
+
+	return true
 }
 
 func (v *VolumeSpec) Clone() VolumeSpec {

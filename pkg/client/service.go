@@ -11,7 +11,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -40,7 +39,7 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 		}
 	}
 
-	deployment := cli.NewDeployment(spec, &deploy.RollingStrategy{})
+	deployment := cli.NewDeployment(spec, nil)
 	plan, err := deployment.Run(ctx)
 	if err != nil {
 		return resp, err
