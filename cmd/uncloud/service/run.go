@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/docker/compose/v2/pkg/progress"
-	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/daemon/names"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/secret"
@@ -113,26 +111,8 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	}
 	defer clusterClient.Close()
 
-	machineIDForVolumes, missingVolumes, err := selectMachineForVolumes(
-		ctx,
-		clusterClient,
-		spec.Volumes,
-		spec.Placement.Machines,
-	)
-	if err != nil {
-		return err
-	}
-
 	var resp client.RunServiceResponse
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		// Create missing volumes on the selected machine.
-		for _, v := range missingVolumes {
-			_, err = clusterClient.CreateVolume(ctx, machineIDForVolumes, volume.CreateOptions{Name: v.Name})
-			if err != nil {
-				return fmt.Errorf("create volume '%s': %w", v.Name, err)
-			}
-		}
-
 		resp, err = clusterClient.RunService(ctx, spec)
 		if err != nil {
 			return fmt.Errorf("run service: %w", err)
@@ -357,77 +337,4 @@ func parseVolumeFlagValue(volume string) (api.VolumeSpec, api.VolumeMount, error
 	}
 
 	return spec, mount, nil
-}
-
-// selectMachineForVolumes selects a machine to run a service with the given volumes on and determines which volumes
-// need to be created on the selected machine. An empty machineID is returned if no named volumes are specified.
-func selectMachineForVolumes(
-	ctx context.Context, clusterClient *client.Client, volumes []api.VolumeSpec, machinesFilter []string,
-) (machineID string, missingVolumes []api.VolumeSpec, err error) {
-	var volumeNames []string
-	for _, v := range volumes {
-		if v.Type == api.VolumeTypeVolume {
-			volumeNames = append(volumeNames, v.Name)
-		}
-	}
-	if len(volumeNames) == 0 {
-		return "", nil, nil
-	}
-
-	vfilter := &api.VolumeFilter{
-		Machines: machinesFilter,
-		Names:    volumeNames,
-	}
-	vols, err := clusterClient.ListVolumes(ctx, vfilter)
-	if err != nil {
-		return "", nil, fmt.Errorf("list volumes: %w", err)
-	}
-
-	if len(vols) > 0 {
-		// Some volumes have been found on the machines matching the machinesFilter.
-		// Pick the machine with the most volumes to create fewer duplicate volumes.
-		volumesCountOnMachines := make(map[string]int)
-		for _, vol := range vols {
-			volumesCountOnMachines[vol.MachineID]++
-		}
-
-		maxCount := 0
-		for mid, count := range volumesCountOnMachines {
-			if count > maxCount {
-				machineID = mid
-				maxCount = count
-			}
-		}
-	} else {
-		// No volumes found on the machines matching the machinesFilter.
-		// Pick the first available machine to create the volumes on.
-		mfilter := &api.MachineFilter{
-			Available:  true,
-			NamesOrIDs: machinesFilter,
-		}
-		availableMachines, err := clusterClient.ListMachines(ctx, mfilter)
-		if err != nil {
-			return "", nil, fmt.Errorf("list machines: %w", err)
-		}
-
-		if len(availableMachines) == 0 {
-			return "", nil, fmt.Errorf("no available machines to create the volume(s) on")
-		}
-		machineID = availableMachines[0].Machine.Id
-	}
-
-	// Find missing volumes that need to be created on the selected machine.
-	for _, v := range volumes {
-		if v.Type != api.VolumeTypeVolume {
-			continue
-		}
-
-		if !slices.ContainsFunc(vols, func(mv api.MachineVolume) bool {
-			return mv.Volume.Name == v.Name && mv.MachineID == machineID
-		}) {
-			missingVolumes = append(missingVolumes, v)
-		}
-	}
-
-	return machineID, missingVolumes, nil
 }

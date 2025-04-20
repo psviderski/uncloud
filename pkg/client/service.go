@@ -9,8 +9,10 @@ import (
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -36,6 +38,33 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunSer
 		}
 		if !errors.Is(err, api.ErrNotFound) {
 			return resp, fmt.Errorf("inspect service: %w", err)
+		}
+	}
+
+	// Create missing named Docker volumes for the service.
+	if len(spec.MountedDockerVolumes()) > 0 {
+		volumeScheduler, err := scheduler.NewVolumeSchedulerWithClient(ctx, cli, []api.ServiceSpec{spec})
+		if err != nil {
+			return resp, fmt.Errorf("init volume scheduler: %w", err)
+		}
+
+		scheduledVolumes, err := volumeScheduler.Schedule()
+		if err != nil {
+			return resp, fmt.Errorf("schedule volumes: %w", err)
+		}
+
+		// Create the missing volumes on the scheduled machines.
+		for machineID, volumes := range scheduledVolumes {
+			for _, v := range volumes {
+				_, err = cli.CreateVolume(ctx, machineID, volume.CreateOptions{
+					Name:       v.Name,
+					Driver:     v.VolumeOptions.Driver.Name,
+					DriverOpts: v.VolumeOptions.Driver.Options,
+				})
+				if err != nil {
+					return resp, fmt.Errorf("create volume '%s': %w", v.Name, err)
+				}
+			}
 		}
 	}
 

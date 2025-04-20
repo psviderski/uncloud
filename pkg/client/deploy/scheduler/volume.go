@@ -11,7 +11,7 @@ import (
 )
 
 // VolumeScheduler determines what missing volumes should be created and where for a multi-service deployment.
-// It must satisfy the following constraints:
+// It satisfies the following constraints:
 //   - Services that share a volume must be placed on the same machine where the volume is located.
 //     If the volume is located on multiple machines, services can be placed on any of them.
 //   - Services must respect their individual placement constraints.
@@ -25,6 +25,7 @@ type VolumeScheduler struct {
 	// volumeSpecs is a map of volume names to their specifications from the service specs in a canonical form.
 	volumeSpecs map[string]api.VolumeSpec
 	// volumeServices is a map of volume names to the list of service names that use the volume.
+	// TODO: not all service spec may contain the service name, so use a slice of int indexes instead of names.
 	volumeServices map[string][]string
 	// existingVolumeMachines is a map of volume names to the set of machine IDs where those volumes are located.
 	// Contains only volumes that are used by at least one service in serviceSpecs.

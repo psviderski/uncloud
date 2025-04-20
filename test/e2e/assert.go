@@ -19,10 +19,11 @@ import (
 )
 
 func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpec) {
+	spec = spec.SetDefaults()
 	assert.Equal(t, spec.Name, svc.Name)
 
 	if svc.Mode == api.ServiceModeReplicated {
-		assert.Contains(t, []string{"", api.ServiceModeReplicated}, spec.Mode)
+		assert.Equal(t, api.ServiceModeReplicated, spec.Mode)
 		assert.Len(t, svc.Containers, int(spec.Replicas), "Expected %d replicas", spec.Replicas)
 	} else {
 		assert.Equal(t, spec.Mode, svc.Mode)
@@ -34,10 +35,10 @@ func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpe
 }
 
 func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api.ServiceSpec) {
+	spec = spec.SetDefaults()
 	status := deploy.EvalContainerSpecChange(ctr.ServiceSpec, spec)
 	assert.Equal(t, deploy.ContainerUpToDate, status)
 
-	spec = spec.SetDefaults()
 	// Verify labels.
 	assert.True(t, api.ValidateServiceID(ctr.Config.Labels[api.LabelServiceID]))
 	assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
