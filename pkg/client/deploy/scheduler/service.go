@@ -10,29 +10,35 @@ import (
 )
 
 type ServiceScheduler struct {
-	Machines    []*Machine
-	Spec        api.ServiceSpec
-	Constraints []Constraint
+	machines    []*Machine
+	spec        api.ServiceSpec
+	constraints []Constraint
 }
 
-func NewServiceScheduler(ctx context.Context, cli Client, spec api.ServiceSpec) (*ServiceScheduler, error) {
+func NewServiceSchedulerWithClient(ctx context.Context, cli Client, spec api.ServiceSpec) (*ServiceScheduler, error) {
 	machines, err := InspectMachines(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("inspect machines: %w", err)
 	}
 
+	return NewServiceSchedulerWithMachines(machines, spec), nil
+}
+
+// NewServiceSchedulerWithMachines creates a new ServiceScheduler with the given machines and service specification.
+func NewServiceSchedulerWithMachines(machines []*Machine, spec api.ServiceSpec) *ServiceScheduler {
 	constraints := constraintsFromSpec(spec)
 
 	return &ServiceScheduler{
-		Machines:    machines,
-		Spec:        spec,
-		Constraints: constraints,
-	}, nil
+		machines:    machines,
+		spec:        spec,
+		constraints: constraints,
+	}
 }
 
-func (s *ServiceScheduler) AvailableMachines() ([]*Machine, error) {
+// EligibleMachines returns a list of machines that satisfy all constraints for the next scheduled container.
+func (s *ServiceScheduler) EligibleMachines() ([]*Machine, error) {
 	var available []*Machine
-	for _, machine := range s.Machines {
+	for _, machine := range s.machines {
 		if s.evaluateConstraints(machine) {
 			available = append(available, machine)
 		}
@@ -44,7 +50,7 @@ func (s *ServiceScheduler) AvailableMachines() ([]*Machine, error) {
 }
 
 func (s *ServiceScheduler) evaluateConstraints(machine *Machine) bool {
-	for _, c := range s.Constraints {
+	for _, c := range s.constraints {
 		if !c.Evaluate(machine) {
 			return false
 		}

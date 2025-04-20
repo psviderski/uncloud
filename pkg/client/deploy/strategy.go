@@ -56,12 +56,12 @@ func (s *RollingStrategy) planReplicated(
 		return plan, err
 	}
 
-	sched, err := scheduler.NewServiceScheduler(ctx, cli, spec)
+	sched, err := scheduler.NewServiceSchedulerWithClient(ctx, cli, spec)
 	if err != nil {
 		return plan, err
 	}
 	// TODO: return a detailed report on required constraints and which ones are satisfied?
-	availableMachines, err := sched.AvailableMachines()
+	availableMachines, err := sched.EligibleMachines()
 	if err != nil {
 		return plan, err
 	}
@@ -216,12 +216,12 @@ func (s *RollingStrategy) planGlobal(
 		}
 	}
 
-	sched, err := scheduler.NewServiceScheduler(ctx, cli, spec)
+	sched, err := scheduler.NewServiceSchedulerWithClient(ctx, cli, spec)
 	if err != nil {
 		return plan, err
 	}
 
-	availableMachines, err := sched.AvailableMachines()
+	availableMachines, err := sched.EligibleMachines()
 	if err != nil {
 		return plan, err
 	}
