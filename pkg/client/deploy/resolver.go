@@ -150,6 +150,8 @@ type ImageResolverClient interface {
 	api.MachineClient
 }
 
+// TODO(lhf): as of April 2025, ImageDigestResolver is not used in the codebase and considered more harmful
+// than helpful. It's safe to remove it.
 type ImageDigestResolver struct {
 	Ctx    context.Context
 	Client ImageResolverClient

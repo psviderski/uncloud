@@ -175,7 +175,7 @@ type ContainerSpec struct {
 	// Each mount references a volume defined in ServiceSpec.Volumes.
 	VolumeMounts []VolumeMount
 	// Volumes is list of data volumes to mount into the container.
-	// TODO: replace with []VolumeMounts
+	// TODO(lhf): replace with []VolumeMounts
 	Volumes []string
 }
 

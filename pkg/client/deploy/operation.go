@@ -3,9 +3,11 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"github.com/docker/docker/api/types/container"
-	"github.com/psviderski/uncloud/pkg/api"
 	"strings"
+
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/volume"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 // Operation represents a single atomic operation in a deployment process.
@@ -107,6 +109,45 @@ func (o *RemoveContainerOperation) Format(resolver NameResolver) string {
 func (o *RemoveContainerOperation) String() string {
 	return fmt.Sprintf("RemoveContainerOperation[service_id=%s, container_id=%s, machine_id=%s]",
 		o.ServiceID, o.ContainerID, o.MachineID)
+}
+
+// CreateVolumeOperation creates a volume on a specific machine.
+type CreateVolumeOperation struct {
+	VolumeSpec api.VolumeSpec
+	MachineID  string
+}
+
+func (o *CreateVolumeOperation) Execute(ctx context.Context, cli Client) error {
+	if o.VolumeSpec.Type != api.VolumeTypeVolume {
+		return fmt.Errorf("invalid volume type: '%s', expected '%s'", o.VolumeSpec.Type, api.VolumeTypeVolume)
+	}
+
+	opts := volume.CreateOptions{
+		Name: o.VolumeSpec.DockerVolumeName(),
+	}
+	if o.VolumeSpec.VolumeOptions != nil {
+		if o.VolumeSpec.VolumeOptions.Driver != nil {
+			opts.Driver = o.VolumeSpec.VolumeOptions.Driver.Name
+			opts.DriverOpts = o.VolumeSpec.VolumeOptions.Driver.Options
+		}
+		opts.Labels = o.VolumeSpec.VolumeOptions.Labels
+	}
+
+	if _, err := cli.CreateVolume(ctx, o.MachineID, opts); err != nil {
+		return fmt.Errorf("create volume: %w", err)
+	}
+
+	return nil
+}
+
+func (o *CreateVolumeOperation) Format(resolver NameResolver) string {
+	machineName := resolver.MachineName(o.MachineID)
+	return fmt.Sprintf("%s: Create volume [name=%s]", machineName, o.VolumeSpec.DockerVolumeName())
+}
+
+func (o *CreateVolumeOperation) String() string {
+	return fmt.Sprintf("CreateVolumeOperation[volume=%s, machine_id=%s]",
+		o.VolumeSpec.DockerVolumeName(), o.MachineID)
 }
 
 // SequenceOperation is a composite operation that executes a sequence of operations in order.

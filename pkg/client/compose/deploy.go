@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
+	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
 type Client interface {
@@ -45,61 +48,126 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 	if d.plan != nil {
 		return *d.plan, nil
 	}
-
 	plan := deploy.SequenceOperation{}
+
+	// Generate service specs for all services in the project.
+	var serviceSpecs []api.ServiceSpec
 	err := graph.InDependencyOrder(ctx, d.Project,
 		func(ctx context.Context, name string, _ types.ServiceConfig) error {
 			spec, err := d.ServiceSpec(name)
 			if err != nil {
-				return fmt.Errorf("convert compose service '%s' to service spec: %w", name, err)
+				return err
 			}
 
-			// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
-			deployment := deploy.NewDeployment(d.Client, spec, nil)
-			if err != nil {
-				return fmt.Errorf("create deployment for service '%s': %w", name, err)
-			}
-
-			servicePlan, err := deployment.Plan(ctx)
-			if err != nil {
-				return fmt.Errorf("create deployment plan for service '%s': %w", name, err)
-			}
-
-			// Skip no-op (up-to-date) service plans.
-			if len(servicePlan.Operations) > 0 {
-				plan.Operations = append(plan.Operations, &servicePlan)
-			}
-
+			serviceSpecs = append(serviceSpecs, spec)
 			return nil
 		})
 	if err != nil {
-		d.plan = &plan
+		return plan, err
 	}
 
-	return plan, err
+	// Check external volumes and plan the creation of missing volumes before deploying services.
+	volumeOps, err := d.planVolumes(ctx, serviceSpecs)
+	if err != nil {
+		return plan, err
+	}
+	for _, op := range volumeOps {
+		plan.Operations = append(plan.Operations, op)
+	}
+
+	for _, spec := range serviceSpecs {
+		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
+		deployment := deploy.NewDeployment(d.Client, spec, nil)
+		servicePlan, err := deployment.Plan(ctx)
+		if err != nil {
+			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
+		}
+
+		// Skip no-op (up-to-date) service plans.
+		if len(servicePlan.Operations) > 0 {
+			plan.Operations = append(plan.Operations, &servicePlan)
+		}
+	}
+
+	d.plan = &plan
+	return plan, nil
 }
 
 // ServiceSpec returns the service specification for the given compose service that is ready for deployment.
 func (d *Deployment) ServiceSpec(name string) (api.ServiceSpec, error) {
-	service, err := d.Project.GetService(name)
-	if err != nil {
-		return api.ServiceSpec{}, fmt.Errorf("get config for compose service '%s': %w", name, err)
-	}
-
-	spec, err := ServiceSpecFromCompose(name, service)
+	spec, err := ServiceSpecFromCompose(d.Project, name)
 	if err != nil {
 		return spec, fmt.Errorf("convert compose service '%s' to service spec: %w", name, err)
 	}
 
-	// TODO: resolve the image to a digest and supported platforms using an image resolver that broadcasts requests
-	//  to all machines in the cluster. If service.PullPolicy is "missing":
-	//    - Broadcast request if any machine contains a particular image and resolve it to image@digest.
-	//    - If not found, broadcast request to resolve an image using a registry, and resolve it to image@digest.
-	// TODO: configure placement filter based on the supported platforms of the image.
-
-	// TODO: maybe instantiate ImageResolver here based on PullPolicy of each service?
-
 	return spec, nil
+}
+
+// PlanVolumes checks if the external volumes exist and plans the creation of missing volumes.
+func (d *Deployment) planVolumes(
+	ctx context.Context, serviceSpecs []api.ServiceSpec,
+) ([]*deploy.CreateVolumeOperation, error) {
+	if len(d.Project.Volumes) == 0 {
+		// No volumes to check or create.
+		return nil, nil
+	}
+
+	if err := d.checkExternalVolumesExist(ctx); err != nil {
+		return nil, err
+	}
+
+	// TODO: The scheduler should ideally work with the resolved service specs to correctly identify eligible machines.
+	//  Figure out where the best place to resolve the specs is.
+	volumeScheduler, err := scheduler.NewVolumeSchedulerWithClient(ctx, d.Client, serviceSpecs)
+	if err != nil {
+		return nil, fmt.Errorf("init volume scheduler: %w", err)
+	}
+	scheduledVolumes, err := volumeScheduler.Schedule()
+	if err != nil {
+		return nil, fmt.Errorf("schedule volumes: %w", err)
+	}
+
+	// Generate operations to create scheduled missing volumes.
+	var ops []*deploy.CreateVolumeOperation
+	for machineID, volumes := range scheduledVolumes {
+		for _, v := range volumes {
+			ops = append(ops, &deploy.CreateVolumeOperation{
+				MachineID:  machineID,
+				VolumeSpec: v,
+			})
+		}
+	}
+
+	return ops, nil
+}
+
+// checkExternalVolumesExist checks that all external volumes exist in the cluster.
+func (d *Deployment) checkExternalVolumesExist(ctx context.Context) error {
+	var externalNames []string
+	for _, v := range d.Project.Volumes {
+		if v.External {
+			externalNames = append(externalNames, v.Name)
+		}
+	}
+
+	volumes, err := d.Client.ListVolumes(ctx, &api.VolumeFilter{Names: externalNames})
+	if err != nil {
+		return fmt.Errorf("list volumes: %w", err)
+	}
+
+	var notFound []string
+	for _, name := range externalNames {
+		if !slices.ContainsFunc(volumes, func(vol api.MachineVolume) bool {
+			return vol.Volume.Name == name
+		}) {
+			notFound = append(notFound, fmt.Sprintf("'%s'", name))
+		}
+	}
+
+	if len(notFound) > 0 {
+		return fmt.Errorf("external volumes not found: %s", strings.Join(notFound, ", "))
+	}
+	return nil
 }
 
 func (d *Deployment) Run(ctx context.Context) error {

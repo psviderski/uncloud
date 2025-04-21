@@ -5,13 +5,18 @@ package compose
 import (
 	"context"
 	"fmt"
+
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/compose-spec/compose-go/v2/types"
 )
 
+// FakeProjectName is a placeholder name for the project to be able to strip it from the resource names used as prefix.
+const FakeProjectName = "f-a-k-e"
+
 func LoadProject(ctx context.Context, paths []string) (*types.Project, error) {
 	options, err := composecli.NewProjectOptions(
 		paths,
+		composecli.WithName(FakeProjectName),
 		// First apply os.Environment, always wins.
 		composecli.WithOsEnv,
 		// Read dot env file to populate project environment.

@@ -21,6 +21,9 @@ type Constraint interface {
 func constraintsFromSpec(spec api.ServiceSpec) []Constraint {
 	var constraints []Constraint
 
+	// TODO: add placement constraint based on the supported platforms of the image.
+	// TODO: add placement constraint to limit machines with the image if pull policy is never.
+
 	if len(spec.Placement.Machines) > 0 {
 		constraints = append(constraints, &PlacementConstraint{
 			Machines: spec.Placement.Machines,
