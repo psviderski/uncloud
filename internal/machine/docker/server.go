@@ -538,9 +538,14 @@ func (s *Server) CreateServiceContainer(
 }
 
 func ToDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount.Mount, error) {
+	normalisedVolumes := make([]api.VolumeSpec, len(volumes))
+	for i, v := range volumes {
+		normalisedVolumes[i] = v.SetDefaults()
+	}
+
 	dockerMounts := make([]mount.Mount, 0, len(mounts))
 	for _, m := range mounts {
-		idx := slices.IndexFunc(volumes, func(v api.VolumeSpec) bool {
+		idx := slices.IndexFunc(normalisedVolumes, func(v api.VolumeSpec) bool {
 			return v.Name == m.VolumeName
 		})
 		if idx == -1 {
@@ -548,7 +553,7 @@ func ToDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount
 				m.VolumeName)
 		}
 
-		vol := volumes[idx]
+		vol := normalisedVolumes[idx]
 		if err := vol.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid volume: %w", err)
 		}
@@ -564,19 +569,12 @@ func ToDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount
 			dm.Source = vol.BindOptions.HostPath
 			dm.BindOptions = toDockerBindOptions(vol.BindOptions)
 		case api.VolumeTypeVolume:
-			dm.Source = vol.Name
-
-			if vol.VolumeOptions != nil {
-				dm.VolumeOptions = &mount.VolumeOptions{
-					NoCopy:       vol.VolumeOptions.NoCopy,
-					Labels:       vol.VolumeOptions.Labels,
-					Subpath:      vol.VolumeOptions.SubPath,
-					DriverConfig: vol.VolumeOptions.Driver,
-				}
-
-				if vol.VolumeOptions.Name != "" {
-					dm.Source = vol.VolumeOptions.Name
-				}
+			dm.Source = vol.DockerVolumeName()
+			dm.VolumeOptions = &mount.VolumeOptions{
+				NoCopy:       vol.VolumeOptions.NoCopy,
+				Labels:       vol.VolumeOptions.Labels,
+				Subpath:      vol.VolumeOptions.SubPath,
+				DriverConfig: vol.VolumeOptions.Driver,
 			}
 		case api.VolumeTypeTmpfs:
 			dm.TmpfsOptions = vol.TmpfsOptions

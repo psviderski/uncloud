@@ -11,7 +11,6 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
 )
@@ -111,7 +110,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 	}
 	defer clusterClient.Close()
 
-	var resp client.RunServiceResponse
+	var resp api.RunServiceResponse
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		resp, err = clusterClient.RunService(ctx, spec)
 		if err != nil {

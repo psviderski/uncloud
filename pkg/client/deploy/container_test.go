@@ -186,14 +186,65 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 						Type: api.VolumeTypeVolume,
 						VolumeOptions: &api.VolumeOptions{
 							Name: "data",
-							Driver: &mount.Driver{
-								Name: "local",
-							},
 						},
 					},
 				},
 			},
 			expected: ContainerUpToDate,
+		},
+		{
+			name: "change volume driver to local",
+			current: api.ServiceSpec{
+				Volumes: []api.VolumeSpec{
+					{
+						Name: "data",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+			new: api.ServiceSpec{
+				Volumes: []api.VolumeSpec{
+					{
+						Name: "data",
+						Type: api.VolumeTypeVolume,
+						VolumeOptions: &api.VolumeOptions{
+							Name: "data",
+							Driver: &mount.Driver{
+								Name: api.VolumeDriverLocal,
+							},
+						},
+					},
+				},
+			},
+			// TODO: this doesn't really require a recreate, only a spec update would be sufficient.
+			expected: ContainerNeedsRecreate,
+		},
+		{
+			name: "change volume driver to custom",
+			current: api.ServiceSpec{
+				Volumes: []api.VolumeSpec{
+					{
+						Name: "data",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+			new: api.ServiceSpec{
+				Volumes: []api.VolumeSpec{
+					{
+						Name: "data",
+						Type: api.VolumeTypeVolume,
+						VolumeOptions: &api.VolumeOptions{
+							Name: "data",
+							Driver: &mount.Driver{
+								Name: "custom",
+							},
+						},
+					},
+				},
+			},
+			// TODO: this doesn't really require a recreate, only a spec update would be sufficient.
+			expected: ContainerNeedsRecreate,
 		},
 		{
 			name: "change bind option CreateHostPath",

@@ -521,6 +521,11 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						{
 							Name: "vol2",
 							Type: api.VolumeTypeVolume,
+							VolumeOptions: &api.VolumeOptions{
+								Driver: &mount.Driver{
+									Name: api.VolumeDriverLocal,
+								},
+							},
 						},
 						{
 							Name: "vol3",
@@ -547,15 +552,17 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 						{
 							Name: "vol2",
 							Type: api.VolumeTypeVolume,
+							VolumeOptions: &api.VolumeOptions{
+								Driver: &mount.Driver{
+									Name: api.VolumeDriverLocal,
+								},
+							},
 						},
 						{
 							Name: "vol4-alias",
 							Type: api.VolumeTypeVolume,
 							VolumeOptions: &api.VolumeOptions{
 								Name: "vol4",
-								Driver: &mount.Driver{
-									Name: api.VolumeDriverLocal,
-								},
 							},
 						},
 					},
@@ -570,7 +577,7 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 								ContainerPath: "/data2",
 							},
 							{
-								VolumeName:    "vol5",
+								VolumeName:    "vol5-with-driver",
 								ContainerPath: "/data5",
 							},
 						},
@@ -587,8 +594,14 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 							},
 						},
 						{
-							Name: "vol5",
+							Name: "vol5-with-driver",
 							Type: api.VolumeTypeVolume,
+							VolumeOptions: &api.VolumeOptions{
+								Name: "vol5",
+								Driver: &mount.Driver{
+									Name: api.VolumeDriverLocal,
+								},
+							},
 						},
 					},
 				},
@@ -598,6 +611,11 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 					{
 						Name: "vol5",
 						Type: api.VolumeTypeVolume,
+						VolumeOptions: &api.VolumeOptions{
+							Driver: &mount.Driver{
+								Name: api.VolumeDriverLocal,
+							},
+						},
 					},
 				},
 				"machine3": {

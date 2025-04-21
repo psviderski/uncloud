@@ -595,15 +595,8 @@ func TestDeployment(t *testing.T) {
 		serviceName := "test-replicated-with-volume-single-machine"
 		volumeName := serviceName
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
-			if !errors.Is(err, api.ErrNotFound) {
-				assert.NoError(t, err)
-			}
-
-			err = cli.RemoveVolume(ctx, c.Machines[1].Name, volumeName, false)
-			if !errors.Is(err, api.ErrNotFound) {
-				assert.NoError(t, err)
-			}
+			removeServices(t, cli, serviceName)
+			removeVolumes(t, cli, volumeName)
 		})
 
 		vol, err := cli.CreateVolume(ctx, c.Machines[1].Name, volume.CreateOptions{Name: volumeName})

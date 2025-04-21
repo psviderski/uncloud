@@ -138,6 +138,7 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 
 	// For each volume that exists on any machine(s) (which shouldn't be created), intersect each service's
 	// eligible machines that use the volume with the machines the volume is located on.
+	//
 	// Service name -> list of processed volume names (quoted) to format the error message.
 	quotedServiceVolumes := make(map[string][]string)
 	for volumeName, volumeMachines := range s.existingVolumeMachines {

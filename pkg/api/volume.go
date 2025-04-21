@@ -78,9 +78,6 @@ func (v *VolumeSpec) SetDefaults() VolumeSpec {
 		if spec.VolumeOptions == nil {
 			spec.VolumeOptions = &VolumeOptions{}
 		}
-		if spec.VolumeOptions.Driver == nil {
-			spec.VolumeOptions.Driver = &mount.Driver{Name: VolumeDriverLocal}
-		}
 		if spec.VolumeOptions.Name == "" {
 			spec.VolumeOptions.Name = spec.Name
 		}
@@ -117,7 +114,7 @@ func (v *VolumeSpec) Equals(other VolumeSpec) bool {
 }
 
 // MatchesDockerVolume checks if this VolumeSpec is compatible with the given named Docker volume.
-// In other words, it checks if the spec could be used to create the volume.
+// In other words, it checks if the spec could be used to mount the volume.
 func (v *VolumeSpec) MatchesDockerVolume(vol volume.Volume) bool {
 	if v.Type != VolumeTypeVolume {
 		return false
@@ -128,16 +125,19 @@ func (v *VolumeSpec) MatchesDockerVolume(vol volume.Volume) bool {
 		return false
 	}
 
-	volDriver := vol.Driver
-	if volDriver == "" {
-		volDriver = VolumeDriverLocal
-	}
-	if spec.VolumeOptions.Driver.Name != volDriver {
-		return false
-	}
+	if spec.VolumeOptions.Driver != nil {
+		volDriver := vol.Driver
+		if volDriver == "" {
+			volDriver = VolumeDriverLocal
+		}
 
-	if !reflect.DeepEqual(spec.VolumeOptions.Driver.Options, vol.Options) {
-		return false
+		if spec.VolumeOptions.Driver.Name != volDriver {
+			return false
+		}
+
+		if !reflect.DeepEqual(spec.VolumeOptions.Driver.Options, vol.Options) {
+			return false
+		}
 	}
 
 	return true

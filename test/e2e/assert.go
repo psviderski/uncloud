@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -104,7 +103,15 @@ func assertContainerMountsMatchSpec(t *testing.T, mounts []mount.Mount, spec api
 
 	assert.Len(t, mounts, len(expectedMounts), "Expected %d mounts", len(expectedMounts))
 	for i, m := range mounts {
-		assert.True(t, reflect.DeepEqual(m, expectedMounts[i]), "Expected mount type=%s,src=%s,dst=%s to match spec")
+		// The mount generated from the spec may not define the driver which means to use the default driver
+		// if creating a new volume or mounting an existing one no matter what its driver is.
+		// So skip driver comparison if the driver is not set in the spec.
+		if expectedMounts[i].VolumeOptions != nil && expectedMounts[i].VolumeOptions.DriverConfig == nil &&
+			m.VolumeOptions != nil {
+			expectedMounts[i].VolumeOptions.DriverConfig = m.VolumeOptions.DriverConfig
+		}
+		assert.Equal(t, expectedMounts[i], m,
+			"Expected mount type=%s,src=%s,dst=%s to match spec", m.Type, m.Source, m.Target)
 	}
 }
 

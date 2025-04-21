@@ -51,12 +51,18 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 		// Create the missing volumes on the scheduled machines.
 		for machineID, volumes := range scheduledVolumes {
 			for _, v := range volumes {
-				_, err = cli.CreateVolume(ctx, machineID, volume.CreateOptions{
-					Name:       v.Name,
-					Driver:     v.VolumeOptions.Driver.Name,
-					DriverOpts: v.VolumeOptions.Driver.Options,
-				})
-				if err != nil {
+				opts := volume.CreateOptions{
+					Name: v.Name,
+				}
+				if v.VolumeOptions != nil {
+					if v.VolumeOptions.Driver != nil {
+						opts.Driver = v.VolumeOptions.Driver.Name
+						opts.DriverOpts = v.VolumeOptions.Driver.Options
+					}
+					opts.Labels = v.VolumeOptions.Labels
+				}
+
+				if _, err = cli.CreateVolume(ctx, machineID, opts); err != nil {
 					return resp, fmt.Errorf("create volume '%s': %w", v.Name, err)
 				}
 			}
