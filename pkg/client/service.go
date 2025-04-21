@@ -18,13 +18,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type RunServiceResponse struct {
-	ID   string
-	Name string
-}
-
-func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (RunServiceResponse, error) {
-	var resp RunServiceResponse
+func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.RunServiceResponse, error) {
+	var resp api.RunServiceResponse
 
 	if err := spec.Validate(); err != nil {
 		return resp, fmt.Errorf("invalid service spec: %w", err)

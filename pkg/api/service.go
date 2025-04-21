@@ -253,6 +253,11 @@ func (e EnvVars) ToSlice() []string {
 	return env
 }
 
+type RunServiceResponse struct {
+	ID   string
+	Name string
+}
+
 type Service struct {
 	ID         string
 	Name       string
