@@ -22,18 +22,15 @@ func TestComposeDeployment(t *testing.T) {
 	cli, err := c.Machines[0].Connect(ctx)
 	require.NoError(t, err)
 
-	t.Run("basic", func(t *testing.T) {
+	t.Run("basic with published ports", func(t *testing.T) {
 		t.Parallel()
 
-		name := "basic"
+		name := "test-compose-basic"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
-			if !errors.Is(err, api.ErrNotFound) {
-				require.NoError(t, err)
-			}
+			removeServices(t, cli, name)
 		})
 
-		project, err := compose.LoadProject(ctx, []string{"fixtures/basic-compose.yaml"})
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-basic.yaml"})
 		require.NoError(t, err)
 
 		deploy, err := compose.NewDeployment(ctx, cli, project)
@@ -58,7 +55,6 @@ func TestComposeDeployment(t *testing.T) {
 					"BOOL":  "true",
 					"EMPTY": "",
 				},
-				// TODO: resolve image digest and substitute the image with the image@digest.
 				Image: "portainer/pause:3.9",
 			},
 			Ports: []api.PortSpec{

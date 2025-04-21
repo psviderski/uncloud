@@ -1,0 +1,9 @@
+services:
+  test-compose-basic:
+    image: portainer/pause:3.9
+    environment:
+      VAR: "value"
+      BOOL: "true"
+      EMPTY: ""
+    x-ports:
+      - basic.example.com:80/https
