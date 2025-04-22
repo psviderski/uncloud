@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -60,14 +61,17 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 
 	// Generate service specs for all services in the project.
 	var serviceSpecs []api.ServiceSpec
+	var mu sync.Mutex
 	err := graph.InDependencyOrder(ctx, d.Project,
 		func(ctx context.Context, name string, _ types.ServiceConfig) error {
 			spec, err := d.ServiceSpec(name)
 			if err != nil {
 				return err
 			}
-
+			// The graph is traversed concurrently, so we need to use a mutex to protect the shared slice.
+			mu.Lock()
 			serviceSpecs = append(serviceSpecs, spec)
+			mu.Unlock()
 			return nil
 		})
 	if err != nil {
