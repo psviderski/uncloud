@@ -9,6 +9,7 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
@@ -23,10 +24,16 @@ type Deployment struct {
 	Client       Client
 	Project      *types.Project
 	SpecResolver *deploy.ServiceSpecResolver
+	state        *scheduler.ClusterState
 	plan         *deploy.SequenceOperation
 }
 
 func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
+	state, err := scheduler.InspectClusterState(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf("inspect cluster state: %w", err)
+	}
+
 	domain, err := cli.GetDomain(ctx)
 	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return nil, fmt.Errorf("get cluster domain: %w", err)
@@ -41,6 +48,7 @@ func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*De
 		Client:       cli,
 		Project:      project,
 		SpecResolver: resolver,
+		state:        state,
 	}, nil
 }
 
@@ -67,7 +75,7 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 	}
 
 	// Check external volumes and plan the creation of missing volumes before deploying services.
-	volumeOps, err := d.planVolumes(ctx, serviceSpecs)
+	volumeOps, err := d.planVolumes(serviceSpecs)
 	if err != nil {
 		return plan, err
 	}
@@ -77,7 +85,8 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
-		deployment := deploy.NewDeployment(d.Client, spec, nil)
+		// Pass the update cluster state with scheduled volumes to the deployment.
+		deployment := deploy.NewDeployment(d.Client, spec, &deploy.RollingStrategy{State: d.state})
 		servicePlan, err := deployment.Plan(ctx)
 		if err != nil {
 			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
@@ -104,21 +113,19 @@ func (d *Deployment) ServiceSpec(name string) (api.ServiceSpec, error) {
 }
 
 // PlanVolumes checks if the external volumes exist and plans the creation of missing volumes.
-func (d *Deployment) planVolumes(
-	ctx context.Context, serviceSpecs []api.ServiceSpec,
-) ([]*deploy.CreateVolumeOperation, error) {
+func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*deploy.CreateVolumeOperation, error) {
 	if len(d.Project.Volumes) == 0 {
 		// No volumes to check or create.
 		return nil, nil
 	}
 
-	if err := d.checkExternalVolumesExist(ctx); err != nil {
+	if err := d.checkExternalVolumesExist(); err != nil {
 		return nil, err
 	}
 
 	// TODO: The scheduler should ideally work with the resolved service specs to correctly identify eligible machines.
 	//  Figure out where the best place to resolve the specs is.
-	volumeScheduler, err := scheduler.NewVolumeSchedulerWithClient(ctx, d.Client, serviceSpecs)
+	volumeScheduler, err := scheduler.NewVolumeScheduler(d.state, serviceSpecs)
 	if err != nil {
 		return nil, fmt.Errorf("init volume scheduler: %w", err)
 	}
@@ -142,7 +149,7 @@ func (d *Deployment) planVolumes(
 }
 
 // checkExternalVolumesExist checks that all external volumes exist in the cluster.
-func (d *Deployment) checkExternalVolumesExist(ctx context.Context) error {
+func (d *Deployment) checkExternalVolumesExist() error {
 	var externalNames []string
 	for _, v := range d.Project.Volumes {
 		if v.External {
@@ -150,15 +157,12 @@ func (d *Deployment) checkExternalVolumesExist(ctx context.Context) error {
 		}
 	}
 
-	volumes, err := d.Client.ListVolumes(ctx, &api.VolumeFilter{Names: externalNames})
-	if err != nil {
-		return fmt.Errorf("list volumes: %w", err)
-	}
-
 	var notFound []string
 	for _, name := range externalNames {
-		if !slices.ContainsFunc(volumes, func(vol api.MachineVolume) bool {
-			return vol.Volume.Name == name
+		if !slices.ContainsFunc(d.state.Machines, func(m *scheduler.Machine) bool {
+			return slices.ContainsFunc(m.Volumes, func(vol volume.Volume) bool {
+				return vol.Name == name
+			})
 		}) {
 			notFound = append(notFound, fmt.Sprintf("'%s'", name))
 		}

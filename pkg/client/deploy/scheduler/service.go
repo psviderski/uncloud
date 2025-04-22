@@ -1,35 +1,24 @@
 package scheduler
 
 import (
-	"context"
 	"errors"
-	"fmt"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
 type ServiceScheduler struct {
-	machines    []*Machine
+	state       *ClusterState
 	spec        api.ServiceSpec
 	constraints []Constraint
 }
 
-func NewServiceSchedulerWithClient(ctx context.Context, cli Client, spec api.ServiceSpec) (*ServiceScheduler, error) {
-	machines, err := InspectMachines(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf("inspect machines: %w", err)
-	}
-
-	return NewServiceSchedulerWithMachines(machines, spec), nil
-}
-
-// NewServiceSchedulerWithMachines creates a new ServiceScheduler with the given machines and service specification.
-func NewServiceSchedulerWithMachines(machines []*Machine, spec api.ServiceSpec) *ServiceScheduler {
+// NewServiceScheduler creates a new ServiceScheduler with the given cluster state and service specification.
+func NewServiceScheduler(state *ClusterState, spec api.ServiceSpec) *ServiceScheduler {
 	constraints := constraintsFromSpec(spec)
 
 	return &ServiceScheduler{
-		machines:    machines,
+		state:       state,
 		spec:        spec,
 		constraints: constraints,
 	}
@@ -38,7 +27,7 @@ func NewServiceSchedulerWithMachines(machines []*Machine, spec api.ServiceSpec) 
 // EligibleMachines returns a list of machines that satisfy all constraints for the next scheduled container.
 func (s *ServiceScheduler) EligibleMachines() ([]*Machine, error) {
 	var available []*Machine
-	for _, machine := range s.machines {
+	for _, machine := range s.state.Machines {
 		if s.evaluateConstraints(machine) {
 			available = append(available, machine)
 		}

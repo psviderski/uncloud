@@ -38,7 +38,11 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 
 	// Create missing named Docker volumes for the service.
 	if len(spec.MountedDockerVolumes()) > 0 {
-		volumeScheduler, err := scheduler.NewVolumeSchedulerWithClient(ctx, cli, []api.ServiceSpec{spec})
+		state, err := scheduler.InspectClusterState(ctx, cli)
+		if err != nil {
+			return resp, fmt.Errorf("inspect cluster state: %w", err)
+		}
+		volumeScheduler, err := scheduler.NewVolumeScheduler(state, []api.ServiceSpec{spec})
 		if err != nil {
 			return resp, fmt.Errorf("init volume scheduler: %w", err)
 		}

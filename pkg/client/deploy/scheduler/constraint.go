@@ -1,9 +1,11 @@
 package scheduler
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -73,7 +75,7 @@ type VolumesConstraint struct {
 }
 
 // Evaluate determines if a machine has all the required volumes.
-// Returns true if all required volumes exist on the machine or if there are no required volumes.
+// Returns true if all required volumes exist or scheduled on the machine or if there are no required volumes.
 func (c *VolumesConstraint) Evaluate(machine *Machine) bool {
 	if len(c.Volumes) == 0 {
 		return true
@@ -84,9 +86,35 @@ func (c *VolumesConstraint) Evaluate(machine *Machine) bool {
 			continue
 		}
 
-		// TODO: should we check the volume driver to be local or any matched volume by name is ok?
-		if !slices.ContainsFunc(machine.Volumes, func(vol volume.Volume) bool {
-			return vol.Name == v.DockerVolumeName()
+		// Check if the required volume already exists on the machine.
+		if slices.ContainsFunc(machine.Volumes, func(vol volume.Volume) bool {
+			if v.DockerVolumeName() == vol.Name {
+				return v.MatchesDockerVolume(vol)
+			}
+			return false
+		}) {
+			continue
+		}
+
+		// Check if the required volume has been scheduled on the machine. The driver names and options must match.
+		if !slices.ContainsFunc(machine.ScheduledVolumes, func(scheduled api.VolumeSpec) bool {
+			if v.DockerVolumeName() != scheduled.DockerVolumeName() {
+				return false
+			}
+
+			// The volume spec with an empty driver can mount the volume that matches the name no matter the driver.
+			if v.VolumeOptions.Driver == nil {
+				return true
+			}
+
+			// If the driver is specified in the spec, the spec's driver and options must match the volume's driver
+			// and options to successfully mount the volume.
+			scheduled = scheduled.SetDefaults()
+			scheduledDriver := scheduled.VolumeOptions.Driver
+			if scheduledDriver == nil {
+				scheduledDriver = &mount.Driver{Name: api.VolumeDriverLocal}
+			}
+			return reflect.DeepEqual(v.VolumeOptions.Driver, scheduledDriver)
 		}) {
 			return false
 		}

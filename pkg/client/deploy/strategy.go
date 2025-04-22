@@ -24,7 +24,9 @@ type Strategy interface {
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
 // to minimize service disruption.
-type RollingStrategy struct{}
+type RollingStrategy struct {
+	State *scheduler.ClusterState
+}
 
 func (s *RollingStrategy) Type() string {
 	return "rolling"
@@ -33,12 +35,20 @@ func (s *RollingStrategy) Type() string {
 func (s *RollingStrategy) Plan(
 	ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec,
 ) (Plan, error) {
+	if s.State == nil {
+		state, err := scheduler.InspectClusterState(ctx, cli)
+		if err != nil {
+			return Plan{}, fmt.Errorf("inspect cluster state: %w", err)
+		}
+		s.State = state
+	}
+
 	// We can assume that the spec is valid at this point because it has been validated by the deployment.
 	switch spec.Mode {
 	case api.ServiceModeReplicated:
-		return s.planReplicated(ctx, cli, svc, spec)
+		return s.planReplicated(svc, spec)
 	case api.ServiceModeGlobal:
-		return s.planGlobal(ctx, cli, svc, spec)
+		return s.planGlobal(svc, spec)
 	default:
 		return Plan{}, fmt.Errorf("unsupported service mode: '%s'", spec.Mode)
 	}
@@ -48,18 +58,13 @@ func (s *RollingStrategy) Plan(
 // For replicated services, we want to maintain a specific number of containers (replicas) across the available machines
 // in the cluster.
 // TODO: schedule containers only on machines that contain the image if pull policy is set to 'never'.
-func (s *RollingStrategy) planReplicated(
-	ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec,
-) (Plan, error) {
+func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
 	plan, err := newEmptyPlan(svc, spec)
 	if err != nil {
 		return plan, err
 	}
 
-	sched, err := scheduler.NewServiceSchedulerWithClient(ctx, cli, spec)
-	if err != nil {
-		return plan, err
-	}
+	sched := scheduler.NewServiceScheduler(s.State, spec)
 	// TODO: return a detailed report on required constraints and which ones are satisfied?
 	availableMachines, err := sched.EligibleMachines()
 	if err != nil {
@@ -70,8 +75,6 @@ func (s *RollingStrategy) planReplicated(
 	for _, m := range availableMachines {
 		matchedMachines = append(matchedMachines, m.Info)
 	}
-
-	// TODO: filter machines that contain the service volumes if the service uses any.
 
 	// Randomise the order of machines to avoid always deploying to the same machines first.
 	rand.Shuffle(len(matchedMachines), func(i, j int) {
@@ -198,9 +201,7 @@ func (s *RollingStrategy) planReplicated(
 // possible. If the new container would have port conflicts with the existing one, the old container is removed first.
 // It handles multiple containers per machine (though this should not occur in normal operation) and skips machines
 // that are down.
-func (s *RollingStrategy) planGlobal(
-	ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec,
-) (Plan, error) {
+func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
 	plan, err := newEmptyPlan(svc, spec)
 	if err != nil {
 		return plan, err
@@ -216,11 +217,7 @@ func (s *RollingStrategy) planGlobal(
 		}
 	}
 
-	sched, err := scheduler.NewServiceSchedulerWithClient(ctx, cli, spec)
-	if err != nil {
-		return plan, err
-	}
-
+	sched := scheduler.NewServiceScheduler(s.State, spec)
 	availableMachines, err := sched.EligibleMachines()
 	if err != nil {
 		return plan, err

@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -18,8 +17,8 @@ import (
 //   - If a volume already exists on a machine, it must be used instead of creating a new one.
 //   - A missing volume must only be created on one machine.
 type VolumeScheduler struct {
-	// machines is a list of available machines in the cluster.
-	machines []*Machine
+	// state is the current state of machines and their resources in the cluster.
+	state *ClusterState
 	// serviceSpecs is a list of service specifications included in the deployment.
 	serviceSpecs []api.ServiceSpec
 	// volumeSpecs is a map of volume names to their specifications from the service specs in a canonical form.
@@ -32,19 +31,8 @@ type VolumeScheduler struct {
 	existingVolumeMachines map[string]mapset.Set[string]
 }
 
-// NewVolumeSchedulerWithClient creates a new VolumeScheduler with the given cluster client and service specifications.
-func NewVolumeSchedulerWithClient(ctx context.Context, cli Client, specs []api.ServiceSpec) (*VolumeScheduler, error) {
-	machines, err := InspectMachines(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf("inspect machines: %w", err)
-	}
-
-	return NewVolumeSchedulerWithMachines(machines, specs)
-}
-
-// NewVolumeSchedulerWithMachines creates a new VolumeScheduler with the given cluster machines
-// and service specifications.
-func NewVolumeSchedulerWithMachines(machines []*Machine, specs []api.ServiceSpec) (*VolumeScheduler, error) {
+// NewVolumeScheduler creates a new VolumeScheduler with the given cluster state and service specifications.
+func NewVolumeScheduler(state *ClusterState, specs []api.ServiceSpec) (*VolumeScheduler, error) {
 	var specsWithVolumes []api.ServiceSpec
 	// Docker volume name -> VolumeSpec.
 	volumeSpecs := make(map[string]api.VolumeSpec)
@@ -90,7 +78,7 @@ func NewVolumeSchedulerWithMachines(machines []*Machine, specs []api.ServiceSpec
 
 	// Validate the configurations of existing volumes on machines don't conflict with the volume specs, for example,
 	// a volume and a spec with the same name don't have different drivers.
-	for _, machine := range machines {
+	for _, machine := range state.Machines {
 		for _, vol := range machine.Volumes {
 			if spec, ok := volumeSpecs[vol.Name]; ok {
 				if !spec.MatchesDockerVolume(vol) {
@@ -107,7 +95,7 @@ func NewVolumeSchedulerWithMachines(machines []*Machine, specs []api.ServiceSpec
 	}
 
 	return &VolumeScheduler{
-		machines:               machines,
+		state:                  state,
 		serviceSpecs:           specsWithVolumes,
 		volumeSpecs:            volumeSpecs,
 		volumeServices:         volumeServices,
@@ -204,6 +192,16 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 		}
 	}
 
+	// Update the state of the machines with the scheduled volumes.
+	for machineID, volumes := range scheduledVolumes {
+		for _, m := range s.state.Machines {
+			if m.Info.Id == machineID {
+				m.ScheduledVolumes = append(m.ScheduledVolumes, volumes...)
+				break
+			}
+		}
+	}
+
 	return scheduledVolumes, nil
 }
 
@@ -213,7 +211,7 @@ func (s *VolumeScheduler) serviceEligibleMachinesWithoutVolumes(spec api.Service
 	specWithoutVolumes := spec.Clone()
 	specWithoutVolumes.Container.VolumeMounts = nil
 
-	scheduler := NewServiceSchedulerWithMachines(s.machines, specWithoutVolumes)
+	scheduler := NewServiceScheduler(s.state, specWithoutVolumes)
 	machines, err := scheduler.EligibleMachines()
 	if err != nil {
 		return nil, fmt.Errorf("schedule service '%s': %w", spec.Name, err)

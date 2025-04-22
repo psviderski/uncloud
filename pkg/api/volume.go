@@ -125,6 +125,9 @@ func (v *VolumeSpec) MatchesDockerVolume(vol volume.Volume) bool {
 		return false
 	}
 
+	// The volume spec may not define the driver which means to use the default driver if creating a new volume
+	// or accept any driver when mounting an existing volume. If the driver is specified in the spec, the spec's
+	// driver and options must match the volume's driver and options.
 	if spec.VolumeOptions.Driver != nil {
 		volDriver := vol.Driver
 		if volDriver == "" {

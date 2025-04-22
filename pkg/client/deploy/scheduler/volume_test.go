@@ -806,7 +806,10 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scheduler, err := NewVolumeSchedulerWithMachines(tt.machines, tt.serviceSpecs)
+			state := &ClusterState{
+				Machines: tt.machines,
+			}
+			scheduler, err := NewVolumeScheduler(state, tt.serviceSpecs)
 			require.NoError(t, err)
 			result, err := scheduler.Schedule()
 

@@ -9,19 +9,26 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
+// ClusterState represents the current and planned state of machines and their resources in the cluster.
+type ClusterState struct {
+	Machines []*Machine
+}
+
+type Machine struct {
+	Info             *pb.MachineInfo
+	Volumes          []volume.Volume
+	ScheduledVolumes []api.VolumeSpec
+}
+
 type Client interface {
 	api.MachineClient
 	api.VolumeClient
 }
 
-type Machine struct {
-	Info    *pb.MachineInfo
-	Volumes []volume.Volume
-}
-
-// InspectMachines retrieves the list of available machines and their details required for scheduling purposes.
-// TODO: refactor to get all the details in one broadcast call to machine API.
-func InspectMachines(ctx context.Context, cli Client) ([]*Machine, error) {
+// InspectClusterState creates a new cluster state by inspecting the machines using the cluster client.
+func InspectClusterState(ctx context.Context, cli Client) (*ClusterState, error) {
+	// TODO: refactor to get all the details in one broadcast call to machine API,
+	//  e.g. InspectMachine with include options.
 	machineMembers, err := cli.ListMachines(ctx, &api.MachineFilter{Available: true})
 	if err != nil {
 		return nil, fmt.Errorf("list machines: %w", err)
@@ -46,5 +53,7 @@ func InspectMachines(ctx context.Context, cli Client) ([]*Machine, error) {
 		machines = append(machines, machine)
 	}
 
-	return machines, nil
+	return &ClusterState{
+		Machines: machines,
+	}, nil
 }
