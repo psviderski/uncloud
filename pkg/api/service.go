@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"reflect"
 	"regexp"
 	"slices"
 
 	"github.com/distribution/reference"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
@@ -213,7 +214,7 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 	sortVolumeMounts(orig.VolumeMounts)
 	sortVolumeMounts(spec.VolumeMounts)
 
-	return reflect.DeepEqual(orig, spec)
+	return cmp.Equal(orig, spec, cmpopts.EquateEmpty())
 }
 
 func (s *ContainerSpec) Clone() ContainerSpec {
