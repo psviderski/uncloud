@@ -25,6 +25,7 @@ type addOptions struct {
 	publicIP string
 	sshKey   string
 	context  string
+	version  string
 }
 
 func NewAddCommand() *cobra.Command {
@@ -64,10 +65,15 @@ func NewAddCommand() *cobra.Command {
 		&opts.sshKey, "ssh-key", "i", "",
 		"path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
 	)
+	cmd.Flags().StringVar(
+		&opts.version, "version", "latest",
+		"Version of the Uncloud daemon to install on the machine.",
+	)
 	cmd.Flags().StringVarP(
 		&opts.context, "context", "c", "",
 		"Name of the cluster context to add the machine to. (default is the current context)",
 	)
+
 	return cmd
 }
 
@@ -86,7 +92,13 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 		publicIP = &ip
 	}
 
-	machineClient, err := uncli.AddMachine(ctx, remoteMachine, opts.context, opts.name, publicIP)
+	machineClient, err := uncli.AddMachine(ctx, cli.AddMachineOptions{
+		Context:       opts.context,
+		MachineName:   opts.name,
+		PublicIP:      publicIP,
+		RemoteMachine: remoteMachine,
+		Version:       opts.version,
+	})
 	if err != nil {
 		return err
 	}

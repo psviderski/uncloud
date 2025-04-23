@@ -144,31 +144,27 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 	return nil, errors.New("connection configuration is invalid")
 }
 
+type InitClusterOptions struct {
+	Context       string
+	MachineName   string
+	Network       netip.Prefix
+	PublicIP      *netip.Addr
+	RemoteMachine *RemoteMachine
+	Version       string
+}
+
 // InitCluster initialises a new cluster on a remote machine and returns a client to interact with the cluster.
 // The client should be closed after use by the caller.
-func (cli *CLI) InitCluster(
-	ctx context.Context,
-	remoteMachine *RemoteMachine,
-	contextName,
-	machineName string,
-	netPrefix netip.Prefix,
-	publicIP *netip.Addr,
-) (*client.Client, error) {
-	if remoteMachine != nil {
-		return cli.initRemoteMachine(ctx, *remoteMachine, contextName, machineName, netPrefix, publicIP)
+func (cli *CLI) InitCluster(ctx context.Context, opts InitClusterOptions) (*client.Client, error) {
+	if opts.RemoteMachine != nil {
+		return cli.initRemoteMachine(ctx, opts)
 	}
 	// TODO: implement local machine initialisation
 	return nil, fmt.Errorf("local machine initialisation is not implemented yet")
 }
 
-func (cli *CLI) initRemoteMachine(
-	ctx context.Context,
-	remoteMachine RemoteMachine,
-	contextName,
-	machineName string,
-	netPrefix netip.Prefix,
-	publicIP *netip.Addr,
-) (*client.Client, error) {
+func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) (*client.Client, error) {
+	contextName := opts.Context
 	if contextName == "" {
 		contextName = defaultContextName
 	}
@@ -176,7 +172,7 @@ func (cli *CLI) initRemoteMachine(
 		return nil, fmt.Errorf("cluster context '%s' already exists", contextName)
 	}
 
-	machineClient, err := cli.provisionRemoteMachine(ctx, remoteMachine)
+	machineClient, err := cli.provisionRemoteMachine(ctx, *opts.RemoteMachine, opts.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -199,12 +195,12 @@ func (cli *CLI) initRemoteMachine(
 	}
 
 	req := &pb.InitClusterRequest{
-		MachineName: machineName,
-		Network:     pb.NewIPPrefix(netPrefix),
+		MachineName: opts.MachineName,
+		Network:     pb.NewIPPrefix(opts.Network),
 	}
-	if publicIP != nil {
-		if publicIP.IsValid() {
-			req.PublicIpConfig = &pb.InitClusterRequest_PublicIp{PublicIp: pb.NewIP(*publicIP)}
+	if opts.PublicIP != nil {
+		if opts.PublicIP.IsValid() {
+			req.PublicIpConfig = &pb.InitClusterRequest_PublicIp{PublicIp: pb.NewIP(*opts.PublicIP)}
 		} else {
 			// Invalid or in other words zero IP means to automatically detect the public IP.
 			req.PublicIpConfig = &pb.InitClusterRequest_PublicIpAuto{PublicIpAuto: true}
@@ -227,8 +223,8 @@ func (cli *CLI) initRemoteMachine(
 
 	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
-		SSH:        config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
-		SSHKeyFile: remoteMachine.KeyPath,
+		SSH:        config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port),
+		SSHKeyFile: opts.RemoteMachine.KeyPath,
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {
@@ -237,18 +233,28 @@ func (cli *CLI) initRemoteMachine(
 	return machineClient, nil
 }
 
+type AddMachineOptions struct {
+	Context       string
+	MachineName   string
+	PublicIP      *netip.Addr
+	RemoteMachine RemoteMachine
+	Version       string
+}
+
 // AddMachine provisions a remote machine and adds it to the cluster. It returns a client to interact with the machine
 // which should be closed after use by the caller.
-func (cli *CLI) AddMachine(
-	ctx context.Context, remoteMachine RemoteMachine, contextName, machineName string, publicIP *netip.Addr,
-) (*client.Client, error) {
+func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client.Client, error) {
+	contextName := opts.Context
+	if contextName == "" {
+		contextName = cli.Config.CurrentContext
+	}
 	c, err := cli.ConnectCluster(ctx, contextName)
 	if err != nil {
 		return nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
 	}
 	defer c.Close()
 
-	machineClient, err := cli.provisionRemoteMachine(ctx, remoteMachine)
+	machineClient, err := cli.provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -284,15 +290,15 @@ func (cli *CLI) AddMachine(
 		endpoints[i] = pb.NewIPPort(addrPort)
 	}
 	addReq := &pb.AddMachineRequest{
-		Name: machineName,
+		Name: opts.MachineName,
 		Network: &pb.NetworkConfig{
 			Endpoints: endpoints,
 			PublicKey: token.PublicKey,
 		},
 	}
-	if publicIP != nil {
-		if publicIP.IsValid() {
-			addReq.PublicIp = pb.NewIP(*publicIP)
+	if opts.PublicIP != nil {
+		if opts.PublicIP.IsValid() {
+			addReq.PublicIp = pb.NewIP(*opts.PublicIP)
 		} else if token.PublicIP.IsValid() {
 			// Invalid or in other words zero IP means to use an automatically detected public IP from the token.
 			addReq.PublicIp = pb.NewIP(token.PublicIP)
@@ -330,8 +336,8 @@ func (cli *CLI) AddMachine(
 
 	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
-		SSH:        config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port),
-		SSHKeyFile: remoteMachine.KeyPath,
+		SSH:        config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port),
+		SSHKeyFile: opts.RemoteMachine.KeyPath,
 	}
 	if contextName == "" {
 		contextName = cli.Config.CurrentContext
@@ -346,7 +352,10 @@ func (cli *CLI) AddMachine(
 
 // provisionRemoteMachine installs the Uncloud daemon and dependencies on the remote machine over SSH and returns
 // a machine API client to interact with the machine. The client should be closed after use by the caller.
-func (cli *CLI) provisionRemoteMachine(ctx context.Context, remoteMachine RemoteMachine) (*client.Client, error) {
+// The version parameter specifies the version of the Uncloud daemon to install. If empty, the latest version is used.
+func (cli *CLI) provisionRemoteMachine(
+	ctx context.Context, remoteMachine RemoteMachine, version string,
+) (*client.Client, error) {
 	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
 	if err != nil {
@@ -357,7 +366,7 @@ func (cli *CLI) provisionRemoteMachine(ctx context.Context, remoteMachine Remote
 	}
 	exec := sshexec.NewRemote(sshClient)
 	// Install and run the Uncloud daemon and dependencies on the remote machine.
-	if err = provisionMachine(ctx, exec); err != nil {
+	if err = provisionMachine(ctx, exec, version); err != nil {
 		return nil, fmt.Errorf("provision machine: %w", err)
 	}
 

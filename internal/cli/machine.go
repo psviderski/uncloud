@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
+
 	"github.com/psviderski/uncloud/internal/sshexec"
 )
 
@@ -17,36 +19,38 @@ type RemoteMachine struct {
 	KeyPath string
 }
 
-func installCmd(user string) string {
-	sudoPrefix := "sudo"
+func installCmd(user string, version string) string {
+	sudoPrefix := ""
+	var env []string
+
 	// Add the SSH user (non-root) to the uncloud group to allow access to the Uncloud daemon unix socket.
-	env := "UNCLOUD_GROUP_ADD_USER=" + user
-
-	curlBashCmd := fmt.Sprintf(
-		"curl -fsSL %s | %s %s bash", sshexec.Quote(installScriptURL), sudoPrefix, sshexec.Quote(env),
-	)
-
-	if user == "root" {
-		curlBashCmd = fmt.Sprintf(
-			"curl -fsSL %s | bash", sshexec.Quote(installScriptURL),
-		)
+	if user != "root" {
+		sudoPrefix = "sudo"
+		env = append(env, "UNCLOUD_GROUP_ADD_USER="+sshexec.Quote(user))
 	}
+	if version != "" {
+		env = append(env, "UNCLOUD_VERSION="+sshexec.Quote(version))
+	}
+
+	envCmd := strings.Join(env, " ")
+	curlBashCmd := fmt.Sprintf("curl -fsSL %s | %s %s bash", sshexec.Quote(installScriptURL), sudoPrefix, envCmd)
 
 	return curlBashCmd
 }
 
 // provisionMachine provisions the remote machine by downloading the Uncloud install script from GitHub and running it.
-func provisionMachine(ctx context.Context, exec sshexec.Executor) error {
+// If version is specified, it will be passed to the install script as UNCLOUD_VERSION environment variable.
+func provisionMachine(ctx context.Context, exec sshexec.Executor, version string) error {
 	user, err := exec.Run(ctx, "whoami")
 	if err != nil {
 		return fmt.Errorf("run whoami: %w", err)
 	}
 
-	installCmd := installCmd(user)
+	cmd := installCmd(user, version)
 
 	fmt.Println("Downloading Uncloud install script:", installScriptURL)
 
-	cmd := sshexec.QuoteCommand("bash", "-c", "set -o pipefail; "+installCmd)
+	cmd = sshexec.QuoteCommand("bash", "-c", "set -o pipefail; "+cmd)
 	if err = exec.Stream(ctx, cmd, os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("download and run install script: %w", err)
 	}

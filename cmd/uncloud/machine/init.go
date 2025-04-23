@@ -24,6 +24,7 @@ type initOptions struct {
 	noDNS       bool
 	publicIP    string
 	sshKey      string
+	version     string
 	context     string
 }
 
@@ -82,6 +83,10 @@ func NewInitCommand() *cobra.Command {
 		&opts.sshKey, "ssh-key", "i", "",
 		"Path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
 	)
+	cmd.Flags().StringVar(
+		&opts.version, "version", "latest",
+		"Version of the Uncloud daemon to install on the machine.",
+	)
 	cmd.Flags().StringVarP(
 		&opts.context, "context", "c", "default",
 		"Name of the created context for the initialised cluster in the Uncloud config.",
@@ -109,8 +114,15 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		}
 		publicIP = &ip
 	}
-
-	client, err := uncli.InitCluster(ctx, remoteMachine, opts.context, opts.name, netPrefix, publicIP)
+	
+	client, err := uncli.InitCluster(ctx, cli.InitClusterOptions{
+		Context:       opts.context,
+		MachineName:   opts.name,
+		Network:       netPrefix,
+		PublicIP:      publicIP,
+		RemoteMachine: remoteMachine,
+		Version:       opts.version,
+	})
 	if err != nil {
 		return err
 	}
