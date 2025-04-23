@@ -1,0 +1,31 @@
+name: my-name
+services:
+  test-compose-volumes-service1:
+    image: portainer/pause:3.9
+    volumes:
+      - test-compose-volumes-data1:/data1
+      - /etc/passwd:/host/etc/passwd:ro
+    deploy:
+      replicas: 3
+  test-compose-volumes-service2:
+    image: portainer/pause:3.9
+    volumes:
+      - type: volume
+        source: test-compose-volumes-data2-alias
+        target: /data2/long/syntax
+    deploy:
+      replicas: 2
+  test-compose-volumes-service3:
+    image: portainer/pause:3.9
+    volumes:
+      - test-compose-volumes-data2-alias:/data2
+      - test-compose-volumes-external:/external:ro
+
+volumes:
+  test-compose-volumes-data1:
+  test-compose-volumes-data2-alias:
+    name: test-compose-volumes-data2
+    driver: local
+  test-compose-volumes-external:
+    # Must be created manually before deploying this compose file.
+    external: true

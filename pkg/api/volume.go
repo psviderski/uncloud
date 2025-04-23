@@ -9,6 +9,8 @@ import (
 
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 const (
@@ -110,7 +112,7 @@ func (v *VolumeSpec) Equals(other VolumeSpec) bool {
 	vol := v.SetDefaults()
 	other = other.SetDefaults()
 
-	return reflect.DeepEqual(vol, other)
+	return cmp.Equal(vol, other, cmpopts.EquateEmpty())
 }
 
 // MatchesDockerVolume checks if this VolumeSpec is compatible with the given named Docker volume.
