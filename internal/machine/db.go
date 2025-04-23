@@ -36,16 +36,11 @@ func NewDB(path string) (*sqlx.DB, error) {
 	schema := `
 	CREATE TABLE IF NOT EXISTS containers (
 	    id TEXT NOT NULL PRIMARY KEY,
-	    service_id TEXT NOT NULL,
-	    service_name TEXT AS (json_extract(service_spec, '$.Name')),
 	    service_spec TEXT NOT NULL CHECK (json_valid(service_spec)),
 	    -- 'subsecond' modifier is used to store timestamps with millisecond precision.
 	    created_at TIMESTAMP NOT NULL DEFAULT (datetime('subsecond')),
 	    updated_at TIMESTAMP NOT NULL DEFAULT (datetime('subsecond'))
 	);
-
-	CREATE INDEX IF NOT EXISTS idx_containers_service_id ON containers (service_id);
-	CREATE INDEX IF NOT EXISTS idx_containers_service_name ON containers (service_name);
     `
 
 	if _, err = db.Exec(schema); err != nil {

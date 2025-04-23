@@ -527,9 +527,8 @@ func (s *Server) CreateServiceContainer(
 		return nil, status.Errorf(codes.Internal, "marshal service spec: %v", err)
 	}
 
-	if _, err = s.db.ExecContext(ctx,
-		`INSERT INTO containers (id, service_id, service_spec) VALUES ($1, $2, $3)`,
-		resp.ID, req.ServiceId, string(specBytes)); err != nil {
+	if _, err = s.db.ExecContext(ctx, `INSERT INTO containers (id, service_spec) VALUES ($1, $2)`,
+		resp.ID, string(specBytes)); err != nil {
 		removeContainer()
 		return nil, status.Errorf(codes.Internal, "store container in database: %v", err)
 	}
