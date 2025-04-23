@@ -242,5 +242,13 @@ func TestComposeDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, service3, expectedSpec3)
 		assert.Equal(t, externalVolume.MachineID, service3.Containers[0].MachineID,
 			"service3 should be on the same machine as external volume")
+
+		// Verify deployment is up-to-date.
+		deploy, err = compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err = deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, plan.Operations, 0, "Expected no new operations after deployment")
 	})
 }
