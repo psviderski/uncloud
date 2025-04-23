@@ -57,3 +57,13 @@ func InspectClusterState(ctx context.Context, cli Client) (*ClusterState, error)
 		Machines: machines,
 	}, nil
 }
+
+// Machine returns the machine with the given name or ID from the cluster state.
+func (s *ClusterState) Machine(nameOrID string) (*Machine, bool) {
+	for _, m := range s.Machines {
+		if m.Info.Id == nameOrID || m.Info.Name == nameOrID {
+			return m, true
+		}
+	}
+	return nil, false
+}

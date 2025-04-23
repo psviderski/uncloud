@@ -18,6 +18,7 @@ type Operation interface {
 	//  can be provided. But in reality, the operation is tightly coupled with the client that was used to create it.
 	Execute(ctx context.Context, cli Client) error
 	// Format returns a human-readable representation of the operation.
+	// TODO: get rid of the resolver and assign the required names for formatting in the operation itself.
 	Format(resolver NameResolver) string
 	String() string
 }
@@ -115,6 +116,8 @@ func (o *RemoveContainerOperation) String() string {
 type CreateVolumeOperation struct {
 	VolumeSpec api.VolumeSpec
 	MachineID  string
+	// MachineName is used for formatting the operation output only.
+	MachineName string
 }
 
 func (o *CreateVolumeOperation) Execute(ctx context.Context, cli Client) error {
@@ -140,9 +143,8 @@ func (o *CreateVolumeOperation) Execute(ctx context.Context, cli Client) error {
 	return nil
 }
 
-func (o *CreateVolumeOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Create volume [name=%s]", machineName, o.VolumeSpec.DockerVolumeName())
+func (o *CreateVolumeOperation) Format(_ NameResolver) string {
+	return fmt.Sprintf("%s: Create volume [name=%s]", o.MachineName, o.VolumeSpec.DockerVolumeName())
 }
 
 func (o *CreateVolumeOperation) String() string {

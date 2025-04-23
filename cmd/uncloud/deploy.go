@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
@@ -26,9 +26,8 @@ type deployOptions struct {
 func NewDeployCommand() *cobra.Command {
 	opts := deployOptions{}
 	cmd := &cobra.Command{
-		Use: "deploy [FLAGS] [SERVICE...]",
-		// TODO: remove WIP when the command is fully implemented.
-		Short: "WIP: Deploy services from a Compose file.",
+		Use:   "deploy [FLAGS] [SERVICE...]",
+		Short: "Deploy services from a Compose file.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
@@ -58,8 +57,8 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	if len(opts.services) > 0 {
-		// TODO: handle dependencies properly.
-		project, err = project.WithSelectedServices(opts.services, types.IgnoreDependencies)
+		// Includes service dependencies by default. This is the default docker compose behavior.
+		project, err = project.WithSelectedServices(opts.services)
 		if err != nil {
 			return fmt.Errorf("select services: %w", err)
 		}
@@ -87,30 +86,8 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	fmt.Println("Deployment plan:")
-
-	for _, op := range plan.Operations {
-		svcPlan, ok := op.(*deploy.Plan)
-		if !ok {
-			return fmt.Errorf("expected service Plan, got: %T", op)
-		}
-
-		svc, err := clusterClient.InspectService(ctx, svcPlan.ServiceID)
-		if err != nil {
-			if !errors.Is(err, api.ErrNotFound) {
-				return fmt.Errorf("inspect service: %w", err)
-			}
-			fmt.Printf("- Run service [name=%s]\n", svcPlan.ServiceName)
-		} else {
-			fmt.Printf("- Update service [name=%s]\n", svc.Name)
-		}
-
-		// Initialise a machine and container name resolver to properly format the service plan output.
-		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, svc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
-
-		fmt.Println(indent(svcPlan.Format(resolver), "  "))
+	if err = printPlan(ctx, clusterClient, plan); err != nil {
+		return fmt.Errorf("print deployment plan: %w", err)
 	}
 	fmt.Println()
 
@@ -129,6 +106,31 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 		return nil
 	}, uncli.ProgressOut(), "Deploying services")
+}
+
+func printPlan(ctx context.Context, cli *client.Client, plan deploy.SequenceOperation) error {
+	for _, op := range plan.Operations {
+		svcPlan, ok := op.(*deploy.Plan)
+		if !ok {
+			fmt.Println("- " + op.Format(nil))
+			continue
+		}
+
+		svc, err := cli.InspectService(ctx, svcPlan.ServiceID)
+		if err != nil && !errors.Is(err, api.ErrNotFound) {
+			return fmt.Errorf("inspect service: %w", err)
+		}
+		// Initialise a machine and container name resolver to properly format the service plan output.
+		resolver, err := cli.ServiceOperationNameResolver(ctx, svc)
+		if err != nil {
+			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
+		}
+
+		fmt.Printf("- Deploy service [name=%s]\n", svcPlan.ServiceName)
+		fmt.Println(indent(svcPlan.Format(resolver), "  "))
+	}
+
+	return nil
 }
 
 func indent(text, prefix string) string {

@@ -142,9 +142,15 @@ func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*deploy.Crea
 	var ops []*deploy.CreateVolumeOperation
 	for machineID, volumes := range scheduledVolumes {
 		for _, v := range volumes {
+			machineName := machineID
+			if m, ok := d.state.Machine(machineID); ok {
+				machineName = m.Info.Name
+			}
+
 			ops = append(ops, &deploy.CreateVolumeOperation{
-				MachineID:  machineID,
-				VolumeSpec: v,
+				MachineID:   machineID,
+				MachineName: machineName,
+				VolumeSpec:  v,
 			})
 		}
 	}
