@@ -1311,7 +1311,6 @@ func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 		new     api.ServiceSpec
 		want    ContainerSpecStatus
 	}{
-
 		{
 			name: "mutable changes",
 			current: api.ServiceSpec{

@@ -44,16 +44,34 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			Command:    service.Command,
+			Entrypoint: service.Entrypoint,
 			Env:        env,
 			Image:      service.Image,
 			Init:       service.Init,
+			Privileged: service.Privileged,
 			PullPolicy: pullPolicy,
+			Resources:  resourcesFromCompose(service),
+			User:       service.User,
 		},
 		Name: serviceName,
+		Mode: api.ServiceModeReplicated,
+		// TODO: implement and map x-machines to Placement.
 	}
 
 	if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok {
 		spec.Ports = ports
+	}
+
+	// Map LogDriver if specified
+	if service.Logging != nil && service.Logging.Driver != "" {
+		spec.Container.LogDriver = &api.LogDriver{
+			Name:    service.Logging.Driver,
+			Options: service.Logging.Options,
+		}
+	}
+
+	if service.Scale != nil {
+		spec.Replicas = uint(*service.Scale)
 	}
 
 	if service.Deploy != nil {
@@ -61,7 +79,6 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		case "global":
 			spec.Mode = api.ServiceModeGlobal
 		case "", "replicated":
-			spec.Mode = api.ServiceModeReplicated
 			if service.Deploy.Replicas != nil {
 				spec.Replicas = uint(*service.Deploy.Replicas)
 			}
@@ -80,6 +97,34 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	spec.Container.VolumeMounts = volumeMounts
 
 	return spec, nil
+}
+
+func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
+	resources := api.ContainerResources{
+		CPU:               int64(service.CPUS * 1e9),
+		Memory:            int64(service.MemLimit),
+		MemoryReservation: int64(service.MemReservation),
+	}
+
+	// Map resources from deploy section if specified.
+	if service.Deploy != nil {
+		if service.Deploy.Resources.Limits != nil {
+			if service.Deploy.Resources.Limits.NanoCPUs > 0 {
+				// It seems Limits.NanoCPUs is actually not nano CPUs but a CPU fraction.
+				resources.CPU = int64(service.Deploy.Resources.Limits.NanoCPUs * 1e9)
+			}
+			if service.Deploy.Resources.Limits.MemoryBytes > 0 {
+				resources.Memory = int64(service.Deploy.Resources.Limits.MemoryBytes)
+			}
+		}
+		if service.Deploy.Resources.Reservations != nil {
+			if service.Deploy.Resources.Reservations.MemoryBytes > 0 {
+				resources.MemoryReservation = int64(service.Deploy.Resources.Reservations.MemoryBytes)
+			}
+		}
+	}
+
+	return resources
 }
 
 func volumeSpecsFromCompose(

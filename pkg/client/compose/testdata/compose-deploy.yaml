@@ -1,0 +1,33 @@
+services:
+  no-deploy:
+    image: nginx:latest
+    cpus: 1.5
+    mem_limit: 100M
+    mem_reservation: 50M
+    scale: 3
+
+  deploy:
+    image: nginx:latest
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: 1.5
+          memory: 100M
+        reservations:
+          memory: 50M
+
+  both:
+    image: nginx:latest
+    cpus: 2
+    mem_limit: 102400K
+    mem_reservation: 52428800
+    scale: 3
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: 2.0
+          memory: 100M
+        reservations:
+          memory: 50M

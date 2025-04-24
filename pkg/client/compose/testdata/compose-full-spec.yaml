@@ -1,0 +1,41 @@
+services:
+  test:
+    command: ["nginx", "updated", "command"]
+    cpus: 0.5
+    entrypoint: ["/updated-docker-entrypoint.sh"]
+    environment:
+      BOOL: "true"
+      EMPTY: ""
+      VAR: value
+    image: nginx:latest
+    init: true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: 3
+    mem_limit: 100M
+    mem_reservation: 50M
+    privileged: true
+    pull_policy: always
+    scale: 3
+    user: nginx:nginx
+    volumes:
+      - /etc/passwd:/host/etc/passwd:ro
+      - data1:/data1
+      - type: volume
+        source: data2-alias
+        target: /data2/long/syntax
+      - data-external:/external:ro
+      - type: tmpfs
+        target: /tmpfs
+        tmpfs:
+          size: 10485760
+
+volumes:
+  data1:
+  data2-alias:
+    name: data2
+    driver: local
+  data-external:
+    external: true
