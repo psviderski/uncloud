@@ -62,6 +62,21 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 	assert.Equal(t, spec.Container.Init, ctr.HostConfig.Init)
 	assert.True(t, strings.HasPrefix(ctr.Name, spec.Name+"-"))
 
+	// If LogDriver is not set, any log driver set as default in the Docker daemon config could be used.
+	if spec.Container.LogDriver != nil {
+		assert.Equal(t, spec.Container.LogDriver.Name, ctr.HostConfig.LogConfig.Type)
+		assert.Equal(t, spec.Container.LogDriver.Options, ctr.HostConfig.LogConfig.Config)
+	}
+	// Compute resources.
+	assert.Equal(t, spec.Container.Resources.CPU, ctr.HostConfig.Resources.NanoCPUs)
+	assert.Equal(t, spec.Container.Resources.Memory, ctr.HostConfig.Resources.Memory)
+	assert.Equal(t, spec.Container.Resources.MemoryReservation, ctr.HostConfig.Resources.MemoryReservation)
+
+	// If User is not set, the default user in the image is used so we can't easily assert it.
+	if spec.Container.User != "" {
+		assert.Equal(t, spec.Container.User, ctr.Config.User)
+	}
+
 	assert.Empty(t, ctr.HostConfig.Binds, "Expected empty binds as all volumes should be mapped to mounts")
 	assert.ElementsMatch(t, spec.Container.Volumes, ctr.HostConfig.Binds)
 	assertContainerMountsMatchSpec(t, ctr.HostConfig.Mounts, spec)

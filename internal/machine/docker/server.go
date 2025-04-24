@@ -444,6 +444,7 @@ func (s *Server) CreateServiceContainer(
 			api.LabelServiceMode: spec.Mode,
 			api.LabelManaged:     "",
 		},
+		User: spec.Container.User,
 	}
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
@@ -491,12 +492,26 @@ func (s *Server) CreateServiceContainer(
 		Init:         spec.Container.Init,
 		Mounts:       mounts,
 		PortBindings: portBindings,
+		Privileged:   spec.Container.Privileged,
+		Resources: container.Resources{
+			NanoCPUs:          spec.Container.Resources.CPU,
+			Memory:            spec.Container.Resources.Memory,
+			MemoryReservation: spec.Container.Resources.MemoryReservation,
+		},
 		// Always restart service containers if they exit or a machine restarts.
 		// For one-off containers and batch jobs we plan to use a different service type/mode.
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyAlways,
 		},
 	}
+
+	if spec.Container.LogDriver != nil {
+		hostConfig.LogConfig = container.LogConfig{
+			Type:   spec.Container.LogDriver.Name,
+			Config: spec.Container.LogDriver.Options,
+		}
+	}
+
 	networkConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			NetworkName: {},

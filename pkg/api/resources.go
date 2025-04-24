@@ -1,5 +1,10 @@
 package api
 
+const (
+	MilliCore = 1_000_000
+	Core      = 1000 * MilliCore
+)
+
 type ContainerResources struct {
 	// CPU is the maximum amount of CPU nanocores (1000000000 = 1 CPU core) the container can use.
 	CPU int64
