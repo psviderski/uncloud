@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	dockeropts "github.com/docker/cli/opts"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/daemon/names"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -17,16 +18,20 @@ import (
 
 type runOptions struct {
 	command           []string
+	cpu               dockeropts.NanoCPUs
 	entrypoint        string
 	entrypointChanged bool
 	env               []string
 	image             string
 	machines          []string
+	memory            dockeropts.MemBytes
 	mode              string
 	name              string
+	privileged        bool
 	publish           []string
 	pull              string
 	replicas          uint
+	user              string
 	volumes           []string
 
 	cluster string
@@ -52,6 +57,9 @@ func NewRunCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().VarP(&opts.cpu, "cpu", "",
+		"Maximum number of CPU cores a service container can use. Fractional values are allowed: "+
+			"0.5 for half a core or 2.25 for two and a quarter cores.")
 	cmd.Flags().StringVar(&opts.entrypoint, "entrypoint", "",
 		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it.")
 	cmd.Flags().StringSliceVarP(&opts.env, "env", "e", nil,
@@ -64,8 +72,14 @@ func NewRunCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Placement constraint by machine names, limiting which machines the service can run on. Can be specified "+
 			"multiple times or as a comma-separated list of machine names. (default is any suitable machine)")
+	cmd.Flags().VarP(&opts.memory, "memory", "",
+		"Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix "+
+			"(b, k, m, g). Default unit is bytes if no suffix specified.\n"+
+			"Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)")
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "",
 		"Assign a name to the service. A random name is generated if not specified.")
+	cmd.Flags().BoolVar(&opts.privileged, "privileged", false,
+		"Give extended privileges to service containers. This is a security risk and should be used with caution.")
 	cmd.Flags().StringSliceVarP(&opts.publish, "publish", "p", nil,
 		"Publish a service port to make it accessible outside the cluster. Can be specified multiple times.\n"+
 			"Format: [hostname:][load_balancer_port:]container_port[/protocol] or [host_ip:]:host_port:container_port[/protocol]@host\n"+
@@ -81,6 +95,9 @@ func NewRunCommand() *cobra.Command {
 			api.PullPolicyAlways, api.PullPolicyMissing, api.PullPolicyNever))
 	cmd.Flags().UintVar(&opts.replicas, "replicas", 1,
 		"Number of containers to run for the service. Only valid for a replicated service.")
+	cmd.Flags().StringVarP(&opts.user, "user", "u", "",
+		"User name or UID and optionally group name or GID used for running the command inside service containers.\n"+
+			"Format: USER[:GROUP] or UID[:GID]. If not specified, the user is set to the default user of the image.")
 	cmd.Flags().StringSliceVarP(&opts.volumes, "volume", "v", nil,
 		"Mount a data volume or host path into service containers. Service containers will be scheduled on the machine(s) where\n"+
 			"the volume is located. Can be specified multiple times.\n"+
@@ -180,10 +197,16 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 
 	spec = api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Command:      opts.command,
-			Env:          env,
-			Image:        opts.image,
-			PullPolicy:   opts.pull,
+			Command:    opts.command,
+			Env:        env,
+			Image:      opts.image,
+			Privileged: opts.privileged,
+			PullPolicy: opts.pull,
+			Resources: api.ContainerResources{
+				CPU:    opts.cpu.Value(),
+				Memory: opts.memory.Value(),
+			},
+			User:         opts.user,
 			VolumeMounts: mounts,
 		},
 		Mode:      opts.mode,

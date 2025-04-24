@@ -67,6 +67,7 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 		assert.Equal(t, spec.Container.LogDriver.Name, ctr.HostConfig.LogConfig.Type)
 		assert.Equal(t, spec.Container.LogDriver.Options, ctr.HostConfig.LogConfig.Config)
 	}
+	assert.Equal(t, spec.Container.Privileged, ctr.HostConfig.Privileged)
 	// Compute resources.
 	assert.Equal(t, spec.Container.Resources.CPU, ctr.HostConfig.Resources.NanoCPUs)
 	assert.Equal(t, spec.Container.Resources.Memory, ctr.HostConfig.Resources.Memory)
