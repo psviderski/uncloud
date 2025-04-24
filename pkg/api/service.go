@@ -162,6 +162,8 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 type ContainerSpec struct {
 	// Command overrides the default CMD of the image to be executed when running a container.
 	Command []string
+	// CPU resource allocation for the container.
+	CPU CPUResources
 	// Entrypoint overrides the default ENTRYPOINT of the image.
 	Entrypoint []string
 	// Env defines the environment variables to set inside the container.
@@ -169,14 +171,22 @@ type ContainerSpec struct {
 	Image string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
+	// LogDriver overrides the default logging driver for the container. Each Docker daemon can have its own default.
+	LogDriver *LogDriver
+	// Memory resource allocation for the container.
+	Memory MemoryResources
+	// Privileged gives extended privileges to the container. This is a security risk and should be used with caution.
+	Privileged bool
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.
 	// Default is PullPolicyMissing if empty.
 	PullPolicy string
+	// User overrides the default user of the image used to run the container. Format: user|UID[:group|GID].
+	User string
 	// VolumeMounts specifies how volumes are mounted into the container filesystem.
 	// Each mount references a volume defined in ServiceSpec.Volumes.
 	VolumeMounts []VolumeMount
 	// Volumes is list of data volumes to mount into the container.
-	// TODO(lhf): replace with []VolumeMounts
+	// TODO(lhf): delete all usage, has been replaced with []VolumeMounts.
 	Volumes []string
 }
 
@@ -252,6 +262,13 @@ func (e EnvVars) ToSlice() []string {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 	return env
+}
+
+type LogDriver struct {
+	// Name of the logging driver to use.
+	Name string
+	// Options is the configuration options to pass to the logging driver.
+	Options map[string]string
 }
 
 type RunServiceResponse struct {
