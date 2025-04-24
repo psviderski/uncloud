@@ -238,6 +238,13 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		spec.Entrypoint = make([]string, len(s.Entrypoint))
 		copy(spec.Entrypoint, s.Entrypoint)
 	}
+	if s.LogDriver != nil {
+		logDriver := *s.LogDriver
+		if s.LogDriver.Options != nil {
+			logDriver.Options = maps.Clone(s.LogDriver.Options)
+		}
+		spec.LogDriver = &logDriver
+	}
 	if s.Volumes != nil {
 		spec.Volumes = make([]string, len(s.Volumes))
 		copy(spec.Volumes, s.Volumes)

@@ -1,8 +1,11 @@
 package deploy
 
 import (
+	"reflect"
 	"sort"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -16,12 +19,6 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	current = current.SetDefaults()
 	new = new.SetDefaults()
 
-	// Pull policy doesn't affect the container configuration.
-	new.Container.PullPolicy = current.Container.PullPolicy
-	if !current.Container.Equals(new.Container) {
-		return ContainerNeedsRecreate
-	}
-
 	if current.Mode != new.Mode {
 		return ContainerNeedsRecreate
 	}
@@ -29,9 +26,27 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		return ContainerNeedsRecreate
 	}
 
-	// TODO: compare mutable properties such as memory or CPU limits when they are implemented.
+	// Pull policy doesn't affect the container configuration.
+	new.Container.PullPolicy = current.Container.PullPolicy
 
-	// TODO: change ports check to ContainerNeedsUpdate when ingress ports are stored only the machine DB instead
+	// Save mutable container properties that can be updated without recreation.
+	newCPU := new.Container.CPU
+	newMemory := new.Container.Memory
+	// Temporarily set mutable container properties to current values to check if other properties changed.
+	new.Container.CPU = current.Container.CPU
+	new.Container.Memory = current.Container.Memory
+
+	// Check if immutable container properties changed.
+	if !current.Container.Equals(new.Container) {
+		return ContainerNeedsRecreate
+	}
+
+	if !cmp.Equal(current.Placement, new.Placement, cmpopts.EquateEmpty()) {
+		// TODO: this could be just an in-place spec update when available.
+		return ContainerNeedsRecreate
+	}
+
+	// TODO: change ports check to ContainerNeedsUpdate when ingress ports are stored only in the machine DB instead
 	//  of as labels ans synced to the cluster store. Host ports changes should be handled as ContainerNeedsRecreate.
 	if !api.PortsEqual(current.Ports, new.Ports) {
 		return ContainerNeedsRecreate
@@ -51,6 +66,11 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 			// TODO: should defined but not used (no corresponding mounts) volumes be simply ignored?
 			return ContainerNeedsRecreate
 		}
+	}
+
+	// Check if any mutable properties changed.
+	if !reflect.DeepEqual(current.Container.CPU, newCPU) || !reflect.DeepEqual(current.Container.Memory, newMemory) {
+		return ContainerNeedsUpdate
 	}
 
 	return ContainerUpToDate

@@ -8,14 +8,500 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestEvalContainerSpecChange_ContainerCPU(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current api.CPUResources
+		new     api.CPUResources
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "set limit",
+			current: api.CPUResources{},
+			new: api.CPUResources{
+				Limit: 1000000000,
+			},
+			want: ContainerNeedsUpdate,
+		},
+		{
+			name: "change limit",
+			current: api.CPUResources{
+				Limit: 1000000000,
+			},
+			new: api.CPUResources{
+				Limit: 2000000000,
+			},
+			want: ContainerNeedsUpdate,
+		},
+		{
+			name: "unset limit",
+			current: api.CPUResources{
+				Limit: 1000000000,
+			},
+			new:  api.CPUResources{},
+			want: ContainerNeedsUpdate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+					CPU:   tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+					CPU:   tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestEvalContainerSpecChange_ContainerImage(t *testing.T) {
+	t.Parallel()
+
+	currentSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	assert.Equal(t, ContainerUpToDate, EvalContainerSpecChange(currentSpec, newSpec))
+
+	newSpec.Container.Image = "nginx:1.19"
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(currentSpec, newSpec))
+}
+
+func TestEvalContainerSpecChange_ContainerLogDriver(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current *api.LogDriver
+		new     *api.LogDriver
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "set driver",
+			current: nil,
+			new: &api.LogDriver{
+				Name: "json-file",
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "change driver",
+			current: &api.LogDriver{
+				Name: "json-file",
+			},
+			new: &api.LogDriver{
+				Name: "syslog",
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "set empty options",
+			current: &api.LogDriver{
+				Name: "json-file",
+			},
+			new: &api.LogDriver{
+				Name:    "json-file",
+				Options: map[string]string{},
+			},
+			want: ContainerUpToDate,
+		},
+		{
+			name: "set options",
+			current: &api.LogDriver{
+				Name: "json-file",
+			},
+			new: &api.LogDriver{
+				Name: "json-file",
+				Options: map[string]string{
+					"max-size": "10m",
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "change options",
+			current: &api.LogDriver{
+				Name: "json-file",
+				Options: map[string]string{
+					"max-size": "10m",
+				},
+			},
+			new: &api.LogDriver{
+				Name: "json-file",
+				Options: map[string]string{
+					"max-size": "20m",
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "unset options",
+			current: &api.LogDriver{
+				Name: "json-file",
+				Options: map[string]string{
+					"max-size": "10m",
+				},
+			},
+			new: &api.LogDriver{
+				Name: "json-file",
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "unset driver",
+			current: &api.LogDriver{
+				Name: "json-file",
+				Options: map[string]string{
+					"max-size": "10m",
+				},
+			},
+			new:  nil,
+			want: ContainerNeedsRecreate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nginx:latest",
+					LogDriver: tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nginx:latest",
+					LogDriver: tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestEvalContainerSpecChange_ContainerMemory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current api.MemoryResources
+		new     api.MemoryResources
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "empty",
+			current: api.MemoryResources{},
+			new:     api.MemoryResources{},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal limit",
+			current: api.MemoryResources{Limit: 100 * 1024 * 1024},
+			new:     api.MemoryResources{Limit: 100 * 1024 * 1024},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal reservation",
+			current: api.MemoryResources{Reservation: 50 * 1024 * 1024},
+			new:     api.MemoryResources{Reservation: 50 * 1024 * 1024},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal limit and reservation",
+			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
+			new:     api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "set limit",
+			current: api.MemoryResources{},
+			new:     api.MemoryResources{Limit: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "set reservation",
+			current: api.MemoryResources{},
+			new:     api.MemoryResources{Reservation: 50 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "set limit and reservation",
+			current: api.MemoryResources{},
+			new:     api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "change limit",
+			current: api.MemoryResources{Limit: 100 * 1024 * 1024},
+			new:     api.MemoryResources{Limit: 200 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "change reservation",
+			current: api.MemoryResources{Reservation: 50 * 1024 * 1024},
+			new:     api.MemoryResources{Reservation: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "change limit and reservation",
+			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
+			new:     api.MemoryResources{Limit: 200 * 1024 * 1024, Reservation: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "unset limit",
+			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
+			new:     api.MemoryResources{Reservation: 50 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "unset reservation",
+			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
+			new:     api.MemoryResources{Limit: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "unset limit and reservation",
+			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
+			new:     api.MemoryResources{},
+			want:    ContainerNeedsUpdate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:  "nginx:latest",
+					Memory: tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:  "nginx:latest",
+					Memory: tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestEvalContainerSpecChange_ContainerPrivileged(t *testing.T) {
+	t.Parallel()
+
+	currentSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:      "nginx:latest",
+			Privileged: true,
+		},
+	}
+
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(currentSpec, newSpec))
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
+}
+
+func TestEvalContainerSpecChange_ContainerUser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current string
+		new     string
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "empty",
+			current: "",
+			new:     "",
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal user",
+			current: "user",
+			new:     "user",
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal UID",
+			current: "1000",
+			new:     "1000",
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal user group",
+			current: "user:group",
+			new:     "user:group",
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal UID GID",
+			current: "1000:1000",
+			new:     "1000:1000",
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "set user",
+			current: "",
+			new:     "user",
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "set UID",
+			current: "",
+			new:     "1000",
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "set user group",
+			current: "",
+			new:     "user:group",
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "set UID GID",
+			current: "",
+			new:     "1000:1000",
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "change user",
+			current: "user",
+			new:     "another_user",
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "change group",
+			current: "user:group",
+			new:     "user:another_group",
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "change user group",
+			current: "user:group",
+			new:     "another_user:another_group",
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "unser user",
+			current: "user",
+			new:     "",
+			want:    ContainerNeedsRecreate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+					User:  tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+					User:  tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestEvalContainerSpecChange_Placement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current api.Placement
+		new     api.Placement
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "empty",
+			current: api.Placement{},
+			new:     api.Placement{},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "empty machines",
+			current: api.Placement{Machines: nil},
+			new:     api.Placement{Machines: []string{}},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "set machines",
+			current: api.Placement{},
+			new:     api.Placement{Machines: []string{"machine1"}},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "unset",
+			current: api.Placement{Machines: []string{"machine1"}},
+			new:     api.Placement{},
+			want:    ContainerNeedsRecreate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Placement: tt.current,
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Placement: tt.new,
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		current  api.ServiceSpec
-		new      api.ServiceSpec
-		expected ContainerSpecStatus
+		name    string
+		current api.ServiceSpec
+		new     api.ServiceSpec
+		want    ContainerSpecStatus
 	}{
 		// TODO: should all volumes that are defined but not used (no corresponding mounts) be simply ignored?
 		{
@@ -36,7 +522,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerUpToDate,
+			want: ContainerUpToDate,
 		},
 		{
 			name: "volumes in different order but identical",
@@ -64,7 +550,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerUpToDate,
+			want: ContainerUpToDate,
 		},
 		{
 			name: "different number of volumes",
@@ -88,7 +574,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "no volumes to one volume",
@@ -103,7 +589,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "one volume to no volumes",
@@ -118,7 +604,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 			new: api.ServiceSpec{
 				Volumes: []api.VolumeSpec{},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "change volume type",
@@ -141,7 +627,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "change volume options",
@@ -167,7 +653,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "change volume options to defaults",
@@ -190,7 +676,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerUpToDate,
+			want: ContainerUpToDate,
 		},
 		{
 			name: "change volume driver to local",
@@ -217,7 +703,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 				},
 			},
 			// TODO: this doesn't really require a recreate, only a spec update would be sufficient.
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "change volume driver to custom",
@@ -244,7 +730,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 				},
 			},
 			// TODO: this doesn't really require a recreate, only a spec update would be sufficient.
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "change bind option CreateHostPath",
@@ -272,7 +758,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 				},
 			},
 			// TODO: this doesn't really require a recreate, only a spec update would be sufficient.
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "change bind option propagation",
@@ -300,7 +786,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 				},
 			},
 			// TODO: should we handle rprivate the same as empty propagation, hence up-to-date?
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "change tmpfs options",
@@ -326,7 +812,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "changing volume name",
@@ -346,7 +832,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		// Tests for volume mounts
 		{
@@ -383,7 +869,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerUpToDate,
+			want: ContainerUpToDate,
 		},
 		{
 			name: "volume mounts in different order but identical",
@@ -435,7 +921,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerUpToDate,
+			want: ContainerUpToDate,
 		},
 		{
 			name: "volumes and volume mounts in different order but identical",
@@ -487,7 +973,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerUpToDate,
+			want: ContainerUpToDate,
 		},
 		{
 			name: "added volume mount",
@@ -535,7 +1021,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "removed volume mount",
@@ -583,7 +1069,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "changed volume mount container path",
@@ -619,7 +1105,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "changed volume mount read-only flag",
@@ -657,7 +1143,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "changed mounted volume type",
@@ -696,7 +1182,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "changed reference name in spec but preserved original volume name",
@@ -736,7 +1222,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 				},
 			},
 			// TODO: this doesn't really require a recreate, only a spec update would be sufficient.
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 		{
 			name: "changed volumes, mounts and paths",
@@ -808,14 +1294,76 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 					},
 				},
 			},
-			expected: ContainerNeedsRecreate,
+			want: ContainerNeedsRecreate,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := EvalContainerSpecChange(tt.current, tt.new)
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestEvalContainerSpecChange_Mixed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current api.ServiceSpec
+		new     api.ServiceSpec
+		want    ContainerSpecStatus
+	}{
+
+		{
+			name: "mutable changes",
+			current: api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+					Memory: api.MemoryResources{
+						Limit: 100 * 1024 * 1024,
+					},
+				},
+			},
+			new: api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+					CPU: api.CPUResources{
+						Limit: 1000000000,
+					},
+					Memory: api.MemoryResources{
+						Limit:       200 * 1024 * 1024,
+						Reservation: 100 * 1024 * 1024,
+					},
+				},
+			},
+			want: ContainerNeedsUpdate,
+		},
+		{
+			name: "mutable and immutable changes",
+			current: api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+				},
+			},
+			new: api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+					CPU: api.CPUResources{
+						Limit: 1000000000,
+					},
+					User: "root",
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := EvalContainerSpecChange(tt.current, tt.new)
+			assert.Equal(t, tt.want, result)
 		})
 	}
 }
