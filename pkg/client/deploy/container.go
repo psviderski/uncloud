@@ -29,12 +29,10 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	// Pull policy doesn't affect the container configuration.
 	new.Container.PullPolicy = current.Container.PullPolicy
 
-	// Save mutable container properties that can be updated without recreation.
-	newCPU := new.Container.CPU
-	newMemory := new.Container.Memory
-	// Temporarily set mutable container properties to current values to check if other properties changed.
-	new.Container.CPU = current.Container.CPU
-	new.Container.Memory = current.Container.Memory
+	// Save mutable container resources that can be updated without recreation.
+	newResources := new.Container.Resources
+	// Temporarily set mutable container resources to current values to check if other properties changed.
+	new.Container.Resources = current.Container.Resources
 
 	// Check if immutable container properties changed.
 	if !current.Container.Equals(new.Container) {
@@ -69,7 +67,7 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	}
 
 	// Check if any mutable properties changed.
-	if !reflect.DeepEqual(current.Container.CPU, newCPU) || !reflect.DeepEqual(current.Container.Memory, newMemory) {
+	if !reflect.DeepEqual(current.Container.Resources, newResources) {
 		return ContainerNeedsUpdate
 	}
 

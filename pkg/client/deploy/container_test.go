@@ -8,39 +8,145 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEvalContainerSpecChange_ContainerCPU(t *testing.T) {
+func TestEvalContainerSpecChange_ContainerResources(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		current api.CPUResources
-		new     api.CPUResources
+		current api.ContainerResources
+		new     api.ContainerResources
 		want    ContainerSpecStatus
 	}{
 		{
-			name:    "set limit",
-			current: api.CPUResources{},
-			new: api.CPUResources{
-				Limit: 1000000000,
+			name:    "empty",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{},
+			want:    ContainerUpToDate,
+		},
+
+		// CPU
+		{
+			name:    "set CPU",
+			current: api.ContainerResources{},
+			new: api.ContainerResources{
+				CPU: 1000000000,
 			},
 			want: ContainerNeedsUpdate,
 		},
 		{
-			name: "change limit",
-			current: api.CPUResources{
-				Limit: 1000000000,
+			name: "change CPU",
+			current: api.ContainerResources{
+				CPU: 1000000000,
 			},
-			new: api.CPUResources{
-				Limit: 2000000000,
+			new: api.ContainerResources{
+				CPU: 2000000000,
 			},
 			want: ContainerNeedsUpdate,
 		},
 		{
-			name: "unset limit",
-			current: api.CPUResources{
-				Limit: 1000000000,
+			name: "unset CPU",
+			current: api.ContainerResources{
+				CPU: 1000000000,
 			},
-			new:  api.CPUResources{},
+			new:  api.ContainerResources{},
+			want: ContainerNeedsUpdate,
+		},
+
+		// Memory
+		{
+			name:    "equal memory",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024},
+			new:     api.ContainerResources{Memory: 100 * 1024 * 1024},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal reservation",
+			current: api.ContainerResources{MemoryReservation: 50 * 1024 * 1024},
+			new:     api.ContainerResources{MemoryReservation: 50 * 1024 * 1024},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "equal memory and reservation",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
+			new:     api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "set memory",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{Memory: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "set reservation",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{MemoryReservation: 50 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "set memory and reservation",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "change memory",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024},
+			new:     api.ContainerResources{Memory: 200 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "change reservation",
+			current: api.ContainerResources{MemoryReservation: 50 * 1024 * 1024},
+			new:     api.ContainerResources{MemoryReservation: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "change memory and reservation",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
+			new:     api.ContainerResources{Memory: 200 * 1024 * 1024, MemoryReservation: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "unset memory",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
+			new:     api.ContainerResources{MemoryReservation: 50 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "unset reservation",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
+			new:     api.ContainerResources{Memory: 100 * 1024 * 1024},
+			want:    ContainerNeedsUpdate,
+		},
+		{
+			name:    "unset memory and reservation",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
+			new:     api.ContainerResources{},
+			want:    ContainerNeedsUpdate,
+		},
+
+		// Memory and CPU
+		{
+			name:    "set CPU and memory",
+			current: api.ContainerResources{},
+			new: api.ContainerResources{
+				CPU:    1000000000,
+				Memory: 100 * 1024 * 1024,
+			},
+			want: ContainerNeedsUpdate,
+		},
+		{
+			name: "update CPU and memory",
+			current: api.ContainerResources{
+				CPU:    1000000000,
+				Memory: 100 * 1024 * 1024,
+			},
+			new: api.ContainerResources{
+				CPU:               2000000000,
+				Memory:            200 * 1024 * 1024,
+				MemoryReservation: 100 * 1024 * 1024,
+			},
 			want: ContainerNeedsUpdate,
 		},
 	}
@@ -49,14 +155,14 @@ func TestEvalContainerSpecChange_ContainerCPU(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			currentSpec := api.ServiceSpec{
 				Container: api.ContainerSpec{
-					Image: "nginx:latest",
-					CPU:   tt.current,
+					Image:     "nginx:latest",
+					Resources: tt.current,
 				},
 			}
 			newSpec := api.ServiceSpec{
 				Container: api.ContainerSpec{
-					Image: "nginx:latest",
-					CPU:   tt.new,
+					Image:     "nginx:latest",
+					Resources: tt.new,
 				},
 			}
 
@@ -190,116 +296,6 @@ func TestEvalContainerSpecChange_ContainerLogDriver(t *testing.T) {
 				Container: api.ContainerSpec{
 					Image:     "nginx:latest",
 					LogDriver: tt.new,
-				},
-			}
-
-			result := EvalContainerSpecChange(currentSpec, newSpec)
-			assert.Equal(t, tt.want, result)
-		})
-	}
-}
-
-func TestEvalContainerSpecChange_ContainerMemory(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		current api.MemoryResources
-		new     api.MemoryResources
-		want    ContainerSpecStatus
-	}{
-		{
-			name:    "empty",
-			current: api.MemoryResources{},
-			new:     api.MemoryResources{},
-			want:    ContainerUpToDate,
-		},
-		{
-			name:    "equal limit",
-			current: api.MemoryResources{Limit: 100 * 1024 * 1024},
-			new:     api.MemoryResources{Limit: 100 * 1024 * 1024},
-			want:    ContainerUpToDate,
-		},
-		{
-			name:    "equal reservation",
-			current: api.MemoryResources{Reservation: 50 * 1024 * 1024},
-			new:     api.MemoryResources{Reservation: 50 * 1024 * 1024},
-			want:    ContainerUpToDate,
-		},
-		{
-			name:    "equal limit and reservation",
-			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
-			new:     api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
-			want:    ContainerUpToDate,
-		},
-		{
-			name:    "set limit",
-			current: api.MemoryResources{},
-			new:     api.MemoryResources{Limit: 100 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "set reservation",
-			current: api.MemoryResources{},
-			new:     api.MemoryResources{Reservation: 50 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "set limit and reservation",
-			current: api.MemoryResources{},
-			new:     api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "change limit",
-			current: api.MemoryResources{Limit: 100 * 1024 * 1024},
-			new:     api.MemoryResources{Limit: 200 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "change reservation",
-			current: api.MemoryResources{Reservation: 50 * 1024 * 1024},
-			new:     api.MemoryResources{Reservation: 100 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "change limit and reservation",
-			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
-			new:     api.MemoryResources{Limit: 200 * 1024 * 1024, Reservation: 100 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "unset limit",
-			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
-			new:     api.MemoryResources{Reservation: 50 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "unset reservation",
-			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
-			new:     api.MemoryResources{Limit: 100 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
-		},
-		{
-			name:    "unset limit and reservation",
-			current: api.MemoryResources{Limit: 100 * 1024 * 1024, Reservation: 50 * 1024 * 1024},
-			new:     api.MemoryResources{},
-			want:    ContainerNeedsUpdate,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			currentSpec := api.ServiceSpec{
-				Container: api.ContainerSpec{
-					Image:  "nginx:latest",
-					Memory: tt.current,
-				},
-			}
-			newSpec := api.ServiceSpec{
-				Container: api.ContainerSpec{
-					Image:  "nginx:latest",
-					Memory: tt.new,
 				},
 			}
 
@@ -1321,20 +1317,18 @@ func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 			current: api.ServiceSpec{
 				Container: api.ContainerSpec{
 					Image: "nginx:latest",
-					Memory: api.MemoryResources{
-						Limit: 100 * 1024 * 1024,
+					Resources: api.ContainerResources{
+						Memory: 100 * 1024 * 1024,
 					},
 				},
 			},
 			new: api.ServiceSpec{
 				Container: api.ContainerSpec{
 					Image: "nginx:latest",
-					CPU: api.CPUResources{
-						Limit: 1000000000,
-					},
-					Memory: api.MemoryResources{
-						Limit:       200 * 1024 * 1024,
-						Reservation: 100 * 1024 * 1024,
+					Resources: api.ContainerResources{
+						CPU:               1000000000,
+						Memory:            200 * 1024 * 1024,
+						MemoryReservation: 100 * 1024 * 1024,
 					},
 				},
 			},
@@ -1350,8 +1344,8 @@ func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 			new: api.ServiceSpec{
 				Container: api.ContainerSpec{
 					Image: "nginx:latest",
-					CPU: api.CPUResources{
-						Limit: 1000000000,
+					Resources: api.ContainerResources{
+						CPU: 1000000000,
 					},
 					User: "root",
 				},
