@@ -15,6 +15,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +29,7 @@ func main() {
 	cmd := &cobra.Command{
 		Use:           "uncloud",
 		Short:         "A CLI tool for managing Uncloud resources such as clusters, machines, and services.",
+		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
