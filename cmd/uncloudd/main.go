@@ -2,14 +2,16 @@ package main
 
 import (
 	"context"
-	"github.com/spf13/cobra"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+
 	"github.com/psviderski/uncloud/internal/daemon"
 	"github.com/psviderski/uncloud/internal/log"
 	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/version"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -22,6 +24,7 @@ func main() {
 	cmd := &cobra.Command{
 		Use:           "uncloudd",
 		Short:         "Uncloud machine daemon.",
+		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
