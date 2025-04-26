@@ -24,6 +24,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    ldflags:
+      - -s -w -X github.com/psviderski/uncloud/internal/version.version={{ .Version }}
 
   - id: uncloudd
     main: ./cmd/uncloudd
@@ -35,6 +37,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    ldflags:
+      - -s -w -X github.com/psviderski/uncloud/internal/version.version={{ .Version }}
 
 archives:
   - id: uncloud
