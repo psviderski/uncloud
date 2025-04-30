@@ -31,7 +31,8 @@ const (
 
 // Resolver is an interface for resolving service names to IP addresses.
 type Resolver interface {
-	// Resolve returns a list of IP addresses of service containers. An empty list is returned if no service is found.
+	// Resolve returns a list of IP addresses of the service containers.
+	// An empty list is returned if no service is found.
 	Resolve(serviceName string) []netip.Addr
 }
 

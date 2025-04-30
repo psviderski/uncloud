@@ -3,11 +3,13 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-units"
+	"github.com/psviderski/uncloud/internal/machine/docker"
 )
 
 const (
@@ -88,6 +90,22 @@ func (c *Container) HumanState() (string, error) {
 
 	return fmt.Sprintf("Exited (%d) %s ago",
 		c.State.ExitCode, units.HumanDuration(time.Now().UTC().Sub(finishedAt))), nil
+}
+
+// UncloudNetworkIP returns the IP address of the container in the uncloud Docker network.
+func (c *Container) UncloudNetworkIP() netip.Addr {
+	network, ok := c.NetworkSettings.Networks[docker.NetworkName]
+	if !ok {
+		// Container is not connected to the uncloud Docker network (could be host network).
+		return netip.Addr{}
+	}
+
+	ip, err := netip.ParseAddr(network.IPAddress)
+	if err != nil {
+		return netip.Addr{}
+	}
+
+	return ip
 }
 
 func (c *Container) UnmarshalJSON(data []byte) error {
