@@ -45,11 +45,19 @@ func (h *SlogTextHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return h.TextHandler.WithAttrs(attrs)
+	return &SlogTextHandler{
+		TextHandler: h.TextHandler.WithAttrs(attrs).(*slog.TextHandler),
+		opts:        h.opts,
+		w:           h.w,
+	}
 }
 
 func (h *SlogTextHandler) WithGroup(name string) slog.Handler {
-	return h.TextHandler.WithGroup(name)
+	return &SlogTextHandler{
+		TextHandler: h.TextHandler.WithGroup(name).(*slog.TextHandler),
+		opts:        h.opts,
+		w:           h.w,
+	}
 }
 
 func (h *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
