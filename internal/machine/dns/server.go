@@ -94,7 +94,8 @@ func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrP
 	}, nil
 }
 
-// Run starts the DNS server listening on both UDP and TCP ports. It will stop the server when the context is canceled.
+// Run starts the DNS server listening on both UDP and TCP ports. The server on TCP is not critical so it won't return
+// an error if it fails to start. The server will run until the context is canceled or an error occurs.
 func (s *Server) Run(ctx context.Context) error {
 	addr := net.JoinHostPort(s.listenAddr.String(), strconv.Itoa(dnsPort))
 	s.udpServer = &dns.Server{
@@ -108,25 +109,27 @@ func (s *Server) Run(ctx context.Context) error {
 		Handler: dns.HandlerFunc(s.handleRequest),
 	}
 
-	errCh := make(chan error, 2) // Buffer size 2 for UDP and TCP errors.
+	errCh := make(chan error, 1) // Buffer size 1 is for UDP server error only.
 
 	go func() {
-		s.log.Info("Starting DNS server (UDP).", "addr", addr, "proto", "udp", "upstreams", s.upstreamServers)
+		s.log.Info("Starting DNS server on UDP port.", "addr", addr, "upstreams", s.upstreamServers)
 		if err := s.udpServer.ListenAndServe(); err != nil {
 			errCh <- fmt.Errorf("listen and serve on %s/udp: %w", addr, err)
 		}
 	}()
 
 	go func() {
-		s.log.Info("Starting DNS server (TCP).", "addr", addr, "proto", "tcp", "upstreams", s.upstreamServers)
+		s.log.Info("Starting DNS server on TCP port.", "addr", addr, "upstreams", s.upstreamServers)
 		if err := s.tcpServer.ListenAndServe(); err != nil {
-			errCh <- fmt.Errorf("listen and serve on %s/udp: %w", addr, err)
+			// TCP server is not critical, so log the error and continue.
+			slog.Warn("Failed to listen and serve DNS server on TCP port. "+
+				"TCP server is not critical and will be ignored.", "addr", addr, "err", err)
 		}
 	}()
 
 	select {
 	case err := <-errCh:
-		// Stop the servers if one of them fails.
+		// Stop the servers if the UDP one fails.
 		s.stop()
 		return err
 	case <-ctx.Done():
