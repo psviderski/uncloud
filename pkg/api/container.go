@@ -9,10 +9,12 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-units"
-	"github.com/psviderski/uncloud/internal/machine/docker"
 )
 
 const (
+	// DockerNetworkName is the name of the Docker network used by uncloud. Keep the value in sync with NetworkName
+	// in internal/machine/docker/manager.go.
+	DockerNetworkName = "uncloud"
 	LabelManaged      = "uncloud.managed"
 	LabelServiceID    = "uncloud.service.id"
 	LabelServiceName  = "uncloud.service.name"
@@ -94,7 +96,7 @@ func (c *Container) HumanState() (string, error) {
 
 // UncloudNetworkIP returns the IP address of the container in the uncloud Docker network.
 func (c *Container) UncloudNetworkIP() netip.Addr {
-	network, ok := c.NetworkSettings.Networks[docker.NetworkName]
+	network, ok := c.NetworkSettings.Networks[DockerNetworkName]
 	if !ok {
 		// Container is not connected to the uncloud Docker network (could be host network).
 		return netip.Addr{}
