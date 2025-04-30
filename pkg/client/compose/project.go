@@ -23,7 +23,7 @@ func LoadProject(ctx context.Context, paths []string) (*types.Project, error) {
 		composecli.WithDotEnv,
 		// Get compose file path set by COMPOSE_FILE.
 		composecli.WithConfigFileEnv,
-		// If none was selected, get default compose-ports-long.yaml file from current dir or parent folders.
+		// If none was selected, get default Compose file names from current or parent folders.
 		composecli.WithDefaultConfigPath,
 		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
 	)

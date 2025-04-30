@@ -40,7 +40,7 @@ func NewDeployCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
-		"One or more Compose files to deploy services from. (default compose-ports-long.yaml)")
+		"One or more Compose files to deploy services from. (default compose.yaml)")
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context to deploy to (default is the current context)")
 	// TODO: Consider adding a filter flag to specify which machines to deploy to but keep the rest running.
