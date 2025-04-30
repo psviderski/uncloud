@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -17,6 +18,7 @@ import (
 
 type deployOptions struct {
 	files    []string
+	profiles []string
 	services []string
 
 	context string
@@ -41,6 +43,8 @@ func NewDeployCommand() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
 		"One or more Compose files to deploy services from. (default compose.yaml)")
+	cmd.Flags().StringSliceVarP(&opts.profiles, "profile", "p", nil,
+		"One or more Compose profiles to enable.")
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context to deploy to (default is the current context)")
 	// TODO: Consider adding a filter flag to specify which machines to deploy to but keep the rest running.
@@ -49,9 +53,22 @@ func NewDeployCommand() *cobra.Command {
 	return cmd
 }
 
+// projectOpts returns the project options for the Compose file(s).
+func projectOpts(opts deployOptions) []composecli.ProjectOptionsFn {
+	projectOpts := []composecli.ProjectOptionsFn{}
+
+	if len(opts.profiles) > 0 {
+		projectOpts = append(projectOpts, composecli.WithDefaultProfiles(opts.profiles...))
+	}
+
+	return projectOpts
+}
+
 // runDeploy parses the Compose file(s) and deploys the services.
 func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
-	project, err := compose.LoadProject(ctx, opts.files)
+	projectOpts := projectOpts(opts)
+
+	project, err := compose.LoadProject(ctx, opts.files, projectOpts...)
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
