@@ -105,7 +105,7 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 	r.serviceIPs = newServiceIPs
 	r.mu.Unlock()
 
-	r.log.Debug("DNS records updated.", "services", len(newServiceIPs), "containers", containersCount)
+	r.log.Debug("DNS records updated.", "services", len(newServiceIPs)/2, "containers", containersCount)
 }
 
 // Resolve returns IP addresses of the service containers.

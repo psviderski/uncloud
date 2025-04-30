@@ -54,7 +54,7 @@ type Server struct {
 // If upstreams is nil, nameservers from /etc/resolv.conf will be used. An empty upstreams list means to only resolve
 // internal DNS queries and not forward any external queries.
 func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrPort) (*Server, error) {
-	if listenAddr.IsValid() {
+	if !listenAddr.IsValid() {
 		return nil, fmt.Errorf("invalid listen address: %s", listenAddr)
 	}
 	if resolver == nil {
@@ -111,14 +111,14 @@ func (s *Server) Run(ctx context.Context) error {
 	errCh := make(chan error, 2) // Buffer size 2 for UDP and TCP errors.
 
 	go func() {
-		s.log.Info("Starting DNS server (UDP).", "addr", addr, "proto", "udp")
+		s.log.Info("Starting DNS server (UDP).", "addr", addr, "proto", "udp", "upstreams", s.upstreamServers)
 		if err := s.udpServer.ListenAndServe(); err != nil {
 			errCh <- fmt.Errorf("listen and serve on %s/udp: %w", addr, err)
 		}
 	}()
 
 	go func() {
-		s.log.Info("Starting DNS server (TCP).", "addr", addr, "proto", "tcp")
+		s.log.Info("Starting DNS server (TCP).", "addr", addr, "proto", "tcp", "upstreams", s.upstreamServers)
 		if err := s.tcpServer.ListenAndServe(); err != nil {
 			errCh <- fmt.Errorf("listen and serve on %s/udp: %w", addr, err)
 		}
@@ -285,7 +285,6 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
 		return nil
 	}
-	// TODO: verify the formatting of the IP addresses.
 	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
 
 	if len(ips) > 1 {
