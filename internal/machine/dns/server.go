@@ -20,8 +20,8 @@ const (
 	// InternalDomain is the cluster internal domain for service discovery. All DNS queries ending with this suffix
 	// will be resolved using the internal DNS server.
 	InternalDomain = "internal."
-	// dnsPort is the standard DNS port.
-	dnsPort = 53
+	// Port is the standard DNS port.
+	Port = 53
 	// maxConcurrentForwards is the maximum number of concurrent forwarded queries to upstream DNS servers.
 	// 1024 is the default used by the Docker internal DNS server.
 	maxConcurrentForwards = 1024
@@ -72,15 +72,15 @@ func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrP
 					// to not create a forwarding loop.
 					continue
 				}
-				upstreams = append(upstreams, netip.AddrPortFrom(ns, dnsPort))
+				upstreams = append(upstreams, netip.AddrPortFrom(ns, Port))
 			}
 		}
 
 		// Fallback to common public DNS servers if no nameservers were found in /etc/resolv.conf.
 		if upstreams == nil {
 			upstreams = []netip.AddrPort{
-				netip.AddrPortFrom(netip.MustParseAddr("1.1.1.1"), dnsPort), // Cloudflare DNS
-				netip.AddrPortFrom(netip.MustParseAddr("8.8.8.8"), dnsPort), // Google DNS
+				netip.AddrPortFrom(netip.MustParseAddr("1.1.1.1"), Port), // Cloudflare DNS
+				netip.AddrPortFrom(netip.MustParseAddr("8.8.8.8"), Port), // Google DNS
 			}
 		}
 	}
@@ -97,7 +97,7 @@ func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrP
 // Run starts the DNS server listening on both UDP and TCP ports. The server on TCP is not critical so it won't return
 // an error if it fails to start. The server will run until the context is canceled or an error occurs.
 func (s *Server) Run(ctx context.Context) error {
-	addr := net.JoinHostPort(s.listenAddr.String(), strconv.Itoa(dnsPort))
+	addr := net.JoinHostPort(s.listenAddr.String(), strconv.Itoa(Port))
 	s.udpServer = &dns.Server{
 		Addr:    addr,
 		Net:     "udp",

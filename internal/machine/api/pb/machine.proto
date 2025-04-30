@@ -8,6 +8,8 @@ import "google/protobuf/empty.proto";
 import "internal/machine/api/pb/common.proto";
 
 service Machine {
+  // CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
+  rpc CheckPrerequisites(google.protobuf.Empty) returns (CheckPrerequisitesResponse);
   rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
   rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
@@ -27,6 +29,13 @@ message NetworkConfig {
   IP management_ip = 2;
   repeated IPPort endpoints = 3;
   bytes public_key = 4;
+}
+
+message CheckPrerequisitesResponse {
+  // Overall status of the checks.
+  bool satisfied = 1;
+  // Error message if not satisfied (empty if all checks pass).
+  string error = 2;
 }
 
 message InitClusterRequest {

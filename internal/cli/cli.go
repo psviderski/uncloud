@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"os"
 
+	"github.com/charmbracelet/huh"
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -16,8 +17,8 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/connector"
-
-	"github.com/charmbracelet/huh"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -194,6 +195,17 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		}
 	}
 
+	// Check machine meets all necessary system requirements before proceeding.
+	checkResp, err := machineClient.CheckPrerequisites(ctx, &emptypb.Empty{})
+	// TODO(lhf): remove Unimplemented check when v0.9.0 is released.
+	if err != nil {
+		if status.Convert(err).Code() != codes.Unimplemented {
+			return nil, fmt.Errorf("check machine prerequisites: %w", err)
+		}
+	} else if !checkResp.Satisfied {
+		return nil, fmt.Errorf("machine prerequisites not satisfied: %s", checkResp.Error)
+	}
+
 	req := &pb.InitClusterRequest{
 		MachineName: opts.MachineName,
 		Network:     pb.NewIPPrefix(opts.Network),
@@ -273,6 +285,17 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		if err = cli.promptResetMachine(); err != nil {
 			return nil, err
 		}
+	}
+
+	// Check machine meets all necessary system requirements before proceeding.
+	checkResp, err := machineClient.CheckPrerequisites(ctx, &emptypb.Empty{})
+	// TODO(lhf): remove Unimplemented check when v0.9.0 is released.
+	if err != nil {
+		if status.Convert(err).Code() != codes.Unimplemented {
+			return nil, fmt.Errorf("check machine prerequisites: %w", err)
+		}
+	} else if !checkResp.Satisfied {
+		return nil, fmt.Errorf("machine prerequisites not satisfied: %s", checkResp.Error)
 	}
 
 	tokenResp, err := machineClient.Token(ctx, &emptypb.Empty{})

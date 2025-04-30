@@ -359,6 +359,8 @@ func (m *Machine) Run(ctx context.Context) error {
 					var err error
 
 					m.cluster.UpdateMachineID(m.state.ID)
+					// TODO: set DNS server to m.IP() on the docker server so it knows which addr to pass as --dns
+					//  for service containers.
 
 					// Ensure the corrosion config is up to date, including a new gossip address if the machine
 					// has just joined a cluster.
@@ -537,6 +539,38 @@ func (m *Machine) configureCorrosion() error {
 		return fmt.Errorf("write corrosion schema: %w", err)
 	}
 
+	return nil
+}
+
+// CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
+func (m *Machine) CheckPrerequisites(ctx context.Context, _ *emptypb.Empty) (*pb.CheckPrerequisitesResponse, error) {
+	// Check DNS port (UDP) availability.
+	if err := checkDNSPortAvailable(); err != nil {
+		return &pb.CheckPrerequisitesResponse{
+			Satisfied: false,
+			Error:     err.Error(),
+		}, nil
+	}
+
+	return &pb.CheckPrerequisitesResponse{
+		Satisfied: true,
+	}, nil
+}
+
+// checkDNSPortAvailable verifies that DNS port 53/udp is available for Uncloud's embedded DNS service.
+func checkDNSPortAvailable() error {
+	addr := &net.UDPAddr{
+		IP:   net.IPv4(127, 0, 0, 210), // Use a unique loopback address to avoid conflicts.
+		Port: dns.Port,
+	}
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return fmt.Errorf("DNS port %d/udp is already in use by another service: %w. Uncloud needs this port "+
+			"to run the embedded internal DNS service on WireGuard interface 'uncloud'. Please reconfigure "+
+			"any DNS servers (like dnsmasq, systemd-resolved, or named) that might be listening on all network "+
+			"interfaces (0.0.0.0) on the machine and try again", dns.Port, err)
+	}
+	conn.Close()
 	return nil
 }
 

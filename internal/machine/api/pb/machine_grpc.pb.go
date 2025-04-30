@@ -20,17 +20,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Machine_InitCluster_FullMethodName    = "/api.Machine/InitCluster"
-	Machine_JoinCluster_FullMethodName    = "/api.Machine/JoinCluster"
-	Machine_Token_FullMethodName          = "/api.Machine/Token"
-	Machine_Inspect_FullMethodName        = "/api.Machine/Inspect"
-	Machine_InspectService_FullMethodName = "/api.Machine/InspectService"
+	Machine_CheckPrerequisites_FullMethodName = "/api.Machine/CheckPrerequisites"
+	Machine_InitCluster_FullMethodName        = "/api.Machine/InitCluster"
+	Machine_JoinCluster_FullMethodName        = "/api.Machine/JoinCluster"
+	Machine_Token_FullMethodName              = "/api.Machine/Token"
+	Machine_Inspect_FullMethodName            = "/api.Machine/Inspect"
+	Machine_InspectService_FullMethodName     = "/api.Machine/InspectService"
 )
 
 // MachineClient is the client API for Machine service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MachineClient interface {
+	CheckPrerequisites(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CheckPrerequisitesResponse, error)
 	InitCluster(ctx context.Context, in *InitClusterRequest, opts ...grpc.CallOption) (*InitClusterResponse, error)
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error)
@@ -44,6 +46,16 @@ type machineClient struct {
 
 func NewMachineClient(cc grpc.ClientConnInterface) MachineClient {
 	return &machineClient{cc}
+}
+
+func (c *machineClient) CheckPrerequisites(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CheckPrerequisitesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckPrerequisitesResponse)
+	err := c.cc.Invoke(ctx, Machine_CheckPrerequisites_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *machineClient) InitCluster(ctx context.Context, in *InitClusterRequest, opts ...grpc.CallOption) (*InitClusterResponse, error) {
@@ -100,6 +112,7 @@ func (c *machineClient) InspectService(ctx context.Context, in *InspectServiceRe
 // All implementations must embed UnimplementedMachineServer
 // for forward compatibility.
 type MachineServer interface {
+	CheckPrerequisites(context.Context, *emptypb.Empty) (*CheckPrerequisitesResponse, error)
 	InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error)
 	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
 	Token(context.Context, *emptypb.Empty) (*TokenResponse, error)
@@ -115,6 +128,9 @@ type MachineServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMachineServer struct{}
 
+func (UnimplementedMachineServer) CheckPrerequisites(context.Context, *emptypb.Empty) (*CheckPrerequisitesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckPrerequisites not implemented")
+}
 func (UnimplementedMachineServer) InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitCluster not implemented")
 }
@@ -149,6 +165,24 @@ func RegisterMachineServer(s grpc.ServiceRegistrar, srv MachineServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&Machine_ServiceDesc, srv)
+}
+
+func _Machine_CheckPrerequisites_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).CheckPrerequisites(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_CheckPrerequisites_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).CheckPrerequisites(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Machine_InitCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -248,6 +282,10 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Machine",
 	HandlerType: (*MachineServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CheckPrerequisites",
+			Handler:    _Machine_CheckPrerequisites_Handler,
+		},
 		{
 			MethodName: "InitCluster",
 			Handler:    _Machine_InitCluster_Handler,
