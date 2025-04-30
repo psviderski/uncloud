@@ -4,22 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/docker/docker/client"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 	"log/slog"
 	"net"
 	"net/netip"
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
+	"github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyfile"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
+	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -38,8 +40,9 @@ type networkController struct {
 	dockerCli     *client.Client
 	caddyfileCtrl *caddyfile.Controller
 
-	// TODO: DNS server/resolver listening on the machine IP, e.g. 10.210.0.1:53. It can't listen on 127.0.X.X
-	//  like resolved does because it needs to be reachable from both the host and the containers.
+	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
+	dnsServer   *dns.Server
+	dnsResolver *dns.ClusterResolver
 }
 
 func newNetworkController(
@@ -49,6 +52,8 @@ func newNetworkController(
 	corroService corroservice.Service,
 	dockerCli *client.Client,
 	caddyfileCtrl *caddyfile.Controller,
+	dnsServer *dns.Server,
+	dnsResolver *dns.ClusterResolver,
 ) (
 	*networkController, error,
 ) {
@@ -68,6 +73,8 @@ func newNetworkController(
 		corroService:    corroService,
 		dockerCli:       dockerCli,
 		caddyfileCtrl:   caddyfileCtrl,
+		dnsServer:       dnsServer,
+		dnsResolver:     dnsResolver,
 	}, nil
 }
 
@@ -110,65 +117,73 @@ func (nc *networkController) Run(ctx context.Context) error {
 		},
 	)
 
+	errGroup.Go(func() error {
+		slog.Info("Starting embedded DNS resolver.")
+		if err := nc.dnsResolver.Run(ctx); err != nil {
+			return fmt.Errorf("embedded DNS resolver failed: %w", err)
+		}
+		return nil
+	})
+
+	errGroup.Go(func() error {
+		slog.Info("Starting embedded DNS server.")
+		if err := nc.dnsServer.Run(ctx); err != nil {
+			return fmt.Errorf("embedded DNS server failed: %w", err)
+		}
+		return nil
+	})
+
 	// Setup Docker network and synchronise containers to the cluster store.
-	errGroup.Go(
-		func() error {
-			return nc.prepareAndWatchDocker(ctx)
-		},
-	)
+	errGroup.Go(func() error {
+		return nc.prepareAndWatchDocker(ctx)
+	})
 
 	// Handle machine changes in the cluster. Handling machine and endpoint changes should be done
 	// in separate goroutines to avoid a deadlock when reconfiguring the network.
-	errGroup.Go(
-		func() error {
-			if err := nc.handleMachineChanges(ctx); err != nil {
-				return fmt.Errorf("handle new machines: %w", err)
-			}
-			return nil
-		},
-	)
+	errGroup.Go(func() error {
+		if err := nc.handleMachineChanges(ctx); err != nil {
+			return fmt.Errorf("handle new machines: %w", err)
+		}
+		return nil
+	})
 
 	// Watch for endpoint changes and update the machine state accordingly.
-	errGroup.Go(
-		func() error {
-			for {
-				select {
-				case e, ok := <-nc.endpointChanges:
-					if !ok {
-						// The channel was closed, stop watching for changes.
-						nc.endpointChanges = nil
-						return nil
-					}
-
-					nc.state.mu.Lock()
-					for i := range nc.state.Network.Peers {
-						if nc.state.Network.Peers[i].PublicKey.Equal(e.PublicKey) {
-							nc.state.Network.Peers[i].Endpoint = &e.Endpoint
-							break
-						}
-					}
-					if err := nc.state.Save(); err != nil {
-						slog.Error("Failed to save machine state.", "err", err)
-					}
-					nc.state.mu.Unlock()
-
-					slog.Debug("Preserved endpoint change in the machine state.",
-						"public_key", e.PublicKey, "endpoint", e.Endpoint)
-				case <-ctx.Done():
+	errGroup.Go(func() error {
+		for {
+			select {
+			case e, ok := <-nc.endpointChanges:
+				if !ok {
+					// The channel was closed, stop watching for changes.
+					nc.endpointChanges = nil
 					return nil
 				}
-			}
-		},
-	)
 
-	errGroup.Go(
-		func() error {
-			if err := nc.wgnet.Run(ctx); err != nil {
-				return fmt.Errorf("WireGuard network failed: %w", err)
+				nc.state.mu.Lock()
+				for i := range nc.state.Network.Peers {
+					if nc.state.Network.Peers[i].PublicKey.Equal(e.PublicKey) {
+						nc.state.Network.Peers[i].Endpoint = &e.Endpoint
+						break
+					}
+				}
+				if err := nc.state.Save(); err != nil {
+					slog.Error("Failed to save machine state.", "err", err)
+				}
+				nc.state.mu.Unlock()
+
+				slog.Debug("Preserved endpoint change in the machine state.",
+					"public_key", e.PublicKey, "endpoint", e.Endpoint)
+			case <-ctx.Done():
+				return nil
 			}
-			return nil
-		},
-	)
+		}
+	})
+
+	errGroup.Go(func() error {
+		if err := nc.wgnet.Run(ctx); err != nil {
+			return fmt.Errorf("WireGuard network failed: %w", err)
+		}
+		return nil
+	})
 
 	errGroup.Go(func() error {
 		slog.Info("Starting Caddyfile controller.")
@@ -180,16 +195,14 @@ func (nc *networkController) Run(ctx context.Context) error {
 	})
 
 	// Wait for the context to be done and stop the network API server.
-	errGroup.Go(
-		func() error {
-			<-ctx.Done()
-			slog.Info("Stopping network API server.")
-			// TODO: implement timeout for graceful shutdown.
-			nc.server.GracefulStop()
-			slog.Info("Network API server stopped.")
-			return nil
-		},
-	)
+	errGroup.Go(func() error {
+		<-ctx.Done()
+		slog.Info("Stopping network API server.")
+		// TODO: implement timeout for graceful shutdown.
+		nc.server.GracefulStop()
+		slog.Info("Network API server stopped.")
+		return nil
+	})
 
 	return errGroup.Wait()
 }

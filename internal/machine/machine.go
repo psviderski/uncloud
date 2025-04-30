@@ -24,6 +24,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/caddyfile"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
+	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
@@ -62,6 +63,8 @@ type Config struct {
 	// CaddyConfigPath specifies where the machine generates the Caddy reverse proxy configuration file for routing
 	// external traffic to service containers across the internal network. Default is DataDir/caddy/caddy.json.
 	CaddyConfigPath string
+	// DNSUpstreams specifies the upstream DNS servers for the embedded internal DNS server.
+	DNSUpstreams []netip.AddrPort
 }
 
 // SetDefaults returns a new Config with default values set where not provided.
@@ -270,6 +273,15 @@ func (m *Machine) Initialised() bool {
 	return m.state.ID != ""
 }
 
+// IP returns the machine IPv4 address in the cluster network which is the first address in the machine subnet.
+func (m *Machine) IP() netip.Addr {
+	if !m.Initialised() {
+		return netip.Addr{}
+	}
+
+	return network.MachineIP(m.state.Network.Subnet)
+}
+
 func (m *Machine) Run(ctx context.Context) error {
 	// Docker dependency is essential for the machine to function. Block until it's ready.
 	if err := docker.WaitDaemonReady(ctx, m.config.DockerClient); err != nil {
@@ -373,6 +385,12 @@ func (m *Machine) Run(ctx context.Context) error {
 						return fmt.Errorf("create Caddyfile controller: %w", err)
 					}
 
+					dnsResolver := dns.NewClusterResolver(m.store)
+					dnsServer, err := dns.NewServer(m.IP(), dnsResolver, m.config.DNSUpstreams)
+					if err != nil {
+						return fmt.Errorf("create embedded DNS server: %w", err)
+					}
+
 					ctrl, err = newNetworkController(
 						m.state,
 						m.store,
@@ -380,6 +398,8 @@ func (m *Machine) Run(ctx context.Context) error {
 						m.config.CorrosionService,
 						m.config.DockerClient,
 						caddyfileCtrl,
+						dnsServer,
+						dnsResolver,
 					)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)

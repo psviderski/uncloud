@@ -2,10 +2,11 @@ package network
 
 import (
 	"fmt"
-	"github.com/psviderski/uncloud/internal/secret"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"net"
 	"net/netip"
+
+	"github.com/psviderski/uncloud/internal/secret"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 type Config struct {
@@ -13,7 +14,7 @@ type Config struct {
 	// in the subnet. Other IP addresses are allocated to containers running on the machine.
 	Subnet netip.Prefix
 	// ManagementIP is the IPv6 address assigned to the machine within the WireGuard network. This address is used
-	// for cluster management traffic, such as gRPC communication with the machine API server and Serf gossip.
+	// for cluster management traffic, such as gRPC communication with the machine API server and Corrosion gossip.
 	ManagementIP netip.Addr
 	PrivateKey   secret.Secret
 	PublicKey    secret.Secret
@@ -23,7 +24,7 @@ type Config struct {
 type PeerConfig struct {
 	Subnet *netip.Prefix `json:",omitempty"`
 	// ManagementIP is the IPv6 address assigned to the peer within the WireGuard network. This address is used
-	// for cluster management traffic, such as gRPC communication with the machine API server and Serf gossip.
+	// for cluster management traffic, such as gRPC communication with the machine API server and Corrosion gossip.
 	ManagementIP netip.Addr
 	Endpoint     *netip.AddrPort  `json:",omitempty"`
 	AllEndpoints []netip.AddrPort `json:",omitempty"`
