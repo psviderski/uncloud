@@ -13,9 +13,8 @@ import (
 // FakeProjectName is a placeholder name for the project to be able to strip it from the resource names used as prefix.
 const FakeProjectName = "f-a-k-e"
 
-func LoadProject(ctx context.Context, paths []string) (*types.Project, error) {
-	options, err := composecli.NewProjectOptions(
-		paths,
+func LoadProject(ctx context.Context, paths []string, opts ...composecli.ProjectOptionsFn) (*types.Project, error) {
+	defaultOpts := []composecli.ProjectOptionsFn{
 		composecli.WithName(FakeProjectName),
 		// First apply os.Environment, always wins.
 		composecli.WithOsEnv,
@@ -26,6 +25,11 @@ func LoadProject(ctx context.Context, paths []string) (*types.Project, error) {
 		// If none was selected, get default Compose file names from current or parent folders.
 		composecli.WithDefaultConfigPath,
 		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
+	}
+
+	options, err := composecli.NewProjectOptions(
+		paths,
+		append(defaultOpts, opts...)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create compose parser options: %w", err)
