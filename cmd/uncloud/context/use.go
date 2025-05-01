@@ -78,6 +78,5 @@ func buildContextOptions(contexts []string, current string) []huh.Option[string]
 		options[i] = opt
 	}
 
-	options[1].Selected(true)
 	return options
 }
