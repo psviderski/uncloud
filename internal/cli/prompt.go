@@ -14,7 +14,7 @@ func Confirm() (bool, error) {
 				Negative("No").
 				Value(&confirmed),
 		),
-	)
+	).WithAccessible(true)
 	if err := form.Run(); err != nil {
 		return false, err
 	}

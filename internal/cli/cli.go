@@ -426,7 +426,7 @@ func (cli *CLI) promptResetMachine() error {
 				Negative("No").
 				Value(&confirm),
 		),
-	)
+	).WithAccessible(true)
 	if err := form.Run(); err != nil {
 		return fmt.Errorf("prompt user to confirm: %w", err)
 	}
