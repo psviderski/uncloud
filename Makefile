@@ -36,6 +36,10 @@ demo-reset:
 	ssh root@5.223.45.199 "AUTO_CONFIRM=true sudo -E uncloud-uninstall"
 	ssh spy@192.168.40.243 "AUTO_CONFIRM=true sudo -E uncloud-uninstall"
 
+.PHONY: ucind-cluster
+ucind-cluster:
+	go run ./cmd/ucind cluster rm && go run ./cmd/ucind cluster create -m 3
+
 .PHONY: proto
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \

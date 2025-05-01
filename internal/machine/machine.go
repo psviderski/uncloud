@@ -220,7 +220,6 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init machine database: %w", err)
 	}
-	dockerServer := machinedocker.NewServer(dockerCli, db)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, APIPort)
@@ -238,11 +237,16 @@ func NewMachine(config *Config) (*Machine, error) {
 		initialised:      make(chan struct{}, 1),
 		store:            corroStore,
 		cluster:          c,
-		docker:           dockerServer,
 		localProxyServer: localProxyServer,
 		proxyDirector:    proxyDirector,
 	}
-	m.localMachineServer = newGRPCServer(m, c, dockerServer)
+
+	// Machine IP will only be available after the machine is initialised as a cluster member so wrap it in a function.
+	internalDNSIP := func() netip.Addr {
+		return m.IP()
+	}
+	m.docker = machinedocker.NewServer(dockerCli, db, internalDNSIP)
+	m.localMachineServer = newGRPCServer(m, c, m.docker)
 
 	if m.Initialised() {
 		m.initialised <- struct{}{}
@@ -359,8 +363,6 @@ func (m *Machine) Run(ctx context.Context) error {
 					var err error
 
 					m.cluster.UpdateMachineID(m.state.ID)
-					// TODO: set DNS server to m.IP() on the docker server so it knows which addr to pass as --dns
-					//  for service containers.
 
 					// Ensure the corrosion config is up to date, including a new gossip address if the machine
 					// has just joined a cluster.

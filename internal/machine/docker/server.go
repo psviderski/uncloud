@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/netip"
 	"regexp"
 	"slices"
 	"strconv"
@@ -30,6 +31,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc"
@@ -45,13 +47,17 @@ type Server struct {
 	pb.UnimplementedDockerServer
 	client *client.Client
 	db     *sqlx.DB
+	// internalDNSIP is a function that returns the IP address of the internal DNS server. It may return an empty
+	// address if the address is unknown (e.g. when the machine is not initialised yet).
+	internalDNSIP func() netip.Addr
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker client.
-func NewServer(cli *client.Client, db *sqlx.DB) *Server {
+func NewServer(cli *client.Client, db *sqlx.DB, internalDNSIP func() netip.Addr) *Server {
 	return &Server{
-		client: cli,
-		db:     db,
+		client:        cli,
+		db:            db,
+		internalDNSIP: internalDNSIP,
 	}
 }
 
@@ -503,6 +509,16 @@ func (s *Server) CreateServiceContainer(
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyAlways,
 		},
+	}
+
+	// Configure the container to use the internal DNS server if it's available.
+	dnsIP := s.internalDNSIP()
+	if dnsIP.IsValid() {
+		hostConfig.DNS = []string{dnsIP.String()}
+		// Optimize DNS resolution for service discovery by appending the search domain to names without a dot.
+		// For example, the first attempt for "my-service" will be "my-service.internal".
+		hostConfig.DNSOptions = []string{"ndots:1"}
+		hostConfig.DNSSearch = []string{dns.InternalDomain}
 	}
 
 	if spec.Container.LogDriver != nil {
