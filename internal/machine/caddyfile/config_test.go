@@ -14,6 +14,25 @@ import (
 )
 
 func TestGenerateConfig(t *testing.T) {
+	configWithoutServices := `{
+		"servers": {
+			"http": {
+				"listen": [":80"],
+				"routes": [{
+					"match": [{"path": ["/.uncloud-verify"]}],
+					"handle": [{
+						"body": "verification-response-body",
+						"handler": "static_response",
+						"status_code": 200
+					}]
+				}]
+			},
+			"https": {
+				"listen": [":443"]
+			}
+		}
+	}`
+
 	tests := []struct {
 		name       string
 		containers []api.ServiceContainer
@@ -23,25 +42,8 @@ func TestGenerateConfig(t *testing.T) {
 		{
 			name:       "empty containers",
 			containers: []api.ServiceContainer{},
-			want: `{
-                "servers": {
-                    "http": {
-                        "listen": [":80"],
-                        "routes": [{
-                            "match": [{"path": ["/.uncloud-verify"]}],
-                            "handle": [{
-								"body": "verification-response-body",
-								"handler": "static_response",
-								"status_code": 200
-							}]
-                        }]
-                    },
-                    "https": {
-                        "listen": [":443"]
-                    }
-				}
-			}`,
-			wantErr: false,
+			want:       configWithoutServices,
+			wantErr:    false,
 		},
 
 		{
@@ -231,24 +233,7 @@ func TestGenerateConfig(t *testing.T) {
 			containers: []api.ServiceContainer{
 				newContainerWithoutNetwork("ignored.example.com:8080/http"),
 			},
-			want: `{
-                "servers": {
-                    "http": {
-                        "listen": [":80"],
-                        "routes": [{
-                            "match": [{"path": ["/.uncloud-verify"]}],
-                            "handle": [{
-                                "body": "verification-response-body",
-                                "handler": "static_response",
-                                "status_code": 200
-                            }]
-                        }]
-                    },
-                    "https": {
-                        "listen": [":443"]
-                    }
-                }
-            }`,
+			want:    configWithoutServices,
 			wantErr: false,
 		},
 		{
@@ -256,45 +241,63 @@ func TestGenerateConfig(t *testing.T) {
 			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2", "invalid-port"),
 			},
-			want: `{
-                "servers": {
-                    "http": {
-                        "listen": [":80"],
-                        "routes": [{
-                            "match": [{"path": ["/.uncloud-verify"]}],
-                            "handle": [{
-                                "body": "verification-response-body",
-                                "handler": "static_response",
-                                "status_code": 200
-                            }]
-                        }]
-                    },
-                    "https": {
-                        "listen": [":443"]
-                    }
-                }
-            }`,
+			want:    configWithoutServices,
 			wantErr: false,
 		},
 		{
-			name: "containers with unsupported protocols ignored",
+			name: "containers with unsupported protocols and host mode ignored",
 			containers: []api.ServiceContainer{
 				newContainer("10.210.0.2", "5000/tcp"),
 				newContainer("10.210.0.3", "5000/udp"),
 				newContainer("10.210.0.4", "80:8080/tcp@host"),
 			},
+			want:    configWithoutServices,
+			wantErr: false,
+		},
+		{
+			name: "restarting container ignored",
+			containers: []api.ServiceContainer{
+				newRestartingContainer("10.210.0.2", "app.example.com:8080/http"),
+			},
+			want:    configWithoutServices,
+			wantErr: false,
+		},
+		{
+			name: "stopped container ignored",
+			containers: []api.ServiceContainer{
+				newStoppedContainer("10.210.0.2", "app.example.com:8080/http"),
+			},
+			want:    configWithoutServices,
+			wantErr: false,
+		},
+		{
+			name: "mix of running, restarting, and stopped containers",
+			containers: []api.ServiceContainer{
+				newContainer("10.210.0.2", "app.example.com:8080/http"),
+				newRestartingContainer("10.210.0.3", "app.example.com:8080/http"),
+				newStoppedContainer("10.210.0.4", "app.example.com:8080/http"),
+			},
 			want: `{
                 "servers": {
                     "http": {
                         "listen": [":80"],
-                        "routes": [{
-                            "match": [{"path": ["/.uncloud-verify"]}],
-                            "handle": [{
-                                "body": "verification-response-body",
-                                "handler": "static_response",
-                                "status_code": 200
-                            }]
-                        }]
+                        "routes": [
+                            {
+                                "match": [{"host": ["app.example.com"]}],
+                                "handle": [{
+                                    "handler": "reverse_proxy",
+                                    "upstreams": [{"dial": "10.210.0.2:8080"}]
+                                }]
+                            },
+                            {
+                                "match": [{"path": ["/.uncloud-verify"]}],
+                                "handle": [{
+                                    "body": "verification-response-body",
+                                    "handler": "static_response",
+                                    "status_code": 200
+                                }]
+                            }
+                        ]
                     },
                     "https": {
                         "listen": [":443"]
@@ -326,7 +329,11 @@ func TestGenerateConfig(t *testing.T) {
 func newContainer(ip string, ports ...string) api.ServiceContainer {
 	portsLabel := strings.Join(ports, ",")
 	return api.ServiceContainer{Container: api.Container{ContainerJSON: types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{},
+		ContainerJSONBase: &types.ContainerJSONBase{
+			State: &types.ContainerState{
+				Running: true,
+			},
+		},
 		NetworkSettings: &types.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				docker.NetworkName: {
@@ -345,7 +352,11 @@ func newContainer(ip string, ports ...string) api.ServiceContainer {
 func newContainerWithoutNetwork(ports ...string) api.ServiceContainer {
 	portsLabel := strings.Join(ports, ",")
 	return api.ServiceContainer{Container: api.Container{ContainerJSON: types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{},
+		ContainerJSONBase: &types.ContainerJSONBase{
+			State: &types.ContainerState{
+				Running: true,
+			},
+		},
 		NetworkSettings: &types.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				"other-network": {
@@ -359,4 +370,16 @@ func newContainerWithoutNetwork(ports ...string) api.ServiceContainer {
 			},
 		},
 	}}}
+}
+
+func newRestartingContainer(ip string, ports ...string) api.ServiceContainer {
+	ctr := newContainer(ip, ports...)
+	ctr.Container.State.Restarting = true
+	return ctr
+}
+
+func newStoppedContainer(ip string, ports ...string) api.ServiceContainer {
+	ctr := newContainer(ip, ports...)
+	ctr.Container.State.Running = false
+	return ctr
 }

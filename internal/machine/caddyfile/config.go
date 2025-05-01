@@ -15,7 +15,6 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/reverseproxy"
-	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -24,34 +23,38 @@ func GenerateConfig(containers []api.ServiceContainer, verifyResponse string) (*
 	httpHostUpstreams := make(map[string][]string)
 	httpsHostUpstreams := make(map[string][]string)
 	for _, ctr := range containers {
-		logger := slog.With("container", ctr.ID)
-		network, ok := ctr.NetworkSettings.Networks[docker.NetworkName]
-		if !ok {
-			// Container is not connected to the uncloud Docker network (could be host network).
-			continue
-		}
-		if network.IPAddress == "" {
-			logger.Error("Container has no IPv4 address.")
+		if !ctr.Healthy() {
 			continue
 		}
 
+		ip := ctr.UncloudNetworkIP()
+		if !ip.IsValid() {
+			// Container is not connected to the uncloud Docker network (could be host network).
+			continue
+		}
+		log := slog.With("container", ctr.ID)
+
 		ports, err := ctr.ServicePorts()
 		if err != nil {
-			logger.Error("Failed to parse service ports for container.", "err", err)
+			log.Error("Failed to parse service ports for container.", "err", err)
 			continue
 		}
 
 		for _, port := range ports {
+			if port.Mode != api.PortModeIngress {
+				continue
+			}
+
 			switch port.Protocol {
 			case api.ProtocolHTTP:
-				upstream := net.JoinHostPort(network.IPAddress, strconv.Itoa(int(port.ContainerPort)))
+				upstream := net.JoinHostPort(ip.String(), strconv.Itoa(int(port.ContainerPort)))
 				httpHostUpstreams[port.Hostname] = append(httpHostUpstreams[port.Hostname], upstream)
 			case api.ProtocolHTTPS:
-				upstream := net.JoinHostPort(network.IPAddress, strconv.Itoa(int(port.ContainerPort)))
+				upstream := net.JoinHostPort(ip.String(), strconv.Itoa(int(port.ContainerPort)))
 				httpsHostUpstreams[port.Hostname] = append(httpsHostUpstreams[port.Hostname], upstream)
 			default:
 				// TODO: implement L4 ingress routing for TCP and UDP.
-				logger.Error("Unsupported protocol for ingress port.", "port", port)
+				log.Error("Unsupported protocol for ingress port.", "port", port)
 				continue
 			}
 		}
