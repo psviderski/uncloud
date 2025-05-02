@@ -104,7 +104,15 @@ func (s *ServiceSpec) Validate() error {
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
 
-	// TODO: validate the service name is a valid DNS label.
+	if s.Name != "" {
+		if len(s.Name) > 253 {
+			return fmt.Errorf("service name too long (max 253 characters): %q", s.Name)
+		}
+		dnsSubdomainRegexp := regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+		if !dnsSubdomainRegexp.MatchString(s.Name) {
+			return fmt.Errorf("invalid service name %q: must be a valid DNS subdomain", s.Name)
+		}
+	}
 
 	for _, p := range s.Ports {
 		if (p.Mode == "" || p.Mode == PortModeIngress) &&
