@@ -31,6 +31,7 @@ const (
 )
 
 var serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
+var dnsLabelRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 func ValidateServiceID(id string) bool {
 	return serviceIDRegexp.MatchString(id)
@@ -104,13 +105,17 @@ func (s *ServiceSpec) Validate() error {
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
 
+func (s *ServiceSpec) Validate() error {
+	if s.Mode != "someExpectedMode" {
+		return fmt.Errorf("invalid mode: %q", s.Mode)
+	}
+
 	if s.Name != "" {
-		if len(s.Name) > 253 {
-			return fmt.Errorf("service name too long (max 253 characters): %q", s.Name)
+		if len(s.Name) > 63 {
+			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
 		}
-		dnsSubdomainRegexp := regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
-		if !dnsSubdomainRegexp.MatchString(s.Name) {
-			return fmt.Errorf("invalid service name %q: must be a valid DNS subdomain", s.Name)
+		if !dnsLabelRegexp.MatchString(s.Name) {
+			return fmt.Errorf("invalid service name: %q. Must comply with RFC 1123 label format", s.Name)
 		}
 	}
 
