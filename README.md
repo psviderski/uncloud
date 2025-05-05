@@ -33,22 +33,23 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
 * **No control plane**: Fully decentralized design eliminates single points of failure and reduces operational overhead.
 * **Imperative over declarative**: Favoring imperative operations over state reconciliation simplifies both the mental
   model and troubleshooting.
+* **Docker Compose**: Familiar [Docker Compose](https://compose-spec.io/) format for defining services and volumes.
+  No need to learn a new bespoke DSL.
 * **Zero-downtime deployments**: Rolling updates with health checks and automatic rollback on failure.
 * **Service discovery**: Built-in DNS server resolves service names to container IPs.
 * **Managed DNS**: Automatic DNS records `*.<id>.cluster.uncloud.run` for services with public access via managed
   [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service.
 * **Automatic HTTPS**: Built-in Caddy reverse proxy handles TLS certificate provisioning and renewal using Let's
   Encrypt.
+* **Persistent storage**: Run stateful services with Docker volumes managed across machines.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
 
 Coming soon:
 
-* Infrastructure as Code using Docker Compose format
 * Project isolation through environments/namespaces
-* Persistent volumes and secrets management
+* Configs and secrets management using providers such as HashiCorp Vault and 1Password
 * Monitoring and log aggregation
-* Database deployment and management
 
 Here is a diagram of an Uncloud multi-provider cluster of 3 machines:
 
@@ -270,7 +271,7 @@ I'd love your input! Here's how you can contribute:
 * [Subscribe](https://uncloud.run/#subscribe) to my newsletter to follow the progress, get early insights into new
   features, and be the first to know when it's ready for production use.
 * Watch this repository for releases.
-* Follow [@psviderski](https://github.com/psviderski) on GitHub.
+* Follow [@psviderski](https://x.com/psviderski) on X/Twitter.
 
 ## ❤️ Contributors
 
