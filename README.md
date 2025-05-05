@@ -28,9 +28,10 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
 
 * **Deploy anywhere**: Combine cloud VMs, dedicated servers, and bare metal into a unified computing environment —
   regardless of location or provider.
-* **Docker Compose**: Familiar [Docker Compose](https://compose-spec.io/) format for defining services and volumes.
-  No need to learn a new bespoke DSL.
-* **Zero-downtime deployments**: Rolling updates with health checks and automatic rollback on failure.
+* **Docker Compose**: Familiar [Docker Compose](https://compose-spec.io/) format for defining services and volumes. No
+  need to learn a new bespoke DSL.
+* **Zero-downtime deployments**: Rolling updates without service interruption. Automatic rollback on failure is coming
+  soon.
 * **Service discovery**: Built-in DNS server resolves service names to container IPs.
 * **Persistent storage**: Run stateful services with Docker volumes managed across machines.
 * **Zero-config private network**: Automatic WireGuard mesh with peer discovery and NAT traversal. Containers get unique
