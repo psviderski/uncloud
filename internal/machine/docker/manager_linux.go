@@ -3,11 +3,12 @@ package docker
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net/netip"
+
 	dnetwork "github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/libnetwork/iptables"
-	"log/slog"
-	"net/netip"
 	"github.com/psviderski/uncloud/internal/machine/network"
 )
 

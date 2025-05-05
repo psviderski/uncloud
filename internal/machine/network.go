@@ -9,10 +9,12 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/libnetwork/iptables"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyfile"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
@@ -25,7 +27,8 @@ import (
 )
 
 const (
-	APIPort = 51000
+	APIPort                   = 51000
+	iptablesUncloudInputChain = "UNCLOUD-INPUT"
 )
 
 type networkController struct {
@@ -79,6 +82,10 @@ func newNetworkController(
 }
 
 func (nc *networkController) Run(ctx context.Context) error {
+	if err := nc.configureIptablesChains(); err != nil {
+		return fmt.Errorf("configure iptables chains: %w", err)
+	}
+
 	if err := nc.wgnet.Configure(*nc.state.Network); err != nil {
 		return fmt.Errorf("configure WireGuard network: %w", err)
 	}
@@ -207,6 +214,65 @@ func (nc *networkController) Run(ctx context.Context) error {
 	return errGroup.Wait()
 }
 
+// configureIptablesChains sets up custom iptables chains and initial firewall rules for Uncloud networking.
+func (nc *networkController) configureIptablesChains() error {
+	// Ensure iptables UNCLOUD-INPUT chain with a RETURN rule exists. All existing rules are flushed.
+	ipt := iptables.GetIptable(iptables.IPv4)
+	if _, err := ipt.NewChain(iptablesUncloudInputChain, iptables.Filter); err != nil {
+		return fmt.Errorf("create iptables chain '%s': %w", iptablesUncloudInputChain, err)
+	}
+	if err := ipt.RawCombinedOutput("-t", string(iptables.Filter), "-F", iptablesUncloudInputChain); err != nil {
+		return fmt.Errorf("flush iptables chain '%s': %w", iptablesUncloudInputChain, err)
+	}
+	if err := ipt.AddReturnRule(iptablesUncloudInputChain); err != nil {
+		return fmt.Errorf("add the RETURN rule for iptables chain '%s': %w", iptablesUncloudInputChain, err)
+	}
+
+	// Ensure the main iptables INPUT chain has a jump rule to the UNCLOUD-INPUT chain before any DROP/REJECT rules.
+	jumpRule := []string{"-m", "comment", "--comment", "Uncloud-managed", "-j", iptablesUncloudInputChain}
+	if !ipt.Exists(iptables.Filter, "INPUT", jumpRule...) {
+		// Look for the first DROP/REJECT rule in the INPUT chain.
+		out, err := ipt.Raw("-t", string(iptables.Filter), "-L", "INPUT", "--line-numbers")
+		if err != nil {
+			return fmt.Errorf("get iptables rules for chain '%s': %w", iptablesUncloudInputChain, err)
+		}
+
+		firstRejectRuleNum := 0
+		for _, line := range strings.Split(string(out), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+			if fields[1] == "DROP" || fields[1] == "REJECT" {
+				if ruleNum, err := strconv.Atoi(fields[0]); err == nil {
+					firstRejectRuleNum = ruleNum
+					break
+				}
+			}
+		}
+
+		var addJumpRule []string
+		if firstRejectRuleNum > 0 {
+			addJumpRule = append([]string{"-t", string(iptables.Filter), "-I", "INPUT", strconv.Itoa(firstRejectRuleNum)},
+				jumpRule...)
+		} else {
+			addJumpRule = append([]string{"-t", string(iptables.Filter), "-A", "INPUT"}, jumpRule...)
+		}
+		if err = ipt.RawCombinedOutput(addJumpRule...); err != nil {
+			return fmt.Errorf("add iptables rule '%s': %w", strings.Join(addJumpRule, " "), err)
+		}
+	}
+
+	// Allow WireGuard traffic to the machine.
+	acceptWireGuardRule := []string{"-p", "udp", "--dport", strconv.Itoa(network.WireGuardPort), "-j", "ACCEPT"}
+	err := ipt.ProgramRule(iptables.Filter, iptablesUncloudInputChain, iptables.Insert, acceptWireGuardRule)
+	if err != nil {
+		return fmt.Errorf("insert iptables rule '%s': %w", strings.Join(acceptWireGuardRule, " "), err)
+	}
+
+	return nil
+}
+
 // prepareAndWatchDocker configures the Docker network and watches local Docker containers to sync them
 // to the cluster store.
 func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
@@ -219,6 +285,11 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 		return fmt.Errorf("ensure Docker network: %w", err)
 	}
 	slog.Info("Docker network configured.")
+
+	// TODO: add iptables rules to UNCLOUD-INPUT to allow DNS queries from Uncloud containers
+	//  to the embedded DNS server:
+	//  iptables -A UNCLOUD-INPUT -d 10.210.0.1/32 -i br-f6db1df6d60b -p tcp -m tcp --dport 53 -j ACCEPT
+	//. iptables -A UNCLOUD-INPUT -d 10.210.0.1/32 -i br-f6db1df6d60b -p udp -m udp --dport 53 -j ACCEPT
 
 	slog.Info("Watching Docker containers and syncing them to cluster store.")
 	// Retry to watch and sync containers until the context is done.

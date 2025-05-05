@@ -94,6 +94,11 @@ func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrP
 	}, nil
 }
 
+// ListenAddr returns the address the DNS server is listening on.
+func (s *Server) ListenAddr() netip.Addr {
+	return s.listenAddr
+}
+
 // Run starts the DNS server listening on both UDP and TCP ports. The server on TCP is not critical so it won't return
 // an error if it fails to start. The server will run until the context is canceled or an error occurs.
 func (s *Server) Run(ctx context.Context) error {
