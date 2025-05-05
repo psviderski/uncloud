@@ -8,7 +8,7 @@ import (
 	"net/netip"
 )
 
-// EnsureUncloudNetwork is a stub for darwin.
-func (m *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix) error {
-	return fmt.Errorf("not supported on darwin")
+// EnsureUncloudNetwork is a stub for Darwin.
+func (m *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix, dnsServer netip.Addr) error {
+	return fmt.Errorf("not supported on Darwin")
 }

@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
+
 	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
-	"log/slog"
-	"time"
 )
 
 const (
 	NetworkName = "uncloud"
-	UserChain   = "DOCKER-USER"
 	// EventsDebounceInterval defines how long to wait before processing the next Docker event. Multiple events
 	// occurring within this window will be processed together as a single event to prevent system overload.
 	EventsDebounceInterval = 100 * time.Millisecond
