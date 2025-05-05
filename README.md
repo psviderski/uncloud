@@ -28,20 +28,20 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
 
 * **Deploy anywhere**: Combine cloud VMs, dedicated servers, and bare metal into a unified computing environment —
   regardless of location or provider.
+* **Docker Compose**: Familiar [Docker Compose](https://compose-spec.io/) format for defining services and volumes.
+  No need to learn a new bespoke DSL.
+* **Zero-downtime deployments**: Rolling updates with health checks and automatic rollback on failure.
+* **Service discovery**: Built-in DNS server resolves service names to container IPs.
+* **Persistent storage**: Run stateful services with Docker volumes managed across machines.
 * **Zero-config private network**: Automatic WireGuard mesh with peer discovery and NAT traversal. Containers get unique
   IPs for direct cross-machine communication.
 * **No control plane**: Fully decentralized design eliminates single points of failure and reduces operational overhead.
 * **Imperative over declarative**: Favoring imperative operations over state reconciliation simplifies both the mental
   model and troubleshooting.
-* **Docker Compose**: Familiar [Docker Compose](https://compose-spec.io/) format for defining services and volumes.
-  No need to learn a new bespoke DSL.
-* **Zero-downtime deployments**: Rolling updates with health checks and automatic rollback on failure.
-* **Service discovery**: Built-in DNS server resolves service names to container IPs.
 * **Managed DNS**: Automatic DNS records `*.<id>.cluster.uncloud.run` for services with public access via managed
   [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service.
 * **Automatic HTTPS**: Built-in Caddy reverse proxy handles TLS certificate provisioning and renewal using Let's
   Encrypt.
-* **Persistent storage**: Run stateful services with Docker volumes managed across machines.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
 
