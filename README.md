@@ -13,7 +13,7 @@ Unlike traditional orchestrators, there's no central control plane and quorum to
 synchronized copy of the cluster state through peer-to-peer communication, keeping cluster operations functional even if
 some machines go offline.
 
-Uncloud aims to be the solution for developers who want the flexibility of self-hosted infrastructure without the
+Uncloud is the solution for developers who want the flexibility of self-hosted infrastructure without the
 operational complexity of Kubernetes.
 
 ## 🎬 Quick demo
@@ -45,12 +45,6 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
   Encrypt.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
-
-Coming soon:
-
-* Project isolation through environments/namespaces
-* Configs and secrets management using providers such as HashiCorp Vault and 1Password
-* Monitoring and log aggregation
 
 Here is a diagram of an Uncloud multi-provider cluster of 3 machines:
 
@@ -120,8 +114,10 @@ View the [user guide](docs/user_guide.md) for more information.
 
 ## ⚙️ How it works
 
-Check out the [design document](docs/design.md) to understand Uncloud's design philosophy and goals. Here, let's peek
-under the hood to see what happens when you run certain commands.
+Check out the [design document](docs/design.md) to understand Uncloud's design philosophy and goals.
+
+<details>
+<summary>Here, let's peek under the hood to see what happens when you run certain commands.</summary>
 
 **When you initialize a new cluster on a machine:**
 
@@ -256,6 +252,7 @@ Look ma, no control plane or master nodes to maintain! Just a simple overlay net
 sync that lets machines work together. Want to check on things or make changes? Connect to any machine either implicitly
 using the CLI or directly over SSH. They all have the complete cluster state and can control everything. It's like each
 machine is a full backup of your control plane.
+</details>
 
 ## 🏗 Project status
 
