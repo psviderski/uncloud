@@ -104,18 +104,13 @@ func (s *ServiceSpec) Validate() error {
 	default:
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
-
-func (s *ServiceSpec) Validate() error {
-	if s.Mode != "someExpectedMode" {
-		return fmt.Errorf("invalid mode: %q", s.Mode)
-	}
-
+	
 	if s.Name != "" {
 		if len(s.Name) > 63 {
 			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
 		}
 		if !dnsLabelRegexp.MatchString(s.Name) {
-			return fmt.Errorf("invalid service name: %q. Must comply with RFC 1123 label format", s.Name)
+			return fmt.Errorf("invalid service name: %q.must be 1-63 characters, lowercase letters, numbers, and dashes only; must start and end with a letter or number", s.Name)
 		}
 	}
 
@@ -150,6 +145,7 @@ func (s *ServiceSpec) Validate() error {
 
 	return nil
 }
+
 
 func (s *ServiceSpec) Clone() ServiceSpec {
 	spec := *s
