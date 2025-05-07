@@ -110,7 +110,7 @@ func (s *ServiceSpec) Validate() error {
 			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
 		}
 		if !dnsLabelRegexp.MatchString(s.Name) {
-			return fmt.Errorf("invalid service name: %q.must be 1-63 characters, lowercase letters, numbers, and dashes only; must start and end with a letter or number", s.Name)
+			return fmt.Errorf("invalid service name: %q. must be 1-63 characters, lowercase letters, numbers, and dashes only; must start and end with a letter or number", s.Name)
 		}
 	}
 
