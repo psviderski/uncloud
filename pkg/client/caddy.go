@@ -24,12 +24,12 @@ var caddyImageTagRegex = regexp.MustCompile(`^2\.\d+\.\d+$`)
 // The service is deployed in global mode to all machines in the cluster. If the image is not provided, the latest
 // version of the official Caddy Docker image is used.
 func (cli *Client) NewCaddyDeployment(image string, placement api.Placement) (*deploy.Deployment, error) {
-	latest, err := LatestCaddyImage()
-	if err != nil {
-		return nil, fmt.Errorf("look up latest Caddy image: %w", err)
-	}
-
 	if image == "" {
+		latest, err := LatestCaddyImage()
+		if err != nil {
+			return nil, fmt.Errorf("look up latest Caddy image: %w", err)
+		}
+
 		image = reference.FamiliarString(latest)
 	}
 

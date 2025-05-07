@@ -152,7 +152,8 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 }
 
 func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, progressOut *streams.Out) error {
-	if _, err := clusterClient.GetDomain(ctx); err != nil {
+	domain, err := clusterClient.GetDomain(ctx)
+	if err != nil {
 		if errors.Is(err, api.ErrNotFound) {
 			fmt.Println("Skipping DNS records update as no cluster domain is reserved (see 'uc dns').")
 			return nil
@@ -164,7 +165,7 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 	// TODO: split the method into two: one to get the records and one to update them to ask for update confirmation.
 
 	var records []*pb.DNSRecord
-	err := progress.RunWithTitle(ctx, func(ctx context.Context) error {
+	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		var err error
 		records, err = clusterClient.CreateIngressRecords(ctx, client.CaddyServiceName)
 		return err
@@ -172,18 +173,19 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 	if err != nil {
 		if errors.Is(err, client.ErrNoReachableMachines) {
 			fmt.Println()
-			fmt.Println("DNS records could not be updated as there are no internet-reachable machines running " +
-				"caddy containers.")
+			fmt.Printf("DNS records for domain '%s' could not be updated as there are no internet-reachable "+
+				"machines running caddy containers.\n", domain)
 			fmt.Println()
 			fmt.Println("Possible solutions:")
 			fmt.Println("- Ensure your machines have public IP addresses")
 			fmt.Println("- Use --public-ip flag when adding machines to override the automatically detected IPs")
 			fmt.Println("- Check firewall settings on your machines")
 			fmt.Println("- Configure port forwarding if behind NAT")
-			fmt.Println("- Retry Caddy deployment after resolving connectivity issues with 'uc caddy deploy'")
+			fmt.Println("- Retry Caddy deployment with 'uc caddy deploy' after resolving connectivity issues")
 			fmt.Println()
-			fmt.Println("Your services will not be accessible from the internet until at least one machine " +
-				"becomes reachable.")
+			fmt.Println("Your services won't be accessible from the internet until at least one machine " +
+				"becomes reachable. If you aren't planning to expose any services publicly, you can release " +
+				"the domain by running 'uc dns release'.")
 		}
 		return fmt.Errorf("failed to update DNS records pointing to caddy service: %w", err)
 	}
