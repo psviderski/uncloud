@@ -31,6 +31,7 @@ const (
 )
 
 var serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
+var dnsLabelRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 func ValidateServiceID(id string) bool {
 	return serviceIDRegexp.MatchString(id)
@@ -103,8 +104,15 @@ func (s *ServiceSpec) Validate() error {
 	default:
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
-
-	// TODO: validate the service name is a valid DNS label.
+	
+	if s.Name != "" {
+		if len(s.Name) > 63 {
+			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
+		}
+		if !dnsLabelRegexp.MatchString(s.Name) {
+			return fmt.Errorf("invalid service name: %q. must be 1-63 characters, lowercase letters, numbers, and dashes only; must start and end with a letter or number", s.Name)
+		}
+	}
 
 	for _, p := range s.Ports {
 		if (p.Mode == "" || p.Mode == PortModeIngress) &&
@@ -137,6 +145,7 @@ func (s *ServiceSpec) Validate() error {
 
 	return nil
 }
+
 
 func (s *ServiceSpec) Clone() ServiceSpec {
 	spec := *s
