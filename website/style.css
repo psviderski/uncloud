@@ -1689,10 +1689,21 @@ input[type="search"]::-webkit-search-results-decoration {
   background-image: linear-gradient(to right, var(--tw-gradient-stops));
 }
 
-.from-zinc-500{
-  --tw-gradient-from: #71717a var(--tw-gradient-from-position);
-  --tw-gradient-to: rgb(113 113 122 / 0) var(--tw-gradient-to-position);
+.from-zinc-600{
+  --tw-gradient-from: #52525b var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(82 82 91 / 0) var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.from-zinc-700{
+  --tw-gradient-from: #3f3f46 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(63 63 70 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.via-zinc-800{
+  --tw-gradient-to: rgb(39 39 42 / 0)  var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), #27272a var(--tw-gradient-via-position), var(--tw-gradient-to);
 }
 
 .via-zinc-900{
