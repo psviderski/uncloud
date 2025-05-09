@@ -5,24 +5,16 @@
 </div>
 
 Uncloud is a lightweight clustering and container orchestration tool that lets you deploy and manage web apps across
-cloud VMs and bare metal with minimized cluster management overhead. It creates a secure WireGuard mesh network between
+cloud VMs and bare metal with minimised cluster management overhead. It creates a secure WireGuard mesh network between
 your Docker hosts and provides automatic service discovery, load balancing, ingress with HTTPS, and simple CLI commands
 to manage your apps.
 
 Unlike traditional orchestrators, there's no central control plane and quorum to maintain. Each machine maintains a
-synchronized copy of the cluster state through peer-to-peer communication, keeping cluster operations functional even if
+synchronised copy of the cluster state through peer-to-peer communication, keeping cluster operations functional even if
 some machines go offline.
 
 Uncloud is the solution for developers who want the flexibility of self-hosted infrastructure without the
 operational complexity of Kubernetes.
-
-## 🎬 Quick demo
-
-Deploy a highly available web app with automatic HTTPS across multiple regions and on-premises in just a couple minutes.
-
-<a href="https://uncloud.wistia.com/medias/k47uwt9uau?wvideo=k47uwt9uau">
-<img src="https://embed-ssl.wistia.com/deliveries/3cf7014a48b93afc556444bed3e39a8c.jpg?image_crop_resized=900x526&image_play_button_rounded=true&image_play_button_size=2x&image_play_button_color=18181Be0" alt="Uncloud demo" width="450" height="263" />
-</a>
 
 ## ✨ Features
 
@@ -36,7 +28,7 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
 * **Persistent storage**: Run stateful services with Docker volumes managed across machines.
 * **Zero-config private network**: Automatic WireGuard mesh with peer discovery and NAT traversal. Containers get unique
   IPs for direct cross-machine communication.
-* **No control plane**: Fully decentralized design eliminates single points of failure and reduces operational overhead.
+* **No control plane**: Fully decentralised design eliminates single points of failure and reduces operational overhead.
 * **Imperative over declarative**: Favoring imperative operations over state reconciliation simplifies both the mental
   model and troubleshooting.
 * **Managed DNS**: Automatic DNS records `*.<id>.cluster.uncloud.run` for services with public access via managed
@@ -46,9 +38,13 @@ Deploy a highly available web app with automatic HTTPS across multiple regions a
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
 
-Here is a diagram of an Uncloud multi-provider cluster of 3 machines:
+## 🎬 Quick demo
 
-![Diagram: multi-provider cluster of 3 machines](website/images/diagram.webp)
+Deploy a highly available web app with automatic HTTPS across multiple regions and on-premises in just a couple minutes.
+
+<a href="https://uncloud.wistia.com/medias/k47uwt9uau?wvideo=k47uwt9uau">
+<img src="https://embed-ssl.wistia.com/deliveries/3cf7014a48b93afc556444bed3e39a8c.jpg?image_crop_resized=900x526&image_play_button_rounded=true&image_play_button_size=2x&image_play_button_color=18181Be0" alt="Uncloud demo" width="450" height="263" />
+</a>
 
 ## 💫 Why Uncloud?
 
@@ -58,14 +54,15 @@ believe there's a sweet spot in between — a pragmatic solution for the majorit
 scale. You should be able to:
 
 * **Own your infrastructure and data**: Whether driven by costs, compliance, or flexibility, run applications on any
-  combination of cloud VMs and personal hardware while maintaining the cloud-like experience you love.
-* **Stay simple**: Don't worry about control planes, highly-available clusters, or complex YAML configurations for
-  common use cases.
+  combination of cloud VMs and personal hardware while controlling your data and maintaining the cloud-like experience 
+  you love.
+* **Stay simple as you grow**: Start with a single machine and add more whenever you need without changing your
+  workflow. No worrying about highly-available control planes or complex YAML configurations.
 * **Build with proven primitives**: Get production-grade networking, deployment primitives, service discovery, load
   balancing, and ingress with HTTPS out of the box without becoming a distributed systems expert.
-* **Support sustainable computing** 🌿: Minimize system overhead to maximize resources available for your applications.
+* **Support sustainable computing** 🌿: Minimise system overhead to maximise resources available for your applications.
 
-Uncloud's goal is to make deployment and management of containerized applications feel as seamless as using a cloud
+Uncloud's goal is to make deployment and management of containerised applications feel as seamless as using a cloud
 platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bare metal servers.
 
 ## 🚀 Quick start
@@ -79,7 +76,7 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    curl -fsS https://get.uncloud.run/install.sh | sh
    ```
 
-2. Initialize your first machine:
+2. Initialise your first machine:
 
    ```bash
    uc machine init root@your-server-ip
@@ -116,10 +113,14 @@ View the [user guide](docs/user_guide.md) for more information.
 
 Check out the [design document](docs/design.md) to understand Uncloud's design philosophy and goals.
 
-<details>
-<summary>Here, let's peek under the hood to see what happens when you run certain commands.</summary>
+Here is a diagram of an Uncloud multi-provider cluster of 3 machines:
 
-**When you initialize a new cluster on a machine:**
+![Diagram: multi-provider cluster of 3 machines](website/images/diagram.webp)
+
+<details>
+<summary>Peek under the hood to see what happens when you run certain commands.</summary>
+
+**When you initialise a new cluster on a machine:**
 
 ```bash
 $ uc machine init --name oracle-vm ubuntu@152.67.101.197
