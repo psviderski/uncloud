@@ -1720,6 +1720,10 @@ input[type="search"]::-webkit-search-results-decoration {
           background-clip: text;
 }
 
+.fill-current{
+  fill: currentColor;
+}
+
 .fill-zinc-300{
   fill: #d4d4d8;
 }
@@ -1956,6 +1960,11 @@ input[type="search"]::-webkit-search-results-decoration {
 .text-zinc-600{
   --tw-text-opacity: 1;
   color: rgb(82 82 91 / var(--tw-text-opacity));
+}
+
+.text-zinc-700{
+  --tw-text-opacity: 1;
+  color: rgb(63 63 70 / var(--tw-text-opacity));
 }
 
 .text-zinc-800{
