@@ -2,6 +2,11 @@
   <img src="./website/images/logo.svg" height="100" alt="Uncloud logo"/>
   <h1>Uncloud</h1>
   <p><strong>Docker simplicity. Multi-machine power.</strong></p>
+
+  <p>
+    <a href="https://discord.gg/eR35KQJhPu"><img src="https://img.shields.io/badge/discord-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
+    <a href="https://x.com/psviderski"><img src="https://img.shields.io/badge/follow-black?style=for-the-badge&logo=X&logoColor=while" alt="Follow on X"></a>
+  </p>
 </div>
 
 Uncloud is a lightweight clustering and container orchestration tool that lets you deploy and manage web apps across
@@ -13,8 +18,8 @@ Unlike traditional orchestrators, there's no central control plane and quorum to
 synchronised copy of the cluster state through peer-to-peer communication, keeping cluster operations functional even if
 some machines go offline.
 
-Uncloud is the solution for developers who want the flexibility of self-hosted infrastructure without the
-operational complexity of Kubernetes.
+Uncloud is the solution for developers who want the flexibility of self-hosted infrastructure without the operational
+complexity of Kubernetes.
 
 ## ✨ Features
 
@@ -54,7 +59,7 @@ believe there's a sweet spot in between — a pragmatic solution for the majorit
 scale. You should be able to:
 
 * **Own your infrastructure and data**: Whether driven by costs, compliance, or flexibility, run applications on any
-  combination of cloud VMs and personal hardware while controlling your data and maintaining the cloud-like experience 
+  combination of cloud VMs and personal hardware while controlling your data and maintaining the cloud-like experience
   you love.
 * **Stay simple as you grow**: Start with a single machine and add more whenever you need without changing your
   workflow. No worrying about highly-available control planes or complex YAML configurations.
@@ -260,17 +265,19 @@ machine is a full backup of your control plane.
 Uncloud is currently in active development and is **not ready for production use**. Features may change significantly
 and there may be breaking changes between releases.
 
-I'd love your input! Here's how you can contribute:
+We'd love your input! Here's how you can contribute:
 
 * 🐛 Found a bug? [Open an issue](https://github.com/psviderski/uncloud/issues)
-* 💡 Have ideas? [Join the discussion](https://github.com/psviderski/uncloud/discussions)
+* 💡 Have ideas or need help? [Join our Discord community](https://discord.gg/eR35KQJhPu) where we discuss features, 
+  roadmap, implementation details, and help each other out.
 
 ## 📫 Stay updated
 
+* [Join our Discord server](https://discord.gg/eR35KQJhPu) for real-time discussions, support, and updates.
+* Follow [@psviderski](https://x.com/psviderski) on X/Twitter.
 * [Subscribe](https://uncloud.run/#subscribe) to my newsletter to follow the progress, get early insights into new
   features, and be the first to know when it's ready for production use.
 * Watch this repository for releases.
-* Follow [@psviderski](https://x.com/psviderski) on X/Twitter.
 
 ## ❤️ Contributors
 
