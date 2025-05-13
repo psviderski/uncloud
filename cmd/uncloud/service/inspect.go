@@ -22,7 +22,7 @@ type inspectOptions struct {
 func NewInspectCommand() *cobra.Command {
 	opts := inspectOptions{}
 	cmd := &cobra.Command{
-		Use:   "inspect",
+		Use:   "inspect SERVICE",
 		Short: "Display detailed information on a service.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

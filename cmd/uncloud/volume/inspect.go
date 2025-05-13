@@ -20,7 +20,7 @@ func NewInspectCommand() *cobra.Command {
 	opts := inspectOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "inspect [FLAGS] VOLUME_NAME",
+		Use:   "inspect VOLUME_NAME",
 		Short: "Display detailed information on a volume.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

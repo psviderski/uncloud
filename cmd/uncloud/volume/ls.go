@@ -23,7 +23,7 @@ func NewListCommand() *cobra.Command {
 	opts := listOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "ls [FLAGS]",
+		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List volumes across all machines in the cluster.",
 		RunE: func(cmd *cobra.Command, args []string) error {

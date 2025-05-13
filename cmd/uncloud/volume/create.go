@@ -26,7 +26,7 @@ func NewCreateCommand() *cobra.Command {
 	opts := createOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "create [FLAGS] VOLUME_NAME",
+		Use:   "create VOLUME_NAME",
 		Short: "Create a volume on a specific machine.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

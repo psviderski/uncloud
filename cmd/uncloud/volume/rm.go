@@ -21,7 +21,7 @@ func NewRemoveCommand() *cobra.Command {
 	opts := removeOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "rm [FLAGS] VOLUME_NAME [VOLUME_NAME...]",
+		Use:     "rm VOLUME_NAME [VOLUME_NAME...]",
 		Aliases: []string{"remove", "delete"},
 		Short:   "Remove one or more volumes.",
 		Long:    "Remove one or more volumes. You cannot remove a volume that is in use by a container.",
