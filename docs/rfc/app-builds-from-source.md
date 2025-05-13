@@ -1,6 +1,6 @@
 # Proposal: Application Builds from Source
 
-This proposal aims to support Compose-style builds and deployments for services from source, in addition to the existing functionality for deploying public container images. The proposed behavior should closely align with [Docker Compose](https://docs.docker.com/compose/) in terms of building and deploying local applications from source. This will ensure a smooth transition for current Compose users.
+This proposal aims to support Compose-style builds and deployments for services from source, in addition to the existing functionality for deploying public container images. The proposed behavior should closely align with [Docker Compose](https://docs.docker.com/compose/) and the (platform-agnostic) [Compose spec](https://github.com/compose-spec/compose-spec) in terms of building and deploying local applications from source. This will ensure a smooth transition for current Compose users.
 
 ### Example
 
@@ -18,7 +18,7 @@ services:
 
 In this configuration, the nginx service does not specify an image to use (via the image: directive). Instead, it defines a local build context directory (nginx/) and a Dockerfile (nginx/Dockerfile) to build the image. Additionally, it includes a build argument (GIT_COMMIT) to use during the build process.
 
-The full Compose build specification is available [here](https://docs.docker.com/reference/compose-file/build/). While it is not necessary to implement the entire specification initially, supporting as many attributes as possible would enhance compatibility with Compose and provide a better user experience.
+The full Compose build specification is available [here](https://github.com/compose-spec/compose-spec/blob/main/build.md). While it is not necessary to implement the entire specification initially, supporting as many attributes as possible would enhance compatibility with Compose and provide a better user experience.
 
 To implement this feature, two major components need to be addressed, primarily concerning the lifecycle of the intermediate container images that are built and deployed:
 
@@ -29,8 +29,8 @@ Both problems are covered in the sections below.
 
 ### Out of scope
 
-1. Supporting different image build systems (buildpack, nixpack, etc.)
-1. Supporting different build engines (buildkit, kaniko, buildah, etc.)
+1. Supporting alternative image build systems (buildpack, nixpack, etc.)
+1. Supporting alternative build engines (kaniko, buildah, etc.)
 
 ## Implementation options: Building images
 
@@ -95,9 +95,9 @@ Idea: Store the built image on one of the cluster nodes. When another node requi
 - Requires a custom implementation for image discovery and sharing.
 - Each cluster node must allocate sufficient disk space for image storage.
 
-### Option 3: External storage
+### Option 3: External registry
 
-Idea: Upload built images to an external storage service, such as AWS S3, after the build process.
+Idea: Upload built images to an external registry (such as Docker Hub, GHCR registry, AWS ECR).
 
 **Pros:**
 
