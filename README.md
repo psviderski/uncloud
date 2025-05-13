@@ -273,9 +273,9 @@ We'd love your input! Here's how you can contribute:
 
 ## 📫 Stay updated
 
-* [Join our Discord server](https://discord.gg/eR35KQJhPu) for real-time discussions, support, and updates.
+* Join our [Discord server](https://discord.gg/eR35KQJhPu) for real-time discussions, support, and updates.
 * Follow [@psviderski](https://x.com/psviderski) on X/Twitter.
-* [Subscribe](https://uncloud.run/#subscribe) to my newsletter to follow the progress, get early insights into new
+* Subscribe to [my newsletter](https://uncloud.run/#subscribe) to follow the progress, get early insights into new
   features, and be the first to know when it's ready for production use.
 * Watch this repository for releases.
 
