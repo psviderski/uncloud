@@ -36,31 +36,33 @@ Both problems are covered in the sections below.
 
 Building images from application source typically involves a context folder and a Dockerfile. The key question is: where should the build process take place?
 
-### Option A: Local build (off-cluster)
+### Option A: Off-cluster builds (local or remote)
 
-Idea: Perform the build locally on the same machine where the Compose file and application source are located.
+Idea: Perform the build locally (on the same machine where the Compose file and application source are located) or remotely (on a different Docker-enabled machine, e.g., via a [SSH-tunneled context](https://blog.mikesir87.io/2019/08/using-ssh-connections-in-docker-contexts/)).
 
 **Pros:**
 
-- Faster builds since the build context does not need to be transferred over the network.
+- Supported natively by Docker; you only need to configure `DOCKER_HOST` or `DOCKER_CONTEXT` accordingly.
+- Cluster nodes and their workloads remain unaffected.
+- (Local builds) Faster builds since the build context does not need to be transferred over the network.
 
 **Cons:**
 
-- Requires a local Docker engine (or equivalent), which introduces a dependency not previously needed.
-- The resulting image must be uploaded to the cluster, adding an extra step.
+- The resulting image must be uploaded to the cluster, adding extra steps.
+- (Local builds) Requires a local Docker engine (or equivalent), introducing a dependency not previously needed.
 
-### Option B: Remote build (on-cluster)
+### Option B: In-cluster builds
 
-Idea: Use a remote Docker engine to build the image. The build context is transferred over the network, and the image is built on one of the cluster nodes.
+Idea: Use a remote Docker engine on one of the cluster nodes to build the image. The build context is transferred over the network, and the image is built on one of the cluster nodes.
 
 **Pros:**
 
 - Keeps the client lightweight, avoiding the need for a local Docker daemon.
-- The built image is already stored on a cluster node, simplifying deployment.
+- The built image is already stored on a cluster node, simplifying subsequent deployment steps.
 
 **Cons:**
 
-- Slower build times due to network transfer of the build context.
+- Slower build times due to the network transfer of the build context.
 - Resource-intensive builds could impact the performance of the cluster node.
 
 ## Implementation options: Image storage and distribution
