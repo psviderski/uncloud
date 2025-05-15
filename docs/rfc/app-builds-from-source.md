@@ -80,10 +80,13 @@ Idea: Deploy an internal image registry (e.g., the official [distribution regist
 
 - Adds an additional component to the cluster, increasing overhead.
 - If the registry or its hosting node goes down, no new images can be built or retrieved.
+- Image storage is essentially duplicated (if using [filesystem storage driver](https://distribution.github.io/distribution/storage-drivers/filesystem/)) as some images will be stored in both the registry and Docker image store on machines.
+- The registry needs to be securely exposed to the internet (e.g. using basic auth -- not supported yet) or locally through port forwarding or WireGuard connection (not supported yet).
+- Images in registry need to be deleted and garbage collected, e.g. using [regclient](https://github.com/regclient/regclient) or automated policies, so that the occupied storage doesn't grow infinitely.
 
 ### Option 2: Peer-to-peer image storage
 
-Idea: Store the built image on one of the cluster nodes. When another node requires the image, its location is determined via distributed state (Corrosion), and the image is transferred over the cluster network.
+Idea: Store the built image on one or multiple cluster nodes. When another node requires the image, its location is determined via distributed state (Corrosion), and the image is transferred over the cluster network. Ultimately, each node may expose the Registry API backed by local image store so that regular push/pulls could be used to efficiently transfer only required layers.
 
 **Pros:**
 
@@ -94,6 +97,7 @@ Idea: Store the built image on one of the cluster nodes. When another node requi
 
 - Requires a custom implementation for image discovery and sharing.
 - Each cluster node must allocate sufficient disk space for image storage.
+- Each push/pull will require to transfer the entire image unless a more complex logic for transferring only new/missing layers or Registry API is implemented.
 
 ### Option 3: External registry
 
