@@ -209,7 +209,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	}
 	c := cluster.NewCluster(corroStore, corroAdmin)
 
-	// Init a gRPC Docker server that proxies requests to the local Docker daemon.
+	// Init dependencies for a gRPC Docker server that proxies requests to the local Docker daemon.
 	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("create Docker client: %w", err)
