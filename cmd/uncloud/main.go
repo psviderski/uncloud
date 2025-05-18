@@ -75,6 +75,7 @@ func main() {
 
 	cmd.AddCommand(
 		NewDeployCommand(),
+		NewBuildCommand(),
 		caddy.NewRootCommand(),
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
