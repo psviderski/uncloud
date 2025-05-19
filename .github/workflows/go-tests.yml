@@ -7,11 +7,9 @@ on:
   pull_request:
     branches:
       - main
-
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,3 +24,4 @@ jobs:
 
       - name: Run tests
         run: make test
+    timeout-minutes: 10
