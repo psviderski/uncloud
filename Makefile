@@ -60,3 +60,7 @@ ucind-image:
 .PHONY: ucind-image-push
 ucind-image-push: ucind-image
 	docker push "$(UCIND_IMAGE)"
+
+.PHONY: test
+test:
+       go test -v ./...
