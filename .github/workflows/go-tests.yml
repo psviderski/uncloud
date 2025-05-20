@@ -3,11 +3,19 @@ name: Go Tests
 on:
   push:
     branches:
+      - "main"
       - "test/**"
       - "release/**"
   pull_request:
     branches:
       - main
+    paths:
+      - ".github/**"
+      - "**.go"
+      - "go.*"
+      - "Makefile"
+      - "scripts/**"
+      - "test/**"
 jobs:
   test:
     runs-on: ubuntu-latest
