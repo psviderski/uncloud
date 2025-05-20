@@ -160,10 +160,7 @@ func (p *Provisioner) waitPortPublished(ctx context.Context, containerID string,
 		}
 
 		binding, ok := c.NetworkSettings.Ports[port]
-		if !ok {
-			return nil, fmt.Errorf("port '%s' not published", port)
-		}
-		if len(binding) > 0 {
+		if ok && len(binding) > 0 {
 			return binding, nil
 		}
 
