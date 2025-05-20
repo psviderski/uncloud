@@ -49,9 +49,9 @@ proto:
 corrosion-image:
 	docker build -t "$(CORROSION_IMAGE)" --target corrosion .
 
-.PHONY: corrosion-image-push
-corrosion-image-push: corrosion-image
-	docker push "$(CORROSION_IMAGE)"
+.PHONY: corrosion-multiarch-image-push
+corrosion-multiarch-image-push:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(CORROSION_IMAGE)" --target corrosion .
 
 .PHONY: ucind-image
 ucind-image:
@@ -60,6 +60,10 @@ ucind-image:
 .PHONY: ucind-image-push
 ucind-image-push: ucind-image
 	docker push "$(UCIND_IMAGE)"
+
+.PHONY: ucind-multiarch-image-push
+ucind-multiarch-image-push:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(UCIND_IMAGE)" --target ucind .
 
 .PHONY: test
 test:
