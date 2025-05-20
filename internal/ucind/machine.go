@@ -193,7 +193,7 @@ func WaitMachineReady(ctx context.Context, m Machine, timeout time.Duration) err
 
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(100*time.Millisecond),
-		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxInterval(10*time.Second),
 		backoff.WithMaxElapsedTime(timeout),
 	), ctx)
 
