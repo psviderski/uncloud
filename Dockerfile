@@ -17,13 +17,22 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o uncloudd cmd/uncloudd/main
 
 
 FROM alpine:${ALPINE_VERSION} AS corrosion-download
-RUN wget -q -O /tmp/corrosion.tar.gz \
-      https://github.com/psviderski/corrosion/releases/latest/download/corrosion-aarch64-unknown-linux-gnu.tar.gz \
+ARG TARGETARCH
+
+RUN CORROSION_ARCH=$(case "${TARGETARCH}" in \
+      "amd64") echo "x86_64" ;; \
+      "arm64") echo "aarch64" ;; \
+      *) echo "Architecture '${TARGETARCH}' not supported" >&2 && exit 1 ;; \
+    esac) \
+    && wget -q -O /tmp/corrosion.tar.gz \
+      "https://github.com/psviderski/corrosion/releases/latest/download/corrosion-${CORROSION_ARCH}-unknown-linux-gnu.tar.gz" \
     && tar -xzf /tmp/corrosion.tar.gz -C /tmp \
     && install /tmp/corrosion /usr/local/bin/corrosion \
     && rm /tmp/corrosion.tar.gz /tmp/corrosion
 
-FROM chainguard/wolfi-base:latest AS corrosion
+# Beware that more modern images like chainguard/wolfi-base build glibc with flags that require newer CPU features,
+# e.g. x86-64-v2. So such image may fail with "Fatal glibc error: CPU does not support x86-64-v2" on older CPUs.
+FROM gcr.io/distroless/cc-debian12:latest AS corrosion
 COPY --from=corrosion-download /usr/local/bin/corrosion /usr/local/bin/corrosion
 CMD ["corrosion", "agent"]
 
