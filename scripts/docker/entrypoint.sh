@@ -6,7 +6,7 @@ cleanup() {
     echo "Terminating container processes..."
 
     # Terminate the main process if it has been started.
-    if [ -n "$MAIN_PID" ]; then
+    if [ -n "${MAIN_PID:-}" ]; then
         kill "$MAIN_PID" 2>/dev/null || true
     fi
 

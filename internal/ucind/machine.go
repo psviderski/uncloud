@@ -160,10 +160,7 @@ func (p *Provisioner) waitPortPublished(ctx context.Context, containerID string,
 		}
 
 		binding, ok := c.NetworkSettings.Ports[port]
-		if !ok {
-			return nil, fmt.Errorf("port '%s' not published", port)
-		}
-		if len(binding) > 0 {
+		if ok && len(binding) > 0 {
 			return binding, nil
 		}
 
@@ -196,7 +193,7 @@ func WaitMachineReady(ctx context.Context, m Machine, timeout time.Duration) err
 
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(100*time.Millisecond),
-		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxInterval(10*time.Second),
 		backoff.WithMaxElapsedTime(timeout),
 	), ctx)
 
