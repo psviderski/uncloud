@@ -91,7 +91,7 @@ the system resources available for your apps.
 You can run Uncloud on machines with as little as 512 MB of RAM, assuming you also need some RAM for the OS and Docker,
 as well as the apps you want to run.
 
-### Troubleshooting friendly
+### Troubleshooting-friendly
 
 When something goes wrong, you can dive straight into standard Docker containers without layers of abstraction in your
 way. You can also SSH into any machine and use the regular Linux troubleshooting tools. For example, `ping` service
