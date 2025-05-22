@@ -1,5 +1,6 @@
 CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
+DOCS_IMAGE ?= ghcr.io/psviderski/uncloud-docs:latest
 
 update-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
@@ -68,3 +69,7 @@ test:
 .PHONY: vet
 vet:
 	go vet ./...
+
+.PHONY: docs-image-push
+docs-image:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(DOCS_IMAGE)" ./docs

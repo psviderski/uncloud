@@ -1,0 +1,7 @@
+services:
+  uncloud-docs:
+    image: ghcr.io/psviderski/uncloud-docs:latest
+    pull_policy: always
+    user: nobody
+    x-ports:
+      - docs.uncloud.run:8000/https
