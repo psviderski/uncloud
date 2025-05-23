@@ -70,7 +70,7 @@ Talos [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/).
 ### Managed DNS service
 
 Uncloud can provide **managed DNS records** like `<service-name>.<cluster-id>.cluster.uncloud.run` for your public
-services through the free [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service. You can deploy a service and
+services through free [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service. You can deploy a service and
 instantly access it from anywhere with a proper DNS name and HTTPS without any manual DNS configuration. This makes
 self-hosting much more accessible and simplifies the process of adding your own domain later.
 
@@ -107,7 +107,7 @@ Install Uncloud and deploy your first app in minutes:
 ## Getting help
 
 * **Discord community**: Join our [Discord server](https://discord.gg/eR35KQJhPu) for real-time discussions, support,
-  and updates
+  and updates.
 * **GitHub issues**: Report bugs or request features on our [GitHub repository](https://github.com/psviderski/uncloud).
 * **Documentation**: Browse the full documentation (this website you're on) for detailed guides and references. Use
   search to find what you need quickly.
