@@ -253,22 +253,28 @@ type AddMachineOptions struct {
 	Version       string
 }
 
-// AddMachine provisions a remote machine and adds it to the cluster. It returns a client to interact with the machine
-// which should be closed after use by the caller.
-func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client.Client, error) {
+// AddMachine provisions a remote machine and adds it to the cluster. It returns a cluster client and a machine client.
+// The cluster client is connected to the existing machine in the cluster. It was used to add the new machine to the
+// cluster. The machine client is connected to the new machine and can be used to interact with it.
+// Both client should be closed after use by the caller.
+func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client.Client, *client.Client, error) {
 	contextName := opts.Context
 	if contextName == "" {
 		contextName = cli.Config.CurrentContext
 	}
 	c, err := cli.ConnectCluster(ctx, contextName)
 	if err != nil {
-		return nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
+		return nil, nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
 	}
-	defer c.Close()
+	defer func() {
+		if err != nil {
+			c.Close()
+		}
+	}()
 
 	machineClient, err := cli.provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func() {
 		if err != nil {
@@ -279,11 +285,11 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	// Check if the machine is already initialised as a cluster member and prompt the user to reset it first.
 	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
 	if err != nil {
-		return nil, fmt.Errorf("inspect machine: %w", err)
+		return nil, nil, fmt.Errorf("inspect machine: %w", err)
 	}
 	if minfo.Id != "" {
 		if err = cli.promptResetMachine(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -292,19 +298,19 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	// TODO(lhf): remove Unimplemented check when v0.9.0 is released.
 	if err != nil {
 		if status.Convert(err).Code() != codes.Unimplemented {
-			return nil, fmt.Errorf("check machine prerequisites: %w", err)
+			return nil, nil, fmt.Errorf("check machine prerequisites: %w", err)
 		}
 	} else if !checkResp.Satisfied {
-		return nil, fmt.Errorf("machine prerequisites not satisfied: %s", checkResp.Error)
+		return nil, nil, fmt.Errorf("machine prerequisites not satisfied: %s", checkResp.Error)
 	}
 
 	tokenResp, err := machineClient.Token(ctx, &emptypb.Empty{})
 	if err != nil {
-		return nil, fmt.Errorf("get remote machine token: %w", err)
+		return nil, nil, fmt.Errorf("get remote machine token: %w", err)
 	}
 	token, err := machine.ParseToken(tokenResp.Token)
 	if err != nil {
-		return nil, fmt.Errorf("parse remote machine token: %w", err)
+		return nil, nil, fmt.Errorf("parse remote machine token: %w", err)
 	}
 
 	// Register the machine in the cluster using its public key and endpoints from the token.
@@ -330,13 +336,13 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 
 	addResp, err := c.AddMachine(ctx, addReq)
 	if err != nil {
-		return nil, fmt.Errorf("add machine to cluster (context '%s'): %w", contextName, err)
+		return nil, nil, fmt.Errorf("add machine to cluster (context '%s'): %w", contextName, err)
 	}
 
 	// List other machines in the cluster to include them in the join request.
 	machines, err := c.ListMachines(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("list cluster machines: %w", err)
+		return nil, nil, fmt.Errorf("list cluster machines: %w", err)
 	}
 	otherMachines := make([]*pb.MachineInfo, 0, len(machines)-1)
 	for _, m := range machines {
@@ -351,7 +357,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		OtherMachines: otherMachines,
 	}
 	if _, err = machineClient.JoinCluster(ctx, joinReq); err != nil {
-		return nil, fmt.Errorf("join cluster: %w", err)
+		return nil, nil, fmt.Errorf("join cluster: %w", err)
 	}
 
 	// TODO: fix empty context name when using the current context (contextName == "").
@@ -367,10 +373,10 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {
-		return nil, fmt.Errorf("save config: %w", err)
+		return nil, nil, fmt.Errorf("save config: %w", err)
 	}
 
-	return machineClient, nil
+	return c, machineClient, nil
 }
 
 // provisionRemoteMachine installs the Uncloud daemon and dependencies on the remote machine over SSH and returns
