@@ -64,7 +64,26 @@ ucind-multiarch-image-push:
 
 .PHONY: test
 test:
+ifeq ($(TEST_NAME),)
 	go test -v ./...
+else
+	go test -v -run ^$(TEST_NAME)$$ ./...
+endif
+
+.PHONY: test-clean
+test-clean:
+	@CONTAINERS=$$(docker ps --filter "name=ucind-test" -q); \
+	if [ -n "$$CONTAINERS" ]; then \
+		echo "Killing containers..."; \
+		docker kill $$CONTAINERS; \
+	fi; \
+	CONTAINERS_STOPPED=$$(docker ps -a --filter "name=ucind-test" -q); \
+	if [ -n "$$CONTAINERS_STOPPED" ]; then \
+		echo "Removing stopped containers..."; \
+		docker rm $$CONTAINERS_STOPPED; \
+	else \
+		echo "Nothing to clean."; \
+	fi
 
 .PHONY: vet
 vet:

@@ -72,7 +72,7 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 			ManagedLabel:     "",
 		},
 	}
-	// Create a Docker network with the same as the cluster name.
+	// Create a Docker network with the same name as the cluster name.
 	if _, err = p.dockerCli.NetworkCreate(ctx, name, netOpts); err != nil {
 		return c, fmt.Errorf("create Docker network '%s': %w", name, err)
 	}
