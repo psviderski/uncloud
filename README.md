@@ -4,6 +4,7 @@
   <p><strong>Docker simplicity. Multi-machine power.</strong></p>
 
   <p>
+    <a href="https://docs.uncloud.run"><img src="https://img.shields.io/badge/Docs-blue.svg?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
     <a href="https://discord.gg/eR35KQJhPu"><img src="https://img.shields.io/badge/discord-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
     <a href="https://x.com/psviderski"><img src="https://img.shields.io/badge/follow-black?style=for-the-badge&logo=X&logoColor=while" alt="Follow on X"></a>
   </p>
@@ -112,7 +113,7 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    uncloud-uninstall
    ```
 
-View the [user guide](docs/user_guide.md) for more information.
+View the [Documentation](https://docs.uncloud.run) for more information.
 
 ## ⚙️ How it works
 
@@ -268,7 +269,7 @@ and there may be breaking changes between releases.
 We'd love your input! Here's how you can contribute:
 
 * 🐛 Found a bug? [Open an issue](https://github.com/psviderski/uncloud/issues)
-* 💡 Have ideas or need help? [Join our Discord community](https://discord.gg/eR35KQJhPu) where we discuss features, 
+* 💡 Have ideas or need help? [Join our Discord community](https://discord.gg/eR35KQJhPu) where we discuss features,
   roadmap, implementation details, and help each other out.
 
 ## 📫 Stay updated
