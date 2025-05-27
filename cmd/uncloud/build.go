@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	composetypes "github.com/compose-spec/compose-go/v2/types"
+	"github.com/docker/compose/v2/pkg/api"
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
@@ -58,8 +59,6 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
 
-	// fmt.Printf("Project: %#v\n", project)
-
 	if len(opts.services) > 0 {
 		// Includes service dependencies by default. This is the default docker compose behavior.
 		project, err = project.WithSelectedServices(opts.services)
@@ -90,13 +89,12 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 	}
 	defer dockerCli.Close()
 
-	// build the services using the local docker client and compose libraries
+	// Build the services using the local docker client and compose libraries
 	for _, service := range project.Services {
 		fmt.Printf("Building service: %s\n", service.Name)
 		fmt.Printf("Service.Build: %#v\n", service.Build)
 
 		buildContextPath := service.Build.Context
-		dockerfilePath := absoluteDockerfilePath(buildContextPath, service.Build.Dockerfile)
 
 		// Create a tar archive of the build context
 		buildContext, err := archive.TarWithOptions(buildContextPath, &archive.TarOptions{})
@@ -104,12 +102,18 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 			return fmt.Errorf("failed to create build context for service %s: %w", service.Name, err)
 		}
 
+		// TODO: use the proper project name
+		imageName := api.GetImageNameOrDefault(service, "uncloud-default")
 		// Set build options
 		buildOptions := types.ImageBuildOptions{
-			Dockerfile: dockerfilePath,
-			Tags:       []string{fmt.Sprintf("uncloud-tmp-%s:latest", service.Name)}, // Tag the image
-			Remove:     true,                                                         // Remove intermediate containers
+			// TODO: Support Dockerfiles outside the build context
+			// See https://github.com/docker/compose/blob/cf89fd1aa1328d5af77658ccc5a1e1b29981ae80/pkg/compose/build_classic.go#L92
+			Dockerfile: service.Build.Dockerfile,
+			Tags:       []string{imageName},
+			Remove:     true, // Remove intermediate containers
 		}
+
+		fmt.Printf("Build options: %#v\n", buildOptions)
 
 		// Build the image
 		buildResponse, err := dockerCli.ImageBuild(context.Background(), buildContext, buildOptions)
@@ -125,6 +129,18 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 		}
 	}
 
+	return nil
+}
+
+func buildService(ctx context.Context, dockerCli *dockerclient.Client, service composetypes.ServiceConfig) error {
+	// build a service and return the image id/digest
+	return nil
+}
+
+func pushImage(ctx context.Context, dockerCli *dockerclient.Client, imageName string) error {
+	// push an image to a registry
+	// This is a placeholder function. Implement the actual push logic here.
+	fmt.Printf("Pushing image: %s\n", imageName)
 	return nil
 }
 
