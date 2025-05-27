@@ -49,7 +49,7 @@ complexity of Kubernetes.
 The screenshot below demonstrates how I use Uncloud to deploy the [Uncloud Documentation](https://docs.uncloud.run)
 website to 2 remote machines (why not?) from a Docker Compose file on my local machine. It exposes the
 container port `8000/tcp` as HTTPS on the domain `docs.uncloud.run`, served by the Caddy reverse proxy on the remote
-machines.
+machines. All managed by Uncloud.
 
 ![Uncloud compose deployment demo](.github/images/compose-deploy.jpg)
 
