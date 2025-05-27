@@ -286,8 +286,8 @@ We'd love your input! Here's how you can contribute:
 I'm grateful to the following projects that inspired Uncloud's design and implementation:
 
 * [Kamal](https://kamal-deploy.org/) — for proving that even in the declarative era of Kubernetes there is a place for
-  simple deployment tools that use imperative commands without any complex orchestration. Kamal powers a multi-billion
-  dollar company [37signals](https://37signals.com/) where it was invented and this is just wonderful!
+  simple deployment tools that use imperative commands without complex orchestration. Kamal powers the multi-billion
+  dollar company [37signals](https://37signals.com/) where it was created, and that's truly inspiring!
 * [Fly.io](https://fly.io/) — for inspiring my vision for what self-hosted infrastructure should feel like, proving that
   developer experience and powerful infrastructure can coexist beautifully.
 * [Tailscale](https://tailscale.com/) — for pioneering the vision of decentralised flat mesh networking with an amazing
