@@ -47,7 +47,7 @@ complexity of Kubernetes.
 ## 🎬 Quick demo
 
 The screenshot below demonstrates how I use Uncloud to deploy the [Uncloud Documentation](https://docs.uncloud.run)
-website to 2 remote machines (for better availability) from a Docker Compose file on my local machine. It exposes the
+website to 2 remote machines (why not?) from a Docker Compose file on my local machine. It exposes the
 container port `8000/tcp` as HTTPS on the domain `docs.uncloud.run`, served by the Caddy reverse proxy on the remote
 machines.
 
@@ -279,6 +279,29 @@ We'd love your input! Here's how you can contribute:
 * 🐛 Found a bug? [Open an issue](https://github.com/psviderski/uncloud/issues)
 * 💡 Have ideas or need help? [Join our Discord community](https://discord.gg/eR35KQJhPu) where we discuss features,
   roadmap, implementation details, and help each other out.
+
+## 🙏 Inspiration & Acknowledgements
+
+I'm grateful to the following projects that inspired Uncloud's design and implementation:
+
+* [Kamal](https://kamal-deploy.org/) — for proving that even in the declarative era of Kubernetes there is a place for
+  simple deployment tools that use imperative commands without any complex orchestration. Kamal powers a multi-billion
+  dollar company [37signals](https://37signals.com/) where it was invented and this is just wonderful!
+* [Fly.io](https://fly.io/) — for inspiring my vision for what self-hosted infrastructure should feel like, proving that
+  developer experience and powerful infrastructure can coexist beautifully.
+* [Tailscale](https://tailscale.com/) — for pioneering the vision of decentralised flat mesh networking with an 
+  amazing user experience that feels like magic.
+* [Talos Linux](https://github.com/siderolabs/talos)
+  and [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/) — for the machine API design using
+  [grpc-proxy](https://github.com/siderolabs/grpc-proxy) and for its elegant approach to secure WireGuard-based overlay
+  networking with zero configuration.
+* [Docker Swarm Classic](https://github.com/docker-archive/classicswarm) and
+  [Rancher 1.x](http://rancher-com-website-main-elb-elb-1798790864.us-west-2.elb.amazonaws.com/docs/rancher/v1.6/en/)
+  — for showing the power of simplicity and pragmatism in container orchestration and that not every problem needs the
+  complexity of Kubernetes.
+
+Special thanks to the [Corrosion](https://github.com/superfly/corrosion) project by Fly.io for providing the distributed
+SQLite database used to share Uncloud's cluster state.
 
 ## 📫 Stay updated
 
