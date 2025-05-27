@@ -1222,6 +1222,10 @@ input[type="search"]::-webkit-search-results-decoration {
   margin-bottom: 0.25rem;
 }
 
+.mb-2{
+  margin-bottom: 0.5rem;
+}
+
 .mb-4{
   margin-bottom: 1rem;
 }
@@ -2242,7 +2246,17 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
+@media not all and (min-width: 768px){
+  .max-md\:order-1{
+    order: 1;
+  }
+}
+
 @media (min-width: 640px){
+  .sm\:col-span-6{
+    grid-column: span 6 / span 6;
+  }
+
   .sm\:inline{
     display: inline;
   }
@@ -2253,6 +2267,10 @@ input[type="search"]::-webkit-search-results-decoration {
 
   .sm\:max-w-none{
     max-width: none;
+  }
+
+  .sm\:grid-cols-12{
+    grid-template-columns: repeat(12, minmax(0, 1fr));
   }
 
   .sm\:grid-cols-2{
@@ -2300,6 +2318,14 @@ input[type="search"]::-webkit-search-results-decoration {
 @media (min-width: 768px){
   .md\:top-6{
     top: 1.5rem;
+  }
+
+  .md\:col-span-3{
+    grid-column: span 3 / span 3;
+  }
+
+  .md\:col-span-6{
+    grid-column: span 6 / span 6;
   }
 
   .md\:mb-0{
@@ -2354,6 +2380,14 @@ input[type="search"]::-webkit-search-results-decoration {
 }
 
 @media (min-width: 1024px){
+  .lg\:col-span-2{
+    grid-column: span 2 / span 2;
+  }
+
+  .lg\:col-span-8{
+    grid-column: span 8 / span 8;
+  }
+
   .lg\:mt-24{
     margin-top: 6rem;
   }

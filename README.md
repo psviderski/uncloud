@@ -4,6 +4,7 @@
   <p><strong>Docker simplicity. Multi-machine power.</strong></p>
 
   <p>
+    <a href="https://docs.uncloud.run"><img src="https://img.shields.io/badge/Docs-blue.svg?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
     <a href="https://discord.gg/eR35KQJhPu"><img src="https://img.shields.io/badge/discord-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
     <a href="https://x.com/psviderski"><img src="https://img.shields.io/badge/follow-black?style=for-the-badge&logo=X&logoColor=while" alt="Follow on X"></a>
   </p>
@@ -45,7 +46,16 @@ complexity of Kubernetes.
 
 ## 🎬 Quick demo
 
-Deploy a highly available web app with automatic HTTPS across multiple regions and on-premises in just a couple minutes.
+The screenshot below demonstrates how I use Uncloud to deploy the [Uncloud Documentation](https://docs.uncloud.run)
+website to 2 remote machines (why not?) from the [`compose.yaml`](docs/compose.yaml) file on my local machine.
+
+It exposes the container port `8000/tcp` as HTTPS on the domain `docs.uncloud.run`, served by the Caddy reverse proxy on
+the remote machines. All managed by Uncloud.
+
+![Uncloud compose deployment demo](.github/images/compose-deploy.jpg)
+
+Here is a more advanced use case. Deploy a highly available web app with automatic HTTPS across multiple regions and
+on-premises in just a couple minutes.
 
 <a href="https://uncloud.wistia.com/medias/k47uwt9uau?wvideo=k47uwt9uau">
 <img src="https://embed-ssl.wistia.com/deliveries/3cf7014a48b93afc556444bed3e39a8c.jpg?image_crop_resized=900x526&image_play_button_rounded=true&image_play_button_size=2x&image_play_button_color=18181Be0" alt="Uncloud demo" width="450" height="263" />
@@ -112,7 +122,7 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    uncloud-uninstall
    ```
 
-View the [user guide](docs/user_guide.md) for more information.
+View the [Documentation](https://docs.uncloud.run) for more information.
 
 ## ⚙️ How it works
 
@@ -268,8 +278,31 @@ and there may be breaking changes between releases.
 We'd love your input! Here's how you can contribute:
 
 * 🐛 Found a bug? [Open an issue](https://github.com/psviderski/uncloud/issues)
-* 💡 Have ideas or need help? [Join our Discord community](https://discord.gg/eR35KQJhPu) where we discuss features, 
+* 💡 Have ideas or need help? [Join our Discord community](https://discord.gg/eR35KQJhPu) where we discuss features,
   roadmap, implementation details, and help each other out.
+
+## 🙏 Inspiration & Acknowledgements
+
+I'm grateful to the following projects that inspired Uncloud's design and implementation:
+
+* [Kamal](https://kamal-deploy.org/) — for proving that even in the declarative era of Kubernetes there is a place for
+  simple deployment tools that use imperative commands without complex orchestration. Kamal powers the multi-billion
+  dollar company [37signals](https://37signals.com/) where it was created, and that's truly inspiring!
+* [Fly.io](https://fly.io/) — for inspiring my vision for what self-hosted infrastructure should feel like, proving that
+  developer experience and powerful infrastructure can coexist beautifully.
+* [Tailscale](https://tailscale.com/) — for pioneering the vision of decentralised flat mesh networking with an amazing
+  user experience that feels like magic.
+* [Talos Linux](https://github.com/siderolabs/talos)
+  and [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/) — for the machine API design using
+  [grpc-proxy](https://github.com/siderolabs/grpc-proxy) and for its elegant approach to secure WireGuard-based overlay
+  networking with zero configuration.
+* [Docker Swarm Classic](https://github.com/docker-archive/classicswarm) and
+  [Rancher 1.x](http://rancher-com-website-main-elb-elb-1798790864.us-west-2.elb.amazonaws.com/docs/rancher/v1.6/en/)
+  — for showing the power of simplicity and pragmatism in container orchestration and that not every problem needs the
+  complexity of Kubernetes.
+
+Special thanks to the [Corrosion](https://github.com/superfly/corrosion) project by Fly.io for providing the distributed
+SQLite database used to share Uncloud's cluster state.
 
 ## 📫 Stay updated
 

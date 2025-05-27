@@ -3,9 +3,9 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Deploy and scale Docker apps on your infrastructure without Kubernetes | Uncloud</title>
+    <title>Self-host and scale web apps without Kubernetes complexity | Uncloud</title>
     <meta name="description"
-          content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required.">
+          content="Take your Docker Compose apps to production with zero-downtime deployments, automatic HTTPS, and cross-machine scaling. Self-hosting made reliable without the complexity.">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <link href="./style.css" rel="stylesheet">
     <link rel="apple-touch-icon" href="./images/apple-touch-icon.png" sizes="180x180"/>
@@ -14,11 +14,11 @@
 
     <!-- OpenGraph tags for social media -->
     <meta property="og:title"
-          content="Deploy and scale Docker apps on your infrastructure without Kubernetes | Uncloud"/>
+          content="Self-host and scale web apps without Kubernetes complexity | Uncloud"/>
     <meta property="og:description"
-          content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required."/>
+          content="Take your Docker Compose apps to production with zero-downtime deployments, automatic HTTPS, and cross-machine scaling. Self-hosting made reliable without the complexity."/>
     <meta property="og:image" content="https://uncloud.run/images/logo-wide.png"/>
-    <meta property="og:image:alt" content="Uncloud logo - Deploy container apps with ease"/>
+    <meta property="og:image:alt" content="Uncloud logo - Self-host web apps with ease"/>
     <meta property="og:url" content="https://uncloud.run"/>
     <meta property="og:type" content="website"/>
     <meta property="og:site_name" content="Uncloud"/>
@@ -27,11 +27,11 @@
     <meta property="twitter:url" content="https://uncloud.run">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title"
-          content="Deploy and scale Docker apps on your infrastructure without Kubernetes | Uncloud">
+          content="Self-host and scale web apps without Kubernetes complexity | Uncloud">
     <meta name="twitter:description"
-          content="Uncloud helps you deploy container applications on your infrastructure — from cloud VMs to bare metal. Replace Heroku and Render, no Kubernetes required.">
+          content="Take your Docker Compose apps to production with zero-downtime deployments, automatic HTTPS, and cross-machine scaling. Self-hosting made reliable without the complexity.">
     <meta name="twitter:image" content="https://uncloud.run/images/logo-wide.png">
-    <meta name="twitter:image:alt" content="Uncloud logo - Deploy container apps with ease">
+    <meta name="twitter:image:alt" content="Uncloud logo - Self-host web apps with ease">
 </head>
 
 <body class="font-inter antialiased bg-white text-zinc-900 tracking-tight">
@@ -54,6 +54,17 @@
                 <!-- Navigation links -->
                 <nav class="flex grow">
                     <ul class="flex grow justify-end flex-wrap items-center">
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-3 lg:px-5 py-2 flex items-center transition"
+                               href="https://docs.uncloud.run">
+                                <svg class="w-4 h-4 mr-1 fill-current hidden sm:inline"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                </svg>
+                                <span class="ml-1">Docs</span>
+                            </a>
+                        </li>
                         <li>
                             <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-3 lg:px-5 py-2 flex items-center transition"
                                href="https://discord.gg/eR35KQJhPu">
@@ -98,18 +109,18 @@
                     <div class="max-w-3xl mx-auto">
                         <div class="text-center pb-12 md:pb-16">
                             <h1 class="font-inter-tight text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-zinc-500 via-zinc-900 to-zinc-900 pb-4">
-                                Keep your infrastructure simple<br>
-                                Deploy and manage containers with joy
+                                Self-host and scale web apps<br>
+                                without the complexity
                             </h1>
                             <p class="text-lg text-zinc-500 mb-8">
-                                Uncloud is a lightweight Docker clustering tool for running and scaling web apps on your
-                                servers — from cloud VMs to bare metal. No Kubernetes required.
+                                Take your Docker Compose apps to production with zero-downtime deployments, automatic
+                                HTTPS, and cross-machine scaling. No rewrite or Kubernetes required.
                             </p>
                             <div class="max-w-xs mx-auto sm:max-w-none sm:inline-flex sm:justify-center space-y-4 sm:space-y-0 sm:space-x-4">
                                 <div>
                                     <a class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 w-full shadow"
                                        href="https://github.com/psviderski/uncloud/?tab=readme-ov-file#-quick-start">
-                                        Quick Start
+                                        Deploy in 2 minutes
                                     </a>
                                 </div>
                                 <div>
@@ -634,50 +645,105 @@
     <!-- Site footer -->
     <footer>
         <div class="max-w-6xl mx-auto px-4 sm:px-6">
-            <div class="flex flex-col items-center py-8 md:py-12 border-t border-zinc-200">
-                <div class="text-sm text-zinc-500">
-                    Made with ❤️ by
-                    <a class="underline hover:text-zinc-900" href="https://github.com/psviderski">Pasha Sviderski</a>
-                    in Australia
+            <!-- Top area: Blocks -->
+            <div class="grid sm:grid-cols-12 gap-8 py-8 md:py-12 border-t border-zinc-200">
+                <!-- 1st block - Brand -->
+                <div class="sm:col-span-6 md:col-span-6 lg:col-span-8 max-md:order-1 flex flex-col">
+                    <div class="mb-4">
+                        <!-- Logo -->
+                        <a class="flex items-center" href="index.html">
+                            <img class="w-8 h-8 rounded shadow-sm shadow-zinc-950/20" src="./images/logo.svg"
+                                 alt="Logo">
+                            <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
+                        </a>
+                    </div>
+                    <div class="grow text-sm text-zinc-500">
+                        Made with ❤️ by
+                        <a class="underline hover:text-zinc-900" href="https://github.com/psviderski">
+                            Pasha Sviderski
+                        </a>
+                        in Australia
+                    </div>
+
+                    <!-- Social links -->
+                    <ul class="flex space-x-4 mt-4 mb-1">
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu" aria-label="Discord">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://x.com/psviderski" aria-label="X/Twitter">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="m7.063 3 3.495 4.475L14.601 3h2.454l-5.359 5.931L18 17h-4.938l-3.866-4.893L4.771 17H2.316l5.735-6.342L2 3h5.063Zm-.74 1.347H4.866l8.875 11.232h1.36L6.323 4.347Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://t.me/spyyy" aria-label="Telegram">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="M17.968 3.276a.338.338 0 0 0-.232-.253 1.192 1.192 0 0 0-.63.045S3.087 8.106 2.286 8.664c-.172.121-.23.19-.259.272-.138.4.293.573.293.573l3.613 1.177a.388.388 0 0 0 .183-.011c.822-.519 8.27-5.222 8.7-5.38.068-.02.118 0 .1.049-.172.6-6.606 6.319-6.64 6.354a.138.138 0 0 0-.05.118l-.337 3.528s-.142 1.1.956 0a30.66 30.66 0 0 1 1.9-1.738c1.242.858 2.58 1.806 3.156 2.3a1 1 0 0 0 .732.283.825.825 0 0 0 .7-.622S17.894 5.292 17.98 3.909c.008-.135.021-.217.021-.317a1.177 1.177 0 0 0-.032-.316Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud" aria-label="GitHub">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                                </svg>
+                            </a>
+                        </li>
+                    </ul>
                 </div>
 
-                <!-- Social links -->
-                <ul class="flex space-x-4 mt-4 mb-1">
-                    <li>
-                        <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
-                           href="https://discord.gg/eR35KQJhPu" aria-label="Discord">
-                            <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20"
-                                 height="20">
-                                <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
-                            </svg>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
-                           href="https://x.com/psviderski" aria-label="Twitter">
-                            <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
-                                <path d="m7.063 3 3.495 4.475L14.601 3h2.454l-5.359 5.931L18 17h-4.938l-3.866-4.893L4.771 17H2.316l5.735-6.342L2 3h5.063Zm-.74 1.347H4.866l8.875 11.232h1.36L6.323 4.347Z"/>
-                            </svg>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
-                           href="https://t.me/spyyy" aria-label="Telegram">
-                            <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
-                                <path d="M17.968 3.276a.338.338 0 0 0-.232-.253 1.192 1.192 0 0 0-.63.045S3.087 8.106 2.286 8.664c-.172.121-.23.19-.259.272-.138.4.293.573.293.573l3.613 1.177a.388.388 0 0 0 .183-.011c.822-.519 8.27-5.222 8.7-5.38.068-.02.118 0 .1.049-.172.6-6.606 6.319-6.64 6.354a.138.138 0 0 0-.05.118l-.337 3.528s-.142 1.1.956 0a30.66 30.66 0 0 1 1.9-1.738c1.242.858 2.58 1.806 3.156 2.3a1 1 0 0 0 .732.283.825.825 0 0 0 .7-.622S17.894 5.292 17.98 3.909c.008-.135.021-.217.021-.317a1.177 1.177 0 0 0-.032-.316Z"/>
-                            </svg>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
-                           href="https://github.com/psviderski/uncloud" aria-label="Telegram">
-                            <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20"
-                                 height="20">
-                                <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
-                            </svg>
-                        </a>
-                    </li>
-                </ul>
+                <!-- 2nd block - Documentation -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Documentation</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://docs.uncloud.run/#use-cases">Use cases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://docs.uncloud.run/getting-started/quick-start">Quick start</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 3rd block - Resources -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Resources</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud">GitHub project</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/releases">Releases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/blob/main/LICENSE">License</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu">Community</a>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     </footer>

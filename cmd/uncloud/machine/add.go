@@ -92,7 +92,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 		publicIP = &ip
 	}
 
-	machineClient, err := uncli.AddMachine(ctx, cli.AddMachineOptions{
+	clusterClient, machineClient, err := uncli.AddMachine(ctx, cli.AddMachineOptions{
 		Context:       opts.context,
 		MachineName:   opts.name,
 		PublicIP:      publicIP,
@@ -102,6 +102,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 	if err != nil {
 		return err
 	}
+	defer clusterClient.Close()
 	defer machineClient.Close()
 
 	if opts.noCaddy {
@@ -117,8 +118,11 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 
 	// Deploy a Caddy service container to the added machine. If caddy service is already deployed on other machines,
 	// use the deployed image version. Otherwise, use the latest version.
+	// NOTE: We use the cluster client to inspect and scale the Caddy service because the newly added machine may have
+	// issues accessing the Machine API of existing machines in the cluster.
+	// See the issue for more details: https://github.com/psviderski/uncloud/issues/65.
 	caddyImage := ""
-	caddySvc, err := machineClient.InspectService(ctx, client.CaddyServiceName)
+	caddySvc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
 	if err != nil {
 		if !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect caddy service: %w", err)
@@ -141,7 +145,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 
 	// TODO: scale the existing Caddy service to the new machine instead of running a new deployment
 	//  that may cause a small downtime.
-	d, err := machineClient.NewCaddyDeployment(caddyImage, api.Placement{})
+	d, err := clusterClient.NewCaddyDeployment(caddyImage, api.Placement{})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}

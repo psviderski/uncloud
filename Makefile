@@ -1,5 +1,6 @@
 CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
+DOCS_IMAGE ?= ghcr.io/psviderski/uncloud-docs:latest
 
 update-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
@@ -63,8 +64,31 @@ ucind-multiarch-image-push:
 
 .PHONY: test
 test:
-	go test -v ./...
+ifeq ($(TEST_NAME),)
+	go test -count=1 -v ./...
+else
+	go test -count=1 -v -run ^$(TEST_NAME)$$ ./...
+endif
+
+.PHONY: test-clean
+test-clean:
+	@CONTAINERS=$$(docker ps --filter "name=ucind-test" -q); \
+	if [ -n "$$CONTAINERS" ]; then \
+		echo "Killing containers..."; \
+		docker kill $$CONTAINERS; \
+	fi; \
+	CONTAINERS_STOPPED=$$(docker ps -a --filter "name=ucind-test" -q); \
+	if [ -n "$$CONTAINERS_STOPPED" ]; then \
+		echo "Removing stopped containers..."; \
+		docker rm $$CONTAINERS_STOPPED; \
+	else \
+		echo "Nothing to clean."; \
+	fi
 
 .PHONY: vet
 vet:
 	go vet ./...
+
+.PHONY: docs-image-push
+docs-image:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(DOCS_IMAGE)" ./docs
