@@ -47,9 +47,10 @@ complexity of Kubernetes.
 ## 🎬 Quick demo
 
 The screenshot below demonstrates how I use Uncloud to deploy the [Uncloud Documentation](https://docs.uncloud.run)
-website to 2 remote machines (why not?) from a Docker Compose file on my local machine. It exposes the
-container port `8000/tcp` as HTTPS on the domain `docs.uncloud.run`, served by the Caddy reverse proxy on the remote
-machines. All managed by Uncloud.
+website to 2 remote machines (why not?) from the [`compose.yaml`](docs/compose.yaml) file on my local machine.
+
+It exposes the container port `8000/tcp` as HTTPS on the domain `docs.uncloud.run`, served by the Caddy reverse proxy on
+the remote machines. All managed by Uncloud.
 
 ![Uncloud compose deployment demo](.github/images/compose-deploy.jpg)
 
@@ -289,8 +290,8 @@ I'm grateful to the following projects that inspired Uncloud's design and implem
   dollar company [37signals](https://37signals.com/) where it was invented and this is just wonderful!
 * [Fly.io](https://fly.io/) — for inspiring my vision for what self-hosted infrastructure should feel like, proving that
   developer experience and powerful infrastructure can coexist beautifully.
-* [Tailscale](https://tailscale.com/) — for pioneering the vision of decentralised flat mesh networking with an 
-  amazing user experience that feels like magic.
+* [Tailscale](https://tailscale.com/) — for pioneering the vision of decentralised flat mesh networking with an amazing
+  user experience that feels like magic.
 * [Talos Linux](https://github.com/siderolabs/talos)
   and [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/) — for the machine API design using
   [grpc-proxy](https://github.com/siderolabs/grpc-proxy) and for its elegant approach to secure WireGuard-based overlay
