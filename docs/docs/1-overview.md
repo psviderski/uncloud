@@ -99,9 +99,9 @@ containers by their service names, `curl` service endpoints, or analyse traffic 
 
 ## Getting started
 
-Install Uncloud and deploy your first app in minutes:
+Install Uncloud CLI and deploy your first app in minutes:
 
-* [Install Uncloud CLI](./2-getting-started/1-installation.md)
+* [Install Uncloud CLI](./2-getting-started/1-install-cli.md)
 * [Quick start guide](./2-getting-started/2-quick-start.md)
 
 ## Getting help
