@@ -3,6 +3,12 @@
 Install the Uncloud command-line utility to manage your machines and deploy apps using `uc` commands. You will run `uc`
 locally so choose the appropriate installation method for your operating system.
 
+:::info NOTE
+
+Windows is not natively supported yet, but you can install and run `uc` in a
+[WSL](https://learn.microsoft.com/en-us/windows/wsl/) terminal by following the instructions for Linux.
+:::
+
 ## Homebrew (macOS, Linux)
 
 If you have [Homebrew](https://brew.sh/) package manager installed, this is the recommended installation method on macOS
@@ -47,12 +53,32 @@ sh install.sh
 You can manually download and use a pre-built binary from the
 [latest release](https://github.com/psviderski/uncloud/releases/latest) on GitHub.
 
-Make sure to replace `(macos|linux)` and `(amd64|arm64)` with your OS and architecture.
-
-```bash
-curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_(macos|linux)_(amd64|arm64).tar.gz | tar xz
-mv uncloud uc
-```
+<Tabs>
+  <TabItem value="macOS (Apple Silicon)">
+    ```bash
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_arm64.tar.gz | tar xz
+    mv uncloud uc
+    ```
+  </TabItem>
+  <TabItem value="macOS (Intel)">
+    ```bash
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_amd64.tar.gz | tar xz
+    mv uncloud uc
+    ```
+  </TabItem>
+  <TabItem value="Linux (AMD 64-bit)">
+    ```bash
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_amd64.tar.gz | tar xz
+    mv uncloud uc
+    ```
+  </TabItem>
+  <TabItem value="Linux (ARM 64-bit)">
+    ```bash
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_arm64.tar.gz | tar xz
+    mv uncloud uc
+    ```
+  </TabItem>
+</Tabs>
 
 You can use the `./uc` binary directly from the current directory, or move it to a directory in your system's `PATH`
 to run it as `uc` from any location.
