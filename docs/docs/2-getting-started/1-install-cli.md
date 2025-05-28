@@ -1,4 +1,4 @@
-# Installation
+# Install CLI
 
 Install the Uncloud command-line utility to manage your machines and deploy apps using `uc` commands. You will run `uc`
 locally so choose the appropriate installation method for your operating system.

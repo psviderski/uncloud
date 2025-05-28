@@ -4,22 +4,22 @@ slug: /
 
 # Overview
 
-Uncloud makes setting up a **Docker cluster** and **self-hosting web applications** in production dead simple.
+Uncloud makes **self-hosting web applications** across multiple machines in production dead simple.
 
-You can combine any machines — from cloud VMs to bare metal servers (no matter where they're located) — into a unified
-computing environment that you fully control. Then run and scale multi-service and multi-container web apps and
-databases across your machines using simple Docker-like commands
-and [Docker Compose](https://docs.docker.com/reference/compose-file/) files.
+You can connect any machines — from cloud VMs to bare metal servers (no matter where they're located) — into a secure
+private network. Then run and scale multi-service and multi-container web apps and databases across your machines using
+simple Docker-like commands and [Docker Compose](https://docs.docker.com/reference/compose-file/) files.
 
 Uncloud covers all the essentials for operating apps in production without overwhelming you with the complexity of
 traditional container orchestrators like Kubernetes or Swarm:
 
+* Initial machine and network setup
 * Zero-downtime rolling deployments
 * Health checks and automatic restarts
 * Automatic HTTPS and reverse proxy configuration
 * Scaling services across multiple machines
-* Cross-machine service communication
-* Service discovery
+* Cross-machine service communication without exposing ports to the internet
+* DNS-based service discovery
 * Load balancing
 * Persistent storage
 
@@ -44,7 +44,7 @@ Some of the common use cases Uncloud is a great fit for:
 
 ## What makes Uncloud different
 
-Here are the design decisions that make Uncloud truly unique.
+Here are the design decisions that make Uncloud stand out:
 
 ### Decentralised design
 
