@@ -9,6 +9,7 @@ import (
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v2/pkg/api"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -47,12 +48,7 @@ func NewBuildCommand() *cobra.Command {
 
 func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 	fmt.Println("Building services...")
-	fmt.Printf("Context: %#v\n", ctx)
-	fmt.Printf("CLI: %#v\n", uncli)
-	fmt.Printf("Opts: %#v\n", opts)
-
 	projectOpts := projectOpts(opts)
-
 	project, err := compose.LoadProject(ctx, opts.files, projectOpts...)
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
@@ -91,16 +87,15 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 	// Build the services using the local docker client and compose libraries
 	for _, service := range servicesToBuild {
 		fmt.Printf("Building service: %s\n", service.Name)
-		fmt.Printf("Service.Build: %#v\n", service.Build)
-
 		imageName, err := buildService(ctx, dockerCli, service)
 		if err != nil {
 			return fmt.Errorf("build service %s: %w", service.Name, err)
 		}
 		serviceImages[service.Name] = imageName
 	}
+	fmt.Printf("Service images are built.\n")
 
-	return nil
+	return pushServiceImages(ctx, dockerCli, serviceImages)
 }
 
 // Build a single service
@@ -128,8 +123,6 @@ func buildService(ctx context.Context, dockerCli *dockerclient.Client, service c
 		Remove:     true, // Remove intermediate containers
 	}
 
-	fmt.Printf("Building image for service %s with options: %#v\n", service.Name, buildOptions)
-
 	buildResponse, err := dockerCli.ImageBuild(ctx, buildContext, buildOptions)
 	if err != nil {
 		return "", fmt.Errorf("failed to build image for service %s: %w", service.Name, err)
@@ -144,9 +137,25 @@ func buildService(ctx context.Context, dockerCli *dockerclient.Client, service c
 	return imageName, nil
 }
 
-func pushImage(ctx context.Context, dockerCli *dockerclient.Client, imageName string) error {
-	// push an image to a registry
-	// This is a placeholder function. Implement the actual push logic here.
-	fmt.Printf("Pushing image: %s\n", imageName)
+func pushServiceImages(ctx context.Context, dockerCli *dockerclient.Client, serviceImages map[string]string) error {
+	fmt.Printf("Pushing images...\n")
+	for serviceName, imageName := range serviceImages {
+		fmt.Printf("Pushing image for service %s: %s\n", serviceName, imageName)
+		pushOptions := image.PushOptions{
+			RegistryAuth: "dummy", // TODO: Handle authentication if needed
+			All:          true,    // Push all tags
+		}
+		pushResponse, err := dockerCli.ImagePush(ctx, imageName, pushOptions)
+		if err != nil {
+			return fmt.Errorf("failed to push image for service %s: %w", serviceName, err)
+		}
+		defer pushResponse.Close()
+
+		_, err = io.Copy(os.Stdout, pushResponse)
+		if err != nil {
+			return fmt.Errorf("failed to read push output for service %s: %w", serviceName, err)
+		}
+		fmt.Printf("Image for service %s pushed successfully.\n", serviceName)
+	}
 	return nil
 }
