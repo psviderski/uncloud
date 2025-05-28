@@ -1,0 +1,12 @@
+services:
+  service-no-build:
+    image: portainer/pause:3.9
+
+  busybox-basic:
+    build:
+      context: busybox-first/
+
+  busybox-bla:
+    build:
+      context: busybox-second/
+      dockerfile: Dockerfile.alt

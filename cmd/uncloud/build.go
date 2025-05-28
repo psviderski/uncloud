@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v2/pkg/api"
@@ -80,61 +79,69 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 		return nil
 	}
 
-	// TODO: figure out service dependencies?
-
-	// Init local client
+	// Init docker client (can be local or remote, depending on DOCKER_HOST environment variable)
 	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
 	}
 	defer dockerCli.Close()
 
+	serviceImages := make(map[string]string, len(servicesToBuild))
+
 	// Build the services using the local docker client and compose libraries
-	for _, service := range project.Services {
+	for _, service := range servicesToBuild {
 		fmt.Printf("Building service: %s\n", service.Name)
 		fmt.Printf("Service.Build: %#v\n", service.Build)
 
-		buildContextPath := service.Build.Context
-
-		// Create a tar archive of the build context
-		buildContext, err := archive.TarWithOptions(buildContextPath, &archive.TarOptions{})
+		imageName, err := buildService(ctx, dockerCli, service)
 		if err != nil {
-			return fmt.Errorf("failed to create build context for service %s: %w", service.Name, err)
+			return fmt.Errorf("build service %s: %w", service.Name, err)
 		}
-
-		// TODO: use the proper project name
-		imageName := api.GetImageNameOrDefault(service, "uncloud-default")
-		// Set build options
-		buildOptions := types.ImageBuildOptions{
-			// TODO: Support Dockerfiles outside the build context
-			// See https://github.com/docker/compose/blob/cf89fd1aa1328d5af77658ccc5a1e1b29981ae80/pkg/compose/build_classic.go#L92
-			Dockerfile: service.Build.Dockerfile,
-			Tags:       []string{imageName},
-			Remove:     true, // Remove intermediate containers
-		}
-
-		fmt.Printf("Build options: %#v\n", buildOptions)
-
-		// Build the image
-		buildResponse, err := dockerCli.ImageBuild(context.Background(), buildContext, buildOptions)
-		if err != nil {
-			return fmt.Errorf("failed to build image for service %s: %w", service.Name, err)
-		}
-		defer buildResponse.Body.Close()
-
-		// Read and display the build output
-		_, err = io.Copy(os.Stdout, buildResponse.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read build output for service %s: %w", service.Name, err)
-		}
+		serviceImages[service.Name] = imageName
 	}
 
 	return nil
 }
 
-func buildService(ctx context.Context, dockerCli *dockerclient.Client, service composetypes.ServiceConfig) error {
-	// build a service and return the image id/digest
-	return nil
+// Build a single service
+func buildService(ctx context.Context, dockerCli *dockerclient.Client, service composetypes.ServiceConfig) (string, error) {
+	if service.Build == nil {
+		return "", fmt.Errorf("service %s has no build configuration", service.Name)
+	}
+
+	buildContextPath := service.Build.Context
+
+	// Create a tar archive of the build context
+	buildContext, err := archive.TarWithOptions(buildContextPath, &archive.TarOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to create build context for service %s: %w", service.Name, err)
+	}
+
+	// TODO: use the proper project name
+	imageName := api.GetImageNameOrDefault(service, "uncloud-default")
+
+	buildOptions := types.ImageBuildOptions{
+		// TODO: Support Dockerfiles outside the build context
+		// See https://github.com/docker/compose/blob/cf89fd1aa1328d5af77658ccc5a1e1b29981ae80/pkg/compose/build_classic.go#L92
+		Dockerfile: service.Build.Dockerfile,
+		Tags:       []string{imageName},
+		Remove:     true, // Remove intermediate containers
+	}
+
+	fmt.Printf("Building image for service %s with options: %#v\n", service.Name, buildOptions)
+
+	buildResponse, err := dockerCli.ImageBuild(ctx, buildContext, buildOptions)
+	if err != nil {
+		return "", fmt.Errorf("failed to build image for service %s: %w", service.Name, err)
+	}
+	defer buildResponse.Body.Close()
+
+	_, err = io.Copy(os.Stdout, buildResponse.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read build output for service %s: %w", service.Name, err)
+	}
+
+	return imageName, nil
 }
 
 func pushImage(ctx context.Context, dockerCli *dockerclient.Client, imageName string) error {
@@ -142,15 +149,4 @@ func pushImage(ctx context.Context, dockerCli *dockerclient.Client, imageName st
 	// This is a placeholder function. Implement the actual push logic here.
 	fmt.Printf("Pushing image: %s\n", imageName)
 	return nil
-}
-
-func absoluteDockerfilePath(buildContextPath, dockerfilePath string) string {
-	if dockerfilePath == "" {
-		return ""
-	}
-
-	if filepath.IsAbs(dockerfilePath) {
-		return dockerfilePath
-	}
-	return filepath.Join(buildContextPath, dockerfilePath)
 }
