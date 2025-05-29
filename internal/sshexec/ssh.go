@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/psviderski/uncloud/internal/fs"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -63,6 +64,7 @@ func sshAgentAuth() (ssh.AuthMethod, func(), error) {
 }
 
 func privateKeyAuth(path string) (ssh.AuthMethod, error) {
+	path = fs.ExpandHomeDir(path)
 	key, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read private key file %q: %w", path, err)

@@ -80,8 +80,8 @@ func NewInitCommand() *cobra.Command {
 			"blank '' or 'none' to disable ingress on this machine, or specify an IP address.",
 	)
 	cmd.Flags().StringVarP(
-		&opts.sshKey, "ssh-key", "i", "",
-		"Path to SSH private key for SSH remote login. (default ~/.ssh/id_*)",
+		&opts.sshKey, "ssh-key", "i", "~/.ssh/id_ed25519",
+		"Path to SSH private key for remote login (if not already added to SSH agent).",
 	)
 	cmd.Flags().StringVar(
 		&opts.version, "version", "latest",
@@ -114,7 +114,6 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		}
 		publicIP = &ip
 	}
-	
 	client, err := uncli.InitCluster(ctx, cli.InitClusterOptions{
 		Context:       opts.context,
 		MachineName:   opts.name,
