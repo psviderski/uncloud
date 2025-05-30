@@ -14,13 +14,13 @@ Windows is not natively supported yet, but you can install and run `uc` in a
 If you have [Homebrew](https://brew.sh/) package manager installed, this is the recommended installation method on macOS
 and Linux:
 
-```bash
+```shell
 brew install psviderski/tap/uncloud
 ```
 
 To upgrade to the latest version:
 
-```bash
+```shell
 brew upgrade uncloud
 ```
 
@@ -28,7 +28,7 @@ brew upgrade uncloud
 
 For a quick automated installation, use the install script:
 
-```bash
+```shell
 curl -fsS https://get.uncloud.run/install.sh | sh
 ```
 
@@ -42,7 +42,7 @@ The script will:
 Don't like `curl | sh`? You can download and review the [install script](https://get.uncloud.run/install.sh) first and
 then run it:
 
-```bash
+```shell
 curl -fsSO https://get.uncloud.run/install.sh
 cat install.sh
 sh install.sh
@@ -55,25 +55,25 @@ You can manually download and use a pre-built binary from the
 
 <Tabs>
   <TabItem value="macOS (Apple Silicon)">
-    ```bash
+    ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_arm64.tar.gz | tar xz
     mv uncloud uc
     ```
   </TabItem>
   <TabItem value="macOS (Intel)">
-    ```bash
+    ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_amd64.tar.gz | tar xz
     mv uncloud uc
     ```
   </TabItem>
   <TabItem value="Linux (AMD 64-bit)">
-    ```bash
+    ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_amd64.tar.gz | tar xz
     mv uncloud uc
     ```
   </TabItem>
   <TabItem value="Linux (ARM 64-bit)">
-    ```bash
+    ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_arm64.tar.gz | tar xz
     mv uncloud uc
     ```
@@ -85,7 +85,7 @@ to run it as `uc` from any location.
 
 For example, move it to `/usr/local/bin` which is a common location for user-installed binaries:
 
-```bash
+```shell
 sudo mv ./uc /usr/local/bin
 ```
 
@@ -93,7 +93,7 @@ sudo mv ./uc /usr/local/bin
 
 After installation, verify that `uc` command is working:
 
-```bash
+```shell
 uc --version
 ```
 
@@ -101,4 +101,4 @@ uc --version
 
 Now that you have `uc` installed, you're ready to:
 
-- [Quick start](./quick-start) — Deploy your first application
+- [Deploy demo app](./2-deploy-demo-app.md)
