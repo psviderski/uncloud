@@ -2,16 +2,22 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	composetypes "github.com/compose-spec/compose-go/v2/types"
+	"github.com/distribution/reference"
+	"github.com/docker/cli/cli/config"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/registry"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/spf13/cobra"
@@ -174,8 +180,42 @@ func buildService(ctx context.Context, dockerCli *dockerclient.Client, service c
 
 // pushServiceImage pushes a single service image.
 func pushServiceImage(ctx context.Context, dockerCli *dockerclient.Client, serviceName string, imageName string) error {
+	ref, err := reference.ParseNormalizedNamed(imageName)
+	if err != nil {
+		return err
+	}
+
+	repoInfo, err := registry.ParseRepositoryInfo(ref)
+	if err != nil {
+		return err
+	}
+
+	registryKey := repoInfo.Index.Name
+	if repoInfo.Index.Official {
+		registryKey = registry.IndexServer
+	}
+	dockerConfigDir := filepath.Join(os.Getenv("HOME"), ".docker")
+
+	// Load the Docker CLI config (config.json)
+	configFile, err := config.Load(dockerConfigDir)
+	if err != nil {
+		return fmt.Errorf("failed to load Docker CLI config: %w", err)
+	}
+
+	authConfig, err := configFile.GetAuthConfig(registryKey)
+	if err != nil {
+		return err
+	}
+
+	authJSON, err := json.Marshal(authConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal auth config for registry %s: %w", registryKey, err)
+	}
+
+	authStr := base64.URLEncoding.EncodeToString(authJSON)
+
 	pushOptions := image.PushOptions{
-		RegistryAuth: "dummy", // TODO: Handle authentication if needed
+		RegistryAuth: authStr, // TODO: Handle authentication if needed
 		All:          true,    // Push all tags
 	}
 	pushResponse, err := dockerCli.ImagePush(ctx, imageName, pushOptions)
@@ -186,9 +226,22 @@ func pushServiceImage(ctx context.Context, dockerCli *dockerclient.Client, servi
 
 	fmt.Printf("Pushing image %s for service %s\n", imageName, serviceName)
 
-	// Wait for push to complete
-	if _, err := io.Copy(io.Discard, pushResponse); err != nil {
-		return fmt.Errorf("read push response: %w", err)
+	// Handle output and errors
+	decoder := json.NewDecoder(pushResponse)
+	for {
+		var message map[string]interface{}
+		if err := decoder.Decode(&message); err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to decode push output for image %s: %w", imageName, err)
+		}
+		if stream, ok := message["stream"]; ok {
+			fmt.Print(stream)
+		} else if errorMessage, ok := message["error"]; ok {
+			return fmt.Errorf("error pushing image %s: %s", imageName, errorMessage)
+		} else if status, ok := message["status"]; ok {
+			fmt.Printf("Status: %s\n", status)
+		}
 	}
 
 	fmt.Printf("Image %s pushed successfully.\n", imageName)
