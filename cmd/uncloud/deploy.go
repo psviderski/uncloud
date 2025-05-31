@@ -85,21 +85,21 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 	}
 
-	servicesToBuild := GetServicesThatNeedBuild(project)
+	servicesToBuild := cli.GetServicesThatNeedBuild(project)
 
 	if len(servicesToBuild) > 0 {
 		if opts.noBuild {
 			fmt.Println("Not building services as requested.")
 		} else {
-			buildOpts := buildOptions{
-				files:    opts.files,
-				profiles: opts.profiles,
-				services: opts.services,
-				push:     true,
-				noCache:  false,
+			buildOpts := cli.BuildOptions{
+				Files:    opts.files,
+				Profiles: opts.profiles,
+				Services: opts.services,
+				Push:     true,
+				NoCache:  false,
 			}
 
-			if err := BuildServices(ctx, servicesToBuild, buildOpts); err != nil {
+			if err := cli.BuildServices(ctx, servicesToBuild, buildOpts); err != nil {
 				return fmt.Errorf("build services: %w", err)
 			}
 		}
