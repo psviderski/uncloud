@@ -31,11 +31,12 @@ type buildOptions struct {
 	noCache  bool
 }
 
+// NewBuildCommand creates a new command to build services from a Compose file.
 func NewBuildCommand() *cobra.Command {
 	opts := buildOptions{}
 	cmd := &cobra.Command{
 		Use:   "build [FLAGS] [SERVICE...]",
-		Short: "Build services FIXME.",
+		Short: "Build services from a Compose file.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
@@ -59,7 +60,7 @@ func NewBuildCommand() *cobra.Command {
 	return cmd
 }
 
-// TODO: deduplicate with deploy options
+// TODO: deduplicate with a similar functino for deploy options
 // projectOpts returns the project options for the Compose file(s).
 func projectOptsFromBuildOpts(opts buildOptions) []composecli.ProjectOptionsFn {
 	projectOpts := []composecli.ProjectOptionsFn{}
@@ -71,23 +72,7 @@ func projectOptsFromBuildOpts(opts buildOptions) []composecli.ProjectOptionsFn {
 	return projectOpts
 }
 
-// runBuild parses the Compose file(s), builds the services, and pushes them if requested.
-func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
-	fmt.Println("Building services...")
-	projectOpts := projectOptsFromBuildOpts(opts)
-	project, err := compose.LoadProject(ctx, opts.files, projectOpts...)
-	if err != nil {
-		return fmt.Errorf("load compose file(s): %w", err)
-	}
-
-	if len(opts.services) > 0 {
-		// Includes service dependencies by default. This is the default docker compose behavior.
-		project, err = project.WithSelectedServices(opts.services)
-		if err != nil {
-			return fmt.Errorf("select services: %w", err)
-		}
-	}
-
+func GetServicesThatNeedBuild(project *composetypes.Project) map[string]composetypes.ServiceConfig {
 	servicesToBuild := make(map[string]composetypes.ServiceConfig, len(project.Services))
 	for serviceName, service := range project.Services {
 		if service.Build == nil {
@@ -95,11 +80,36 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 		}
 		servicesToBuild[serviceName] = service
 	}
+	return servicesToBuild
+}
+
+// runBuild parses the Compose file(s), builds the services, and pushes them if requested.
+func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
+	projectOpts := projectOptsFromBuildOpts(opts)
+	project, err := compose.LoadProject(ctx, opts.files, projectOpts...)
+	if err != nil {
+		return fmt.Errorf("load compose file(s): %w", err)
+	}
+
+	if len(opts.services) > 0 {
+		project, err = project.WithSelectedServices(opts.services)
+		if err != nil {
+			return fmt.Errorf("select services: %w", err)
+		}
+	}
+
+	servicesToBuild := GetServicesThatNeedBuild(project)
 
 	if len(servicesToBuild) == 0 {
 		fmt.Println("No services to build.")
 		return nil
 	}
+
+	return BuildServices(ctx, servicesToBuild, opts)
+}
+
+func BuildServices(ctx context.Context, servicesToBuild map[string]composetypes.ServiceConfig, opts buildOptions) error {
+	fmt.Println("Building services...")
 
 	// Init docker client (can be local or remote, depending on DOCKER_HOST environment variable)
 	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
@@ -122,9 +132,10 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 	fmt.Printf("Service images are built.\n")
 
 	if opts.push {
-		return pushServiceImages(ctx, dockerCli, serviceImages)
+		err = pushServiceImages(ctx, dockerCli, serviceImages)
 	}
-	return nil
+
+	return err
 }
 
 // buildService builds a single service using the Docker client and Compose libraries.

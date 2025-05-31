@@ -20,6 +20,7 @@ type deployOptions struct {
 	files    []string
 	profiles []string
 	services []string
+	noBuild  bool
 
 	context string
 }
@@ -47,6 +48,9 @@ func NewDeployCommand() *cobra.Command {
 		"One or more Compose profiles to enable.")
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context to deploy to (default is the current context)")
+	cmd.Flags().BoolVarP(&opts.noBuild, "no-build", "n", false,
+		"Do not build images before deploying services. (default false)")
+
 	// TODO: Consider adding a filter flag to specify which machines to deploy to but keep the rest running.
 	//  Could be useful to test a new version on a subset of machines before rolling out to all.
 
@@ -78,6 +82,26 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		project, err = project.WithSelectedServices(opts.services)
 		if err != nil {
 			return fmt.Errorf("select services: %w", err)
+		}
+	}
+
+	servicesToBuild := GetServicesThatNeedBuild(project)
+
+	if len(servicesToBuild) > 0 {
+		if opts.noBuild {
+			fmt.Println("Not building services as requested.")
+		} else {
+			buildOpts := buildOptions{
+				files:    opts.files,
+				profiles: opts.profiles,
+				services: opts.services,
+				push:     true,
+				noCache:  false,
+			}
+
+			if err := BuildServices(ctx, servicesToBuild, buildOpts); err != nil {
+				return fmt.Errorf("build services: %w", err)
+			}
 		}
 	}
 
