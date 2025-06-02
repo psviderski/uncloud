@@ -173,8 +173,8 @@ You'll the progress of the deployment and the public URL where you can access th
 
 ```
 [+] Running service excalidraw (replicated mode) 2/2
- ✔ Container excalidraw-azpc on machine-dc3c  Started                                            8.9s
-   ✔ Image excalidraw/excalidraw on machine-dc3c  Pulled                                         4.7s
+ ✔ Container excalidraw-azpc on machine-dc3c  Started                       8.9s
+   ✔ Image excalidraw/excalidraw on machine-dc3c  Pulled                    4.7s
 
 excalidraw endpoints:
  • https://excalidraw.7za6s7.cluster.uncloud.run → :80
@@ -214,9 +214,10 @@ excalidraw   replicated   1          https://excalidraw.7za6s7.cluster.uncloud.r
 
 You can see `caddy` service listed here. That's your reverse proxy, running as a regular Uncloud service.
 
-## It's live! Start drawing!
+## It's live! Start drawing! ✨
 
-Open your browser and navigate to the URL shown in the endpoints.
+Open your browser and navigate to the URL shown in the endpoints. It may take a moment for Caddy to obtain a TLS
+certificate from Let's Encrypt. If it doesn't load immediately, wait a few seconds and try again.
 
 ![Excalidraw running on Uncloud](./img/excalidraw-browser.png)
 
@@ -226,13 +227,84 @@ You now have:
 - A **public URL** with **automatic HTTPS** you can share with your team and friends
 - **Full control over your data** — no analytics or tracking
 
-## Convert to Docker Compose
+## Convert to Docker Compose format
 
-TBD
+Uncloud supports the [Compose file format](https://docs.docker.com/reference/compose-file/) for defining services. This
+allows you to version control your deployments, share configurations with your team, and deploy complex multi-service
+applications with a single command.
+
+Let's create a `compose.yaml` file in your current directory for the `excalidraw` service we just deployed.
+
+```yaml title="compose.yaml"
+services:
+  excalidraw:
+    image: excalidraw/excalidraw
+    x-ports:
+      - 80/https
+```
+
+:::info note
+
+The `x-ports` key is an Uncloud-specific extension to the Compose file format. It allows you to specify ports that
+should be published as HTTP(S) endpoints. Uncloud automatically configures the reverse proxy (Caddy) to route traffic to
+these ports.
+
+:::
+
+Now deploy it:
+
+```shell
+uc deploy
+```
+
+```
+Services are up to date.
+```
+
+Since `excalidraw` service is already running with the same configuration, Uncloud recognises there's nothing to change.
+We've successfully converted our deployment created with `uc run` to a Compose file.
 
 ## Use your own domain
 
-TBD
+Want to use your own domain, for example, `excalidraw.example.com` instead of `excalidraw.7za6s7.cluster.uncloud.run`?
+
+Add a CNAME record `excalidraw.example.com` in your DNS provider (Cloudflare, Namecheap, etc.) pointing to
+`excalidraw.7za6s7.cluster.uncloud.run`. Alternatively, you can add an A record pointing to your server's IP.
+
+Then update the published port `80/https` in `compose.yaml` to use your domain:
+
+```yaml title="compose.yaml"
+...
+x-ports:
+  - excalidraw.example.com:80/https
+```
+
+Finally, deploy the changes:
+
+```shell
+uc deploy
+```
+
+```
+Deployment plan:
+- Deploy service [name=excalidraw]
+  - machine-dc3c: Run container [image=excalidraw/excalidraw]
+  - machine-dc3c: Remove container [name=excalidraw-azpc]
+
+Do you want to continue?
+
+Choose [y/N]: y
+Chose: Yes!
+
+[+] Deploying services 2/2
+ ✔ Container excalidraw-0z12 on machine-dc3c  Started                       3.5s 
+ ✔ Container excalidraw-azpc on machine-dc3c  Removed                       3.4s 
+```
+
+Notice how Uncloud performed a **zero-downtime deployment** — it started the new container with the updated
+configuration before removing the old one. Your service stayed available throughout the update.
+
+Give it a moment for Caddy to obtain a TLS certificate, then visit https://excalidraw.example.com.
 
 ## Clean up
 
