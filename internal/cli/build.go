@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 	"github.com/distribution/reference"
@@ -137,13 +136,9 @@ func pushSingleServiceImage(ctx context.Context, dockerCli *dockerclient.Client,
 	if repoInfo.Index.Official {
 		registryKey = registry.IndexServer
 	}
-	dockerConfigDir := filepath.Join(os.Getenv("HOME"), ".docker")
 
-	// Load the Docker CLI config (config.json)
-	configFile, err := config.Load(dockerConfigDir)
-	if err != nil {
-		return fmt.Errorf("failed to load Docker CLI config: %w", err)
-	}
+	// Load the Docker config file with auth details, if available
+	configFile := config.LoadDefaultConfigFile(os.Stderr)
 
 	authConfig, err := configFile.GetAuthConfig(registryKey)
 	if err != nil {
@@ -158,8 +153,7 @@ func pushSingleServiceImage(ctx context.Context, dockerCli *dockerclient.Client,
 	authStr := base64.URLEncoding.EncodeToString(authJSON)
 
 	pushOptions := image.PushOptions{
-		RegistryAuth: authStr, // TODO: Handle authentication if needed
-		All:          true,    // Push all tags
+		RegistryAuth: authStr,
 	}
 	pushResponse, err := dockerCli.ImagePush(ctx, imageName, pushOptions)
 	if err != nil {
