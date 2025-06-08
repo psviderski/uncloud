@@ -9,6 +9,7 @@ import (
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -96,6 +97,17 @@ func TestComposeBuild(t *testing.T) {
 		)
 		require.NoError(t, err)
 		servicesToBuild := cliInternal.GetServicesThatNeedBuild(project)
+		serviceImage1 := fmt.Sprintf("127.0.0.1:%d/service-first", registryHostPort)
+		serviceImage2 := fmt.Sprintf("127.0.0.1:%d/service-second:version2", registryHostPort)
+		t.Cleanup(func() {
+			// Remove the images after the test
+			removeOptions := image.RemoveOptions{Force: true, PruneChildren: true}
+			_, err := dockerCli.ImageRemove(ctx, serviceImage1, removeOptions)
+			fmt.Errorf("failed to remove image %s on test cleanup: %w; continuing", serviceImage1, err)
+			_, err = dockerCli.ImageRemove(ctx, serviceImage2, removeOptions)
+			fmt.Errorf("failed to remove image %s on test cleanup: %w; continuing", serviceImage2, err)
+		})
+
 		servicesToBuildExpected := map[string]types.ServiceConfig{
 			"service-first": {
 				Name: "service-first",
@@ -103,7 +115,7 @@ func TestComposeBuild(t *testing.T) {
 					Context:    path.Join(project.WorkingDir, "service-first-dir"),
 					Dockerfile: "Dockerfile",
 				},
-				Image:       fmt.Sprintf("127.0.0.1:%d/service-first", registryHostPort),
+				Image:       serviceImage1,
 				Environment: types.NewMappingWithEquals([]string{}),
 				Networks: map[string]*types.ServiceNetworkConfig{
 					"default": nil,
@@ -115,7 +127,7 @@ func TestComposeBuild(t *testing.T) {
 					Context:    path.Join(project.WorkingDir, "service-second-dir"),
 					Dockerfile: "Dockerfile.alt",
 				},
-				Image:       fmt.Sprintf("127.0.0.1:%d/service-second:version2", registryHostPort),
+				Image:       serviceImage2,
 				Environment: types.NewMappingWithEquals([]string{}),
 				Networks: map[string]*types.ServiceNetworkConfig{
 					"default": nil,
@@ -134,7 +146,6 @@ func TestComposeBuild(t *testing.T) {
 		// Check the image of the first service
 		ref1, err := name.NewRepository(fmt.Sprintf("127.0.0.1:%d/service-first", registryHostPort))
 		require.NoError(t, err)
-
 		tags, err := remote.List(ref1)
 		require.NoError(t, err)
 
@@ -143,7 +154,6 @@ func TestComposeBuild(t *testing.T) {
 		// Check the image of the second service
 		ref2, err := name.NewRepository(fmt.Sprintf("127.0.0.1:%d/service-second", registryHostPort))
 		require.NoError(t, err)
-
 		tags, err = remote.List(ref2)
 		require.NoError(t, err)
 
