@@ -16,7 +16,7 @@ import (
 func TestComposeDeployment(t *testing.T) {
 	t.Parallel()
 
-	clusterName := "ucind-test.compose"
+	clusterName := "ucind-test.compose-deploy"
 	ctx := context.Background()
 	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
 

@@ -42,6 +42,8 @@ func (m *Machine) Connect(ctx context.Context) (*client.Client, error) {
 type CreateMachineOptions struct {
 	Name  string
 	Image string
+	// Ports to forward from the machine to the host.
+	PortMap nat.PortMap
 }
 
 func (p *Provisioner) CreateMachine(ctx context.Context, clusterName string, opts CreateMachineOptions) (Machine, error) {
@@ -87,6 +89,16 @@ func (p *Provisioner) CreateMachine(ctx context.Context, clusterName string, opt
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyAlways,
 		},
+	}
+	// Forward ports, if requested
+	if opts.PortMap != nil {
+		for port, bindings := range opts.PortMap {
+			if len(bindings) == 0 {
+				continue
+			}
+			config.ExposedPorts[port] = struct{}{}
+			hostConfig.PortBindings[port] = bindings
+		}
 	}
 
 	if _, err := p.createContainerWithImagePull(ctx, containerName, config, hostConfig); err != nil {
