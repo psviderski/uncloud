@@ -103,9 +103,9 @@ func TestComposeBuild(t *testing.T) {
 			// Remove the images after the test
 			removeOptions := image.RemoveOptions{Force: true, PruneChildren: true}
 			_, err := dockerCli.ImageRemove(ctx, serviceImage1, removeOptions)
-			fmt.Errorf("failed to remove image %s on test cleanup: %w; continuing", serviceImage1, err)
+			assert.NoErrorf(t, err, "failed to remove image %s on test cleanup: %w", serviceImage1, err)
 			_, err = dockerCli.ImageRemove(ctx, serviceImage2, removeOptions)
-			fmt.Errorf("failed to remove image %s on test cleanup: %w; continuing", serviceImage2, err)
+			assert.NoErrorf(t, err, "failed to remove image %s on test cleanup: %w", serviceImage2, err)
 		})
 
 		servicesToBuildExpected := map[string]types.ServiceConfig{
