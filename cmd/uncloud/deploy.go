@@ -92,11 +92,8 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 			fmt.Println("Not building services as requested.")
 		} else {
 			buildOpts := cli.BuildOptions{
-				Files:    opts.files,
-				Profiles: opts.profiles,
-				Services: opts.services,
-				Push:     true,
-				NoCache:  false,
+				Push:    true,
+				NoCache: false,
 			}
 
 			if err := cli.BuildServices(ctx, servicesToBuild, buildOpts); err != nil {

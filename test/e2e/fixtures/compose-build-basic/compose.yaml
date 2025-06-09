@@ -2,13 +2,13 @@ services:
   service-no-build:
     image: portainer/pause:3.9
 
-  busybox-first:
-    image: localhost:5000/busybox-first
+  service-first:
+    image: 127.0.0.1:${TEST_REGISTRY_PORT}/service-first
     build:
-      context: busybox-first/
+      context: service-first-dir/
 
-  busybox-second:
-    image: localhost:5000/busybox-second
+  service-second:
+    image: 127.0.0.1:${TEST_REGISTRY_PORT}/service-second:version2
     build:
-      context: busybox-second/
+      context: service-second-dir/
       dockerfile: Dockerfile.alt

@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
@@ -30,6 +31,8 @@ type Cluster struct {
 
 type CreateClusterOptions struct {
 	Machines int
+	// Ports to forward from the cluster machines to the host.
+	PortMap nat.PortMap
 }
 
 func (c *Cluster) PopulateMachineIDs(ctx context.Context) error {
@@ -81,7 +84,8 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 	// Create machines (containers) in the created cluster network.
 	for i := 1; i < opts.Machines+1; i++ {
 		mopts := CreateMachineOptions{
-			Name: fmt.Sprintf("machine-%d", i),
+			Name:    fmt.Sprintf("machine-%d", i),
+			PortMap: opts.PortMap,
 		}
 		m, err := p.CreateMachine(ctx, name, mopts)
 		if err != nil {

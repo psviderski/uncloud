@@ -30,6 +30,7 @@ go.work.sum
 /data/
 /dist/
 /uc
+/tmp
 
 # Web
 node_modules/
