@@ -1,4 +1,4 @@
-package caddyfile
+package caddyconfig
 
 import (
 	"strings"
@@ -25,10 +25,12 @@ func TestGenerateConfig(t *testing.T) {
 						"handler": "static_response",
 						"status_code": 200
 					}]
-				}]
+				}],
+				"logs": {}
 			},
 			"https": {
-				"listen": [":443"]
+				"listen": [":443"],
+				"logs": {}
 			}
 		}
 	}`
@@ -60,6 +62,14 @@ func TestGenerateConfig(t *testing.T) {
                                 "match": [{"host": ["app.example.com"]}],
                                 "handle": [{
                                     "handler": "reverse_proxy",
+									"health_checks": {
+                                        "passive": {
+                                            "fail_duration": 30000000000
+                                        }
+                                    },
+                                    "load_balancing": {
+                                        "retries": 3
+                                    },
                                     "upstreams": [{"dial": "10.210.0.2:8080"}]
                                 }]
                             },
@@ -71,10 +81,12 @@ func TestGenerateConfig(t *testing.T) {
                                     "status_code": 200
                                 }]
                             }
-                        ]
+                        ],
+						"logs": {}
                     },
                     "https": {
-                        "listen": [":443"]
+                        "listen": [":443"],
+						"logs": {}
                     }
                 }
             }`,
@@ -95,6 +107,14 @@ func TestGenerateConfig(t *testing.T) {
                                 "match": [{"host": ["app.example.com"]}],
                                 "handle": [{
                                     "handler": "reverse_proxy",
+									"health_checks": {
+                                        "passive": {
+                                            "fail_duration": 30000000000
+                                        }
+                                    },
+                                    "load_balancing": {
+                                        "retries": 3
+                                    },
                                     "upstreams": [
                                         {"dial": "10.210.0.2:8080"},
                                         {"dial": "10.210.0.3:8080"}
@@ -109,10 +129,12 @@ func TestGenerateConfig(t *testing.T) {
                                     "status_code": 200
                                 }]
                             }
-                        ]
+                        ],
+						"logs": {}
                     },
                     "https": {
-                        "listen": [":443"]
+                        "listen": [":443"],
+						"logs": {}
                     }
                 }
             }`,
@@ -136,7 +158,8 @@ func TestGenerateConfig(t *testing.T) {
                                     "status_code": 200
                                 }]
                             }
-                        ]
+                        ],
+						"logs": {}
                     },
                     "https": {
                         "listen": [":443"],
@@ -145,10 +168,19 @@ func TestGenerateConfig(t *testing.T) {
                                 "match": [{"host": ["secure.example.com"]}],
                                 "handle": [{
                                     "handler": "reverse_proxy",
+									"health_checks": {
+                                        "passive": {
+                                            "fail_duration": 30000000000
+                                        }
+                                    },
+                                    "load_balancing": {
+                                        "retries": 3
+                                    },
                                     "upstreams": [{"dial": "10.210.0.2:8000"}]
                                 }]
                             }
-                        ]
+                        ],
+						"logs": {}
                     }
                 }
             }`,
@@ -180,6 +212,14 @@ func TestGenerateConfig(t *testing.T) {
                                 "match": [{"host": ["app.example.com"]}],
                                 "handle": [{
                                     "handler": "reverse_proxy",
+									"health_checks": {
+                                        "passive": {
+                                            "fail_duration": 30000000000
+                                        }
+                                    },
+                                    "load_balancing": {
+                                        "retries": 3
+                                    },
                                     "upstreams": [
 										{"dial": "10.210.0.2:8080"},
 										{"dial": "10.210.0.3:8080"},
@@ -191,6 +231,14 @@ func TestGenerateConfig(t *testing.T) {
                                 "match": [{"host": ["web.example.com"]}],
                                 "handle": [{
                                     "handler": "reverse_proxy",
+									"health_checks": {
+                                        "passive": {
+                                            "fail_duration": 30000000000
+                                        }
+                                    },
+                                    "load_balancing": {
+                                        "retries": 3
+                                    },
                                     "upstreams": [
 										{"dial": "10.210.0.2:8000"},
 										{"dial": "10.210.0.4:8000"},
@@ -206,7 +254,8 @@ func TestGenerateConfig(t *testing.T) {
                                     "status_code": 200
                                 }]
                             }
-                        ]
+                        ],
+						"logs": {}
                     },
                     "https": {
                         "listen": [":443"],
@@ -215,6 +264,14 @@ func TestGenerateConfig(t *testing.T) {
                                 "match": [{"host": ["secure.example.com"]}],
                                 "handle": [{
                                     "handler": "reverse_proxy",
+									"health_checks": {
+                                        "passive": {
+                                            "fail_duration": 30000000000
+                                        }
+                                    },
+                                    "load_balancing": {
+                                        "retries": 3
+                                    },
                                     "upstreams": [
 										{"dial": "10.210.0.3:8888"},
 										{"dial": "10.210.0.4:8888"},
@@ -222,7 +279,8 @@ func TestGenerateConfig(t *testing.T) {
 									]
                                 }]
                             }
-                        ]
+                        ],
+						"logs": {}
                     }
                 }
             }`,
@@ -286,6 +344,14 @@ func TestGenerateConfig(t *testing.T) {
                                 "match": [{"host": ["app.example.com"]}],
                                 "handle": [{
                                     "handler": "reverse_proxy",
+									"health_checks": {
+                                        "passive": {
+                                            "fail_duration": 30000000000
+                                        }
+                                    },
+                                    "load_balancing": {
+                                        "retries": 3
+                                    },
                                     "upstreams": [{"dial": "10.210.0.2:8080"}]
                                 }]
                             },
@@ -297,10 +363,12 @@ func TestGenerateConfig(t *testing.T) {
                                     "status_code": 200
                                 }]
                             }
-                        ]
+                        ],
+						"logs": {}
                     },
                     "https": {
-                        "listen": [":443"]
+                        "listen": [":443"],
+						"logs": {}
                     }
                 }
             }`,

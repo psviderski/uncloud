@@ -21,7 +21,7 @@ import (
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	apiproxy "github.com/psviderski/uncloud/internal/machine/api/proxy"
-	"github.com/psviderski/uncloud/internal/machine/caddyfile"
+	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
@@ -384,7 +384,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 					// Create a new Caddyfile controller for managing the Caddy reverse proxy configuration.
 					// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
-					caddyfileCtrl, err := caddyfile.NewController(m.store, m.config.CaddyConfigPath, m.state.ID)
+					caddyfileCtrl, err := caddyconfig.NewController(m.store, m.config.CaddyConfigPath, m.state.ID)
 					if err != nil {
 						return fmt.Errorf("create Caddyfile controller: %w", err)
 					}

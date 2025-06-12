@@ -14,7 +14,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	"github.com/psviderski/uncloud/internal/machine/caddyfile"
+	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/docker"
@@ -39,7 +39,7 @@ type networkController struct {
 	server        *grpc.Server
 	corroService  corroservice.Service
 	dockerCli     *client.Client
-	caddyfileCtrl *caddyfile.Controller
+	caddyfileCtrl *caddyconfig.Controller
 
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
 	dnsServer   *dns.Server
@@ -52,7 +52,7 @@ func newNetworkController(
 	server *grpc.Server,
 	corroService corroservice.Service,
 	dockerCli *client.Client,
-	caddyfileCtrl *caddyfile.Controller,
+	caddyfileCtrl *caddyconfig.Controller,
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
 ) (

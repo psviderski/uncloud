@@ -7,7 +7,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	"github.com/psviderski/uncloud/internal/machine/caddyfile"
+	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -110,7 +110,7 @@ func verifyCaddyReachable(ctx context.Context, m *pb.MachineInfo) error {
 	eventID := fmt.Sprintf("Machine %s (%s)", m.Name, publicIP)
 	pw.Event(progress.NewEvent(eventID, progress.Working, "Querying"))
 
-	verifyURL := fmt.Sprintf("http://%s%s", publicIP, caddyfile.VerifyPath)
+	verifyURL := fmt.Sprintf("http://%s%s", publicIP, caddyconfig.VerifyPath)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, verifyURL, nil)
 	if err != nil {

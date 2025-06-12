@@ -1,4 +1,4 @@
-package caddyfile
+package caddyconfig
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
@@ -64,6 +65,8 @@ func GenerateConfig(containers []api.ServiceContainer, verifyResponse string) (*
 	servers := make(map[string]*caddyhttp.Server)
 	servers["http"] = &caddyhttp.Server{
 		Listen: []string{fmt.Sprintf(":%d", caddyhttp.DefaultHTTPPort)},
+		// All http requests to this server are logged to the default logger.
+		Logs: &caddyhttp.ServerLogConfig{},
 		Routes: append(
 			hostUpstreamsToRoutes(httpHostUpstreams, &warnings),
 			// Add a route to respond with a static verification response at the /.uncloud-verify path.
@@ -72,6 +75,8 @@ func GenerateConfig(containers []api.ServiceContainer, verifyResponse string) (*
 	}
 	servers["https"] = &caddyhttp.Server{
 		Listen: []string{fmt.Sprintf(":%d", caddyhttp.DefaultHTTPSPort)},
+		// All https requests to this server are logged to the default logger.
+		Logs:   &caddyhttp.ServerLogConfig{},
 		Routes: hostUpstreamsToRoutes(httpsHostUpstreams, &warnings),
 	}
 
@@ -112,6 +117,16 @@ func hostUpstreamsToRoutes(hostUpstreams map[string][]string, warnings *[]caddyc
 			}
 		}
 		handler := &reverseproxy.Handler{
+			HealthChecks: &reverseproxy.HealthChecks{
+				// Enable passive health checks to automatically detect unhealthy upstreams.
+				Passive: &reverseproxy.PassiveHealthChecks{
+					FailDuration: caddy.Duration(30 * time.Second),
+				},
+			},
+			LoadBalancing: &reverseproxy.LoadBalancing{
+				// Retry failed requests to skip over temporarily unavailable upstreams.
+				Retries: 3,
+			},
 			Upstreams: upstreamPool,
 		}
 

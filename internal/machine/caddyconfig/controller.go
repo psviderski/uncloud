@@ -1,4 +1,4 @@
-package caddyfile
+package caddyconfig
 
 import (
 	"context"
@@ -19,7 +19,7 @@ const (
 )
 
 // Controller monitors container changes in the cluster store and generates a configuration file for Caddy reverse
-// proxy. The generated Caddyfile allows Caddy to route external traffic to service containers across the internal
+// proxy. The generated configuration allows Caddy to route external traffic to service containers across the internal
 // network.
 type Controller struct {
 	store          *store.Store
