@@ -2,6 +2,14 @@ CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
 DOCS_IMAGE ?= ghcr.io/psviderski/uncloud-docs:latest
 
+MAKEFILE_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+SCRIPTS_DIR := $(MAKEFILE_DIR)/scripts
+TOOLS_DIR := $(MAKEFILE_DIR)/_tools
+TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
+
+PROTOC := $(TOOLS_DIR)/bin/protoc
+PATH := $(TOOLS_BIN_DIR):$(PATH)
+
 update-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
 		scp uncloudd-linux-amd64 spy@192.168.40.243:~/ && \
@@ -42,9 +50,20 @@ ucind-cluster:
 	go run ./cmd/ucind cluster rm && go run ./cmd/ucind cluster create -m 3
 
 .PHONY: proto
-proto:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		--proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
+proto: _tools
+	@echo "Generating protobuf files..."
+	$(PROTOC) \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=. \
+		--go-grpc_opt=paths=source_relative \
+		--proto_path=. \
+		--proto_path=internal/machine/api/vendor \
+		--proto_path=_tools/include \
+		internal/machine/api/pb/*.proto
+
+_tools:
+	@$(SCRIPTS_DIR)/install_protobuf_tools.sh
 
 .PHONY: corrosion-image
 corrosion-image:
@@ -93,8 +112,5 @@ vet:
 docs-image:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(DOCS_IMAGE)" ./docs
 
-.PHONY: install-dev
-install-dev:
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-# TODO: install a pinned protoc version
+clean:
+	rm -rf $(TOOLS_DIR)

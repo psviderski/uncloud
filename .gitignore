@@ -37,3 +37,6 @@ node_modules/
 
 # VS Code
 .vscode
+
+# Tools and toolchains
+_tools
