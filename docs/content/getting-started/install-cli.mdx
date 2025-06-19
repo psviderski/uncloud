@@ -1,13 +1,12 @@
-# Install CLI
+---
+title: Install CLI
+description: Install the Uncloud command-line utility to manage your machines and deploy apps using 'uc' commands.
+---
 
-Install the Uncloud command-line utility to manage your machines and deploy apps using `uc` commands. You will run `uc`
-locally so choose the appropriate installation method for your operating system.
-
-:::info NOTE
-
+<Callout type="info" title="NOTE">
 Windows is not natively supported yet, but you can install and run `uc` in a
 [WSL](https://learn.microsoft.com/en-us/windows/wsl/) terminal by following the instructions for Linux.
-:::
+</Callout>
 
 ## Homebrew (macOS, Linux)
 
@@ -53,31 +52,33 @@ sh install.sh
 You can manually download and use a pre-built binary from the
 [latest release](https://github.com/psviderski/uncloud/releases/latest) on GitHub.
 
-<Tabs>
-  <TabItem value="macOS (Apple Silicon)">
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+<Tabs items={['macOS (Apple Silicon)', 'macOS (Intel)', 'Linux (AMD 64-bit)', 'Linux (ARM 64-bit)']}>
+  <Tab value="macOS (Apple Silicon)">
     ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_arm64.tar.gz | tar xz
     mv uncloud uc
     ```
-  </TabItem>
-  <TabItem value="macOS (Intel)">
+  </Tab>
+  <Tab value="macOS (Intel)">
     ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_amd64.tar.gz | tar xz
     mv uncloud uc
     ```
-  </TabItem>
-  <TabItem value="Linux (AMD 64-bit)">
+  </Tab>
+  <Tab value="Linux (AMD 64-bit)">
     ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_amd64.tar.gz | tar xz
     mv uncloud uc
     ```
-  </TabItem>
-  <TabItem value="Linux (ARM 64-bit)">
+  </Tab>
+  <Tab value="Linux (ARM 64-bit)">
     ```shell
     curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_arm64.tar.gz | tar xz
     mv uncloud uc
     ```
-  </TabItem>
+  </Tab>
 </Tabs>
 
 You can use the `./uc` binary directly from the current directory, or move it to a directory in your system's `PATH`
@@ -101,4 +102,4 @@ uc --version
 
 Now that you have `uc` installed, you're ready to:
 
-- [Deploy demo app](./2-deploy-demo-app.md)
+- [Deploy demo app](./2-deploy-demo-app)

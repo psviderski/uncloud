@@ -1,4 +1,6 @@
-# Deploy demo app
+---
+title: Deploy demo app
+---
 
 In this guide, we'll deploy [Excalidraw](https://excalidraw.com) — a popular sketching and diagramming tool — to your
 Linux server. You'll learn the **basics of Uncloud** and see how simple it is to **run web apps** on your own
@@ -12,16 +14,14 @@ Before you begin, you'll need:
 - A **Ubuntu or Debian server** with **public IP address** and **SSH access** (as `root` or a user with `sudo`
   privileges) using a **private key**.
 
-:::tip Need a server?
-
+<Callout title="Need a server?">
 A small Virtual Private Server (VPS) or dedicated server from providers like [Hetzner](https://www.hetzner.com) or
 [DigitalOcean](https://www.digitalocean.com) is a great choice for learning Uncloud and running lightweight services. We
 recommend using a freshly installed server as existing services on ports 80 and 443 can cause conflicts.
 
 **Minimum requirements:** 1 vCPU, 512 MB RAM, Ubuntu 22.04 or Debian 11, AMD64 (recommended) or ARM64 architecture.
 Other Linux distributions may work, but haven't been tested yet.
-
-:::
+</Callout>
 
 ## Set up your server
 
@@ -243,13 +243,11 @@ services:
       - 80/https
 ```
 
-:::info note
-
+<Callout title="Note">
 The `x-ports` key is an Uncloud-specific extension to the Compose file format. It allows you to specify ports that
 should be published as HTTP(S) endpoints. Uncloud automatically configures the reverse proxy (Caddy) to route traffic to
 these ports.
-
-:::
+</Callout>
 
 Now deploy it:
 
