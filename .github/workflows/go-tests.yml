@@ -12,6 +12,7 @@ on:
     paths:
       - ".github/**"
       - "**.go"
+      - "**.proto"
       - "go.*"
       - "Makefile"
       - "scripts/**"
@@ -34,3 +35,22 @@ jobs:
       - name: Run tests
         run: make test
     timeout-minutes: 10
+
+  check-protobuf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Mise
+        uses: jdx/mise-action@13abe502c30c1559a5c37dff303831bab82c9402 # v2.2.3
+        with:
+          version: "2025.6.5"
+
+      - name: Generate Protobuf files
+        run: |
+          make proto
+          # check if the generated files are up to date
+          git diff --exit-code ||
+            (echo "Generated protobuf files are not up to date. Please run 'make proto' and commit the changes." && exit 1)
