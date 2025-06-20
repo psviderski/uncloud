@@ -7,6 +7,7 @@
     <a href="https://docs.uncloud.run"><img src="https://img.shields.io/badge/Docs-blue.svg?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
     <a href="https://discord.gg/eR35KQJhPu"><img src="https://img.shields.io/badge/discord-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
     <a href="https://x.com/psviderski"><img src="https://img.shields.io/badge/follow-black?style=for-the-badge&logo=X&logoColor=while" alt="Follow on X"></a>
+    <a href="https://github.com/sponsors/psviderski"><img src="https://img.shields.io/badge/Donate-EA4AAA.svg?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Donate"></a>
   </p>
 </div>
 
