@@ -45,6 +45,10 @@ complexity of Kubernetes.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
 
+### 🚀 Coming soon
+* **[Unregistry](https://github.com/psviderski/unregistry) integration**: Push your Docker images directly to your
+  machines without an external registry. It will transfer only the missing layers, making it fast and efficient.
+
 ## 🎬 Quick demo
 
 The screenshot below demonstrates how I use Uncloud to deploy the [Uncloud Documentation](https://docs.uncloud.run)
