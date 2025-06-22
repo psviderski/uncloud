@@ -1,5 +1,4 @@
 name: Go Tests
-
 on:
   push:
     branches:
@@ -17,6 +16,8 @@ on:
       - "Makefile"
       - "scripts/**"
       - "test/**"
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -52,6 +53,8 @@ jobs:
         uses: jdx/mise-action@13abe502c30c1559a5c37dff303831bab82c9402 # v2.2.3
         with:
           version: "2025.6.5"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Generate Protobuf files
         run: |
