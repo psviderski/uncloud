@@ -32,6 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MachineClient interface {
+	// CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
 	CheckPrerequisites(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CheckPrerequisitesResponse, error)
 	InitCluster(ctx context.Context, in *InitClusterRequest, opts ...grpc.CallOption) (*InitClusterResponse, error)
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -112,6 +113,7 @@ func (c *machineClient) InspectService(ctx context.Context, in *InspectServiceRe
 // All implementations must embed UnimplementedMachineServer
 // for forward compatibility.
 type MachineServer interface {
+	// CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
 	CheckPrerequisites(context.Context, *emptypb.Empty) (*CheckPrerequisitesResponse, error)
 	InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error)
 	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
