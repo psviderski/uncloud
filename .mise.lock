@@ -3,6 +3,7 @@ version = "1.23.10"
 backend = "core:go"
 
 [tools.go.checksums]
+"go1.23.10.darwin-arm64.tar.gz" = "sha256:25c64bfa8a8fd8e7f62fb54afa4354af8409a4bb2358c2699a1003b733e6fce5"
 "go1.23.10.linux-amd64.tar.gz" = "sha256:535f9f81802499f2a7dbfa70abb8fda3793725fcc29460f719815f6e10b5fd60"
 
 [tools.protoc]
@@ -11,12 +12,14 @@ backend = "aqua:protocolbuffers/protobuf/protoc"
 
 [tools.protoc.checksums]
 "protoc-27.3-linux-x86_64.zip" = "sha256:6dab2adab83f915126cab53540d48957c40e9e9023969c3e84d44bfb936c7741"
+"protoc-27.3-osx-aarch_64.zip" = "sha256:b22116bd97cdbd7ea25346abe635a9df268515fe5ef5afa93cd9a68fc2513f84"
 
 [tools.protoc-gen-go]
 version = "1.34.2"
 backend = "aqua:protocolbuffers/protobuf-go/protoc-gen-go"
 
 [tools.protoc-gen-go.checksums]
+"protoc-gen-go.v1.34.2.darwin.arm64.tar.gz" = "sha256:17aca7f948dbb624049030cf841e35895cf34183ba006e721247fdeb95ff2780"
 "protoc-gen-go.v1.34.2.linux.amd64.tar.gz" = "sha256:b87bc134dee55576a842141bf0ed27761c635d746780fce5dee038c6dd16554f"
 
 [tools.protoc-gen-go-grpc]
@@ -24,4 +27,5 @@ version = "1.5.1"
 backend = "aqua:grpc/grpc-go/protoc-gen-go-grpc"
 
 [tools.protoc-gen-go-grpc.checksums]
+"protoc-gen-go-grpc.v1.5.1.darwin.arm64.tar.gz" = "sha256:d6083feb51dcfe59f26793e99ef01ef5eac68b64294ec2546711f614ac5878f3"
 "protoc-gen-go-grpc.v1.5.1.linux.amd64.tar.gz" = "sha256:a6cac4ea731e54aea304ad44d704a69d1cdc82997084b33637e21a89dc9229d6"

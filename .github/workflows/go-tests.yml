@@ -41,6 +41,8 @@ jobs:
     timeout-minutes: 10
     strategy:
       matrix:
+        # Run on more platforms so that mise lockfile checksums are checked/generated for all platforms.
+        # See https://github.com/jdx/mise/issues/4276 for details.
         os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout code
