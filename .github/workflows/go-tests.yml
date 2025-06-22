@@ -31,7 +31,10 @@ jobs:
           go-version: "1.23.2"
 
       - name: Install dependencies
-        run: go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code ||
+            (echo "go.mod or go.sum has changed. Please run 'go mod tidy' and commit the changes." && exit 1)
 
       - name: Run tests
         run: make test

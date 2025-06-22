@@ -37,6 +37,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lmittmann/tint v1.0.5
 	github.com/miekg/dns v1.1.65
+	github.com/moby/term v0.5.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/siderolabs/discovery-api v0.1.4
@@ -215,7 +216,6 @@ require (
 	github.com/moby/sys/signal v0.7.1 // indirect
 	github.com/moby/sys/user v0.3.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
-	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect

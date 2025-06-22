@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 
 	composetypes "github.com/compose-spec/compose-go/v2/types"
@@ -15,7 +14,9 @@ import (
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/registry"
+	"github.com/moby/term"
 )
 
 type BuildOptions struct {
@@ -102,19 +103,10 @@ func buildSingleService(ctx context.Context, dockerCli *dockerclient.Client, ser
 	}
 	defer buildResponse.Body.Close()
 
-	// Print the build output
-	decoder := json.NewDecoder(buildResponse.Body)
-	for {
-		var message map[string]interface{}
-		if err := decoder.Decode(&message); err == io.EOF {
-			break
-		} else if err != nil {
-			return "", fmt.Errorf("failed to decode build output for service %s: %w", service.Name, err)
-		}
-
-		if stream, ok := message["stream"]; ok {
-			fmt.Print(stream)
-		}
+	// Display the build response
+	fd, isTerminal := term.GetFdInfo(os.Stdout)
+	if err := jsonmessage.DisplayJSONMessagesStream(buildResponse.Body, os.Stdout, fd, isTerminal, nil); err != nil {
+		return "", fmt.Errorf("failed to display build response for service %s: %w", service.Name, err)
 	}
 
 	return imageName, nil
@@ -161,24 +153,11 @@ func pushSingleServiceImage(ctx context.Context, dockerCli *dockerclient.Client,
 	}
 	defer pushResponse.Close()
 
-	fmt.Printf("Pushing image %s for service %s\n", imageName, serviceName)
+	fmt.Printf("Pushing image %s for service %s...\n", imageName, serviceName)
 
-	// Handle output and errors
-	decoder := json.NewDecoder(pushResponse)
-	for {
-		var message map[string]interface{}
-		if err := decoder.Decode(&message); err == io.EOF {
-			break
-		} else if err != nil {
-			return fmt.Errorf("failed to decode push output for image %s: %w", imageName, err)
-		}
-		if stream, ok := message["stream"]; ok {
-			fmt.Print(stream)
-		} else if errorMessage, ok := message["error"]; ok {
-			return fmt.Errorf("error pushing image %s: %s", imageName, errorMessage)
-		} else if status, ok := message["status"]; ok {
-			fmt.Printf("   %s\n", status)
-		}
+	fd, isTerminal := term.GetFdInfo(os.Stdout)
+	if err := jsonmessage.DisplayJSONMessagesStream(pushResponse, os.Stdout, fd, isTerminal, nil); err != nil {
+		return fmt.Errorf("failed to display push response for image %s: %w", imageName, err)
 	}
 
 	fmt.Printf("Image %s pushed successfully.\n", imageName)
