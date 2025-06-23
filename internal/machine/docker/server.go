@@ -345,6 +345,12 @@ func (s *Server) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
 	}
 
+	// Always add the managed label to the volume to indicate that it is managed by Uncloud.
+	if opts.Labels == nil {
+		opts.Labels = make(map[string]string)
+	}
+	opts.Labels[api.LabelManaged] = ""
+
 	vol, err := s.client.VolumeCreate(ctx, opts)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())

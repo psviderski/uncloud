@@ -121,6 +121,9 @@ func TestComposeDeployment(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Len(t, volumes, 2, "Expected 2 volumes to be created")
+		// Check that the volumes have the correct labels
+		assert.Equal(t, map[string]string{"uncloud.managed": ""}, volumes[0].Volume.Labels)
+		assert.Equal(t, map[string]string{"uncloud.managed": ""}, volumes[1].Volume.Labels)
 
 		data1Volume, data2Volume := volumes[0], volumes[1]
 		if volumes[0].Volume.Name == "test-compose-volumes-data2" {
