@@ -169,7 +169,7 @@ as HTTPS endpoint on the previously reserved domain via Caddy.
 uc run --name excalidraw --publish 80/https excalidraw/excalidraw
 ```
 
-You'll the progress of the deployment and the public URL where you can access the service:
+You'll see the progress of the deployment and the public URL where you can access the service:
 
 ```
 [+] Running service excalidraw (replicated mode) 2/2
