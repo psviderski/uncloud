@@ -46,6 +46,7 @@ complexity of Kubernetes.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
 
 ### 🚀 Coming soon
+
 * **[Unregistry](https://github.com/psviderski/unregistry) integration**: Push your Docker images directly to your
   machines without an external registry. It will transfer only the missing layers, making it fast and efficient.
 
@@ -283,8 +284,11 @@ and there may be breaking changes between releases.
 We'd love your input! Here's how you can contribute:
 
 * 🐛 Found a bug? [Open an issue](https://github.com/psviderski/uncloud/issues)
-* 💡 Have ideas or need help? [Join our Discord community](https://discord.gg/eR35KQJhPu) where we discuss features,
-  roadmap, implementation details, and help each other out.
+* 💡 Have questions, ideas, or need help?
+    * Start a discussion or join an existing one in
+      the [Discussions](https://github.com/psviderski/uncloud/discussions).
+    * Join our [Discord community](https://discord.gg/eR35KQJhPu) where we discuss features, roadmap, implementation
+      details, and help each other out.
 
 ## 🙏 Inspiration & Acknowledgements
 
