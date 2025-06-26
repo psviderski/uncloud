@@ -97,6 +97,21 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    curl -fsS https://get.uncloud.run/install.sh | sh
    ```
 
+   ### Debian 
+   
+   Via unofficial repository packages created and maintained at [uncloud-debian](https://github.com/dariogriffo/uncloud-debian/) by @dariogriffo
+   
+   You can install uncloud the debian way by running:
+   
+   ```sh
+   curl -sS https://debian.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc | sudo gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/debian.griffo.io.gpg
+   echo "deb https://debian.griffo.io/apt $(lsb_release -sc 2>/dev/null) main" | sudo tee /etc/apt/sources.list.d/debian.griffo.io.list
+   apt install -y uncloud
+   ```
+   
+   or in the releases page of the repository [here](https://github.com/dariogriffo/uncloud-debian/releases)
+
+
 2. Initialise your first machine:
 
    ```bash
