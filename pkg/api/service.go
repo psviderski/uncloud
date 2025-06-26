@@ -30,8 +30,10 @@ const (
 	PullPolicyNever = "never"
 )
 
-var serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
-var dnsLabelRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+var (
+	serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
+	dnsLabelRegexp  = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+)
 
 func ValidateServiceID(id string) bool {
 	return serviceIDRegexp.MatchString(id)
@@ -104,7 +106,7 @@ func (s *ServiceSpec) Validate() error {
 	default:
 		return fmt.Errorf("invalid mode: %q", s.Mode)
 	}
-	
+
 	if s.Name != "" {
 		if len(s.Name) > 63 {
 			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
@@ -145,7 +147,6 @@ func (s *ServiceSpec) Validate() error {
 
 	return nil
 }
-
 
 func (s *ServiceSpec) Clone() ServiceSpec {
 	spec := *s
@@ -200,6 +201,11 @@ type ContainerSpec struct {
 // SetDefaults returns a copy of the container spec with default values set.
 func (s *ContainerSpec) SetDefaults() ContainerSpec {
 	spec := s.Clone()
+	if spec.LogDriver == nil {
+		spec.LogDriver = &LogDriver{
+			Name: "local",
+		}
+	}
 	if spec.PullPolicy == "" {
 		spec.PullPolicy = PullPolicyMissing
 	}
