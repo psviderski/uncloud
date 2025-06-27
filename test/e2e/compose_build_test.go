@@ -38,7 +38,9 @@ func TestComposeBuild(t *testing.T) {
 			nat.Port(registryInternalPort): []nat.PortBinding{
 				{
 					HostIP: "127.0.0.1",
-					// Host port is a random available port.
+					// Explicitly specify the mapped host port for the registry because if not specified,
+					// 'docker push' from Docker Desktop is unable to reach the randomly mapped one for some reason.
+					HostPort: "50000",
 				},
 			},
 		},
@@ -103,9 +105,9 @@ func TestComposeBuild(t *testing.T) {
 			// Remove the images after the test
 			removeOptions := image.RemoveOptions{Force: true, PruneChildren: true}
 			_, err := dockerCli.ImageRemove(ctx, serviceImage1, removeOptions)
-			assert.NoErrorf(t, err, "failed to remove image %s on test cleanup: %w", serviceImage1, err)
+			assert.NoErrorf(t, err, "failed to remove image %s on test cleanup", serviceImage1)
 			_, err = dockerCli.ImageRemove(ctx, serviceImage2, removeOptions)
-			assert.NoErrorf(t, err, "failed to remove image %s on test cleanup: %w", serviceImage2, err)
+			assert.NoErrorf(t, err, "failed to remove image %s on test cleanup", serviceImage2)
 		})
 
 		servicesToBuildExpected := map[string]types.ServiceConfig{
