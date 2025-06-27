@@ -203,7 +203,8 @@ func (s *ContainerSpec) SetDefaults() ContainerSpec {
 	spec := s.Clone()
 	if spec.LogDriver == nil {
 		spec.LogDriver = &LogDriver{
-			Name: "local",
+			Name:    "local",
+			Options: map[string]string{},
 		}
 	}
 	if spec.PullPolicy == "" {

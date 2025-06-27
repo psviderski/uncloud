@@ -62,7 +62,6 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 	assert.Equal(t, spec.Container.Init, ctr.HostConfig.Init)
 	assert.True(t, strings.HasPrefix(ctr.Name, spec.Name+"-"))
 
-	// If LogDriver is not set, any log driver set as default in the Docker daemon config could be used.
 	if spec.Container.LogDriver != nil {
 		assert.Equal(t, spec.Container.LogDriver.Name, ctr.HostConfig.LogConfig.Type)
 		assert.Equal(t, spec.Container.LogDriver.Options, ctr.HostConfig.LogConfig.Config)
