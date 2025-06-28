@@ -97,6 +97,22 @@ After installation, verify that `uc` command is working:
 uc --version
 ```
 
+## Linux (via package managers)
+
+### Debian
+
+Via unofficial repository packages created and maintained at [uncloud-debian](https://github.com/dariogriffo/uncloud-debian/) by @dariogriffo
+
+You can install uncloud the debian way by running:
+
+   ```sh
+   curl -sS https://debian.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc | sudo gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/debian.griffo.io.gpg
+   echo "deb https://debian.griffo.io/apt $(lsb_release -sc 2>/dev/null) main" | sudo tee /etc/apt/sources.list.d/debian.griffo.io.list
+   apt install -y uncloud
+   ```
+
+or in the releases page of the repository [here](https://github.com/dariogriffo/uncloud-debian/releases)
+
 ## Next steps
 
 Now that you have `uc` installed, you're ready to:
