@@ -191,10 +191,10 @@ func (nc *networkController) Run(ctx context.Context) error {
 	})
 
 	errGroup.Go(func() error {
-		slog.Info("Starting Caddyfile controller.")
+		slog.Info("Starting Caddyconfig controller.")
 		if err := nc.caddyfileCtrl.Run(ctx); err != nil {
 			//goland:noinspection GoErrorStringFormat
-			return fmt.Errorf("Caddyfile controller failed: %w", err)
+			return fmt.Errorf("Caddyconfig controller failed: %w", err)
 		}
 		return nil
 	})

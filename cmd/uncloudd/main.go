@@ -55,5 +55,4 @@ func main() {
 	}()
 
 	cobra.CheckErr(cmd.ExecuteContext(ctx))
-
 }
