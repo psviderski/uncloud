@@ -251,7 +251,10 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 				return
 			}
 
-			err = cli.RemoveContainer(ctx, svc.ID, mc.Container.ID, container.RemoveOptions{})
+			err = cli.RemoveContainer(ctx, svc.ID, mc.Container.ID, container.RemoveOptions{
+				// Remove anonymous volumes created by the container.
+				RemoveVolumes: true,
+			})
 			if err != nil && !errors.Is(err, api.ErrNotFound) {
 				errCh <- fmt.Errorf("remove container '%s': %w", mc.Container.ID, err)
 			}

@@ -95,7 +95,10 @@ func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) erro
 	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, container.StopOptions{}); err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
-	if err := cli.RemoveContainer(ctx, o.ServiceID, o.ContainerID, container.RemoveOptions{}); err != nil {
+	if err := cli.RemoveContainer(ctx, o.ServiceID, o.ContainerID, container.RemoveOptions{
+		// Remove anonymous volumes created by the container.
+		RemoveVolumes: true,
+	}); err != nil {
 		return fmt.Errorf("remove container: %w", err)
 	}
 
