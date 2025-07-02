@@ -2,13 +2,16 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -68,7 +71,11 @@ func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts remove
 	containers := machineContainers[0].Containers
 
 	if len(containers) > 0 {
-		fmt.Printf("Found %d service containers on machine '%s':\n\n", len(containers), m.Name)
+		plural := ""
+		if len(containers) > 1 {
+			plural = "s"
+		}
+		fmt.Printf("Found %d service container%s on machine '%s':\n", len(containers), plural, m.Name)
 		fmt.Println(formatContainerTree(containers))
 		fmt.Println()
 		fmt.Println("This will remove all service containers on the machine, reset it to the uninitialised state, " +
@@ -89,7 +96,17 @@ func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts remove
 		}
 	}
 
-	// TODO: 3. Remove all service containers on the machine.
+	if len(containers) > 0 {
+		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+			return removeContainers(ctx, client, containers)
+		}, uncli.ProgressOut(), "Removing containers")
+
+		if err != nil {
+			return fmt.Errorf("remove containers: %w", err)
+		}
+		fmt.Println()
+	}
+
 	// TODO: 4. Implement and call ResetMachine via Machine API to reset the machine state to uninitialised.
 	// TODO: 5. Remove the machine from the cluster store.
 
@@ -136,4 +153,47 @@ func formatContainerTree(containers []api.ServiceContainer) string {
 	}
 
 	return strings.Join(output, "\n")
+}
+
+// removeContainers removes the given service containers from the machine.
+func removeContainers(ctx context.Context, client api.Client, containers []api.ServiceContainer) error {
+	if len(containers) == 0 {
+		return nil
+	}
+
+	wg := sync.WaitGroup{}
+	errCh := make(chan error)
+
+	for _, ctr := range containers {
+		wg.Add(1)
+		go func(c api.ServiceContainer) {
+			defer wg.Done()
+
+			// Gracefully stop the container before removing it.
+			err := client.StopContainer(ctx, c.ServiceID(), c.ID, container.StopOptions{})
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				errCh <- fmt.Errorf("stop container '%s': %w", c.ID, err)
+			}
+
+			err = client.RemoveContainer(ctx, c.ServiceID(), c.ID, container.RemoveOptions{
+				// Remove anonymous volumes created by the container.
+				RemoveVolumes: true,
+			})
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				errCh <- fmt.Errorf("remove container '%s': %w", c.ID, err)
+			}
+		}(ctr)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	var err error
+	for e := range errCh {
+		err = errors.Join(err, e)
+	}
+
+	return err
 }
