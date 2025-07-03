@@ -107,11 +107,12 @@ func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts remove
 		fmt.Println()
 	}
 
-	// TODO: 4. Implement and call ResetMachine via Machine API to reset the machine state to uninitialised.
+	// TODO: 4. Implement and call Reset via Machine API to reset the machine state to uninitialised.
 	// TODO: 5. Remove the machine from the cluster store.
 
-	fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
-	return nil
+	return fmt.Errorf("resetting machine is not fully implemented yet")
+	//fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
+	//return nil
 }
 
 // formatContainerTree formats a list of containers grouped by service as a tree structure.
