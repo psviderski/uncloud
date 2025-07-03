@@ -50,15 +50,33 @@ type Server struct {
 	// internalDNSIP is a function that returns the IP address of the internal DNS server. It may return an empty
 	// address if the address is unknown (e.g. when the machine is not initialised yet).
 	internalDNSIP func() netip.Addr
+	// networkReady is a function that returns true if the Docker network is ready for containers.
+	networkReady func() bool
+}
+
+// ServerOption configures the Docker server.
+type ServerOption func(*Server)
+
+// WithNetworkReady sets the network readiness check function.
+func WithNetworkReady(networkReady func() bool) ServerOption {
+	return func(s *Server) {
+		s.networkReady = networkReady
+	}
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker client.
-func NewServer(cli *client.Client, db *sqlx.DB, internalDNSIP func() netip.Addr) *Server {
-	return &Server{
+func NewServer(cli *client.Client, db *sqlx.DB, internalDNSIP func() netip.Addr, opts ...ServerOption) *Server {
+	s := &Server{
 		client:        cli,
 		db:            db,
 		internalDNSIP: internalDNSIP,
 	}
+	
+	for _, opt := range opts {
+		opt(s)
+	}
+	
+	return s
 }
 
 // CreateContainer creates a new container based on the given configuration.
@@ -118,6 +136,11 @@ func (s *Server) InspectContainer(ctx context.Context, req *pb.InspectContainerR
 
 // StartContainer starts a container with the given ID and options.
 func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerRequest) (*emptypb.Empty, error) {
+	// Check if Docker network is ready before starting the container
+	if s.networkReady != nil && !s.networkReady() {
+		return nil, status.Errorf(codes.Unavailable, "Docker network not ready")
+	}
+
 	var opts container.StartOptions
 	if len(req.Options) > 0 {
 		if err := json.Unmarshal(req.Options, &opts); err != nil {
