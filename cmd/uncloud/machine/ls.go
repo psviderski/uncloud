@@ -14,18 +14,18 @@ import (
 )
 
 func NewListCommand() *cobra.Command {
-	var clusterContext string
+	var contextName string
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List machines in a cluster.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return list(cmd.Context(), uncli, clusterContext)
+			return list(cmd.Context(), uncli, contextName)
 		},
 	}
 	cmd.Flags().StringVarP(
-		&clusterContext, "context", "c", "",
+		&contextName, "context", "c", "",
 		"Name of the cluster context. (default is the current context)",
 	)
 	return cmd
@@ -68,7 +68,8 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 		}
 
 		if _, err = fmt.Fprintf(
-			tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicIP, strings.Join(endpoints, ", "),
+			tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicIP,
+			strings.Join(endpoints, ", "),
 		); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
