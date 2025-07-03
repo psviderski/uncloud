@@ -25,6 +25,7 @@ const (
 	Machine_JoinCluster_FullMethodName        = "/api.Machine/JoinCluster"
 	Machine_Token_FullMethodName              = "/api.Machine/Token"
 	Machine_Inspect_FullMethodName            = "/api.Machine/Inspect"
+	Machine_Reset_FullMethodName              = "/api.Machine/Reset"
 	Machine_InspectService_FullMethodName     = "/api.Machine/InspectService"
 )
 
@@ -38,6 +39,8 @@ type MachineClient interface {
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error)
 	Inspect(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MachineInfo, error)
+	// Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data.
+	Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
 }
 
@@ -99,6 +102,16 @@ func (c *machineClient) Inspect(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
+func (c *machineClient) Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Machine_Reset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *machineClient) InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(InspectServiceResponse)
@@ -119,6 +132,8 @@ type MachineServer interface {
 	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
 	Token(context.Context, *emptypb.Empty) (*TokenResponse, error)
 	Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error)
+	// Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data.
+	Reset(context.Context, *ResetRequest) (*emptypb.Empty, error)
 	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
 	mustEmbedUnimplementedMachineServer()
 }
@@ -144,6 +159,9 @@ func (UnimplementedMachineServer) Token(context.Context, *emptypb.Empty) (*Token
 }
 func (UnimplementedMachineServer) Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Inspect not implemented")
+}
+func (UnimplementedMachineServer) Reset(context.Context, *ResetRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Reset not implemented")
 }
 func (UnimplementedMachineServer) InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectService not implemented")
@@ -259,6 +277,24 @@ func _Machine_Inspect_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_Reset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).Reset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_Reset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).Reset(ctx, req.(*ResetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Machine_InspectService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(InspectServiceRequest)
 	if err := dec(in); err != nil {
@@ -303,6 +339,10 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Inspect",
 			Handler:    _Machine_Inspect_Handler,
+		},
+		{
+			MethodName: "Reset",
+			Handler:    _Machine_Reset_Handler,
 		},
 		{
 			MethodName: "InspectService",

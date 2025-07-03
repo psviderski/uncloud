@@ -776,6 +776,22 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 	}, nil
 }
 
+// Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data and scheduling
+// a graceful shutdown. The uncloud daemon will restart the machine if managed by systemd.
+func (m *Machine) Reset(ctx context.Context, _ *pb.ResetRequest) (*emptypb.Empty, error) {
+	slog.Info("Resetting machine to a clean state.")
+
+	// TODO: stop and remove all managed service containers.
+	// TODO: check if the request is coming from the unix or network socket. For the network socket, the reset should
+	//  be called in a separate goroutine to avoid blocking the RPC response.
+	// TODO: stop the network controller
+	// TODO: implement and call Cleanup on the network controller to remove Docker network, WG interface, iptables
+	//  rules, corrosion state, ?stop corrosion service.
+	// TODO: stop the machine and remove the machine.json state. The daemon should restart it to a clean state.
+
+	return &emptypb.Empty{}, status.Error(codes.Unimplemented, "reset machine is not implemented yet")
+}
+
 // InspectService returns detailed information about a service and its containers stored in the cluster store.
 func (m *Machine) InspectService(
 	ctx context.Context, req *pb.InspectServiceRequest,

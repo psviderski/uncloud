@@ -466,6 +466,44 @@ func (x *TokenResponse) GetToken() string {
 	return ""
 }
 
+type ResetRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *ResetRequest) Reset() {
+	*x = ResetRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ResetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetRequest) ProtoMessage() {}
+
+func (x *ResetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetRequest.ProtoReflect.Descriptor instead.
+func (*ResetRequest) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{7}
+}
+
 type Service struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -480,7 +518,7 @@ type Service struct {
 func (x *Service) Reset() {
 	*x = Service{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[7]
+		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -493,7 +531,7 @@ func (x *Service) String() string {
 func (*Service) ProtoMessage() {}
 
 func (x *Service) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[7]
+	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -506,7 +544,7 @@ func (x *Service) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Service.ProtoReflect.Descriptor instead.
 func (*Service) Descriptor() ([]byte, []int) {
-	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{7}
+	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Service) GetId() string {
@@ -548,7 +586,7 @@ type InspectServiceRequest struct {
 func (x *InspectServiceRequest) Reset() {
 	*x = InspectServiceRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[8]
+		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -561,7 +599,7 @@ func (x *InspectServiceRequest) String() string {
 func (*InspectServiceRequest) ProtoMessage() {}
 
 func (x *InspectServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[8]
+	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -574,7 +612,7 @@ func (x *InspectServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectServiceRequest.ProtoReflect.Descriptor instead.
 func (*InspectServiceRequest) Descriptor() ([]byte, []int) {
-	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{8}
+	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *InspectServiceRequest) GetId() string {
@@ -595,7 +633,7 @@ type InspectServiceResponse struct {
 func (x *InspectServiceResponse) Reset() {
 	*x = InspectServiceResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[9]
+		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -608,7 +646,7 @@ func (x *InspectServiceResponse) String() string {
 func (*InspectServiceResponse) ProtoMessage() {}
 
 func (x *InspectServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[9]
+	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -621,7 +659,7 @@ func (x *InspectServiceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectServiceResponse.ProtoReflect.Descriptor instead.
 func (*InspectServiceResponse) Descriptor() ([]byte, []int) {
-	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{9}
+	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *InspectServiceResponse) GetService() *Service {
@@ -644,7 +682,7 @@ type Service_Container struct {
 func (x *Service_Container) Reset() {
 	*x = Service_Container{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[10]
+		mi := &file_internal_machine_api_pb_machine_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -657,7 +695,7 @@ func (x *Service_Container) String() string {
 func (*Service_Container) ProtoMessage() {}
 
 func (x *Service_Container) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[10]
+	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -670,7 +708,7 @@ func (x *Service_Container) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Service_Container.ProtoReflect.Descriptor instead.
 func (*Service_Container) Descriptor() ([]byte, []int) {
-	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{7, 0}
+	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{8, 0}
 }
 
 func (x *Service_Container) GetMachineId() string {
@@ -748,7 +786,8 @@ var file_internal_machine_api_pb_machine_proto_rawDesc = []byte{
 	0x0d, 0x6f, 0x74, 0x68, 0x65, 0x72, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x73, 0x22, 0x25,
 	0x0a, 0x0d, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
 	0x14, 0x0a, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
-	0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x22, 0xc3, 0x01, 0x0a, 0x07, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x22, 0x0e, 0x0a, 0x0c, 0x52, 0x65, 0x73, 0x65, 0x74, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0xc3, 0x01, 0x0a, 0x07, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
 	0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69,
 	0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
 	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x18, 0x03, 0x20,
@@ -767,7 +806,7 @@ var file_internal_machine_api_pb_machine_proto_rawDesc = []byte{
 	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x26,
 	0x0a, 0x07, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
 	0x0c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x52, 0x07, 0x73,
-	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x32, 0x8f, 0x03, 0x0a, 0x07, 0x4d, 0x61, 0x63, 0x68, 0x69,
+	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x32, 0xc3, 0x03, 0x0a, 0x07, 0x4d, 0x61, 0x63, 0x68, 0x69,
 	0x6e, 0x65, 0x12, 0x4d, 0x0a, 0x12, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x50, 0x72, 0x65, 0x72, 0x65,
 	0x71, 0x75, 0x69, 0x73, 0x69, 0x74, 0x65, 0x73, 0x12, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c,
 	0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79,
@@ -787,16 +826,19 @@ var file_internal_machine_api_pb_machine_proto_rawDesc = []byte{
 	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x33, 0x0a, 0x07, 0x49, 0x6e, 0x73, 0x70,
 	0x65, 0x63, 0x74, 0x12, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f,
 	0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x10, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x49, 0x0a,
-	0x0e, 0x49, 0x6e, 0x73, 0x70, 0x65, 0x63, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12,
-	0x1a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x49, 0x6e, 0x73, 0x70, 0x65, 0x63, 0x74, 0x53, 0x65, 0x72,
-	0x76, 0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x49, 0x6e, 0x73, 0x70, 0x65, 0x63, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x37, 0x5a, 0x35, 0x67, 0x69, 0x74, 0x68,
-	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x73, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73, 0x6b,
-	0x69, 0x2f, 0x75, 0x6e, 0x63, 0x6c, 0x6f, 0x75, 0x64, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e,
-	0x61, 0x6c, 0x2f, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x70,
-	0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x69, 0x2e, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x32, 0x0a,
+	0x05, 0x52, 0x65, 0x73, 0x65, 0x74, 0x12, 0x11, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x52, 0x65, 0x73,
+	0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67,
+	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74,
+	0x79, 0x12, 0x49, 0x0a, 0x0e, 0x49, 0x6e, 0x73, 0x70, 0x65, 0x63, 0x74, 0x53, 0x65, 0x72, 0x76,
+	0x69, 0x63, 0x65, 0x12, 0x1a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x49, 0x6e, 0x73, 0x70, 0x65, 0x63,
+	0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x49, 0x6e, 0x73, 0x70, 0x65, 0x63, 0x74, 0x53, 0x65, 0x72,
+	0x76, 0x69, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x37, 0x5a, 0x35,
+	0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x73, 0x76, 0x69, 0x64,
+	0x65, 0x72, 0x73, 0x6b, 0x69, 0x2f, 0x75, 0x6e, 0x63, 0x6c, 0x6f, 0x75, 0x64, 0x2f, 0x69, 0x6e,
+	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x2f, 0x61,
+	0x70, 0x69, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -811,7 +853,7 @@ func file_internal_machine_api_pb_machine_proto_rawDescGZIP() []byte {
 	return file_internal_machine_api_pb_machine_proto_rawDescData
 }
 
-var file_internal_machine_api_pb_machine_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_internal_machine_api_pb_machine_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_internal_machine_api_pb_machine_proto_goTypes = []any{
 	(*MachineInfo)(nil),                // 0: api.MachineInfo
 	(*NetworkConfig)(nil),              // 1: api.NetworkConfig
@@ -820,42 +862,45 @@ var file_internal_machine_api_pb_machine_proto_goTypes = []any{
 	(*InitClusterResponse)(nil),        // 4: api.InitClusterResponse
 	(*JoinClusterRequest)(nil),         // 5: api.JoinClusterRequest
 	(*TokenResponse)(nil),              // 6: api.TokenResponse
-	(*Service)(nil),                    // 7: api.Service
-	(*InspectServiceRequest)(nil),      // 8: api.InspectServiceRequest
-	(*InspectServiceResponse)(nil),     // 9: api.InspectServiceResponse
-	(*Service_Container)(nil),          // 10: api.Service.Container
-	(*IP)(nil),                         // 11: api.IP
-	(*IPPrefix)(nil),                   // 12: api.IPPrefix
-	(*IPPort)(nil),                     // 13: api.IPPort
-	(*emptypb.Empty)(nil),              // 14: google.protobuf.Empty
+	(*ResetRequest)(nil),               // 7: api.ResetRequest
+	(*Service)(nil),                    // 8: api.Service
+	(*InspectServiceRequest)(nil),      // 9: api.InspectServiceRequest
+	(*InspectServiceResponse)(nil),     // 10: api.InspectServiceResponse
+	(*Service_Container)(nil),          // 11: api.Service.Container
+	(*IP)(nil),                         // 12: api.IP
+	(*IPPrefix)(nil),                   // 13: api.IPPrefix
+	(*IPPort)(nil),                     // 14: api.IPPort
+	(*emptypb.Empty)(nil),              // 15: google.protobuf.Empty
 }
 var file_internal_machine_api_pb_machine_proto_depIdxs = []int32{
 	1,  // 0: api.MachineInfo.network:type_name -> api.NetworkConfig
-	11, // 1: api.MachineInfo.public_ip:type_name -> api.IP
-	12, // 2: api.NetworkConfig.subnet:type_name -> api.IPPrefix
-	11, // 3: api.NetworkConfig.management_ip:type_name -> api.IP
-	13, // 4: api.NetworkConfig.endpoints:type_name -> api.IPPort
-	12, // 5: api.InitClusterRequest.network:type_name -> api.IPPrefix
-	11, // 6: api.InitClusterRequest.public_ip:type_name -> api.IP
+	12, // 1: api.MachineInfo.public_ip:type_name -> api.IP
+	13, // 2: api.NetworkConfig.subnet:type_name -> api.IPPrefix
+	12, // 3: api.NetworkConfig.management_ip:type_name -> api.IP
+	14, // 4: api.NetworkConfig.endpoints:type_name -> api.IPPort
+	13, // 5: api.InitClusterRequest.network:type_name -> api.IPPrefix
+	12, // 6: api.InitClusterRequest.public_ip:type_name -> api.IP
 	0,  // 7: api.InitClusterResponse.machine:type_name -> api.MachineInfo
 	0,  // 8: api.JoinClusterRequest.machine:type_name -> api.MachineInfo
 	0,  // 9: api.JoinClusterRequest.other_machines:type_name -> api.MachineInfo
-	10, // 10: api.Service.containers:type_name -> api.Service.Container
-	7,  // 11: api.InspectServiceResponse.service:type_name -> api.Service
-	14, // 12: api.Machine.CheckPrerequisites:input_type -> google.protobuf.Empty
+	11, // 10: api.Service.containers:type_name -> api.Service.Container
+	8,  // 11: api.InspectServiceResponse.service:type_name -> api.Service
+	15, // 12: api.Machine.CheckPrerequisites:input_type -> google.protobuf.Empty
 	3,  // 13: api.Machine.InitCluster:input_type -> api.InitClusterRequest
 	5,  // 14: api.Machine.JoinCluster:input_type -> api.JoinClusterRequest
-	14, // 15: api.Machine.Token:input_type -> google.protobuf.Empty
-	14, // 16: api.Machine.Inspect:input_type -> google.protobuf.Empty
-	8,  // 17: api.Machine.InspectService:input_type -> api.InspectServiceRequest
-	2,  // 18: api.Machine.CheckPrerequisites:output_type -> api.CheckPrerequisitesResponse
-	4,  // 19: api.Machine.InitCluster:output_type -> api.InitClusterResponse
-	14, // 20: api.Machine.JoinCluster:output_type -> google.protobuf.Empty
-	6,  // 21: api.Machine.Token:output_type -> api.TokenResponse
-	0,  // 22: api.Machine.Inspect:output_type -> api.MachineInfo
-	9,  // 23: api.Machine.InspectService:output_type -> api.InspectServiceResponse
-	18, // [18:24] is the sub-list for method output_type
-	12, // [12:18] is the sub-list for method input_type
+	15, // 15: api.Machine.Token:input_type -> google.protobuf.Empty
+	15, // 16: api.Machine.Inspect:input_type -> google.protobuf.Empty
+	7,  // 17: api.Machine.Reset:input_type -> api.ResetRequest
+	9,  // 18: api.Machine.InspectService:input_type -> api.InspectServiceRequest
+	2,  // 19: api.Machine.CheckPrerequisites:output_type -> api.CheckPrerequisitesResponse
+	4,  // 20: api.Machine.InitCluster:output_type -> api.InitClusterResponse
+	15, // 21: api.Machine.JoinCluster:output_type -> google.protobuf.Empty
+	6,  // 22: api.Machine.Token:output_type -> api.TokenResponse
+	0,  // 23: api.Machine.Inspect:output_type -> api.MachineInfo
+	15, // 24: api.Machine.Reset:output_type -> google.protobuf.Empty
+	10, // 25: api.Machine.InspectService:output_type -> api.InspectServiceResponse
+	19, // [19:26] is the sub-list for method output_type
+	12, // [12:19] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
 	12, // [12:12] is the sub-list for extension extendee
 	0,  // [0:12] is the sub-list for field type_name
@@ -953,7 +998,7 @@ func file_internal_machine_api_pb_machine_proto_init() {
 			}
 		}
 		file_internal_machine_api_pb_machine_proto_msgTypes[7].Exporter = func(v any, i int) any {
-			switch v := v.(*Service); i {
+			switch v := v.(*ResetRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -965,7 +1010,7 @@ func file_internal_machine_api_pb_machine_proto_init() {
 			}
 		}
 		file_internal_machine_api_pb_machine_proto_msgTypes[8].Exporter = func(v any, i int) any {
-			switch v := v.(*InspectServiceRequest); i {
+			switch v := v.(*Service); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -977,7 +1022,7 @@ func file_internal_machine_api_pb_machine_proto_init() {
 			}
 		}
 		file_internal_machine_api_pb_machine_proto_msgTypes[9].Exporter = func(v any, i int) any {
-			switch v := v.(*InspectServiceResponse); i {
+			switch v := v.(*InspectServiceRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -989,6 +1034,18 @@ func file_internal_machine_api_pb_machine_proto_init() {
 			}
 		}
 		file_internal_machine_api_pb_machine_proto_msgTypes[10].Exporter = func(v any, i int) any {
+			switch v := v.(*InspectServiceResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_machine_proto_msgTypes[11].Exporter = func(v any, i int) any {
 			switch v := v.(*Service_Container); i {
 			case 0:
 				return &v.state
@@ -1011,7 +1068,7 @@ func file_internal_machine_api_pb_machine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_machine_api_pb_machine_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
