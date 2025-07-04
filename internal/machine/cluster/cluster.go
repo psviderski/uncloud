@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"log/slog"
 	"net/netip"
 	"time"
+	
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/network"
@@ -194,6 +195,73 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 		"id", m.Id, "name", m.Name, "subnet", subnet, "public_key", secret.Secret(m.Network.PublicKey))
 
 	resp := &pb.AddMachineResponse{Machine: m}
+	return resp, nil
+}
+
+// UpdateMachine updates an existing machine in the cluster.
+func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.UpdateMachineResponse, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+
+	if req.MachineId == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_id not set")
+	}
+
+	// Get the current machine info
+	currentMachine, err := c.store.GetMachine(ctx, req.MachineId)
+	if err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
+	}
+
+	// Create a copy of the current machine for updating
+	updatedMachine := &pb.MachineInfo{
+		Id:       currentMachine.Id,
+		Name:     currentMachine.Name,
+		Network:  currentMachine.Network,
+		PublicIp: currentMachine.PublicIp,
+	}
+
+	// Apply updates from the request
+	if req.Name != nil {
+		updatedMachine.Name = *req.Name
+	}
+	if req.PublicIp != nil {
+		ip, err := req.PublicIp.ToAddr()
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid public IP: %v", err)
+		}
+		if !ip.IsValid() {
+			return nil, status.Error(codes.InvalidArgument, "invalid public IP")
+		}
+		updatedMachine.PublicIp = req.PublicIp
+	}
+	if req.Network != nil {
+		if err := req.Network.Validate(); err != nil {
+			return nil, err
+		}
+		// Only update specific network fields, preserving others
+		if req.Network.Endpoints != nil {
+			updatedMachine.Network.Endpoints = req.Network.Endpoints
+		}
+		// Note: We don't update subnet, management_ip, or public_key as these are critical cluster identifiers
+	}
+
+	// Update the machine in the store (atomic operation)
+	if err = c.store.UpdateMachine(ctx, req.MachineId, updatedMachine); err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
+	}
+
+	slog.Info("Machine updated in the cluster.",
+		"id", updatedMachine.Id, "name", updatedMachine.Name)
+
+	resp := &pb.UpdateMachineResponse{Machine: updatedMachine}
 	return resp, nil
 }
 
