@@ -254,4 +254,67 @@ func TestComposeDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 0, "Expected no new operations after deployment")
 	})
+
+	t.Run("x-machines placement constraint", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-placement"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-placement.yaml"})
+		require.NoError(t, err)
+
+		deploy, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		expectedSpec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Env: map[string]string{
+					"VAR":   "value",
+					"BOOL":  "true",
+					"EMPTY": "",
+				},
+				Image: "portainer/pause:3.9",
+			},
+			Placement: api.Placement{
+				Machines: []string{"machine-1", "machine-2"},
+			},
+			Replicas: 2,
+		}
+		assertServiceMatchesSpec(t, svc, expectedSpec)
+
+		// Verify that containers are only deployed on specified machines
+		// Since we only specified 2 machines in x-machines and have 2 replicas,
+		// and the cluster has 3 machines, the third machine should have no containers
+		serviceMachines := serviceMachines(svc)
+		assert.Len(t, serviceMachines.ToSlice(), 2, "Service should only be on 2 machines")
+		
+		// Verify machines match the expected machine names
+		machineNames := make([]string, 0, len(svc.Containers))
+		for _, container := range svc.Containers {
+			// Find machine name by ID
+			for _, machine := range c.Machines {
+				if machine.ID == container.MachineID {
+					machineNames = append(machineNames, machine.Name)
+					break
+				}
+			}
+		}
+		assert.ElementsMatch(t, []string{"machine-1", "machine-2"}, machineNames,
+			"Service containers should only be on specified machines")
+	})
 }
