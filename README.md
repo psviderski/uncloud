@@ -96,6 +96,8 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    # or using curl (macOS/Linux)
    curl -fsS https://get.uncloud.run/install.sh | sh
    ```
+   
+   See [Installation](https://docs.uncloud.run/getting-started/install-cli) for more options.
 
 2. Initialise your first machine:
 
