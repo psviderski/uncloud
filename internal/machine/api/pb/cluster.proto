@@ -11,6 +11,7 @@ import "internal/machine/api/pb/machine.proto";
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachines(google.protobuf.Empty) returns (ListMachinesResponse);
+  rpc UpdateMachine(UpdateMachineRequest) returns (UpdateMachineResponse);
 
   rpc ReserveDomain(ReserveDomainRequest) returns (Domain);
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
@@ -75,4 +76,18 @@ message DNSRecord {
   }
   RecordType type = 2;
   repeated string values = 3;
+}
+
+message UpdateMachineRequest {
+  // Machine to update
+  string machine_id = 1;
+  
+  // Updated machine information
+  optional string name = 2;
+  optional IP public_ip = 3;
+  optional NetworkConfig network = 4;
+}
+
+message UpdateMachineResponse {
+  MachineInfo machine = 1;
 }
