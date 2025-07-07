@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./website/images/logo.svg" height="100" alt="Uncloud logo"/>
+  <img src="./website/images/logo.svg" height="100" width="100" alt="Uncloud logo"/>
   <h1>Uncloud</h1>
   <p><strong>Docker simplicity. Multi-machine power.</strong></p>
 
