@@ -231,11 +231,7 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 	slog.Info("Docker network configured.")
 
 	// Signal that the Docker network is ready for containers
-	select {
-	case nc.networkReady <- struct{}{}:
-	default:
-		// Channel might be closed or full, which is fine
-	}
+	close(nc.networkReady)
 
 	slog.Info("Watching Docker containers and syncing them to cluster store.")
 	// Retry to watch and sync containers until the context is done.

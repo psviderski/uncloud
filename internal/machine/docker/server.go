@@ -52,6 +52,8 @@ type Server struct {
 	internalDNSIP func() netip.Addr
 	// networkReady is a function that returns true if the Docker network is ready for containers.
 	networkReady func() bool
+	// waitForNetworkReady is a function that waits for the Docker network to be ready for containers.
+	waitForNetworkReady func(ctx context.Context) error
 }
 
 // ServerOption configures the Docker server.
@@ -61,6 +63,13 @@ type ServerOption func(*Server)
 func WithNetworkReady(networkReady func() bool) ServerOption {
 	return func(s *Server) {
 		s.networkReady = networkReady
+	}
+}
+
+// WithWaitForNetworkReady sets the network readiness wait function.
+func WithWaitForNetworkReady(waitForNetworkReady func(ctx context.Context) error) ServerOption {
+	return func(s *Server) {
+		s.waitForNetworkReady = waitForNetworkReady
 	}
 }
 
@@ -136,8 +145,12 @@ func (s *Server) InspectContainer(ctx context.Context, req *pb.InspectContainerR
 
 // StartContainer starts a container with the given ID and options.
 func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerRequest) (*emptypb.Empty, error) {
-	// Check if Docker network is ready before starting the container
-	if s.networkReady != nil && !s.networkReady() {
+	// Wait for Docker network to be ready before starting the container
+	if s.waitForNetworkReady != nil {
+		if err := s.waitForNetworkReady(ctx); err != nil {
+			return nil, status.Errorf(codes.Unavailable, "Docker network not ready: %v", err)
+		}
+	} else if s.networkReady != nil && !s.networkReady() {
 		return nil, status.Errorf(codes.Unavailable, "Docker network not ready")
 	}
 
