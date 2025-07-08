@@ -2,10 +2,10 @@ package network
 
 import (
 	"fmt"
+	"github.com/psviderski/uncloud/internal/secret"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"net/netip"
 	"time"
-	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

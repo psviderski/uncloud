@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	systemd "github.com/coreos/go-systemd/daemon"
-	"log/slog"
 	"github.com/psviderski/uncloud/internal/machine"
+	"log/slog"
 )
 
 type Daemon struct {

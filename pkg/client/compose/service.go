@@ -61,6 +61,10 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		spec.Ports = ports
 	}
 
+	if machines, ok := service.Extensions[MachinesExtensionKey].(MachinesSource); ok {
+		spec.Placement.Machines = []string(machines)
+	}
+
 	// Map LogDriver if specified
 	if service.Logging != nil && service.Logging.Driver != "" {
 		spec.Container.LogDriver = &api.LogDriver{
@@ -85,14 +89,6 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			return spec, fmt.Errorf("unsupported deploy mode: '%s'", service.Deploy.Mode)
 		}
 
-		// Parse x-machines placement constraint
-		if xMachines, ok := service.Deploy.Placement.Extensions["x-machines"]; ok {
-			if machines, err := parseXMachines(xMachines); err != nil {
-				return spec, fmt.Errorf("parse x-machines placement: %w", err)
-			} else {
-				spec.Placement.Machines = machines
-			}
-		}
 	}
 
 	// TODO: can service.tmpfs be handled as tmpfs volume mounts as well?
@@ -246,37 +242,4 @@ func tmpfsVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig) api.Vol
 	}
 
 	return spec
-}
-
-// parseXMachines parses the x-machines placement constraint from Compose deploy.placement.extensions.
-// It supports both []string and []interface{} formats that may come from YAML parsing.
-func parseXMachines(xMachines interface{}) ([]string, error) {
-	switch v := xMachines.(type) {
-	case []string:
-		return validateMachineNames(v)
-	case []interface{}:
-		var machines []string
-		for i, machine := range v {
-			if str, ok := machine.(string); ok {
-				machines = append(machines, str)
-			} else {
-				return nil, fmt.Errorf("x-machines[%d] is not a string, got %T", i, machine)
-			}
-		}
-		return validateMachineNames(machines)
-	default:
-		return nil, fmt.Errorf("x-machines must be a list of strings, got %T", xMachines)
-	}
-}
-
-// validateMachineNames validates machine names to ensure they are not empty and contain valid characters.
-func validateMachineNames(machines []string) ([]string, error) {
-	for i, machine := range machines {
-		machine = strings.TrimSpace(machine)
-		if machine == "" {
-			return nil, fmt.Errorf("x-machines[%d] cannot be empty", i)
-		}
-		machines[i] = machine
-	}
-	return machines, nil
 }

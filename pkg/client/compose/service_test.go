@@ -6,8 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	
-	"github.com/compose-spec/compose-go/v2/cli"
+
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/mount"
@@ -19,31 +18,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// loadProjectFromFile loads a compose project from a YAML file
-func loadProjectFromFile(t *testing.T, filename string) *types.Project {
+// loadProjectFromContent loads a compose project from YAML content
+func loadProjectFromContent(t *testing.T, content string) (*types.Project, error) {
 	t.Helper()
 	ctx := context.Background()
-	path := filepath.Join("testdata", filename)
-	
-	options, err := cli.NewProjectOptions(
-		[]string{path},
-		cli.WithName(FakeProjectName),
-		cli.WithOsEnv,
-		cli.WithDotEnv,
-	)
-	require.NoError(t, err)
-	
-	project, err := options.LoadProject(ctx)
-	require.NoError(t, err)
-	
-	return project
+
+	configDetails := types.ConfigDetails{
+		ConfigFiles: []types.ConfigFile{
+			{
+				Filename: "docker-compose.yml",
+				Content:  []byte(content),
+			},
+		},
+	}
+
+	project, err := loader.LoadWithContext(ctx, configDetails, func(o *loader.Options) {
+		o.SetProjectName("test", true)
+		// Register our custom extensions
+		if o.KnownExtensions == nil {
+			o.KnownExtensions = map[string]any{}
+		}
+		o.KnownExtensions[PortsExtensionKey] = PortsSource{}
+		o.KnownExtensions[MachinesExtensionKey] = MachinesSource{}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply ports extension transformation since we're not using LoadProject
+	if project, err = transformServicesPortsExtension(project); err != nil {
+		return nil, err
+	}
+
+	return project, nil
 }
 
 func TestServiceSpecFromCompose(t *testing.T) {
 	t.Parallel()
-	
+
 	initTrue := true
-	
+
 	tests := []struct {
 		name     string
 		filename string
@@ -214,23 +228,23 @@ func TestServiceSpecFromCompose(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		ctx := context.Background()
-		
+
 		t.Run(tt.name, func(t *testing.T) {
 			project, err := LoadProject(ctx, []string{filepath.Join("testdata", tt.filename)})
 			require.NoError(t, err)
-			
+
 			for name, expectedSpec := range tt.want {
 				spec, err := ServiceSpecFromCompose(project, name)
 				require.NoError(t, err)
-				
+
 				// Due to the use of a map the order of volumes is non-deterministic.
 				slices.SortFunc(spec.Volumes, func(a, b api.VolumeSpec) int {
 					return strings.Compare(a.Name, b.Name)
 				})
-				
+
 				assert.True(t, cmp.Equal(spec, expectedSpec, cmpopts.EquateEmpty()),
 					cmp.Diff(spec, expectedSpec, cmpopts.EquateEmpty()))
 			}
@@ -251,12 +265,70 @@ func TestServiceSpecFromCompose_XMachinesPlacement(t *testing.T) {
 services:
   test:
     image: nginx
-    deploy:
-      placement:
-        x-machines: ["machine-1", "machine-2"]
+    x-machines: ["machine-1", "machine-2"]
 `,
 			expected: api.Placement{
 				Machines: []string{"machine-1", "machine-2"},
+			},
+		},
+		{
+			name: "valid x-machines with single string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: my-machine
+`,
+			expected: api.Placement{
+				Machines: []string{"my-machine"},
+			},
+		},
+		{
+			name: "valid x-machines with single quoted string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1"
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1"},
+			},
+		},
+		{
+			name: "valid x-machines with numeric string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "123"
+`,
+			expected: api.Placement{
+				Machines: []string{"123"},
+			},
+		},
+		{
+			name: "valid x-machines with comma-separated string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1,machine-2"
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1", "machine-2"},
+			},
+		},
+		{
+			name: "valid x-machines with comma-separated string and spaces",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1, machine-2, machine-3"
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1", "machine-2", "machine-3"},
 			},
 		},
 		{
@@ -265,47 +337,20 @@ services:
 services:
   test:
     image: nginx
-    deploy:
-      placement:
-        x-machines: []
+    x-machines: []
 `,
 			expected: api.Placement{
 				Machines: []string{},
 			},
 		},
 		{
-			name: "no placement section",
+			name: "no x-machines",
 			composeYAML: `
 services:
   test:
     image: nginx
 `,
 			expected: api.Placement{},
-		},
-		{
-			name: "placement without x-machines",
-			composeYAML: `
-services:
-  test:
-    image: nginx
-    deploy:
-      placement:
-        constraints:
-          - node.role==worker
-`,
-			expected: api.Placement{},
-		},
-		{
-			name: "invalid x-machines type",
-			composeYAML: `
-services:
-  test:
-    image: nginx
-    deploy:
-      placement:
-        x-machines: "invalid-string-not-array"
-`,
-			expectError: true,
 		},
 		{
 			name: "empty machine name in x-machines",
@@ -313,110 +358,54 @@ services:
 services:
   test:
     image: nginx
-    deploy:
-      placement:
-        x-machines: ["machine-1", "", "machine-2"]
+    x-machines: ["machine-1", "", "machine-2"]
 `,
 			expectError: true,
 		},
+		{
+			name: "empty machine name in comma-separated x-machines",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1,,machine-2"
+`,
+			expectError: true,
+		},
+		{
+			name: "x-machines with whitespace trimming",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: ["  machine-1  ", "machine-2"]
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1", "machine-2"},
+			},
+		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create project from YAML content
-			configDetails := types.ConfigDetails{
-				ConfigFiles: []types.ConfigFile{
-					{
-						Filename: "docker-compose.yml",
-						Content:  []byte(tt.composeYAML),
-					},
-				},
-			}
-			
-			project, err := loader.LoadWithContext(t.Context(), configDetails, func(o *loader.Options) {
-				o.SetProjectName("test", true)
-			})
-			require.NoError(t, err)
-			
-			// Convert to ServiceSpec
-			spec, err := ServiceSpecFromCompose(project, "test")
-			
+			project, err := loadProjectFromContent(t, tt.composeYAML)
+
 			if tt.expectError {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
-			
+
+			// Convert to ServiceSpec
+			spec, err := ServiceSpecFromCompose(project, "test")
+			require.NoError(t, err)
+
 			if len(tt.expected.Machines) == 0 && len(spec.Placement.Machines) == 0 {
 				// Both are empty, consider them equal
 				return
 			}
 			assert.Equal(t, tt.expected, spec.Placement)
-		})
-	}
-}
-
-func TestParseXMachines(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       interface{}
-		expected    []string
-		expectError bool
-	}{
-		{
-			name:     "string slice",
-			input:    []string{"machine-1", "machine-2"},
-			expected: []string{"machine-1", "machine-2"},
-		},
-		{
-			name:     "interface slice",
-			input:    []interface{}{"machine-1", "machine-2"},
-			expected: []string{"machine-1", "machine-2"},
-		},
-		{
-			name:     "empty slice",
-			input:    []string{},
-			expected: []string{},
-		},
-		{
-			name:        "invalid type - string",
-			input:       "machine-1",
-			expectError: true,
-		},
-		{
-			name:        "invalid type - number",
-			input:       123,
-			expectError: true,
-		},
-		{
-			name:        "interface slice with non-string",
-			input:       []interface{}{"machine-1", 123},
-			expectError: true,
-		},
-		{
-			name:        "empty machine name",
-			input:       []string{"machine-1", "", "machine-2"},
-			expectError: true,
-		},
-		{
-			name:     "whitespace-only machine name gets trimmed",
-			input:    []string{"machine-1", "  machine-2  ", "machine-3"},
-			expected: []string{"machine-1", "machine-2", "machine-3"},
-		},
-	}
-	
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseXMachines(tt.input)
-			
-			if tt.expectError {
-				assert.Error(t, err)
-				return
-			}
-			
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
