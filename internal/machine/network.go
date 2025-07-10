@@ -44,6 +44,9 @@ type networkController struct {
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
 	dnsServer   *dns.Server
 	dnsResolver *dns.ClusterResolver
+
+	// networkReady is signalled when the Docker network is configured and ready for containers.
+	networkReady chan<- struct{}
 }
 
 func newNetworkController(
@@ -55,6 +58,7 @@ func newNetworkController(
 	caddyfileCtrl *caddyconfig.Controller,
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
+	networkReady chan<- struct{},
 ) (
 	*networkController, error,
 ) {
@@ -76,6 +80,7 @@ func newNetworkController(
 		caddyfileCtrl:   caddyfileCtrl,
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
+		networkReady:    networkReady,
 	}, nil
 }
 
@@ -224,6 +229,9 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 		return fmt.Errorf("ensure Docker network: %w", err)
 	}
 	slog.Info("Docker network configured.")
+
+	// Signal that the Docker network is ready for containers
+	close(nc.networkReady)
 
 	slog.Info("Watching Docker containers and syncing them to cluster store.")
 	// Retry to watch and sync containers until the context is done.

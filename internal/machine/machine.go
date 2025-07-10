@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
@@ -149,6 +150,10 @@ type Machine struct {
 	started chan struct{}
 	// initialised is signalled when the machine is configured as a member of a cluster.
 	initialised chan struct{}
+	// networkReady is signalled when the Docker network is configured and ready for containers.
+	networkReady chan struct{}
+	// networkReadyMu protects networkReady channel operations
+	networkReadyMu sync.RWMutex
 
 	// store is the cluster store backed by a distributed Corrosion database.
 	store   *store.Store
@@ -235,6 +240,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		state:            state,
 		started:          make(chan struct{}),
 		initialised:      make(chan struct{}, 1),
+		networkReady:     make(chan struct{}),
 		store:            corroStore,
 		cluster:          c,
 		localProxyServer: localProxyServer,
@@ -245,11 +251,17 @@ func NewMachine(config *Config) (*Machine, error) {
 	internalDNSIP := func() netip.Addr {
 		return m.IP()
 	}
-	m.docker = machinedocker.NewServer(dockerCli, db, internalDNSIP)
+	m.docker = machinedocker.NewServer(dockerCli, db, internalDNSIP, 
+		machinedocker.WithNetworkReady(m.IsNetworkReady),
+		machinedocker.WithWaitForNetworkReady(m.WaitForNetworkReady))
 	m.localMachineServer = newGRPCServer(m, c, m.docker)
 
 	if m.Initialised() {
 		m.initialised <- struct{}{}
+	} else {
+		// For non-initialized machines, signal network is ready immediately
+		// since there's no cluster network to set up
+		close(m.networkReady)
 	}
 
 	return m, nil
@@ -361,6 +373,11 @@ func (m *Machine) Run(ctx context.Context) error {
 				// It can be reset when leaving the cluster and then re-initialised again with a new configuration.
 				case <-m.initialised:
 					var err error
+					
+					// Reset networkReady channel for the new cluster configuration
+					m.networkReadyMu.Lock()
+					m.networkReady = make(chan struct{})
+					m.networkReadyMu.Unlock()
 
 					m.cluster.UpdateMachineID(m.state.ID)
 
@@ -404,6 +421,7 @@ func (m *Machine) Run(ctx context.Context) error {
 						caddyfileCtrl,
 						dnsServer,
 						dnsResolver,
+						m.networkReady,
 					)
 					if err != nil {
 						return fmt.Errorf("initialise network controller: %w", err)
@@ -774,6 +792,47 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 			PublicKey:    m.state.Network.PublicKey,
 		},
 	}, nil
+}
+
+// IsNetworkReady returns true if the Docker network is ready for containers.
+func (m *Machine) IsNetworkReady() bool {
+	if !m.Initialised() {
+		// If machine is not initialized, there's no network to check
+		return true
+	}
+	
+	// Check if network is ready by checking if the networkReady channel has been closed
+	m.networkReadyMu.RLock()
+	defer m.networkReadyMu.RUnlock()
+	
+	select {
+	case <-m.networkReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// WaitForNetworkReady waits for the Docker network to be ready for containers.
+// It returns nil when the network is ready or an error if the context is cancelled.
+func (m *Machine) WaitForNetworkReady(ctx context.Context) error {
+	if !m.Initialised() {
+		// If machine is not initialized, there's no network to wait for
+		return nil
+	}
+	
+	// Get a copy of the channel to wait on
+	m.networkReadyMu.RLock()
+	networkReady := m.networkReady
+	m.networkReadyMu.RUnlock()
+	
+	// Wait for network to be ready or context to be cancelled
+	select {
+	case <-networkReady:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data and scheduling
