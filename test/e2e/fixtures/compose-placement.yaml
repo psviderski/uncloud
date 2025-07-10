@@ -1,0 +1,11 @@
+services:
+  test-compose-placement:
+    image: portainer/pause:3.9
+    environment:
+      VAR: value
+      BOOL: "true"
+      EMPTY: ""
+    x-machines: ["machine-2", "machine-3"]
+    deploy:
+      mode: replicated
+      replicas: 2

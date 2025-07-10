@@ -3,10 +3,10 @@ package machine
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"os"
 	"path/filepath"
 	"sync"
-	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 const (

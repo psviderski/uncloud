@@ -6,12 +6,12 @@ import (
 	"crypto/cipher"
 	"encoding/hex"
 	"fmt"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/siderolabs/discovery-api/api/v1alpha1/client/pb"
 	discovery "github.com/siderolabs/discovery-client/pkg/client"
 	"go.uber.org/zap"
 	"net/netip"
 	"time"
-	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 const (

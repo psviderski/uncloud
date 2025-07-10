@@ -5,7 +5,7 @@ package compose
 import (
 	"context"
 	"fmt"
-
+	
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/compose-spec/compose-go/v2/types"
 )
@@ -25,8 +25,9 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		// If none was selected, get default Compose file names from current or parent folders.
 		composecli.WithDefaultConfigPath,
 		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
+		composecli.WithExtension(MachinesExtensionKey, MachinesSource{}),
 	}
-
+	
 	options, err := composecli.NewProjectOptions(
 		paths,
 		append(defaultOpts, opts...)...,
@@ -34,15 +35,15 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 	if err != nil {
 		return nil, fmt.Errorf("create compose parser options: %w", err)
 	}
-
+	
 	project, err := options.LoadProject(ctx)
 	if err != nil {
 		return nil, err
 	}
-
+	
 	if project, err = transformServicesPortsExtension(project); err != nil {
 		return nil, err
 	}
-
+	
 	return project, nil
 }

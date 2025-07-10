@@ -254,4 +254,151 @@ func TestComposeDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 0, "Expected no new operations after deployment")
 	})
+
+	t.Run("x-machines placement constraint", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-placement"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-placement.yaml"})
+		require.NoError(t, err)
+
+		deploy, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		expectedSpec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Env: map[string]string{
+					"VAR":   "value",
+					"BOOL":  "true",
+					"EMPTY": "",
+				},
+				Image: "portainer/pause:3.9",
+			},
+			Placement: api.Placement{
+				Machines: []string{"machine-2", "machine-3"},
+			},
+			Replicas: 2,
+		}
+		assertServiceMatchesSpec(t, svc, expectedSpec)
+
+		// Verify that containers are only deployed on specified machines
+		// Since we only specified 2 machines in x-machines and have 2 replicas,
+		// and the cluster has 3 machines, the third machine should have no containers
+		serviceMachines := serviceMachines(svc)
+		assert.Len(t, serviceMachines.ToSlice(), 2, "Service should only be on 2 machines")
+
+		// Verify machines match the expected machine IDs (machine-2 = c.Machines[1], machine-3 = c.Machines[2])
+		assert.ElementsMatch(t, serviceMachines.ToSlice(), []string{c.Machines[1].ID, c.Machines[2].ID},
+			"Service containers should only be on machines 2 and 3")
+	})
+
+	t.Run("x-machines placement constraint with non-existing machine", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-placement-nonexistent"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-placement-nonexistent.yaml"})
+		require.NoError(t, err)
+
+		deploy, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		expectedSpec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:3.9",
+			},
+			Placement: api.Placement{
+				Machines: []string{"machine-2", "nonexistent-machine"},
+			},
+			Replicas: 2,
+		}
+		assertServiceMatchesSpec(t, svc, expectedSpec)
+
+		// Verify that containers are deployed only on existing machines
+		// Non-existent machine names should be ignored by the scheduler
+		serviceMachines := serviceMachines(svc)
+
+		// Should only deploy on machine-2 since nonexistent-machine doesn't exist
+		// The scheduler should intersect placement constraints with available machines
+		assert.Len(t, serviceMachines.ToSlice(), 1, "Service should only be on 1 existing machine")
+		assert.ElementsMatch(t, serviceMachines.ToSlice(), []string{c.Machines[1].ID},
+			"Service containers should only be on machine-2 (existing machine)")
+	})
+
+	t.Run("x-machines placement constraint with comma-separated string", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-placement-comma"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-placement-comma.yaml"})
+		require.NoError(t, err)
+
+		deploy, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+
+		err = deploy.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		expectedSpec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:3.9",
+			},
+			Placement: api.Placement{
+				Machines: []string{"machine-1", "machine-3"},
+			},
+			Replicas: 2,
+		}
+		assertServiceMatchesSpec(t, svc, expectedSpec)
+
+		// Verify that containers are deployed on specified machines from comma-separated list
+		serviceMachines := serviceMachines(svc)
+		assert.Len(t, serviceMachines.ToSlice(), 2, "Service should be on 2 machines")
+
+		// Verify machines match the expected machine IDs (machine-1 = c.Machines[0], machine-3 = c.Machines[2])
+		assert.ElementsMatch(t, serviceMachines.ToSlice(), []string{c.Machines[0].ID, c.Machines[2].ID},
+			"Service containers should be on machines 1 and 3 from comma-separated list")
+	})
 }

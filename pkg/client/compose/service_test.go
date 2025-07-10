@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compose-spec/compose-go/v2/cli"
+	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/go-units"
@@ -18,24 +18,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// loadProjectFromFile loads a compose project from a YAML file
-func loadProjectFromFile(t *testing.T, filename string) *types.Project {
+// loadProjectFromContent loads a compose project from YAML content
+func loadProjectFromContent(t *testing.T, content string) (*types.Project, error) {
 	t.Helper()
 	ctx := context.Background()
-	path := filepath.Join("testdata", filename)
 
-	options, err := cli.NewProjectOptions(
-		[]string{path},
-		cli.WithName(FakeProjectName),
-		cli.WithOsEnv,
-		cli.WithDotEnv,
-	)
-	require.NoError(t, err)
+	configDetails := types.ConfigDetails{
+		ConfigFiles: []types.ConfigFile{
+			{
+				Filename: "docker-compose.yml",
+				Content:  []byte(content),
+			},
+		},
+	}
 
-	project, err := options.LoadProject(ctx)
-	require.NoError(t, err)
+	project, err := loader.LoadWithContext(ctx, configDetails, func(o *loader.Options) {
+		o.SetProjectName("test", true)
+		// Register our custom extensions
+		if o.KnownExtensions == nil {
+			o.KnownExtensions = map[string]any{}
+		}
+		o.KnownExtensions[PortsExtensionKey] = PortsSource{}
+		o.KnownExtensions[MachinesExtensionKey] = MachinesSource{}
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	return project
+	// Apply ports extension transformation since we're not using LoadProject
+	if project, err = transformServicesPortsExtension(project); err != nil {
+		return nil, err
+	}
+
+	return project, nil
 }
 
 func TestServiceSpecFromCompose(t *testing.T) {
@@ -233,6 +248,164 @@ func TestServiceSpecFromCompose(t *testing.T) {
 				assert.True(t, cmp.Equal(spec, expectedSpec, cmpopts.EquateEmpty()),
 					cmp.Diff(spec, expectedSpec, cmpopts.EquateEmpty()))
 			}
+		})
+	}
+}
+
+func TestServiceSpecFromCompose_XMachinesPlacement(t *testing.T) {
+	tests := []struct {
+		name        string
+		composeYAML string
+		expected    api.Placement
+		expectError bool
+	}{
+		{
+			name: "valid x-machines with string array",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: ["machine-1", "machine-2"]
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1", "machine-2"},
+			},
+		},
+		{
+			name: "valid x-machines with single string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: my-machine
+`,
+			expected: api.Placement{
+				Machines: []string{"my-machine"},
+			},
+		},
+		{
+			name: "valid x-machines with single quoted string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1"
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1"},
+			},
+		},
+		{
+			name: "valid x-machines with numeric string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "123"
+`,
+			expected: api.Placement{
+				Machines: []string{"123"},
+			},
+		},
+		{
+			name: "valid x-machines with comma-separated string",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1,machine-2"
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1", "machine-2"},
+			},
+		},
+		{
+			name: "valid x-machines with comma-separated string and spaces",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1, machine-2, machine-3"
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1", "machine-2", "machine-3"},
+			},
+		},
+		{
+			name: "empty x-machines array",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: []
+`,
+			expected: api.Placement{
+				Machines: []string{},
+			},
+		},
+		{
+			name: "no x-machines",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+`,
+			expected: api.Placement{},
+		},
+		{
+			name: "empty machine name in x-machines",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: ["machine-1", "", "machine-2"]
+`,
+			expectError: true,
+		},
+		{
+			name: "empty machine name in comma-separated x-machines",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: "machine-1,,machine-2"
+`,
+			expectError: true,
+		},
+		{
+			name: "x-machines with whitespace trimming",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    x-machines: ["  machine-1  ", "machine-2"]
+`,
+			expected: api.Placement{
+				Machines: []string{"machine-1", "machine-2"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := loadProjectFromContent(t, tt.composeYAML)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Convert to ServiceSpec
+			spec, err := ServiceSpecFromCompose(project, "test")
+			require.NoError(t, err)
+
+			if len(tt.expected.Machines) == 0 && len(spec.Placement.Machines) == 0 {
+				// Both are empty, consider them equal
+				return
+			}
+			assert.Equal(t, tt.expected, spec.Placement)
 		})
 	}
 }

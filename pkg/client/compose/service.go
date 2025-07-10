@@ -55,11 +55,14 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		},
 		Name: serviceName,
 		Mode: api.ServiceModeReplicated,
-		// TODO: implement and map x-machines to Placement.
 	}
 
 	if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok {
 		spec.Ports = ports
+	}
+
+	if machines, ok := service.Extensions[MachinesExtensionKey].(MachinesSource); ok {
+		spec.Placement.Machines = []string(machines)
 	}
 
 	// Map LogDriver if specified
@@ -85,6 +88,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		default:
 			return spec, fmt.Errorf("unsupported deploy mode: '%s'", service.Deploy.Mode)
 		}
+
 	}
 
 	// TODO: can service.tmpfs be handled as tmpfs volume mounts as well?

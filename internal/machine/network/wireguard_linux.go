@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
 	"golang.org/x/sys/unix"
@@ -17,7 +18,6 @@ import (
 	"slices"
 	"sync"
 	"time"
-	"github.com/psviderski/uncloud/internal/secret"
 )
 
 type WireGuardNetwork struct {

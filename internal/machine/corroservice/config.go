@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"github.com/psviderski/uncloud/internal/fs"
 	"net/netip"
 	"os"
 	"path/filepath"
-	"github.com/psviderski/uncloud/internal/fs"
 )
 
 const (
