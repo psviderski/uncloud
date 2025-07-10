@@ -1,8 +1,8 @@
 services:
   test:
-    command: ["nginx", "updated", "command"]
+    command: [ "nginx", "updated", "command" ]
     cpus: 0.5
-    entrypoint: ["/updated-docker-entrypoint.sh"]
+    entrypoint: [ "/updated-docker-entrypoint.sh" ]
     environment:
       BOOL: "true"
       EMPTY: ""

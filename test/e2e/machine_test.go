@@ -252,7 +252,7 @@ func TestSetMachine(t *testing.T) {
 		// Get a machine to update
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
-		
+
 		// Find a machine that hasn't been renamed
 		var targetMachine *pb.MachineMember
 		for _, m := range machines {
@@ -287,7 +287,7 @@ func TestSetMachine(t *testing.T) {
 		// Get a machine to update
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
-		
+
 		var targetMachine *pb.MachineMember
 		for _, m := range machines {
 			targetMachine = m
@@ -325,7 +325,7 @@ func TestSetMachine(t *testing.T) {
 		updatedMachine, err := cli.SetMachine(ctx, req)
 		require.NoError(t, err)
 		assert.Equal(t, len(newEndpoints), len(updatedMachine.Network.Endpoints))
-		
+
 		// Verify endpoints were updated
 		for i, endpoint := range updatedMachine.Network.Endpoints {
 			assert.Equal(t, newEndpoints[i].Ip.Ip, endpoint.Ip.Ip)
@@ -343,7 +343,7 @@ func TestSetMachine(t *testing.T) {
 		// Get a machine to update
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
-		
+
 		var targetMachine *pb.MachineMember
 		for _, m := range machines {
 			if m.Machine.Name != "updated-machine-name" {
@@ -409,7 +409,7 @@ func TestSetMachine(t *testing.T) {
 		// Get a machine
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
-		
+
 		targetMachine := machines[0]
 
 		// Set with no fields set (should be a no-op)
@@ -418,7 +418,7 @@ func TestSetMachine(t *testing.T) {
 		}
 		updatedMachine, err := cli.SetMachine(ctx, req)
 		require.NoError(t, err)
-		
+
 		// Machine should remain unchanged
 		assert.Equal(t, targetMachine.Machine.Name, updatedMachine.Name)
 		if targetMachine.Machine.PublicIp != nil && updatedMachine.PublicIp != nil {

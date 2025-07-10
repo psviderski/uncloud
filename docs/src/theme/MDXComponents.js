@@ -1,4 +1,3 @@
-import React from 'react';
 // Import the original mapper
 import MDXComponents from '@theme-original/MDXComponents';
 import Tabs from '@theme/Tabs';
