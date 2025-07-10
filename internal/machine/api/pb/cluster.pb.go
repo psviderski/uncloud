@@ -564,9 +564,9 @@ func (x *DNSRecord) GetValues() []string {
 	return nil
 }
 
-type UpdateMachineRequest struct {
+type SetMachineRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Machine to update - can be identified by name or ID
+	// Machine to update
 	MachineId string `protobuf:"bytes,1,opt,name=machine_id,json=machineId,proto3" json:"machine_id,omitempty"`
 	// Updated machine information
 	Name          *string        `protobuf:"bytes,2,opt,name=name,proto3,oneof" json:"name,omitempty"`
@@ -576,20 +576,20 @@ type UpdateMachineRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateMachineRequest) Reset() {
-	*x = UpdateMachineRequest{}
+func (x *SetMachineRequest) Reset() {
+	*x = SetMachineRequest{}
 	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateMachineRequest) String() string {
+func (x *SetMachineRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateMachineRequest) ProtoMessage() {}
+func (*SetMachineRequest) ProtoMessage() {}
 
-func (x *UpdateMachineRequest) ProtoReflect() protoreflect.Message {
+func (x *SetMachineRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -601,60 +601,60 @@ func (x *UpdateMachineRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateMachineRequest.ProtoReflect.Descriptor instead.
-func (*UpdateMachineRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetMachineRequest.ProtoReflect.Descriptor instead.
+func (*SetMachineRequest) Descriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *UpdateMachineRequest) GetMachineId() string {
+func (x *SetMachineRequest) GetMachineId() string {
 	if x != nil {
 		return x.MachineId
 	}
 	return ""
 }
 
-func (x *UpdateMachineRequest) GetName() string {
+func (x *SetMachineRequest) GetName() string {
 	if x != nil && x.Name != nil {
 		return *x.Name
 	}
 	return ""
 }
 
-func (x *UpdateMachineRequest) GetPublicIp() *IP {
+func (x *SetMachineRequest) GetPublicIp() *IP {
 	if x != nil {
 		return x.PublicIp
 	}
 	return nil
 }
 
-func (x *UpdateMachineRequest) GetNetwork() *NetworkConfig {
+func (x *SetMachineRequest) GetNetwork() *NetworkConfig {
 	if x != nil {
 		return x.Network
 	}
 	return nil
 }
 
-type UpdateMachineResponse struct {
+type SetMachineResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Machine       *MachineInfo           `protobuf:"bytes,1,opt,name=machine,proto3" json:"machine,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateMachineResponse) Reset() {
-	*x = UpdateMachineResponse{}
+func (x *SetMachineResponse) Reset() {
+	*x = SetMachineResponse{}
 	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateMachineResponse) String() string {
+func (x *SetMachineResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateMachineResponse) ProtoMessage() {}
+func (*SetMachineResponse) ProtoMessage() {}
 
-func (x *UpdateMachineResponse) ProtoReflect() protoreflect.Message {
+func (x *SetMachineResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_machine_api_pb_cluster_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -666,12 +666,12 @@ func (x *UpdateMachineResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateMachineResponse.ProtoReflect.Descriptor instead.
-func (*UpdateMachineResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetMachineResponse.ProtoReflect.Descriptor instead.
+func (*SetMachineResponse) Descriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_cluster_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *UpdateMachineResponse) GetMachine() *MachineInfo {
+func (x *SetMachineResponse) GetMachine() *MachineInfo {
 	if x != nil {
 		return x.Machine
 	}
@@ -715,8 +715,8 @@ const file_internal_machine_api_pb_cluster_proto_rawDesc = "" +
 	"RecordType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x05\n" +
 	"\x01A\x10\x01\x12\b\n" +
-	"\x04AAAA\x10\x02\"\xcf\x01\n" +
-	"\x14UpdateMachineRequest\x12\x1d\n" +
+	"\x04AAAA\x10\x02\"\xcc\x01\n" +
+	"\x11SetMachineRequest\x12\x1d\n" +
 	"\n" +
 	"machine_id\x18\x01 \x01(\tR\tmachineId\x12\x17\n" +
 	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01\x12)\n" +
@@ -726,14 +726,15 @@ const file_internal_machine_api_pb_cluster_proto_rawDesc = "" +
 	"\n" +
 	"_public_ipB\n" +
 	"\n" +
-	"\b_network\"C\n" +
-	"\x15UpdateMachineResponse\x12*\n" +
-	"\amachine\x18\x01 \x01(\v2\x10.api.MachineInfoR\amachine2\xce\x03\n" +
+	"\b_network\"@\n" +
+	"\x12SetMachineResponse\x12*\n" +
+	"\amachine\x18\x01 \x01(\v2\x10.api.MachineInfoR\amachine2\xc5\x03\n" +
 	"\aCluster\x12=\n" +
 	"\n" +
 	"AddMachine\x12\x16.api.AddMachineRequest\x1a\x17.api.AddMachineResponse\x12A\n" +
-	"\fListMachines\x12\x16.google.protobuf.Empty\x1a\x19.api.ListMachinesResponse\x12F\n" +
-	"\rUpdateMachine\x12\x19.api.UpdateMachineRequest\x1a\x1a.api.UpdateMachineResponse\x127\n" +
+	"\fListMachines\x12\x16.google.protobuf.Empty\x1a\x19.api.ListMachinesResponse\x12=\n" +
+	"\n" +
+	"SetMachine\x12\x16.api.SetMachineRequest\x1a\x17.api.SetMachineResponse\x127\n" +
 	"\rReserveDomain\x12\x19.api.ReserveDomainRequest\x1a\v.api.Domain\x120\n" +
 	"\tGetDomain\x12\x16.google.protobuf.Empty\x1a\v.api.Domain\x124\n" +
 	"\rReleaseDomain\x12\x16.google.protobuf.Empty\x1a\v.api.Domain\x12X\n" +
@@ -765,8 +766,8 @@ var file_internal_machine_api_pb_cluster_proto_goTypes = []any{
 	(*CreateDomainRecordsRequest)(nil),  // 8: api.CreateDomainRecordsRequest
 	(*CreateDomainRecordsResponse)(nil), // 9: api.CreateDomainRecordsResponse
 	(*DNSRecord)(nil),                   // 10: api.DNSRecord
-	(*UpdateMachineRequest)(nil),        // 11: api.UpdateMachineRequest
-	(*UpdateMachineResponse)(nil),       // 12: api.UpdateMachineResponse
+	(*SetMachineRequest)(nil),           // 11: api.SetMachineRequest
+	(*SetMachineResponse)(nil),          // 12: api.SetMachineResponse
 	(*NetworkConfig)(nil),               // 13: api.NetworkConfig
 	(*IP)(nil),                          // 14: api.IP
 	(*MachineInfo)(nil),                 // 15: api.MachineInfo
@@ -782,19 +783,19 @@ var file_internal_machine_api_pb_cluster_proto_depIdxs = []int32{
 	10, // 6: api.CreateDomainRecordsRequest.records:type_name -> api.DNSRecord
 	10, // 7: api.CreateDomainRecordsResponse.records:type_name -> api.DNSRecord
 	1,  // 8: api.DNSRecord.type:type_name -> api.DNSRecord.RecordType
-	14, // 9: api.UpdateMachineRequest.public_ip:type_name -> api.IP
-	13, // 10: api.UpdateMachineRequest.network:type_name -> api.NetworkConfig
-	15, // 11: api.UpdateMachineResponse.machine:type_name -> api.MachineInfo
+	14, // 9: api.SetMachineRequest.public_ip:type_name -> api.IP
+	13, // 10: api.SetMachineRequest.network:type_name -> api.NetworkConfig
+	15, // 11: api.SetMachineResponse.machine:type_name -> api.MachineInfo
 	2,  // 12: api.Cluster.AddMachine:input_type -> api.AddMachineRequest
 	16, // 13: api.Cluster.ListMachines:input_type -> google.protobuf.Empty
-	11, // 14: api.Cluster.UpdateMachine:input_type -> api.UpdateMachineRequest
+	11, // 14: api.Cluster.SetMachine:input_type -> api.SetMachineRequest
 	7,  // 15: api.Cluster.ReserveDomain:input_type -> api.ReserveDomainRequest
 	16, // 16: api.Cluster.GetDomain:input_type -> google.protobuf.Empty
 	16, // 17: api.Cluster.ReleaseDomain:input_type -> google.protobuf.Empty
 	8,  // 18: api.Cluster.CreateDomainRecords:input_type -> api.CreateDomainRecordsRequest
 	3,  // 19: api.Cluster.AddMachine:output_type -> api.AddMachineResponse
 	5,  // 20: api.Cluster.ListMachines:output_type -> api.ListMachinesResponse
-	12, // 21: api.Cluster.UpdateMachine:output_type -> api.UpdateMachineResponse
+	12, // 21: api.Cluster.SetMachine:output_type -> api.SetMachineResponse
 	6,  // 22: api.Cluster.ReserveDomain:output_type -> api.Domain
 	6,  // 23: api.Cluster.GetDomain:output_type -> api.Domain
 	6,  // 24: api.Cluster.ReleaseDomain:output_type -> api.Domain

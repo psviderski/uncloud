@@ -198,8 +198,8 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	return resp, nil
 }
 
-// UpdateMachine updates an existing machine in the cluster.
-func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.UpdateMachineResponse, error) {
+// SetMachine sets machine configuration in the cluster.
+func (c *Cluster) SetMachine(ctx context.Context, req *pb.SetMachineRequest) (*pb.SetMachineResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
 		return nil, err
 	}
@@ -258,10 +258,10 @@ func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
 	}
 
-	slog.Info("Machine updated in the cluster.",
+	slog.Info("Machine settings updated in the cluster.",
 		"id", updatedMachine.Id, "name", updatedMachine.Name)
 
-	resp := &pb.UpdateMachineResponse{Machine: updatedMachine}
+	resp := &pb.SetMachineResponse{Machine: updatedMachine}
 	return resp, nil
 }
 

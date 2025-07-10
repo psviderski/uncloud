@@ -67,8 +67,12 @@ test:
 ifeq ($(TEST_NAME),)
 	go test -count=1 -v ./...
 else
-	go test -count=1 -v -run ^$(TEST_NAME)$$ ./...
+	go test -race -count=1 -v -run ^$(TEST_NAME)$$ ./...
 endif
+
+.PHONY: test-e2e
+test-e2e:
+	go test -race -count=1 -v ./test/e2e
 
 .PHONY: test-clean
 test-clean:
