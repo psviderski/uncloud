@@ -2,8 +2,7 @@
 
 ## Initialising a cluster
 
-To begin setting up a new Uncloud cluster, create the desired nodes. Ensure that their firewall allows the required
-ports.
+To begin setting up a new Uncloud cluster, create the desired nodes. Ensure that their firewall allows the required ports.
 
 ### Ports
 
@@ -17,17 +16,13 @@ In addition, any ports for any workloads you want to expose will need to be open
 
 ### Configuration
 
-Uncloud stores its configuration in `~/.config/uncloud/config.yaml`. If you wish to reinitialise a cluster, simply
-remove it from this config.
+Uncloud stores its configuration in `~/.config/uncloud/config.yaml`. If you wish to reinitialise a cluster, simply remove it from this config.
 
 ### Initialisation
 
-Begin by initialising the first node in your cluster with `uc machine init [USER@HOST:PORT]`. If you do not have a need
-for Caddy reverse proxy, you may disable this feature with `--no-caddy`.
+Begin by initialising the first node in your cluster with `uc machine init [USER@HOST:PORT]`. If you do not have a need for Caddy reverse proxy, you may disable this feature with `--no-caddy`.
 
-This command will idempotently install Docker, uncloudd, uncloud-corrosion. If Caddy is enabled, it will set up a
-reverse proxy. If Uncloud DNS is enabled, it will create a DNS A record for the machine's public IP address under
-`*.[CLUSTER ID].cluster.uncloud.run`.
+This command will idempotently install Docker, uncloudd, uncloud-corrosion. If Caddy is enabled, it will set up a reverse proxy. If Uncloud DNS is enabled, it will create a DNS A record for the machine's public IP address under `*.[CLUSTER ID].cluster.uncloud.run`.
 
 If you wish to uninstall Uncloud and its components, run `uncloud-uninstall`.
 
@@ -53,8 +48,7 @@ You can run a service with two replicas that expose port 80 like the following:
 uc service run -p 80/http --replicas 2 nginxdemos/hello
 ```
 
-This requires the Caddy reverse proxy to be deployed. If it wasn't previously, it can be deployed with
-`uc caddy deploy`.
+This requires the Caddy reverse proxy to be deployed. If it wasn't previously, it can be deployed with `uc caddy deploy`.
 
 Since this doesn't specify a service name, a random one will be generated.
 

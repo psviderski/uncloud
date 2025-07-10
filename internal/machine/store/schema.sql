@@ -1,7 +1,7 @@
 -- cluster table stores the key-value pairs of the cluster configuration.
 CREATE TABLE cluster
 (
-    key TEXT NOT NULL PRIMARY KEY,
+    key   TEXT NOT NULL PRIMARY KEY,
     value ANY
 );
 
@@ -18,14 +18,14 @@ CREATE TABLE machines
 -- containers table stores the Uncloud-managed Docker containers created in the cluster.
 CREATE TABLE containers
 (
-    id           TEXT      NOT NULL PRIMARY KEY,
+    id           TEXT NOT NULL PRIMARY KEY,
     -- container is a JSON-serialized api.Container struct.
-    container    TEXT      NOT NULL DEFAULT '{}' CHECK (json_valid(container)),
-    machine_id   TEXT      NOT NULL DEFAULT '',
+    container    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(container)),
+    machine_id   TEXT NOT NULL DEFAULT '',
     service_id   TEXT AS (json_extract(container, '$.Config.Labels."uncloud.service.id"')),
     service_name TEXT AS (json_extract(container, '$.Config.Labels."uncloud.service.name"')),
     -- sync_status indicates if the record reflects the actual Docker state of the container.
-    sync_status  TEXT      NOT NULL DEFAULT '',
+    sync_status  TEXT NOT NULL DEFAULT '',
     -- updated_at is the last time the record was updated.
     updated_at   TIMESTAMP NOT NULL DEFAULT '1970-01-01 00:00:00'
 );

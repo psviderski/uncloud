@@ -47,7 +47,7 @@ jobs:
       matrix:
         # Run on more platforms so that mise lockfile checksums are checked/generated for all platforms.
         # See https://github.com/jdx/mise/issues/4276 for details.
-        os: [ ubuntu-latest, macos-latest ]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

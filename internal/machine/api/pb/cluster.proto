@@ -81,7 +81,7 @@ message DNSRecord {
 message SetMachineRequest {
   // Machine to update
   string machine_id = 1;
-
+  
   // Updated machine information
   optional string name = 2;
   optional IP public_ip = 3;

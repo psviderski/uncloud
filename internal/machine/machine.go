@@ -251,7 +251,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	internalDNSIP := func() netip.Addr {
 		return m.IP()
 	}
-	m.docker = machinedocker.NewServer(dockerCli, db, internalDNSIP,
+	m.docker = machinedocker.NewServer(dockerCli, db, internalDNSIP, 
 		machinedocker.WithNetworkReady(m.IsNetworkReady),
 		machinedocker.WithWaitForNetworkReady(m.WaitForNetworkReady))
 	m.localMachineServer = newGRPCServer(m, c, m.docker)
@@ -373,7 +373,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				// It can be reset when leaving the cluster and then re-initialised again with a new configuration.
 				case <-m.initialised:
 					var err error
-
+					
 					// Reset networkReady channel for the new cluster configuration
 					m.networkReadyMu.Lock()
 					m.networkReady = make(chan struct{})
@@ -800,11 +800,11 @@ func (m *Machine) IsNetworkReady() bool {
 		// If machine is not initialized, there's no network to check
 		return true
 	}
-
+	
 	// Check if network is ready by checking if the networkReady channel has been closed
 	m.networkReadyMu.RLock()
 	defer m.networkReadyMu.RUnlock()
-
+	
 	select {
 	case <-m.networkReady:
 		return true
@@ -820,12 +820,12 @@ func (m *Machine) WaitForNetworkReady(ctx context.Context) error {
 		// If machine is not initialized, there's no network to wait for
 		return nil
 	}
-
+	
 	// Get a copy of the channel to wait on
 	m.networkReadyMu.RLock()
 	networkReady := m.networkReady
 	m.networkReadyMu.RUnlock()
-
+	
 	// Wait for network to be ready or context to be cancelled
 	select {
 	case <-networkReady:

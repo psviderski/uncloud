@@ -101,8 +101,7 @@ uc --version
 
 ### Debian
 
-Via unofficial repository packages created and maintained
-at [uncloud-debian](https://github.com/dariogriffo/uncloud-debian/) by @dariogriffo
+Via unofficial repository packages created and maintained at [uncloud-debian](https://github.com/dariogriffo/uncloud-debian/) by @dariogriffo
 
 You can install uncloud the debian way by running:
 
