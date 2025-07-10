@@ -5,11 +5,10 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"log/slog"
-	
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"google.golang.org/protobuf/encoding/protojson"
+	"log/slog"
 )
 
 var (

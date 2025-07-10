@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./website/images/logo.svg" height="100" alt="Uncloud logo"/>
+  <img src="./website/images/logo.svg" height="100" width="100" alt="Uncloud logo"/>
   <h1>Uncloud</h1>
   <p><strong>Docker simplicity. Multi-machine power.</strong></p>
 
@@ -96,6 +96,8 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    # or using curl (macOS/Linux)
    curl -fsS https://get.uncloud.run/install.sh | sh
    ```
+   
+   See [Installation](https://docs.uncloud.run/getting-started/install-cli) for more options.
 
 2. Initialise your first machine:
 

@@ -36,6 +36,7 @@ func NewRmCommand() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return remove(cmd.Context(), uncli, args[0], opts)
 		},
+		Hidden: true,
 	}
 
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",

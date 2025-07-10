@@ -1,0 +1,7 @@
+services:
+  test-compose-placement-nonexistent:
+    image: portainer/pause:3.9
+    x-machines: ["machine-2", "nonexistent-machine"]
+    deploy:
+      mode: replicated
+      replicas: 2

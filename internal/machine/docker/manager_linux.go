@@ -13,6 +13,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/firewall"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 // EnsureUncloudNetwork creates the Docker bridge network NetworkName with the provided machine subnet
@@ -51,6 +52,14 @@ func (m *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix,
 							Subnet: subnet.String(),
 						},
 					},
+				},
+				Labels: map[string]string{
+					api.LabelManaged: "",
+				},
+				Options: map[string]string{
+					// Starting with Docker 28.2.0 (https://github.com/moby/moby/pull/49832), we have to explicitly
+					// allow direct routing from the WireGuard interface to the bridge network.
+					"com.docker.network.bridge.trusted_host_interfaces": network.WireGuardInterfaceName,
 				},
 			},
 		); err != nil {

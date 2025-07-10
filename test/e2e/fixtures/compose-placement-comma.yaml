@@ -1,0 +1,7 @@
+services:
+  test-compose-placement-comma:
+    image: portainer/pause:3.9
+    x-machines: "machine-1,machine-3"
+    deploy:
+      mode: replicated
+      replicas: 2
