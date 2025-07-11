@@ -46,6 +46,32 @@ func (cli *Client) ListMachines(ctx context.Context, filter *api.MachineFilter) 
 	return machines, nil
 }
 
+// SetMachine sets machine configuration in the cluster.
+func (cli *Client) SetMachine(ctx context.Context, req *pb.SetMachineRequest) (*pb.MachineInfo, error) {
+	resp, err := cli.ClusterClient.SetMachine(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Machine, nil
+}
+
+// RenameMachine renames an existing machine in the cluster.
+func (cli *Client) RenameMachine(ctx context.Context, nameOrID, newName string) (*pb.MachineInfo, error) {
+	// First, resolve the machine to get its ID
+	machine, err := cli.InspectMachine(ctx, nameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the machine with the new name
+	req := &pb.SetMachineRequest{
+		MachineId: machine.Machine.Id,
+		Name:      &newName,
+	}
+
+	return cli.SetMachine(ctx, req)
+}
+
 func MachineMatchesFilter(machine *pb.MachineMember, filter *api.MachineFilter) bool {
 	if filter == nil {
 		return true
