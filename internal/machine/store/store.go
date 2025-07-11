@@ -14,7 +14,7 @@ import (
 var (
 	//go:embed schema.sql
 	Schema string
-	
+
 	ErrKeyNotFound     = errors.New("key not found")
 	ErrMachineNotFound = errors.New("machine not found")
 )
@@ -74,22 +74,22 @@ func (s *Store) UpdateMachine(ctx context.Context, machineID string, m *pb.Machi
 	if m == nil {
 		return fmt.Errorf("machine info cannot be nil")
 	}
-	
+
 	mJSON, err := protojson.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("marshal machine info: %w", err)
 	}
-	
+
 	result, err := s.corro.ExecContext(ctx, "UPDATE machines SET info = ? WHERE id = ?", string(mJSON), machineID)
 	if err != nil {
 		return fmt.Errorf("update machine: %w", err)
 	}
-	
+
 	// Check if machine exists
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("%w: %s", ErrMachineNotFound, machineID)
 	}
-	
+
 	return nil
 }
 
@@ -97,46 +97,46 @@ func (s *Store) GetMachine(ctx context.Context, machineID string) (*pb.MachineIn
 	if machineID == "" {
 		return nil, fmt.Errorf("machine ID cannot be empty")
 	}
-	
+
 	rows, err := s.corro.QueryContext(ctx, "SELECT info FROM machines WHERE id = ?", machineID)
 	if err != nil {
 		return nil, fmt.Errorf("query machine: %w", err)
 	}
 	defer rows.Close()
-	
+
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return nil, fmt.Errorf("query error: %w", err)
 		}
 		return nil, fmt.Errorf("%w: %s", ErrMachineNotFound, machineID)
 	}
-	
+
 	var mJSON string
 	if err = rows.Scan(&mJSON); err != nil {
 		return nil, fmt.Errorf("scan machine info: %w", err)
 	}
-	
+
 	if mJSON == "" {
 		return nil, fmt.Errorf("machine info is empty for id %s", machineID)
 	}
-	
+
 	protojsonParser := protojson.UnmarshalOptions{DiscardUnknown: true}
 	var m pb.MachineInfo
 	if err = protojsonParser.Unmarshal([]byte(mJSON), &m); err != nil {
 		return nil, fmt.Errorf("unmarshal machine info for id %s: %w", machineID, err)
 	}
-	
+
 	// Validate the unmarshaled data. just in case
 	if m.Id != machineID {
 		return nil, fmt.Errorf("machine ID mismatch: expected %s, got %s", machineID, m.Id)
 	}
-	
+
 	if m.Network != nil {
 		if err = m.Network.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid network configuration for machine %s: %w", m.Id, err)
 		}
 	}
-	
+
 	return &m, nil
 }
 
@@ -146,20 +146,20 @@ func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var machines []*pb.MachineInfo
 	for rows.Next() {
 		var mJSON string
 		if err = rows.Scan(&mJSON); err != nil {
 			return nil, err
 		}
-		
+
 		protojsonParser := protojson.UnmarshalOptions{DiscardUnknown: true}
 		var m pb.MachineInfo
 		if err = protojsonParser.Unmarshal([]byte(mJSON), &m); err != nil {
 			return nil, fmt.Errorf("unmarshal machine info: %w", err)
 		}
-		
+
 		if err = m.Network.Validate(); err != nil {
 			slog.Error("Invalid network configuration for machine in store", "id", m.Id, "err", err)
 			continue
@@ -176,7 +176,7 @@ func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-cha
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	rows := sub.Rows()
 	var machines []*pb.MachineInfo
 	for rows.Next() {
@@ -194,7 +194,7 @@ func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-cha
 	if err != nil {
 		return nil, nil, fmt.Errorf("get subscription changes: %w", err)
 	}
-	
+
 	changes := make(chan struct{})
 	go func() {
 		defer close(changes)
@@ -215,6 +215,6 @@ func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-cha
 			}
 		}
 	}()
-	
+
 	return machines, changes, nil
 }

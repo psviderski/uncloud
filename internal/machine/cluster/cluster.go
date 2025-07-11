@@ -8,15 +8,15 @@ import (
 	"log/slog"
 	"net/netip"
 	"time"
-	
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Cluster struct {
@@ -227,6 +227,22 @@ func (c *Cluster) SetMachine(ctx context.Context, req *pb.SetMachineRequest) (*p
 
 	// Apply updates from the request
 	if req.Name != nil {
+		// Check for empty name
+		if *req.Name == "" {
+			return nil, status.Error(codes.InvalidArgument, "machine name cannot be empty")
+		}
+		// Check for duplicate names (excluding the current machine)
+		if *req.Name != currentMachine.Name {
+			machines, err := c.store.ListMachines(ctx)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "list machines: %v", err)
+			}
+			for _, m := range machines {
+				if m.Id != req.MachineId && m.Name == *req.Name {
+					return nil, status.Errorf(codes.AlreadyExists, "machine with name %q already exists", *req.Name)
+				}
+			}
+		}
 		updatedMachine.Name = *req.Name
 	}
 	if req.PublicIp != nil {
