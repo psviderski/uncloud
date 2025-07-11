@@ -271,6 +271,14 @@ Want to use your own domain, for example, `excalidraw.example.com` instead of `e
 Add a CNAME record `excalidraw.example.com` in your DNS provider (Cloudflare, Namecheap, etc.) pointing to
 `excalidraw.7za6s7.cluster.uncloud.run`. Alternatively, you can add an A record pointing to your server's IP.
 
+:::info note
+
+These instructions set up your own domain _in addition to_ uncloud's managed DNS service.
+
+If you want to avoid the managed service altogether, add `--no-dns` to your `uc machine init` command, and point an `A`-type DNS record to your server(s)'s IP(s).
+
+:::
+
 Then update the published port `80/https` in `compose.yaml` to use your domain:
 
 ```yaml title="compose.yaml"
@@ -297,8 +305,8 @@ Choose [y/N]: y
 Chose: Yes!
 
 [+] Deploying services 2/2
- ✔ Container excalidraw-0z12 on machine-dc3c  Started                       3.5s 
- ✔ Container excalidraw-azpc on machine-dc3c  Removed                       3.4s 
+ ✔ Container excalidraw-0z12 on machine-dc3c  Started                       3.5s
+ ✔ Container excalidraw-azpc on machine-dc3c  Removed                       3.4s
 ```
 
 Notice how Uncloud performed a **zero-downtime deployment** — it started the new container with the updated
