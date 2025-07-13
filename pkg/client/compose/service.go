@@ -88,7 +88,6 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		default:
 			return spec, fmt.Errorf("unsupported deploy mode: '%s'", service.Deploy.Mode)
 		}
-
 	}
 
 	// TODO: can service.tmpfs be handled as tmpfs volume mounts as well?

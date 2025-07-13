@@ -93,9 +93,17 @@ vet:
 format:
 	go fmt ./...
 
-.PHONY: lint
-lint:
-	golangci-lint run
+LINT_TARGETS := lint lint-and-fix
+.PHONY: $(LINT_TARGETS) _lint
+$(LINT_TARGETS): _lint
+lint: ARGS=
+lint-and-fix: ARGS=--fix
+_lint:
+	golangci-lint run $(ARGS)
+
+# .PHONY: lint-and-fix
+# lint-and-fix: lint
+# 	ARGS="--fix"
 
 .PHONY: docs-image-push
 docs-image:

@@ -160,6 +160,5 @@ func TestComposeBuild(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, tags, []string{"version2"}, "Tags for service service-second do not match")
-
 	})
 }
