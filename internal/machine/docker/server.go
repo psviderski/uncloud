@@ -80,11 +80,11 @@ func NewServer(cli *client.Client, db *sqlx.DB, internalDNSIP func() netip.Addr,
 		db:            db,
 		internalDNSIP: internalDNSIP,
 	}
-	
+
 	for _, opt := range opts {
 		opt(s)
 	}
-	
+
 	return s
 }
 
