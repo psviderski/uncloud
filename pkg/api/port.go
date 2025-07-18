@@ -34,6 +34,23 @@ type PortSpec struct {
 	Mode string
 }
 
+func (p *PortSpec) isHTTP() bool {
+	return p.Protocol == ProtocolHTTP || p.Protocol == ProtocolHTTPS
+}
+
+// AdjustUncloudMode makes adjustments for uncloud compatibility
+func (p *PortSpec) AdjustUncloudMode() {
+	if p.Protocol == "" {
+		p.Protocol = "tcp"
+	}
+	if p.Mode == "" {
+		p.Mode = PortModeIngress
+	}
+	if p.Mode == PortModeIngress && !p.isHTTP() && p.PublishedPort != 0 {
+		p.Mode = PortModeHost
+	}
+}
+
 func (p *PortSpec) Validate() error {
 	if p.ContainerPort == 0 {
 		return fmt.Errorf("container port must be non-zero")
@@ -56,7 +73,7 @@ func (p *PortSpec) Validate() error {
 			return fmt.Errorf("host IP cannot be specified in %s mode", PortModeIngress)
 		}
 		if p.Hostname != "" {
-			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
+			if !p.isHTTP() {
 				return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
 			}
 			if err := validateHostname(p.Hostname); err != nil {
