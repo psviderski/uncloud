@@ -67,12 +67,12 @@ func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {
 	return nil
 }
 
-func (s *Store) UpdateMachine(ctx context.Context, machineID string, m *pb.MachineInfo) error {
-	if machineID == "" {
-		return fmt.Errorf("machine ID cannot be empty")
-	}
+func (s *Store) UpdateMachine(ctx context.Context, m *pb.MachineInfo) error {
 	if m == nil {
 		return fmt.Errorf("machine info cannot be nil")
+	}
+	if m.Id == "" {
+		return fmt.Errorf("machine ID cannot be empty")
 	}
 
 	mJSON, err := protojson.Marshal(m)
@@ -80,14 +80,14 @@ func (s *Store) UpdateMachine(ctx context.Context, machineID string, m *pb.Machi
 		return fmt.Errorf("marshal machine info: %w", err)
 	}
 
-	result, err := s.corro.ExecContext(ctx, "UPDATE machines SET info = ? WHERE id = ?", string(mJSON), machineID)
+	result, err := s.corro.ExecContext(ctx, "UPDATE machines SET info = ? WHERE id = ?", string(mJSON), m.Id)
 	if err != nil {
 		return fmt.Errorf("update machine: %w", err)
 	}
 
 	// Check if machine exists
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("%w: %s", ErrMachineNotFound, machineID)
+		return fmt.Errorf("%w: %s", ErrMachineNotFound, m.Id)
 	}
 
 	return nil

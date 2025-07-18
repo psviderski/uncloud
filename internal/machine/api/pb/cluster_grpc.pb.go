@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Cluster_AddMachine_FullMethodName          = "/api.Cluster/AddMachine"
 	Cluster_ListMachines_FullMethodName        = "/api.Cluster/ListMachines"
-	Cluster_SetMachine_FullMethodName          = "/api.Cluster/SetMachine"
+	Cluster_UpdateMachine_FullMethodName       = "/api.Cluster/UpdateMachine"
 	Cluster_ReserveDomain_FullMethodName       = "/api.Cluster/ReserveDomain"
 	Cluster_GetDomain_FullMethodName           = "/api.Cluster/GetDomain"
 	Cluster_ReleaseDomain_FullMethodName       = "/api.Cluster/ReleaseDomain"
@@ -35,7 +35,7 @@ const (
 type ClusterClient interface {
 	AddMachine(ctx context.Context, in *AddMachineRequest, opts ...grpc.CallOption) (*AddMachineResponse, error)
 	ListMachines(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListMachinesResponse, error)
-	SetMachine(ctx context.Context, in *SetMachineRequest, opts ...grpc.CallOption) (*SetMachineResponse, error)
+	UpdateMachine(ctx context.Context, in *UpdateMachineRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
 	ReserveDomain(ctx context.Context, in *ReserveDomainRequest, opts ...grpc.CallOption) (*Domain, error)
 	GetDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	ReleaseDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
@@ -70,10 +70,10 @@ func (c *clusterClient) ListMachines(ctx context.Context, in *emptypb.Empty, opt
 	return out, nil
 }
 
-func (c *clusterClient) SetMachine(ctx context.Context, in *SetMachineRequest, opts ...grpc.CallOption) (*SetMachineResponse, error) {
+func (c *clusterClient) UpdateMachine(ctx context.Context, in *UpdateMachineRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SetMachineResponse)
-	err := c.cc.Invoke(ctx, Cluster_SetMachine_FullMethodName, in, out, cOpts...)
+	out := new(UpdateMachineResponse)
+	err := c.cc.Invoke(ctx, Cluster_UpdateMachine_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (c *clusterClient) CreateDomainRecords(ctx context.Context, in *CreateDomai
 type ClusterServer interface {
 	AddMachine(context.Context, *AddMachineRequest) (*AddMachineResponse, error)
 	ListMachines(context.Context, *emptypb.Empty) (*ListMachinesResponse, error)
-	SetMachine(context.Context, *SetMachineRequest) (*SetMachineResponse, error)
+	UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error)
 	ReserveDomain(context.Context, *ReserveDomainRequest) (*Domain, error)
 	GetDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	ReleaseDomain(context.Context, *emptypb.Empty) (*Domain, error)
@@ -147,8 +147,8 @@ func (UnimplementedClusterServer) AddMachine(context.Context, *AddMachineRequest
 func (UnimplementedClusterServer) ListMachines(context.Context, *emptypb.Empty) (*ListMachinesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListMachines not implemented")
 }
-func (UnimplementedClusterServer) SetMachine(context.Context, *SetMachineRequest) (*SetMachineResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SetMachine not implemented")
+func (UnimplementedClusterServer) UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateMachine not implemented")
 }
 func (UnimplementedClusterServer) ReserveDomain(context.Context, *ReserveDomainRequest) (*Domain, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReserveDomain not implemented")
@@ -219,20 +219,20 @@ func _Cluster_ListMachines_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Cluster_SetMachine_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SetMachineRequest)
+func _Cluster_UpdateMachine_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMachineRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterServer).SetMachine(ctx, in)
+		return srv.(ClusterServer).UpdateMachine(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Cluster_SetMachine_FullMethodName,
+		FullMethod: Cluster_UpdateMachine_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterServer).SetMachine(ctx, req.(*SetMachineRequest))
+		return srv.(ClusterServer).UpdateMachine(ctx, req.(*UpdateMachineRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -325,8 +325,8 @@ var Cluster_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Cluster_ListMachines_Handler,
 		},
 		{
-			MethodName: "SetMachine",
-			Handler:    _Cluster_SetMachine_Handler,
+			MethodName: "UpdateMachine",
+			Handler:    _Cluster_UpdateMachine_Handler,
 		},
 		{
 			MethodName: "ReserveDomain",

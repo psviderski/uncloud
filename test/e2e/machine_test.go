@@ -204,8 +204,8 @@ func TestMachineRename(t *testing.T) {
 	})
 }
 
-func TestSetMachine(t *testing.T) {
-	name := "ucind-test.machine-set"
+func TestUpdateMachine(t *testing.T) {
+	name := "ucind-test.machine-update"
 	ctx := context.Background()
 	c, _ := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3}, true)
 
@@ -213,7 +213,7 @@ func TestSetMachine(t *testing.T) {
 	require.NoError(t, err)
 	defer cli.Close()
 
-	t.Run("set machine name", func(t *testing.T) {
+	t.Run("update machine name", func(t *testing.T) {
 		// Get initial machine state
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
@@ -224,12 +224,12 @@ func TestSetMachine(t *testing.T) {
 		originalName := targetMachine.Machine.Name
 		newName := "updated-machine-name"
 
-		// Set the machine name using SetMachine directly
-		req := &pb.SetMachineRequest{
+		// Update the machine name using UpdateMachine directly
+		req := &pb.UpdateMachineRequest{
 			MachineId: targetMachine.Machine.Id,
 			Name:      &newName,
 		}
-		updatedMachine, err := cli.SetMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, req)
 		require.NoError(t, err)
 		assert.Equal(t, newName, updatedMachine.Name)
 		assert.Equal(t, targetMachine.Machine.Id, updatedMachine.Id)
@@ -244,7 +244,7 @@ func TestSetMachine(t *testing.T) {
 		assert.ErrorIs(t, err, api.ErrNotFound)
 	})
 
-	t.Run("set machine public IP", func(t *testing.T) {
+	t.Run("update machine public IP", func(t *testing.T) {
 		// Get a machine to update
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
@@ -264,12 +264,12 @@ func TestSetMachine(t *testing.T) {
 			Ip: []byte{8, 8, 8, 8},
 		}
 
-		// Set the public IP
-		req := &pb.SetMachineRequest{
+		// Update the public IP
+		req := &pb.UpdateMachineRequest{
 			MachineId: targetMachine.Machine.Id,
 			PublicIp:  newPublicIP,
 		}
-		updatedMachine, err := cli.SetMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, req)
 		require.NoError(t, err)
 		assert.Equal(t, newPublicIP.Ip, updatedMachine.PublicIp.Ip)
 
@@ -279,7 +279,41 @@ func TestSetMachine(t *testing.T) {
 		assert.Equal(t, newPublicIP.Ip, inspected.Machine.PublicIp.Ip)
 	})
 
-	t.Run("set machine network config", func(t *testing.T) {
+	t.Run("remove machine public IP", func(t *testing.T) {
+		// Get machines
+		machines, err := cli.ListMachines(ctx, nil)
+		require.NoError(t, err)
+		require.True(t, len(machines) > 0, "Need at least one machine")
+
+		// First, set a public IP on a machine
+		targetMachine := machines[0]
+		setIPReq := &pb.UpdateMachineRequest{
+			MachineId: targetMachine.Machine.Id,
+			PublicIp:  &pb.IP{Ip: []byte{192, 0, 2, 1}}, // TEST-NET-1 address
+		}
+		updatedMachine, err := cli.UpdateMachine(ctx, setIPReq)
+		require.NoError(t, err)
+		require.NotNil(t, updatedMachine.PublicIp)
+
+		// Now test removing the public IP
+
+		// Remove the public IP by setting it to empty
+		emptyIP := &pb.IP{}
+		req := &pb.UpdateMachineRequest{
+			MachineId: updatedMachine.Id,
+			PublicIp:  emptyIP,
+		}
+		removedIPMachine, err := cli.UpdateMachine(ctx, req)
+		require.NoError(t, err)
+		assert.Nil(t, removedIPMachine.PublicIp)
+
+		// Verify the change persisted
+		inspected, err := cli.InspectMachine(ctx, updatedMachine.Id)
+		require.NoError(t, err)
+		assert.Nil(t, inspected.Machine.PublicIp)
+	})
+
+	t.Run("update machine endpoints", func(t *testing.T) {
 		// Get a machine to update
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
@@ -291,10 +325,6 @@ func TestSetMachine(t *testing.T) {
 		}
 		require.NotNil(t, targetMachine)
 
-		// Store original network config
-		originalNetwork := targetMachine.Machine.Network
-
-		// Create new network config with updated endpoints
 		newEndpoints := []*pb.IPPort{
 			{
 				Ip:   &pb.IP{Ip: []byte{10, 0, 0, 10}},
@@ -306,19 +336,11 @@ func TestSetMachine(t *testing.T) {
 			},
 		}
 
-		newNetwork := &pb.NetworkConfig{
-			Subnet:       originalNetwork.Subnet,
-			ManagementIp: originalNetwork.ManagementIp,
-			Endpoints:    newEndpoints,
-			PublicKey:    originalNetwork.PublicKey,
-		}
-
-		// Set the network config
-		req := &pb.SetMachineRequest{
+		req := &pb.UpdateMachineRequest{
 			MachineId: targetMachine.Machine.Id,
-			Network:   newNetwork,
+			Endpoints: newEndpoints,
 		}
-		updatedMachine, err := cli.SetMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, req)
 		require.NoError(t, err)
 		assert.Equal(t, len(newEndpoints), len(updatedMachine.Network.Endpoints))
 
@@ -329,13 +351,13 @@ func TestSetMachine(t *testing.T) {
 		}
 
 		// Verify other network fields remain unchanged
-		assert.Equal(t, originalNetwork.Subnet.Ip.Ip, updatedMachine.Network.Subnet.Ip.Ip)
-		assert.Equal(t, originalNetwork.Subnet.Bits, updatedMachine.Network.Subnet.Bits)
-		assert.Equal(t, originalNetwork.ManagementIp.Ip, updatedMachine.Network.ManagementIp.Ip)
-		assert.Equal(t, originalNetwork.PublicKey, updatedMachine.Network.PublicKey)
+		assert.Equal(t, targetMachine.Machine.Network.Subnet.Ip.Ip, updatedMachine.Network.Subnet.Ip.Ip)
+		assert.Equal(t, targetMachine.Machine.Network.Subnet.Bits, updatedMachine.Network.Subnet.Bits)
+		assert.Equal(t, targetMachine.Machine.Network.ManagementIp.Ip, updatedMachine.Network.ManagementIp.Ip)
+		assert.Equal(t, targetMachine.Machine.Network.PublicKey, updatedMachine.Network.PublicKey)
 	})
 
-	t.Run("set multiple fields simultaneously", func(t *testing.T) {
+	t.Run("update multiple fields simultaneously", func(t *testing.T) {
 		// Get a machine to update
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
@@ -349,18 +371,18 @@ func TestSetMachine(t *testing.T) {
 		}
 		require.NotNil(t, targetMachine)
 
-		// Set both name and public IP
+		// Update both name and public IP
 		newName := "multi-update-machine"
 		newPublicIP := &pb.IP{
 			Ip: []byte{1, 1, 1, 1},
 		}
 
-		req := &pb.SetMachineRequest{
+		req := &pb.UpdateMachineRequest{
 			MachineId: targetMachine.Machine.Id,
 			Name:      &newName,
 			PublicIp:  newPublicIP,
 		}
-		updatedMachine, err := cli.SetMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, req)
 		require.NoError(t, err)
 		assert.Equal(t, newName, updatedMachine.Name)
 		assert.Equal(t, newPublicIP.Ip, updatedMachine.PublicIp.Ip)
@@ -372,18 +394,18 @@ func TestSetMachine(t *testing.T) {
 		assert.Equal(t, newPublicIP.Ip, inspected.Machine.PublicIp.Ip)
 	})
 
-	t.Run("set non-existent machine", func(t *testing.T) {
-		// Try to set properties on a machine that doesn't exist
+	t.Run("update non-existent machine", func(t *testing.T) {
+		// Try to update properties on a machine that doesn't exist
 		nonExistentName := "should-be-updated"
-		req := &pb.SetMachineRequest{
+		req := &pb.UpdateMachineRequest{
 			MachineId: "non-existent-machine-id",
 			Name:      &nonExistentName,
 		}
-		_, err := cli.SetMachine(ctx, req)
+		_, err := cli.UpdateMachine(ctx, req)
 		assert.Error(t, err)
 	})
 
-	t.Run("set to duplicate name", func(t *testing.T) {
+	t.Run("update to duplicate name", func(t *testing.T) {
 		// Get two machines
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
@@ -392,27 +414,27 @@ func TestSetMachine(t *testing.T) {
 		machine1 := machines[0]
 		machine2 := machines[1]
 
-		// Try to set machine2 with machine1's name
-		req := &pb.SetMachineRequest{
+		// Try to update machine2 with machine1's name
+		req := &pb.UpdateMachineRequest{
 			MachineId: machine2.Machine.Id,
 			Name:      &machine1.Machine.Name,
 		}
-		_, err = cli.SetMachine(ctx, req)
+		_, err = cli.UpdateMachine(ctx, req)
 		assert.Error(t, err)
 	})
 
-	t.Run("set with empty request", func(t *testing.T) {
+	t.Run("update with empty request", func(t *testing.T) {
 		// Get a machine
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
 
 		targetMachine := machines[0]
 
-		// Set with no fields set (should be a no-op)
-		req := &pb.SetMachineRequest{
+		// Update with no fields set (should be a no-op)
+		req := &pb.UpdateMachineRequest{
 			MachineId: targetMachine.Machine.Id,
 		}
-		updatedMachine, err := cli.SetMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, req)
 		require.NoError(t, err)
 
 		// Machine should remain unchanged

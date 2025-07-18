@@ -198,8 +198,8 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	return resp, nil
 }
 
-// SetMachine sets machine configuration in the cluster.
-func (c *Cluster) SetMachine(ctx context.Context, req *pb.SetMachineRequest) (*pb.SetMachineResponse, error) {
+// UpdateMachine updates machine configuration in the cluster.
+func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.UpdateMachineResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
 		return nil, err
 	}
@@ -246,28 +246,28 @@ func (c *Cluster) SetMachine(ctx context.Context, req *pb.SetMachineRequest) (*p
 		updatedMachine.Name = *req.Name
 	}
 	if req.PublicIp != nil {
-		ip, err := req.PublicIp.ToAddr()
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid public IP: %v", err)
+		// Check if this is an empty IP (used to signal removal)
+		if len(req.PublicIp.Ip) == 0 {
+			// User wants to remove public IP
+			updatedMachine.PublicIp = nil
+		} else {
+			// Validate and set the new IP
+			ip, err := req.PublicIp.ToAddr()
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid public IP: %v", err)
+			}
+			if !ip.IsValid() {
+				return nil, status.Error(codes.InvalidArgument, "invalid public IP")
+			}
+			updatedMachine.PublicIp = req.PublicIp
 		}
-		if !ip.IsValid() {
-			return nil, status.Error(codes.InvalidArgument, "invalid public IP")
-		}
-		updatedMachine.PublicIp = req.PublicIp
 	}
-	if req.Network != nil {
-		if err := req.Network.Validate(); err != nil {
-			return nil, err
-		}
-		// Only update specific network fields, preserving others
-		if req.Network.Endpoints != nil {
-			updatedMachine.Network.Endpoints = req.Network.Endpoints
-		}
-		// Note: We don't update subnet, management_ip, or public_key as these are critical cluster identifiers
+	if req.Endpoints != nil {
+		updatedMachine.Network.Endpoints = req.Endpoints
 	}
 
-	// Update the machine in the store (atomic operation)
-	if err = c.store.UpdateMachine(ctx, req.MachineId, updatedMachine); err != nil {
+	// Update the machine in the store
+	if err = c.store.UpdateMachine(ctx, updatedMachine); err != nil {
 		if errors.Is(err, store.ErrMachineNotFound) {
 			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
 		}
@@ -277,7 +277,7 @@ func (c *Cluster) SetMachine(ctx context.Context, req *pb.SetMachineRequest) (*p
 	slog.Info("Machine configuration updated in the cluster.",
 		"id", updatedMachine.Id, "name", updatedMachine.Name)
 
-	resp := &pb.SetMachineResponse{Machine: updatedMachine}
+	resp := &pb.UpdateMachineResponse{Machine: updatedMachine}
 	return resp, nil
 }
 

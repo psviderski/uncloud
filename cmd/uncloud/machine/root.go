@@ -16,7 +16,7 @@ func NewRootCommand() *cobra.Command {
 		NewListCommand(),
 		NewRenameCommand(),
 		NewRmCommand(),
-		NewSetCommand(),
+		NewUpdateCommand(),
 		NewTokenCommand(),
 	)
 	return cmd

@@ -10,28 +10,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type setOptions struct {
+type updateOptions struct {
 	name     string
 	publicIP string
 	context  string
 }
 
-func NewSetCommand() *cobra.Command {
-	opts := setOptions{}
+func NewUpdateCommand() *cobra.Command {
+	opts := updateOptions{}
 	cmd := &cobra.Command{
-		Use:   "set",
-		Short: "Set machine configuration in the cluster.",
-		Long: `Set machine configuration in the cluster.
+		Use:   "update",
+		Short: "Update machine configuration in the cluster.",
+		Long: `Update machine configuration in the cluster.
 
 This command allows setting various machine properties including:
 - Machine name (--name)
 - Public IP address (--public-ip)
 
-At least one flag must be specified to perform a set operation.`,
+At least one flag must be specified to perform an update operation.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return set(cmd.Context(), uncli, opts, args[0])
+			return update(cmd.Context(), uncli, cmd, opts, args[0])
 		},
 	}
 
@@ -41,7 +41,7 @@ At least one flag must be specified to perform a set operation.`,
 	)
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "",
-		"Public IP address of the machine for ingress configuration",
+		"Public IP address of the machine for ingress configuration. Use 'none' or '' to remove the public IP.",
 	)
 	cmd.Flags().StringVarP(
 		&opts.context, "context", "c", "",
@@ -51,10 +51,10 @@ At least one flag must be specified to perform a set operation.`,
 	return cmd
 }
 
-func set(ctx context.Context, uncli *cli.CLI, opts setOptions, machineNameOrID string) error {
-	// Validate that at least one option is provided
-	if opts.name == "" && opts.publicIP == "" {
-		return fmt.Errorf("at least one set flag must be specified (--name, --public-ip)")
+func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts updateOptions, machineNameOrID string) error {
+	// Check if at least one flag was explicitly set
+	if !cmd.Flags().Changed("name") && !cmd.Flags().Changed("public-ip") {
+		return fmt.Errorf("at least one update flag must be specified (--name, --public-ip)")
 	}
 
 	client, err := uncli.ConnectCluster(ctx, opts.context)
@@ -69,8 +69,8 @@ func set(ctx context.Context, uncli *cli.CLI, opts setOptions, machineNameOrID s
 		return fmt.Errorf("find machine: %w", err)
 	}
 
-	// Build the set request
-	req := &pb.SetMachineRequest{
+	// Build the update request
+	req := &pb.UpdateMachineRequest{
 		MachineId: machine.Machine.Id,
 	}
 
@@ -78,19 +78,24 @@ func set(ctx context.Context, uncli *cli.CLI, opts setOptions, machineNameOrID s
 		req.Name = &opts.name
 	}
 
-	if opts.publicIP != "" {
-		// Parse and validate the public IP
-		ip, err := netip.ParseAddr(opts.publicIP)
-		if err != nil {
-			return fmt.Errorf("invalid public IP address %q: %w", opts.publicIP, err)
+	// Check if --public-ip flag was explicitly provided
+	if cmd.Flags().Changed("public-ip") {
+		if opts.publicIP == "" || opts.publicIP == "none" {
+			req.PublicIp = &pb.IP{} // Empty IP to signal removal
+		} else {
+			// Parse and validate the public IP
+			ip, err := netip.ParseAddr(opts.publicIP)
+			if err != nil {
+				return fmt.Errorf("invalid public IP address %q: %w", opts.publicIP, err)
+			}
+			req.PublicIp = pb.NewIP(ip)
 		}
-		req.PublicIp = pb.NewIP(ip)
 	}
 
-	// Perform the set operation
-	updatedMachine, err := client.SetMachine(ctx, req)
+	// Perform the update operation
+	updatedMachine, err := client.UpdateMachine(ctx, req)
 	if err != nil {
-		return fmt.Errorf("set machine: %w", err)
+		return fmt.Errorf("update machine: %w", err)
 	}
 
 	// Report what was changed
@@ -98,7 +103,7 @@ func set(ctx context.Context, uncli *cli.CLI, opts setOptions, machineNameOrID s
 	if opts.name != "" {
 		changes = append(changes, fmt.Sprintf("name: %q -> %q", machine.Machine.Name, updatedMachine.Name))
 	}
-	if opts.publicIP != "" {
+	if cmd.Flags().Changed("public-ip") {
 		oldIP := "none"
 		if machine.Machine.PublicIp != nil {
 			if addr, err := machine.Machine.PublicIp.ToAddr(); err == nil {
