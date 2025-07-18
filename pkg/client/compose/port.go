@@ -2,12 +2,10 @@ package compose
 
 import (
 	"fmt"
-	"net/netip"
-	"strconv"
-	"strings"
-
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
+	"net/netip"
+	"strconv"
 )
 
 const PortsExtensionKey = "x-ports"
@@ -55,7 +53,7 @@ func transformServicesPortsExtension(project *types.Project) (*types.Project, er
 			return service, nil
 		}
 
-		// Ensure extensions map exists
+		// Ensure extensions map exists before setting the port specs
 		if service.Extensions == nil {
 			service.Extensions = make(types.Extensions)
 		}
@@ -77,57 +75,7 @@ func transformPortsExtension(ports PortsSource) ([]api.PortSpec, error) {
 	return specs, nil
 }
 
-// expandPortRange expands a port range like "3000-3005" into individual port configs
-func expandPortRange(basePort types.ServicePortConfig) ([]types.ServicePortConfig, error) {
-	if !strings.Contains(basePort.Published, "-") {
-		return []types.ServicePortConfig{basePort}, nil
-	}
-
-	parts := strings.Split(basePort.Published, "-")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid port range format %q", basePort.Published)
-	}
-
-	startPort, err := strconv.ParseUint(strings.TrimSpace(parts[0]), 10, 16)
-	if err != nil {
-		return nil, fmt.Errorf("invalid start port in range %q: %w", basePort.Published, err)
-	}
-
-	endPort, err := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, 16)
-	if err != nil {
-		return nil, fmt.Errorf("invalid end port in range %q: %w", basePort.Published, err)
-	}
-
-	if startPort >= endPort {
-		return nil, fmt.Errorf("invalid port range %q: start port must be less than end port", basePort.Published)
-	}
-
-	// Expand range into individual ports
-	var expandedPorts []types.ServicePortConfig
-	portDiff := endPort - startPort
-
-	for i := uint64(0); i <= portDiff; i++ {
-		expandedPort := basePort // Copy the base configuration
-
-		// Set published port
-		publishedPort := startPort + i
-		expandedPort.Published = strconv.FormatUint(publishedPort, 10)
-
-		// Set target port (aka container port)
-		// If target port range matches published port range, expand it too
-		// Otherwise, keep the same target port for all
-		if basePort.Target != 0 {
-			// For ranges, Docker Compose maps ports 1:1 by default
-			expandedPort.Target = basePort.Target + uint32(i)
-		}
-
-		expandedPorts = append(expandedPorts, expandedPort)
-	}
-
-	return expandedPorts, nil
-}
-
-// convertServicePortConfigToPortSpec converts a single ServicePortConfig directly to api.PortSpec
+// convertServicePortConfigToPortSpec converts types.ServicePortConfig directly to api.PortSpec
 func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortSpec, error) {
 	spec := api.PortSpec{
 		ContainerPort: uint16(port.Target),
@@ -141,6 +89,12 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 	}
 	if spec.Mode == "" {
 		spec.Mode = "ingress"
+	}
+
+	if spec.Mode == "ingress" && spec.Protocol != "http" && spec.Protocol != "https" {
+		if port.Published != "" {
+			spec.Mode = "host"
+		}
 	}
 
 	// Set published port if specified
@@ -169,25 +123,16 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 	return spec, nil
 }
 
-// convertStandardPortsToPortSpecs converts standard go-compose ports directly to api.PortSpecs
+// convertStandardPortsToPortSpecs converts []types.ServicePortConfig directly to api.PortSpecs.
 func convertStandardPortsToPortSpecs(ports []types.ServicePortConfig) ([]api.PortSpec, error) {
-	var specs []api.PortSpec
+	var specs = make([]api.PortSpec, 0, len(ports))
 
 	for _, port := range ports {
-		// Check if this port uses a range that should be expanded
-		expandedPorts, err := expandPortRange(port)
+		spec, err := convertServicePortConfigToPortSpec(port)
 		if err != nil {
 			return nil, err
 		}
-
-		// Convert each expanded port directly to api.PortSpec
-		for _, expandedPort := range expandedPorts {
-			spec, err := convertServicePortConfigToPortSpec(expandedPort)
-			if err != nil {
-				return nil, err
-			}
-			specs = append(specs, spec)
-		}
+		specs = append(specs, spec)
 	}
 
 	return specs, nil

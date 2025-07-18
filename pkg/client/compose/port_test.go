@@ -10,245 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExpandPortRange(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		port     types.ServicePortConfig
-		expected []types.ServicePortConfig
-		wantErr  string
-	}{
-		{
-			name: "single port (no range)",
-			port: types.ServicePortConfig{
-				Target:    8080,
-				Published: "80",
-				Protocol:  "tcp",
-			},
-			expected: []types.ServicePortConfig{
-				{
-					Target:    8080,
-					Published: "80",
-					Protocol:  "tcp",
-				},
-			},
-		},
-		{
-			name: "simple port range",
-			port: types.ServicePortConfig{
-				Target:    8080,
-				Published: "3000-3002",
-				Protocol:  "tcp",
-				Mode:      "host",
-			},
-			expected: []types.ServicePortConfig{
-				{
-					Target:    8080,
-					Published: "3000",
-					Protocol:  "tcp",
-					Mode:      "host",
-				},
-				{
-					Target:    8081,
-					Published: "3001",
-					Protocol:  "tcp",
-					Mode:      "host",
-				},
-				{
-					Target:    8082,
-					Published: "3002",
-					Protocol:  "tcp",
-					Mode:      "host",
-				},
-			},
-		},
-		{
-			name: "port range with host IP",
-			port: types.ServicePortConfig{
-				Target:    9000,
-				Published: "5000-5001",
-				Protocol:  "udp",
-				HostIP:    "127.0.0.1",
-				Mode:      "host",
-			},
-			expected: []types.ServicePortConfig{
-				{
-					Target:    9000,
-					Published: "5000",
-					Protocol:  "udp",
-					HostIP:    "127.0.0.1",
-					Mode:      "host",
-				},
-				{
-					Target:    9001,
-					Published: "5001",
-					Protocol:  "udp",
-					HostIP:    "127.0.0.1",
-					Mode:      "host",
-				},
-			},
-		},
-		{
-			name: "large port range",
-			port: types.ServicePortConfig{
-				Target:    8000,
-				Published: "3000-3009",
-				Protocol:  "tcp",
-			},
-			expected: []types.ServicePortConfig{
-				{Target: 8000, Published: "3000", Protocol: "tcp"},
-				{Target: 8001, Published: "3001", Protocol: "tcp"},
-				{Target: 8002, Published: "3002", Protocol: "tcp"},
-				{Target: 8003, Published: "3003", Protocol: "tcp"},
-				{Target: 8004, Published: "3004", Protocol: "tcp"},
-				{Target: 8005, Published: "3005", Protocol: "tcp"},
-				{Target: 8006, Published: "3006", Protocol: "tcp"},
-				{Target: 8007, Published: "3007", Protocol: "tcp"},
-				{Target: 8008, Published: "3008", Protocol: "tcp"},
-				{Target: 8009, Published: "3009", Protocol: "tcp"},
-			},
-		},
-
-		// Error cases
-		{
-			name: "invalid range format",
-			port: types.ServicePortConfig{
-				Target:    8080,
-				Published: "3000-3001-3002",
-			},
-			wantErr: "invalid port range format",
-		},
-		{
-			name: "invalid start port",
-			port: types.ServicePortConfig{
-				Target:    8080,
-				Published: "abc-3001",
-			},
-			wantErr: "invalid start port in range",
-		},
-		{
-			name: "invalid end port",
-			port: types.ServicePortConfig{
-				Target:    8080,
-				Published: "3000-xyz",
-			},
-			wantErr: "invalid end port in range",
-		},
-		{
-			name: "start port >= end port",
-			port: types.ServicePortConfig{
-				Target:    8080,
-				Published: "3001-3000",
-			},
-			wantErr: "invalid port range",
-		},
-		{
-			name: "start port = end port",
-			port: types.ServicePortConfig{
-				Target:    8080,
-				Published: "3000-3000",
-			},
-			wantErr: "invalid port range",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result, err := expandPortRange(tt.port)
-			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestConvertStandardPortsToPortSpecs_WithRanges(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		ports    []types.ServicePortConfig
-		expected []api.PortSpec
-		wantErr  string
-	}{
-		{
-			name: "port range expansion",
-			ports: []types.ServicePortConfig{
-				{
-					Target:    8080,
-					Published: "3000-3002",
-					Protocol:  "tcp",
-				},
-			},
-			expected: []api.PortSpec{
-				{ContainerPort: 8080, PublishedPort: 3000, Protocol: "tcp", Mode: "ingress"},
-				{ContainerPort: 8081, PublishedPort: 3001, Protocol: "tcp", Mode: "ingress"},
-				{ContainerPort: 8082, PublishedPort: 3002, Protocol: "tcp", Mode: "ingress"},
-			},
-		},
-		{
-			name: "mixed single ports and ranges",
-			ports: []types.ServicePortConfig{
-				{
-					Target:    8080,
-					Published: "80",
-					Protocol:  "tcp",
-				},
-				{
-					Target:    9000,
-					Published: "4000-4001",
-					Protocol:  "udp",
-				},
-			},
-			expected: []api.PortSpec{
-				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "ingress"},
-				{ContainerPort: 9000, PublishedPort: 4000, Protocol: "udp", Mode: "ingress"},
-				{ContainerPort: 9001, PublishedPort: 4001, Protocol: "udp", Mode: "ingress"},
-			},
-		},
-		{
-			name: "port range in host mode",
-			ports: []types.ServicePortConfig{
-				{
-					Target:    8080,
-					Published: "3000-3001",
-					Protocol:  "tcp",
-					Mode:      "host",
-					HostIP:    "127.0.0.1",
-				},
-			},
-			expected: []api.PortSpec{
-				{ContainerPort: 8080, PublishedPort: 3000, Protocol: "tcp", Mode: "host", HostIP: mustParseAddr("127.0.0.1")},
-				{ContainerPort: 8081, PublishedPort: 3001, Protocol: "tcp", Mode: "host", HostIP: mustParseAddr("127.0.0.1")},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result, err := convertStandardPortsToPortSpecs(tt.ports)
-			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestConvertStandardPortsToPortSpecs(t *testing.T) {
 	t.Parallel()
 
@@ -266,15 +27,15 @@ func TestConvertStandardPortsToPortSpecs(t *testing.T) {
 				{Target: 5353, Published: "53", Protocol: "udp"},
 			},
 			expected: []api.PortSpec{
-				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "ingress"},
+				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "host"},
 				{ContainerPort: 8443, PublishedPort: 443, Protocol: "tcp", Mode: "host"},
-				{ContainerPort: 5353, PublishedPort: 53, Protocol: "udp", Mode: "ingress"},
+				{ContainerPort: 5353, PublishedPort: 53, Protocol: "udp", Mode: "host"},
 			},
 		},
 		{
 			name:     "empty ports",
 			ports:    []types.ServicePortConfig{},
-			expected: nil,
+			expected: make([]api.PortSpec, 0),
 		},
 		{
 			name: "single port no published",
@@ -342,7 +103,7 @@ func TestConvertServicePortConfigToPortSpec(t *testing.T) {
 				ContainerPort: 8080,
 				PublishedPort: 80,
 				Protocol:      "tcp",
-				Mode:          "ingress",
+				Mode:          "host",
 			},
 		},
 		{
@@ -385,7 +146,7 @@ func TestConvertServicePortConfigToPortSpec(t *testing.T) {
 				ContainerPort: 5353,
 				PublishedPort: 53,
 				Protocol:      "udp",
-				Mode:          "ingress",
+				Mode:          "host",
 			},
 		},
 		{
@@ -403,6 +164,34 @@ func TestConvertServicePortConfigToPortSpec(t *testing.T) {
 				Protocol:      "tcp",
 				Mode:          "host",
 				HostIP:        mustParseAddr("::1"),
+			},
+		},
+		{
+			name: "HTTP protocol stays in ingress mode",
+			port: types.ServicePortConfig{
+				Target:    8080,
+				Published: "80",
+				Protocol:  "http",
+			},
+			expected: api.PortSpec{
+				ContainerPort: 8080,
+				PublishedPort: 80,
+				Protocol:      "http",
+				Mode:          "ingress",
+			},
+		},
+		{
+			name: "HTTPS protocol stays in ingress mode",
+			port: types.ServicePortConfig{
+				Target:    8080,
+				Published: "443",
+				Protocol:  "https",
+			},
+			expected: api.PortSpec{
+				ContainerPort: 8080,
+				PublishedPort: 443,
+				Protocol:      "https",
+				Mode:          "ingress",
 			},
 		},
 		// Error cases
@@ -546,9 +335,9 @@ services:
       - "53:5353/udp"
 `,
 			expected: []api.PortSpec{
-				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "ingress"},
-				{ContainerPort: 8443, PublishedPort: 443, Protocol: "tcp", Mode: "ingress"},
-				{ContainerPort: 5353, PublishedPort: 53, Protocol: "udp", Mode: "ingress"},
+				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "host"},
+				{ContainerPort: 8443, PublishedPort: 443, Protocol: "tcp", Mode: "host"},
+				{ContainerPort: 5353, PublishedPort: 53, Protocol: "udp", Mode: "host"},
 			},
 		},
 		{
@@ -568,7 +357,7 @@ services:
         mode: host
 `,
 			expected: []api.PortSpec{
-				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "ingress"},
+				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "host"},
 				{ContainerPort: 8443, PublishedPort: 443, Protocol: "tcp", Mode: "host"},
 			},
 		},
