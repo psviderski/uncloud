@@ -82,21 +82,6 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 		Protocol:      port.Protocol,
 		Mode:          port.Mode,
 	}
-
-	// Apply defaults according to Docker Compose specification
-	if spec.Protocol == "" {
-		spec.Protocol = "tcp"
-	}
-	if spec.Mode == "" {
-		spec.Mode = "ingress"
-	}
-
-	if spec.Mode == "ingress" && spec.Protocol != "http" && spec.Protocol != "https" {
-		if port.Published != "" {
-			spec.Mode = "host"
-		}
-	}
-
 	// Set published port if specified
 	if port.Published != "" {
 		publishedPort, err := strconv.ParseUint(port.Published, 10, 16)
@@ -114,6 +99,9 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 		}
 		spec.HostIP = hostIP
 	}
+
+	// Apply defaults according to uncloud
+	spec.AdjustUncloudMode()
 
 	// Validate the resulting spec
 	if err := spec.Validate(); err != nil {
