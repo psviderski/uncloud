@@ -114,7 +114,7 @@ func set(ctx context.Context, uncli *cli.CLI, opts setOptions, machineNameOrID s
 		changes = append(changes, fmt.Sprintf("public IP: %s -> %s", oldIP, newIP))
 	}
 
-	fmt.Printf("Machine %q (ID: %s) settings updated:\n", updatedMachine.Name, updatedMachine.Id)
+	fmt.Printf("Machine %q (ID: %s) configuration updated:\n", updatedMachine.Name, updatedMachine.Id)
 	for _, change := range changes {
 		fmt.Printf("  %s\n", change)
 	}
