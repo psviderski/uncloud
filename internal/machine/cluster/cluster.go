@@ -274,7 +274,7 @@ func (c *Cluster) SetMachine(ctx context.Context, req *pb.SetMachineRequest) (*p
 		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
 	}
 
-	slog.Info("Machine settings updated in the cluster.",
+	slog.Info("Machine configuration updated in the cluster.",
 		"id", updatedMachine.Id, "name", updatedMachine.Name)
 
 	resp := &pb.SetMachineResponse{Machine: updatedMachine}
