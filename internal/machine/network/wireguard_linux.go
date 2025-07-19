@@ -6,18 +6,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/psviderski/uncloud/internal/secret"
-	"github.com/vishvananda/netlink"
-	"go4.org/netipx"
-	"golang.org/x/sys/unix"
-	"golang.zx2c4.com/wireguard/wgctrl"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"log/slog"
 	"net"
 	"net/netip"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/vishvananda/netlink"
+	"go4.org/netipx"
+	"golang.org/x/sys/unix"
+	"golang.zx2c4.com/wireguard/wgctrl"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 type WireGuardNetwork struct {
