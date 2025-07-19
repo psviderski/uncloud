@@ -3,9 +3,10 @@ package connector
 import (
 	"context"
 	"fmt"
+	"net/netip"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"net/netip"
 )
 
 // TCPConnector establishes a connection to the machine API through a direct TCP connection to an API endpoint.

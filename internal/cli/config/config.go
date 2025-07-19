@@ -53,11 +53,11 @@ func (c *Config) Read() error {
 
 func (c *Config) Save() error {
 	dir, _ := filepath.Split(c.path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create config directory '%s': %w", dir, err)
 	}
 
-	f, err := os.OpenFile(c.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(c.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("write config file '%s': %w", c.path, err)
 	}

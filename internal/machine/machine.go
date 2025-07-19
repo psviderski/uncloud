@@ -501,7 +501,7 @@ func listenUnixSocket(path string) (net.Listener, error) {
 
 	// Ensure the parent directory exists and has the correct group permissions.
 	parent, _ := filepath.Split(path)
-	if err = os.MkdirAll(parent, 0750); err != nil {
+	if err = os.MkdirAll(parent, 0o750); err != nil {
 		return nil, fmt.Errorf("create directory %q: %w", parent, err)
 	}
 	if err = os.Chown(parent, -1, gid); err != nil {
@@ -555,7 +555,7 @@ func (m *Machine) configureCorrosion() error {
 		return fmt.Errorf("write corrosion config: %w", err)
 	}
 
-	if err := os.WriteFile(schemaPath, []byte(store.Schema), 0644); err != nil {
+	if err := os.WriteFile(schemaPath, []byte(store.Schema), 0o644); err != nil {
 		return fmt.Errorf("write corrosion schema: %w", err)
 	}
 

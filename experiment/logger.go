@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/ipfs/go-log/v2"
 	"log/slog"
 	"os"
+
+	"github.com/ipfs/go-log/v2"
 )
 
 // ipfsLogger is an slog logger that implements the IPFS go-log StandardLogger interface.

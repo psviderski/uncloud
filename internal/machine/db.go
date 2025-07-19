@@ -14,13 +14,13 @@ const DBFileName = "machine.db"
 func NewDB(path string) (*sqlx.DB, error) {
 	// Create the database file with 0600 permissions if it doesn't exist, or update permissions if exists.
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 		if err != nil {
 			return nil, fmt.Errorf("create SQLite database '%s': %w", path, err)
 		}
 		file.Close()
 	} else {
-		if err = os.Chmod(path, 0600); err != nil {
+		if err = os.Chmod(path, 0o600); err != nil {
 			return nil, fmt.Errorf("update SQLite database permissions '%s': %w", path, err)
 		}
 	}

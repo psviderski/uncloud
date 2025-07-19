@@ -2,11 +2,12 @@ package proxy
 
 import (
 	"context"
+	"sync"
+
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"sync"
 )
 
 // Director manages routing of gRPC requests between local and remote backends.

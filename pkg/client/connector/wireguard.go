@@ -3,6 +3,10 @@ package connector
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/netip"
+	"strconv"
+
 	"github.com/psviderski/uncloud/internal/cli/config"
 	machine2 "github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/network"
@@ -10,9 +14,6 @@ import (
 	"github.com/psviderski/uncloud/pkg/client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"net"
-	"net/netip"
-	"strconv"
 )
 
 // WireGuardConnector establishes a connection to the cluster API through a WireGuard tunnel

@@ -1,4 +1,10 @@
 version: "2"
+
+run:
+  concurrency: 4
+  tests: true
+  timeout: 5m
+
 linters:
   default: none
   enable:
@@ -26,5 +32,12 @@ linters:
 
 formatters:
   enable:
-    - gofmt
-    # - goimports
+    - gofumpt
+    - goimports
+    - gci
+
+issues:
+  exclude-rules:
+    - path: "test/e2e"
+      linters:
+        - goconst  # constants here add no value, so we skip goconst only for test/e2e.

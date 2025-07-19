@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	sq "github.com/Masterminds/squirrel"
-	"github.com/psviderski/uncloud/pkg/api"
 	"log/slog"
 	"strings"
 	"time"
+
+	sq "github.com/Masterminds/squirrel"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const (

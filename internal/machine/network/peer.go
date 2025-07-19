@@ -1,11 +1,12 @@
 package network
 
 import (
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"log/slog"
 	"net/netip"
 	"slices"
 	"time"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 const (
