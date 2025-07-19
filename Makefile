@@ -98,6 +98,22 @@ test-clean:
 vet:
 	go vet ./...
 
+.PHONY: format
+format:
+	go fmt ./...
+
+LINT_TARGETS := lint lint-and-fix
+.PHONY: $(LINT_TARGETS) _lint
+$(LINT_TARGETS): _lint
+lint: ARGS=
+lint-and-fix: ARGS=--fix
+_lint:
+	golangci-lint run $(ARGS)
+
+# .PHONY: lint-and-fix
+# lint-and-fix: lint
+# 	ARGS="--fix"
+
 .PHONY: docs-image-push
 docs-image:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(DOCS_IMAGE)" ./docs

@@ -97,7 +97,7 @@ func TestComposeDeployment(t *testing.T) {
 		deploy, err := compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err := deploy.Plan(ctx)
+		_, err = deploy.Plan(ctx)
 		require.ErrorContains(t, err, "external volumes not found: 'test-compose-volumes-external'")
 
 		externalVolumeOpts := volume.CreateOptions{Name: "test-compose-volumes-external"}
@@ -108,7 +108,7 @@ func TestComposeDeployment(t *testing.T) {
 		deploy, err = compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err = deploy.Plan(ctx)
+		plan, err := deploy.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 5, "Expected 2 volumes creation and 3 services to deploy")
 

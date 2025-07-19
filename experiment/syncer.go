@@ -4,18 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+
 	"github.com/hashicorp/serf/serf"
 	"github.com/ipfs/boxo/datastore/dshelp"
 	dag "github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/go-cid"
 	ds "github.com/ipfs/go-datastore"
 	ipld "github.com/ipfs/go-ipld-format"
-	"log/slog"
 )
 
 // Implements the DAGService interface.
 // TODO: implement SessionDAGService to optimize node fetching.
-// TOOD: persistentSerfDAG?
+// TODO: persistentSerfDAG?
 type dagSyncer struct {
 	// Persistent storage for the nodes.
 	store     ds.Datastore
@@ -50,8 +51,7 @@ func (d *dagSyncer) Get(ctx context.Context, cid cid.Cid) (ipld.Node, error) {
 	}
 	slog.Debug("Queried node from peers", "cid", cid, "deadline", query.Deadline())
 
-	responded := false
-	for !responded {
+	for {
 		select {
 		case resp, ok := <-query.ResponseCh():
 			if !ok {
@@ -63,7 +63,6 @@ func (d *dagSyncer) Get(ctx context.Context, cid cid.Cid) (ipld.Node, error) {
 				continue
 			}
 			slog.Debug("Received node from peer", "cid", cid, "peer", resp.From)
-			responded = true
 			query.Close()
 
 			node, err = nodeFromBytes(resp.Payload)

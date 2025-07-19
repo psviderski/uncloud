@@ -129,7 +129,7 @@ func (n *WireGuardNetwork) configureDevice(config Config) error {
 		// rotations and connection disruptions.
 		n.peers = make(map[string]*peer, len(config.Peers))
 		wgPeers := make(map[string]*wgtypes.Peer, len(dev.Peers))
-		for i, _ := range dev.Peers {
+		for i := range dev.Peers {
 			wgPeers[secret.Secret(dev.Peers[i].PublicKey[:]).String()] = &dev.Peers[i]
 		}
 		for _, pc := range config.Peers {

@@ -1119,7 +1119,7 @@ func TestServiceLifecycle(t *testing.T) {
 				Entrypoint: []string{"///pause"},
 				Env: map[string]string{
 					"VAR":   "value",
-					"EMTPY": "",
+					"EMPTY": "",
 					"BOOL":  "true",
 					"":      "ignored",
 				},

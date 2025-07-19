@@ -1,0 +1,30 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - bodyclose
+    # - dogsled
+    - dupl
+    # - errcheck
+    - gochecknoinits
+    - goconst
+    # - gocritic
+    # - gocyclo
+    # - godot
+    # - gosec
+    # - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    # - prealloc
+    # - revive
+    # - staticcheck
+    - unconvert
+    # - unparam
+    # - unused
+    - whitespace
+
+formatters:
+  enable:
+    - gofmt
+    # - goimports

@@ -6,6 +6,14 @@ backend = "core:go"
 "go1.23.10.darwin-arm64.tar.gz" = "sha256:25c64bfa8a8fd8e7f62fb54afa4354af8409a4bb2358c2699a1003b733e6fce5"
 "go1.23.10.linux-amd64.tar.gz" = "sha256:535f9f81802499f2a7dbfa70abb8fda3793725fcc29460f719815f6e10b5fd60"
 
+[tools.golangci-lint]
+version = "2.2.2"
+backend = "aqua:golangci/golangci-lint"
+
+[tools.golangci-lint.checksums]
+"golangci-lint-2.2.2-darwin-arm64.tar.gz" = "sha256:d84d94d042c0d495fd1746f3d18948a75de163b17a14e8de3ef840928dd2df74"
+"golangci-lint-2.2.2-linux-amd64.tar.gz" = "sha256:c27fbde948a87d326feacd21df2f61a9c54dbd2e3bfa185c0a1cd6917a6f964f"
+
 [tools.protoc]
 version = "27.3"
 backend = "aqua:protocolbuffers/protobuf/protoc"

@@ -3,6 +3,7 @@ experimental = true
 
 [tools]
 go = "1.23"
+golangci-lint = "2.2.2"
 protoc = "27.3"
 protoc-gen-go = "1.34.2"
 protoc-gen-go-grpc = "1.5.1"
