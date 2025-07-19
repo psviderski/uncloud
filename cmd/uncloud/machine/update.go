@@ -41,7 +41,7 @@ At least one flag must be specified to perform an update operation.`,
 	)
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "",
-		"Public IP address of the machine for ingress configuration. Use 'none' or '' to remove the public IP.",
+		fmt.Sprintf("Public IP address of the machine for ingress configuration. Use '%s' or '' to remove the public IP.", PublicIPNone),
 	)
 	cmd.Flags().StringVarP(
 		&opts.context, "context", "c", "",
@@ -80,7 +80,7 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 
 	// Check if --public-ip flag was explicitly provided
 	if cmd.Flags().Changed("public-ip") {
-		if opts.publicIP == "" || opts.publicIP == "none" {
+		if opts.publicIP == "" || opts.publicIP == PublicIPNone {
 			req.PublicIp = &pb.IP{} // Empty IP to signal removal
 		} else {
 			// Parse and validate the public IP
@@ -104,13 +104,13 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 		changes = append(changes, fmt.Sprintf("name: %q -> %q", machine.Machine.Name, updatedMachine.Name))
 	}
 	if cmd.Flags().Changed("public-ip") {
-		oldIP := "none"
+		oldIP := PublicIPNone
 		if machine.Machine.PublicIp != nil {
 			if addr, err := machine.Machine.PublicIp.ToAddr(); err == nil {
 				oldIP = addr.String()
 			}
 		}
-		newIP := "none"
+		newIP := PublicIPNone
 		if updatedMachine.PublicIp != nil {
 			if addr, err := updatedMachine.PublicIp.ToAddr(); err == nil {
 				newIP = addr.String()
