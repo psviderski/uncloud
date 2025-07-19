@@ -4,9 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/psviderski/uncloud/internal/secret"
 	"net/netip"
 	"strings"
+
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (

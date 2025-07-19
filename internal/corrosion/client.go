@@ -5,14 +5,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
-	"golang.org/x/net/http2"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
+	"golang.org/x/net/http2"
 )
 
 const (

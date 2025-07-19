@@ -259,8 +259,8 @@ func TestDeployment(t *testing.T) {
 		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
 
 		// TODO: update the container spec in-place if only the placement constraint has changed.
-		//containers = serviceContainerIDs(svc)
-		//assert.True(t, initialContainers.IsSubset(containers), "Expected all initial containers to remain")
+		// containers = serviceContainerIDs(svc)
+		// assert.True(t, initialContainers.IsSubset(containers), "Expected all initial containers to remain")
 	})
 
 	t.Run("caddy", func(t *testing.T) {
@@ -334,7 +334,7 @@ func TestDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, deployment.Spec)
 
 		assert.Equal(t, c.Machines[0].ID, svc.Containers[0].MachineID)
-		//initialContainerID := svc.Containers[0].Container.ID
+		// initialContainerID := svc.Containers[0].Container.ID
 
 		// Deploy to all machines without a placement constraint.
 		deployment, err = cli.NewCaddyDeployment(image, api.Placement{})
@@ -352,8 +352,8 @@ func TestDeployment(t *testing.T) {
 		machines := serviceMachines(svc)
 		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
 		// TODO: update the container spec in-place if only the placement constraint has changed.
-		//containers := serviceContainerIDs(svc)
-		//assert.True(t, containers.Contains(initialContainerID), "Expected initial container to remain")
+		// containers := serviceContainerIDs(svc)
+		// assert.True(t, containers.Contains(initialContainerID), "Expected initial container to remain")
 	})
 
 	t.Run("replicated", func(t *testing.T) {
@@ -587,7 +587,7 @@ func TestDeployment(t *testing.T) {
 		require.Error(t, err, "Deployment should fail when volume doesn't exist")
 		require.Contains(t, err.Error(), "no machines available")
 		// TODO: implement and check for more details about the failed constraints.
-		//require.Contains(t, err.Error(), "volume 'non-existent-volume' not found")
+		// require.Contains(t, err.Error(), "volume 'non-existent-volume' not found")
 	})
 
 	// Tests that when a volume exists on a single machine, all requested replicas will be deployed to that machine,

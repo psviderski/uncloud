@@ -29,7 +29,7 @@ type Controller struct {
 
 func NewController(store *store.Store, path string, verifyResponse string) (*Controller, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("create parent directory for Caddy configuration '%s': %w", dir, err)
 	}
 	if err := fs.Chown(dir, "", CaddyGroup); err != nil {
@@ -114,7 +114,7 @@ func (c *Controller) generateConfig(containers []api.ServiceContainer) error {
 		return fmt.Errorf("marshal Caddy configuration: %w", err)
 	}
 
-	if err = os.WriteFile(c.path, configBytes, 0640); err != nil {
+	if err = os.WriteFile(c.path, configBytes, 0o640); err != nil {
 		return fmt.Errorf("write Caddy configuration to file '%s': %w", c.path, err)
 	}
 	if err = fs.Chown(c.path, "", CaddyGroup); err != nil {

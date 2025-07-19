@@ -3,14 +3,15 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"net/netip"
+	"sync"
+	"time"
+
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"net/netip"
-	"sync"
-	"time"
 )
 
 // RemoteBackend is a proxy.One2ManyResponder implementation that proxies to a remote gRPC server, injecting machine metadata

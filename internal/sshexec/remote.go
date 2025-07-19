@@ -3,9 +3,10 @@ package sshexec
 import (
 	"context"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"strings"
+
+	"golang.org/x/crypto/ssh"
 )
 
 type Remote struct {

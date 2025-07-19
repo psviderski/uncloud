@@ -4,6 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/serf/cmd/serf/command/agent"
 	"github.com/hashicorp/serf/serf"
@@ -11,12 +18,6 @@ import (
 	badger "github.com/ipfs/go-ds-badger3"
 	crdt "github.com/ipfs/go-ds-crdt"
 	"github.com/lmittmann/tint"
-	"log/slog"
-	"net"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func createSerfAgentConfig(name, bindAddr, rpcAddr, profile string) *agent.Config {
@@ -49,9 +50,9 @@ func createSerfAgent(config *agent.Config) (*agent.Agent, error) {
 
 	serfConfig.MemberlistConfig.BindAddr = bindIP
 	serfConfig.MemberlistConfig.BindPort = bindPort
-	//serfConfig.MemberlistConfig.AdvertiseAddr = advertiseIP
-	//serfConfig.MemberlistConfig.AdvertisePort = advertisePort
-	//serfConfig.MemberlistConfig.SecretKey = encryptKey
+	// serfConfig.MemberlistConfig.AdvertiseAddr = advertiseIP
+	// serfConfig.MemberlistConfig.AdvertisePort = advertisePort
+	// serfConfig.MemberlistConfig.SecretKey = encryptKey
 	serfConfig.NodeName = config.NodeName
 	serfConfig.Tags = config.Tags
 	serfConfig.SnapshotPath = config.SnapshotPath
@@ -129,7 +130,7 @@ func main() {
 	logger := slog.New(tint.NewHandler(os.Stdout, &tint.Options{
 		AddSource: true,
 		Level:     slog.LevelDebug,
-		//Level:      slog.LevelInfo,
+		// Level:      slog.LevelInfo,
 		TimeFormat: time.RFC3339Nano,
 	}))
 	slog.SetDefault(logger)
@@ -164,7 +165,7 @@ func main() {
 
 	opts := crdt.DefaultOptions()
 	opts.Logger = newIPFSLogger(logger)
-	//opts.MultiHeadProcessing = true
+	// opts.MultiHeadProcessing = true
 	// TODO: debug why the heads count may grow on the receiving side if the event backlog is huge and the processing
 	//  is slow.
 	store, err := crdt.New(localStore, ds.NewKey("/"), syncer, broadcaster, opts)
@@ -172,7 +173,7 @@ func main() {
 		panic(err)
 	}
 
-	//ticker := time.NewTicker(10 * time.Millisecond)
+	// ticker := time.NewTicker(10 * time.Millisecond)
 	ticker := time.NewTicker(3 * time.Second)
 	go func() {
 		for {

@@ -3,8 +3,9 @@ package cluster
 import (
 	"errors"
 	"fmt"
-	"go4.org/netipx"
 	"net/netip"
+
+	"go4.org/netipx"
 )
 
 const DefaultSubnetBits = 24

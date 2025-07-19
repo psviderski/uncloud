@@ -3,10 +3,11 @@ package daemon
 import (
 	"errors"
 	"fmt"
-	"github.com/psviderski/uncloud/internal/machine"
-	"github.com/psviderski/uncloud/internal/machine/network"
 	"net/netip"
 	"os"
+
+	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 // MachineToken returns the local machine's token that can be used for adding the machine to a cluster.

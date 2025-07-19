@@ -2,11 +2,12 @@ package proxy
 
 import (
 	"context"
+	"sync"
+
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"sync"
 )
 
 // LocalBackend is a proxy.One2ManyResponder implementation that proxies to a local gRPC server listening on a Unix socket.

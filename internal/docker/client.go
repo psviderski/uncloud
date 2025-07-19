@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/docker/docker/client"
 	"log/slog"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
+	"github.com/docker/docker/client"
 )
 
 // WaitDaemonReady waits for the Docker daemon to start and be ready to serve requests.

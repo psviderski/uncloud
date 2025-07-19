@@ -111,8 +111,8 @@ func (s *SubprocessService) startProcess(ctx context.Context) error {
 
 	// TODO: figure out the waiting process
 	// Wait for initialization
-	//timer := time.NewTimer(2 * time.Second)
-	//defer timer.Stop()
+	// timer := time.NewTimer(2 * time.Second)
+	// defer timer.Stop()
 
 	//select {
 	////case <-timer.C:

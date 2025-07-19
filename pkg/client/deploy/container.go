@@ -11,9 +11,11 @@ import (
 
 type ContainerSpecStatus string
 
-const ContainerUpToDate ContainerSpecStatus = "up-to-date"
-const ContainerNeedsUpdate ContainerSpecStatus = "needs-update"
-const ContainerNeedsRecreate ContainerSpecStatus = "needs-recreate"
+const (
+	ContainerUpToDate      ContainerSpecStatus = "up-to-date"
+	ContainerNeedsUpdate   ContainerSpecStatus = "needs-update"
+	ContainerNeedsRecreate ContainerSpecStatus = "needs-recreate"
+)
 
 func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) ContainerSpecStatus {
 	current = current.SetDefaults()

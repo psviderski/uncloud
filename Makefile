@@ -99,7 +99,7 @@ $(LINT_TARGETS): _lint
 lint: ARGS=
 lint-and-fix: ARGS=--fix
 _lint:
-	golangci-lint run $(ARGS)
+	GOOS=linux golangci-lint run $(ARGS)
 
 # .PHONY: lint-and-fix
 # lint-and-fix: lint

@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/serf/serf"
-	crdt "github.com/ipfs/go-ds-crdt"
 	"log/slog"
 	"time"
+
+	"github.com/hashicorp/serf/serf"
+	crdt "github.com/ipfs/go-ds-crdt"
 )
 
 // Implements the Broadcaster interface.
