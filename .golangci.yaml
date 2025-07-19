@@ -29,6 +29,11 @@ linters:
     # - unparam
     # - unused
     - whitespace
+  exclusions:
+    rules:
+      - path: ^test/e2e
+        linters:
+          - goconst  # constants here add no value, so we skip goconst only for test/e2e.
 
 formatters:
   enable:
@@ -36,8 +41,3 @@ formatters:
     - goimports
     - gci
 
-issues:
-  exclude-rules:
-    - path: "test/e2e"
-      linters:
-        - goconst  # constants here add no value, so we skip goconst only for test/e2e.
