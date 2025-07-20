@@ -324,6 +324,54 @@ func TestEvalContainerSpecChange_ContainerPrivileged(t *testing.T) {
 	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
 }
 
+func TestEvalContainerSpecChange_PullPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current string
+		new     string
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "non-always to always",
+			current: api.PullPolicyMissing,
+			new:     api.PullPolicyAlways,
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "always to always",
+			current: api.PullPolicyAlways,
+			new:     api.PullPolicyAlways,
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "always to non-always",
+			current: api.PullPolicyAlways,
+			new:     api.PullPolicyMissing,
+			want:    ContainerUpToDate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					PullPolicy: tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					PullPolicy: tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func TestEvalContainerSpecChange_ContainerUser(t *testing.T) {
 	t.Parallel()
 
