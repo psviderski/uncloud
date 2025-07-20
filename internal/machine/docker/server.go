@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1013,6 +1014,110 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	}
 
 	return resp, nil
+}
+
+// ContainerLogs streams logs from a container
+func (s *Server) ContainerLogs(req *pb.ContainerLogsRequest, stream grpc.ServerStreamingServer[pb.ContainerLogsResponse]) error {
+	ctx := stream.Context()
+
+	// Build container logs options
+	opts := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     req.Follow,
+		Timestamps: req.Timestamps,
+		Details:    req.Details,
+	}
+
+	// Handle tail option
+	if req.Tail > 0 {
+		opts.Tail = strconv.FormatInt(req.Tail, 10)
+	} else if req.Tail == 0 {
+		// Tail 0 means show no logs, just follow new ones
+		opts.Tail = "0"
+	}
+	// Tail -1 or unset means show all logs
+
+	// Handle since/until options
+	if req.Since != "" {
+		opts.Since = req.Since
+	}
+	if req.Until != "" {
+		opts.Until = req.Until
+	}
+
+	// Get logs reader from Docker
+	reader, err := s.client.ContainerLogs(ctx, req.ContainerId, opts)
+	if err != nil {
+		return status.Errorf(codes.Internal, "get container logs: %v", err)
+	}
+	defer reader.Close()
+
+	// Well, docker multiplexes stdout and stderr in the stream. Look https://github.com/moby/moby/blob/e77ff99ede5ee5952b3a9227863552ae6e5b6fb1/client/container_logs.go#L14-L36
+	// The stream format is: [8 bytes header][payload]
+	// Header format: [stream type (1 byte)][reserved (3 bytes)][size (4 bytes, big endian)]
+	buf := make([]byte, 8)
+
+	for {
+		// Read header
+		_, err := io.ReadFull(reader, buf)
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return status.Errorf(codes.Internal, "read log header: %v", err)
+		}
+
+		// Parse header
+		streamType := int32(buf[0])
+		size := binary.BigEndian.Uint32(buf[4:8])
+
+		// Read payload
+		payload := make([]byte, size)
+		_, err = io.ReadFull(reader, payload)
+		if err != nil {
+			return status.Errorf(codes.Internal, "read log payload: %v", err)
+		}
+
+		// convert payload to string and split by lines. docker may send multiple lines in one payload
+		lines := strings.Split(string(payload), "\n")
+		for _, line := range lines {
+			if line == "" {
+				continue
+			}
+
+			timestamp := ""
+			message := line
+			if req.Timestamps && len(line) > 30 {
+				// docker timestamp format: 2024-01-01T00:00:00.000000000Z
+				if line[4] == '-' && line[7] == '-' && line[10] == 'T' {
+					parts := strings.SplitN(line, " ", 2)
+					if len(parts) == 2 {
+						timestamp = parts[0]
+						message = parts[1]
+					}
+				}
+			}
+
+			// Send log entry
+			resp := &pb.ContainerLogsResponse{
+				StreamType: streamType,
+				Message:    message,
+				Timestamp:  timestamp,
+			}
+
+			if err := stream.Send(resp); err != nil {
+				return status.Errorf(codes.Internal, "send log entry: %v", err)
+			}
+		}
+
+		// Check if context is cancelled
+		select {
+		case <-ctx.Done():
+			return status.Errorf(codes.Canceled, ctx.Err().Error())
+		default:
+		}
+	}
 }
 
 // receiveExecConfig receives and validates the initial exec configuration from the stream.

@@ -11,6 +11,7 @@ import (
 	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/cmd/uncloud/image"
+	"github.com/psviderski/uncloud/cmd/uncloud/logs"
 	"github.com/psviderski/uncloud/cmd/uncloud/machine"
 	"github.com/psviderski/uncloud/cmd/uncloud/service"
 	"github.com/psviderski/uncloud/cmd/uncloud/volume"
@@ -115,6 +116,7 @@ func main() {
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
 		image.NewRootCommand(),
+		logs.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
 		service.NewExecCommand(),

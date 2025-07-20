@@ -38,6 +38,7 @@ const (
 	Docker_ListServiceContainers_FullMethodName   = "/api.Docker/ListServiceContainers"
 	Docker_RemoveServiceContainer_FullMethodName  = "/api.Docker/RemoveServiceContainer"
 	Docker_ExecContainer_FullMethodName           = "/api.Docker/ExecContainer"
+	Docker_ContainerLogs_FullMethodName           = "/api.Docker/ContainerLogs"
 )
 
 // DockerClient is the client API for Docker service.
@@ -64,6 +65,8 @@ type DockerClient interface {
 	ListServiceContainers(ctx context.Context, in *ListServiceContainersRequest, opts ...grpc.CallOption) (*ListServiceContainersResponse, error)
 	RemoveServiceContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ExecContainer(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecContainerRequest, ExecContainerResponse], error)
+	// ContainerLogs streams logs from a container
+	ContainerLogs(ctx context.Context, in *ContainerLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerLogsResponse], error)
 }
 
 type dockerClient struct {
@@ -266,6 +269,25 @@ func (c *dockerClient) ExecContainer(ctx context.Context, opts ...grpc.CallOptio
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Docker_ExecContainerClient = grpc.BidiStreamingClient[ExecContainerRequest, ExecContainerResponse]
 
+func (c *dockerClient) ContainerLogs(ctx context.Context, in *ContainerLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerLogsResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Docker_ServiceDesc.Streams[2], Docker_ContainerLogs_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ContainerLogsRequest, ContainerLogsResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Docker_ContainerLogsClient = grpc.ServerStreamingClient[ContainerLogsResponse]
+
 // DockerServer is the server API for Docker service.
 // All implementations must embed UnimplementedDockerServer
 // for forward compatibility.
@@ -290,6 +312,8 @@ type DockerServer interface {
 	ListServiceContainers(context.Context, *ListServiceContainersRequest) (*ListServiceContainersResponse, error)
 	RemoveServiceContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
 	ExecContainer(grpc.BidiStreamingServer[ExecContainerRequest, ExecContainerResponse]) error
+	// ContainerLogs streams logs from a container
+	ContainerLogs(*ContainerLogsRequest, grpc.ServerStreamingServer[ContainerLogsResponse]) error
 	mustEmbedUnimplementedDockerServer()
 }
 
@@ -353,6 +377,9 @@ func (UnimplementedDockerServer) RemoveServiceContainer(context.Context, *Remove
 }
 func (UnimplementedDockerServer) ExecContainer(grpc.BidiStreamingServer[ExecContainerRequest, ExecContainerResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ExecContainer not implemented")
+}
+func (UnimplementedDockerServer) ContainerLogs(*ContainerLogsRequest, grpc.ServerStreamingServer[ContainerLogsResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ContainerLogs not implemented")
 }
 func (UnimplementedDockerServer) mustEmbedUnimplementedDockerServer() {}
 func (UnimplementedDockerServer) testEmbeddedByValue()                {}
@@ -681,6 +708,17 @@ func _Docker_ExecContainer_Handler(srv interface{}, stream grpc.ServerStream) er
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Docker_ExecContainerServer = grpc.BidiStreamingServer[ExecContainerRequest, ExecContainerResponse]
 
+func _Docker_ContainerLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ContainerLogsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DockerServer).ContainerLogs(m, &grpc.GenericServerStream[ContainerLogsRequest, ContainerLogsResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Docker_ContainerLogsServer = grpc.ServerStreamingServer[ContainerLogsResponse]
+
 // Docker_ServiceDesc is the grpc.ServiceDesc for Docker service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -764,6 +802,11 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _Docker_ExecContainer_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "ContainerLogs",
+			Handler:       _Docker_ContainerLogs_Handler,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "internal/machine/api/pb/docker.proto",
