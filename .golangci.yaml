@@ -39,5 +39,4 @@ formatters:
   enable:
     - gofumpt
     - goimports
-    - gci
 

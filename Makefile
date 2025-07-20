@@ -89,9 +89,9 @@ test-clean:
 vet:
 	go vet ./...
 
-.PHONY: format
-format:
-	go fmt ./...
+.PHONY: format fmt
+format fmt:
+	GOOS=linux golangci-lint fmt
 
 LINT_TARGETS := lint lint-and-fix
 .PHONY: $(LINT_TARGETS) _lint
