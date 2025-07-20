@@ -1566,6 +1566,168 @@ func (x *MachineServiceContainers) GetContainers() []*ServiceContainer {
 	return nil
 }
 
+type ContainerLogsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ContainerId string `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	// Options for logs retrieval.
+	Follow     bool   `protobuf:"varint,2,opt,name=follow,proto3" json:"follow,omitempty"`
+	Tail       int64  `protobuf:"varint,3,opt,name=tail,proto3" json:"tail,omitempty"` // -1 means all
+	Timestamps bool   `protobuf:"varint,4,opt,name=timestamps,proto3" json:"timestamps,omitempty"`
+	Since      string `protobuf:"bytes,5,opt,name=since,proto3" json:"since,omitempty"`      // RFC3339 timestamp or duration string
+	Until      string `protobuf:"bytes,6,opt,name=until,proto3" json:"until,omitempty"`      // RFC3339 timestamp or duration string
+	Details    bool   `protobuf:"varint,7,opt,name=details,proto3" json:"details,omitempty"` // Show extra details (e.g., container labels)
+}
+
+func (x *ContainerLogsRequest) Reset() {
+	*x = ContainerLogsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_docker_proto_msgTypes[29]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ContainerLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerLogsRequest) ProtoMessage() {}
+
+func (x *ContainerLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_docker_proto_msgTypes[29]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerLogsRequest.ProtoReflect.Descriptor instead.
+func (*ContainerLogsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_docker_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ContainerLogsRequest) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *ContainerLogsRequest) GetFollow() bool {
+	if x != nil {
+		return x.Follow
+	}
+	return false
+}
+
+func (x *ContainerLogsRequest) GetTail() int64 {
+	if x != nil {
+		return x.Tail
+	}
+	return 0
+}
+
+func (x *ContainerLogsRequest) GetTimestamps() bool {
+	if x != nil {
+		return x.Timestamps
+	}
+	return false
+}
+
+func (x *ContainerLogsRequest) GetSince() string {
+	if x != nil {
+		return x.Since
+	}
+	return ""
+}
+
+func (x *ContainerLogsRequest) GetUntil() string {
+	if x != nil {
+		return x.Until
+	}
+	return ""
+}
+
+func (x *ContainerLogsRequest) GetDetails() bool {
+	if x != nil {
+		return x.Details
+	}
+	return false
+}
+
+type ContainerLogsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Stream type: 1 = stdout, 2 = stderr
+	StreamType int32 `protobuf:"varint,1,opt,name=stream_type,json=streamType,proto3" json:"stream_type,omitempty"`
+	// Log line content (without newline)
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	// Optional timestamp if timestamps requested
+	Timestamp string `protobuf:"bytes,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+}
+
+func (x *ContainerLogsResponse) Reset() {
+	*x = ContainerLogsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_machine_api_pb_docker_proto_msgTypes[30]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ContainerLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerLogsResponse) ProtoMessage() {}
+
+func (x *ContainerLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_machine_api_pb_docker_proto_msgTypes[30]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerLogsResponse.ProtoReflect.Descriptor instead.
+func (*ContainerLogsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_machine_api_pb_docker_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ContainerLogsResponse) GetStreamType() int32 {
+	if x != nil {
+		return x.StreamType
+	}
+	return 0
+}
+
+func (x *ContainerLogsResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ContainerLogsResponse) GetTimestamp() string {
+	if x != nil {
+		return x.Timestamp
+	}
+	return ""
+}
+
 var File_internal_machine_api_pb_docker_proto protoreflect.FileDescriptor
 
 var file_internal_machine_api_pb_docker_proto_rawDesc = []byte{
@@ -1711,7 +1873,27 @@ var file_internal_machine_api_pb_docker_proto_rawDesc = []byte{
 	0x61, 0x74, 0x61, 0x12, 0x35, 0x0a, 0x0a, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72,
 	0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x53, 0x65,
 	0x72, 0x76, 0x69, 0x63, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x0a,
-	0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x73, 0x32, 0xbc, 0x09, 0x0a, 0x06, 0x44,
+	0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x73, 0x22, 0xcb, 0x01, 0x0a, 0x14, 0x43,
+	0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72,
+	0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x63, 0x6f, 0x6e, 0x74, 0x61,
+	0x69, 0x6e, 0x65, 0x72, 0x49, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x66, 0x6f, 0x6c, 0x6c, 0x6f, 0x77,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x06, 0x66, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x12, 0x12,
+	0x0a, 0x04, 0x74, 0x61, 0x69, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x04, 0x74, 0x61,
+	0x69, 0x6c, 0x12, 0x1e, 0x0a, 0x0a, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x73,
+	0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d,
+	0x70, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x69, 0x6e, 0x63, 0x65, 0x18, 0x05, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x05, 0x73, 0x69, 0x6e, 0x63, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x75, 0x6e, 0x74, 0x69,
+	0x6c, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x75, 0x6e, 0x74, 0x69, 0x6c, 0x12, 0x18,
+	0x0a, 0x07, 0x64, 0x65, 0x74, 0x61, 0x69, 0x6c, 0x73, 0x18, 0x07, 0x20, 0x01, 0x28, 0x08, 0x52,
+	0x07, 0x64, 0x65, 0x74, 0x61, 0x69, 0x6c, 0x73, 0x22, 0x70, 0x0a, 0x15, 0x43, 0x6f, 0x6e, 0x74,
+	0x61, 0x69, 0x6e, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x74, 0x79, 0x70, 0x65,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0a, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x54, 0x79,
+	0x70, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x1c, 0x0a, 0x09,
+	0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x32, 0x86, 0x0a, 0x0a, 0x06, 0x44,
 	0x6f, 0x63, 0x6b, 0x65, 0x72, 0x12, 0x4c, 0x0a, 0x0f, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43,
 	0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x12, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x43,
 	0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65,
@@ -1787,11 +1969,16 @@ var file_internal_machine_api_pb_docker_proto_rawDesc = []byte{
 	0x69, 0x6e, 0x65, 0x72, 0x12, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76,
 	0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
 	0x74, 0x1a, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x42, 0x37, 0x5a, 0x35, 0x67, 0x69, 0x74,
-	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x73, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73,
-	0x6b, 0x69, 0x2f, 0x75, 0x6e, 0x63, 0x6c, 0x6f, 0x75, 0x64, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x2f, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x2f, 0x61, 0x70, 0x69, 0x2f,
-	0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x12, 0x48, 0x0a, 0x0d, 0x43, 0x6f, 0x6e,
+	0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x73, 0x12, 0x19, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x43, 0x6f, 0x6e, 0x74,
+	0x61, 0x69, 0x6e, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x30, 0x01, 0x42, 0x37, 0x5a, 0x35, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f,
+	0x6d, 0x2f, 0x70, 0x73, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73, 0x6b, 0x69, 0x2f, 0x75, 0x6e, 0x63,
+	0x6c, 0x6f, 0x75, 0x64, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6d, 0x61,
+	0x63, 0x68, 0x69, 0x6e, 0x65, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1806,7 +1993,7 @@ func file_internal_machine_api_pb_docker_proto_rawDescGZIP() []byte {
 	return file_internal_machine_api_pb_docker_proto_rawDescData
 }
 
-var file_internal_machine_api_pb_docker_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_internal_machine_api_pb_docker_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_internal_machine_api_pb_docker_proto_goTypes = []any{
 	(*CreateContainerRequest)(nil),        // 0: api.CreateContainerRequest
 	(*CreateContainerResponse)(nil),       // 1: api.CreateContainerResponse
@@ -1837,20 +2024,22 @@ var file_internal_machine_api_pb_docker_proto_goTypes = []any{
 	(*ListServiceContainersRequest)(nil),  // 26: api.ListServiceContainersRequest
 	(*ListServiceContainersResponse)(nil), // 27: api.ListServiceContainersResponse
 	(*MachineServiceContainers)(nil),      // 28: api.MachineServiceContainers
-	(*Metadata)(nil),                      // 29: api.Metadata
-	(*emptypb.Empty)(nil),                 // 30: google.protobuf.Empty
+	(*ContainerLogsRequest)(nil),          // 29: api.ContainerLogsRequest
+	(*ContainerLogsResponse)(nil),         // 30: api.ContainerLogsResponse
+	(*Metadata)(nil),                      // 31: api.Metadata
+	(*emptypb.Empty)(nil),                 // 32: google.protobuf.Empty
 }
 var file_internal_machine_api_pb_docker_proto_depIdxs = []int32{
 	8,  // 0: api.ListContainersResponse.messages:type_name -> api.MachineContainers
-	29, // 1: api.MachineContainers.metadata:type_name -> api.Metadata
+	31, // 1: api.MachineContainers.metadata:type_name -> api.Metadata
 	14, // 2: api.InspectImageResponse.messages:type_name -> api.Image
-	29, // 3: api.Image.metadata:type_name -> api.Metadata
+	31, // 3: api.Image.metadata:type_name -> api.Metadata
 	17, // 4: api.InspectRemoteImageResponse.messages:type_name -> api.RemoteImage
-	29, // 5: api.RemoteImage.metadata:type_name -> api.Metadata
+	31, // 5: api.RemoteImage.metadata:type_name -> api.Metadata
 	22, // 6: api.ListVolumesResponse.messages:type_name -> api.MachineVolumes
-	29, // 7: api.MachineVolumes.metadata:type_name -> api.Metadata
+	31, // 7: api.MachineVolumes.metadata:type_name -> api.Metadata
 	28, // 8: api.ListServiceContainersResponse.messages:type_name -> api.MachineServiceContainers
-	29, // 9: api.MachineServiceContainers.metadata:type_name -> api.Metadata
+	31, // 9: api.MachineServiceContainers.metadata:type_name -> api.Metadata
 	25, // 10: api.MachineServiceContainers.containers:type_name -> api.ServiceContainer
 	0,  // 11: api.Docker.CreateContainer:input_type -> api.CreateContainerRequest
 	2,  // 12: api.Docker.InspectContainer:input_type -> api.InspectContainerRequest
@@ -1868,24 +2057,26 @@ var file_internal_machine_api_pb_docker_proto_depIdxs = []int32{
 	2,  // 24: api.Docker.InspectServiceContainer:input_type -> api.InspectContainerRequest
 	26, // 25: api.Docker.ListServiceContainers:input_type -> api.ListServiceContainersRequest
 	9,  // 26: api.Docker.RemoveServiceContainer:input_type -> api.RemoveContainerRequest
-	1,  // 27: api.Docker.CreateContainer:output_type -> api.CreateContainerResponse
-	3,  // 28: api.Docker.InspectContainer:output_type -> api.InspectContainerResponse
-	30, // 29: api.Docker.StartContainer:output_type -> google.protobuf.Empty
-	30, // 30: api.Docker.StopContainer:output_type -> google.protobuf.Empty
-	7,  // 31: api.Docker.ListContainers:output_type -> api.ListContainersResponse
-	30, // 32: api.Docker.RemoveContainer:output_type -> google.protobuf.Empty
-	11, // 33: api.Docker.PullImage:output_type -> api.JSONMessage
-	13, // 34: api.Docker.InspectImage:output_type -> api.InspectImageResponse
-	16, // 35: api.Docker.InspectRemoteImage:output_type -> api.InspectRemoteImageResponse
-	19, // 36: api.Docker.CreateVolume:output_type -> api.CreateVolumeResponse
-	21, // 37: api.Docker.ListVolumes:output_type -> api.ListVolumesResponse
-	30, // 38: api.Docker.RemoveVolume:output_type -> google.protobuf.Empty
-	1,  // 39: api.Docker.CreateServiceContainer:output_type -> api.CreateContainerResponse
-	25, // 40: api.Docker.InspectServiceContainer:output_type -> api.ServiceContainer
-	27, // 41: api.Docker.ListServiceContainers:output_type -> api.ListServiceContainersResponse
-	30, // 42: api.Docker.RemoveServiceContainer:output_type -> google.protobuf.Empty
-	27, // [27:43] is the sub-list for method output_type
-	11, // [11:27] is the sub-list for method input_type
+	29, // 27: api.Docker.ContainerLogs:input_type -> api.ContainerLogsRequest
+	1,  // 28: api.Docker.CreateContainer:output_type -> api.CreateContainerResponse
+	3,  // 29: api.Docker.InspectContainer:output_type -> api.InspectContainerResponse
+	32, // 30: api.Docker.StartContainer:output_type -> google.protobuf.Empty
+	32, // 31: api.Docker.StopContainer:output_type -> google.protobuf.Empty
+	7,  // 32: api.Docker.ListContainers:output_type -> api.ListContainersResponse
+	32, // 33: api.Docker.RemoveContainer:output_type -> google.protobuf.Empty
+	11, // 34: api.Docker.PullImage:output_type -> api.JSONMessage
+	13, // 35: api.Docker.InspectImage:output_type -> api.InspectImageResponse
+	16, // 36: api.Docker.InspectRemoteImage:output_type -> api.InspectRemoteImageResponse
+	19, // 37: api.Docker.CreateVolume:output_type -> api.CreateVolumeResponse
+	21, // 38: api.Docker.ListVolumes:output_type -> api.ListVolumesResponse
+	32, // 39: api.Docker.RemoveVolume:output_type -> google.protobuf.Empty
+	1,  // 40: api.Docker.CreateServiceContainer:output_type -> api.CreateContainerResponse
+	25, // 41: api.Docker.InspectServiceContainer:output_type -> api.ServiceContainer
+	27, // 42: api.Docker.ListServiceContainers:output_type -> api.ListServiceContainersResponse
+	32, // 43: api.Docker.RemoveServiceContainer:output_type -> google.protobuf.Empty
+	30, // 44: api.Docker.ContainerLogs:output_type -> api.ContainerLogsResponse
+	28, // [28:45] is the sub-list for method output_type
+	11, // [11:28] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
 	11, // [11:11] is the sub-list for extension extendee
 	0,  // [0:11] is the sub-list for field type_name
@@ -2246,6 +2437,30 @@ func file_internal_machine_api_pb_docker_proto_init() {
 				return nil
 			}
 		}
+		file_internal_machine_api_pb_docker_proto_msgTypes[29].Exporter = func(v any, i int) any {
+			switch v := v.(*ContainerLogsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_machine_api_pb_docker_proto_msgTypes[30].Exporter = func(v any, i int) any {
+			switch v := v.(*ContainerLogsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2253,7 +2468,7 @@ func file_internal_machine_api_pb_docker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_machine_api_pb_docker_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   29,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

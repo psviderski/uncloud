@@ -29,6 +29,9 @@ service Docker {
   rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
   rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
+
+  // ContainerLogs streams logs from a container
+  rpc ContainerLogs(ContainerLogsRequest) returns (stream ContainerLogsResponse);
 }
 
 message CreateContainerRequest {
@@ -194,4 +197,24 @@ message ListServiceContainersResponse {
 message MachineServiceContainers {
   Metadata metadata = 1;
   repeated ServiceContainer containers = 2;
+}
+
+message ContainerLogsRequest {
+  string container_id = 1;
+  // Options for logs retrieval
+  bool follow = 2;
+  int64 tail = 3; // -1 means all
+  bool timestamps = 4;
+  string since = 5; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or duration string
+  string until = 6; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or duration string
+  bool details = 7; // TODO: reserve for show extra details (container labels or smth like this)
+}
+
+message ContainerLogsResponse {
+  // Stream type: 1 = stdout, 2 = stderr
+  int32 stream_type = 1;
+  // Log line content
+  string message = 2;
+  // Optional timestamp if timestamps requested
+  string timestamp = 3;
 }
