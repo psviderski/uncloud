@@ -101,7 +101,6 @@ func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts remove
 		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 			return removeContainers(ctx, client, containers)
 		}, uncli.ProgressOut(), "Removing containers")
-
 		if err != nil {
 			return fmt.Errorf("remove containers: %w", err)
 		}
@@ -112,8 +111,8 @@ func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts remove
 	// TODO: 5. Remove the machine from the cluster store.
 
 	return fmt.Errorf("resetting machine is not fully implemented yet")
-	//fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
-	//return nil
+	// fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
+	// return nil
 }
 
 // formatContainerTree formats a list of containers grouped by service as a tree structure.

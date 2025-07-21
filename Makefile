@@ -89,9 +89,9 @@ test-clean:
 vet:
 	go vet ./...
 
-.PHONY: format
-format:
-	go fmt ./...
+.PHONY: format fmt
+format fmt:
+	GOOS=linux golangci-lint fmt
 
 LINT_TARGETS := lint lint-and-fix
 .PHONY: $(LINT_TARGETS) _lint
@@ -99,7 +99,9 @@ $(LINT_TARGETS): _lint
 lint: ARGS=
 lint-and-fix: ARGS=--fix
 _lint:
-	golangci-lint run $(ARGS)
+	# Explicitly set OS to Linux to not skip *_linux.go files when running on macOS.
+	# Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
+	GOOS=linux golangci-lint run $(ARGS)
 
 .PHONY: docs-image-push
 docs-image-push:

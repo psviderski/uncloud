@@ -3,13 +3,14 @@ package tunnel
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/netip"
+	"time"
+
 	"github.com/psviderski/uncloud/internal/secret"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun/netstack"
-	"net"
-	"net/netip"
-	"time"
 )
 
 const (

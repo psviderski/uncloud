@@ -3,11 +3,12 @@ package corroservice
 import (
 	"bytes"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/psviderski/uncloud/internal/fs"
 	"net/netip"
 	"os"
 	"path/filepath"
+
+	"github.com/BurntSushi/toml"
+	"github.com/psviderski/uncloud/internal/fs"
 )
 
 const (
@@ -50,7 +51,7 @@ func (c *Config) Write(path, owner string) error {
 	if err := encoder.Encode(c); err != nil {
 		return fmt.Errorf("encode config: %w", err)
 	}
-	if err := os.WriteFile(path, data.Bytes(), 0600); err != nil {
+	if err := os.WriteFile(path, data.Bytes(), 0o600); err != nil {
 		return err
 	}
 	if err := fs.Chown(path, owner, owner); err != nil {
@@ -62,10 +63,10 @@ func (c *Config) Write(path, owner string) error {
 func MkDataDir(dir, owner string) error {
 	parent, _ := filepath.Split(dir)
 	// Use 0711 for parent directories to allow `owner` to access its nested data directory.
-	if err := os.MkdirAll(parent, 0711); err != nil {
+	if err := os.MkdirAll(parent, 0o711); err != nil {
 		return fmt.Errorf("create directory %q: %w", parent, err)
 	}
-	if err := os.Mkdir(dir, 0700); err != nil {
+	if err := os.Mkdir(dir, 0o700); err != nil {
 		if !os.IsExist(err) {
 			return fmt.Errorf("create directory %q: %w", dir, err)
 		}

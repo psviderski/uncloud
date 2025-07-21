@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/dgraph-io/badger/v3"
 	"log"
 	"time"
+
+	"github.com/dgraph-io/badger/v3"
 )
 
 func customTimeEncoder(t time.Time) string {

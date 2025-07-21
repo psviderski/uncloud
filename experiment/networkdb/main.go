@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/docker/docker/libnetwork/networkdb"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/docker/docker/libnetwork/networkdb"
 )
 
 func main() {

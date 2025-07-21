@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 type ChangeType string

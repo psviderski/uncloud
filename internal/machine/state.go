@@ -3,10 +3,11 @@ package machine
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/psviderski/uncloud/internal/machine/network"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 const (
@@ -71,7 +72,7 @@ func (c *State) Save() error {
 		return fmt.Errorf("state path not set")
 	}
 	dir, _ := filepath.Split(c.path)
-	if err := os.MkdirAll(dir, 0711); err != nil {
+	if err := os.MkdirAll(dir, 0o711); err != nil {
 		return fmt.Errorf("create state directory %q: %w", dir, err)
 	}
 
@@ -79,5 +80,5 @@ func (c *State) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(c.path, data, 0600)
+	return os.WriteFile(c.path, data, 0o600)
 }

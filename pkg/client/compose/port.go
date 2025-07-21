@@ -128,7 +128,7 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 
 // convertStandardPortsToPortSpecs converts []types.ServicePortConfig directly to api.PortSpecs.
 func convertStandardPortsToPortSpecs(ports []types.ServicePortConfig) ([]api.PortSpec, error) {
-	var specs = make([]api.PortSpec, 0, len(ports))
+	specs := make([]api.PortSpec, 0, len(ports))
 
 	for _, port := range ports {
 		spec, err := convertServicePortConfigToPortSpec(port)

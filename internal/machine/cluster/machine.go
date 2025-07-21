@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+
 	"github.com/psviderski/uncloud/internal/secret"
 )
 
