@@ -26,7 +26,10 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		return ContainerNeedsRecreate
 	}
 
-	// Pull policy doesn't affect the container configuration.
+	// If pull policy is set to always, the container needs to be recreated.
+	if new.Container.PullPolicy == api.PullPolicyAlways {
+		return ContainerNeedsRecreate
+	}
 	new.Container.PullPolicy = current.Container.PullPolicy
 
 	// Save mutable container resources that can be updated without recreation.

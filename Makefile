@@ -101,10 +101,6 @@ lint-and-fix: ARGS=--fix
 _lint:
 	golangci-lint run $(ARGS)
 
-# .PHONY: lint-and-fix
-# lint-and-fix: lint
-# 	ARGS="--fix"
-
 .PHONY: docs-image-push
 docs-image:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(DOCS_IMAGE)" ./docs
