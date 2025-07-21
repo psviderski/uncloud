@@ -103,10 +103,6 @@ _lint:
 	# Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
 	GOOS=linux golangci-lint run $(ARGS)
 
-# .PHONY: lint-and-fix
-# lint-and-fix: lint
-# 	ARGS="--fix"
-
 .PHONY: docs-image-push
 docs-image:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(DOCS_IMAGE)" ./docs
