@@ -7,6 +7,10 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"net/netip"
 	"strconv"
+	"strings"
+
+	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const PortsExtensionKey = "x-ports"
@@ -21,7 +25,8 @@ func transformServicesPortsExtension(project *types.Project) (*types.Project, er
 		hasXPorts := service.Extensions[PortsExtensionKey] != nil
 
 		if hasStandardPorts && hasXPorts {
-			return service, fmt.Errorf("service %q cannot specify both 'ports' and 'x-ports' directives, use only one", name)
+			return service, fmt.Errorf("service %q cannot specify both 'ports' and 'x-ports' directives, use only one",
+				name)
 		}
 
 		var (
@@ -33,7 +38,7 @@ func transformServicesPortsExtension(project *types.Project) (*types.Project, er
 			// Convert standard ports directly to api.PortSpec
 			specs, err = convertStandardPortsToPortSpecs(service.Ports)
 			if err != nil {
-				return service, fmt.Errorf("convert standard ports for service %q: %w", name, err)
+				return service, fmt.Errorf("convert standard 'ports' for service '%s': %w", name, err)
 			}
 		} else if hasXPorts {
 			// Use existing x-ports string-based processing for backward compatibility
@@ -83,8 +88,23 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 		Protocol:      port.Protocol,
 		Mode:          port.Mode,
 	}
+	// Compose parser sets the default protocol to "tcp" and mode to "ingress". We still explicitly set these values
+	// to avoid relying on implicit behavior and improve code robustness.
+	if spec.Protocol == "" {
+		spec.Protocol = api.ProtocolTCP
+	}
+	if spec.Mode == "" {
+		spec.Mode = api.PortModeIngress
+	}
+
 	// Set published port if specified
 	if port.Published != "" {
+		if strings.Contains(port.Published, "-") {
+			// 'a-b:x' format is not automatically expanded by the compose parser and our PortSpec does not support port
+			// ranges for now.
+			return spec, fmt.Errorf("port range '%s' for published port is not supported, use a single port",
+				port.Published)
+		}
 		publishedPort, err := strconv.ParseUint(port.Published, 10, 16)
 		if err != nil {
 			return spec, fmt.Errorf("invalid published port %q: %w", port.Published, err)
@@ -100,9 +120,6 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 		}
 		spec.HostIP = hostIP
 	}
-
-	// Apply defaults according to uncloud
-	spec.AdjustUncloudMode()
 
 	// Validate the resulting spec
 	if err := spec.Validate(); err != nil {
