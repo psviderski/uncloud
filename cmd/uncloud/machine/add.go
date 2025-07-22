@@ -59,7 +59,7 @@ func NewAddCommand() *cobra.Command {
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "auto",
 		"Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, "+
-			"blank '' or 'none' to disable ingress on this machine, or specify an IP address.",
+			fmt.Sprintf("blank '' or '%s' to disable ingress on this machine, or specify an IP address.", PublicIPNone),
 	)
 	cmd.Flags().StringVarP(
 		&opts.sshKey, "ssh-key", "i", "~/.ssh/id_ed25519",
@@ -82,7 +82,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine cli.RemoteMachine, o
 	switch opts.publicIP {
 	case "auto":
 		publicIP = &netip.Addr{}
-	case "", "none":
+	case "", PublicIPNone:
 		publicIP = nil
 	default:
 		ip, err := netip.ParseAddr(opts.publicIP)

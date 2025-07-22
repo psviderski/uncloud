@@ -6,6 +6,8 @@ import (
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -44,6 +46,35 @@ func (cli *Client) ListMachines(ctx context.Context, filter *api.MachineFilter) 
 	}
 
 	return machines, nil
+}
+
+// UpdateMachine updates machine configuration in the cluster.
+func (cli *Client) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.MachineInfo, error) {
+	resp, err := cli.ClusterClient.UpdateMachine(ctx, req)
+	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+			return nil, api.ErrNotFound
+		}
+		return nil, err
+	}
+	return resp.Machine, nil
+}
+
+// RenameMachine renames an existing machine in the cluster.
+func (cli *Client) RenameMachine(ctx context.Context, nameOrID, newName string) (*pb.MachineInfo, error) {
+	// First, resolve the machine to get its ID
+	machine, err := cli.InspectMachine(ctx, nameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the machine with the new name
+	req := &pb.UpdateMachineRequest{
+		MachineId: machine.Machine.Id,
+		Name:      &newName,
+	}
+
+	return cli.UpdateMachine(ctx, req)
 }
 
 func MachineMatchesFilter(machine *pb.MachineMember, filter *api.MachineFilter) bool {

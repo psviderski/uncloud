@@ -198,6 +198,89 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	return resp, nil
 }
 
+// UpdateMachine updates machine configuration in the cluster.
+func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.UpdateMachineResponse, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+
+	if req.MachineId == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_id not set")
+	}
+
+	// Get the current machine info
+	currentMachine, err := c.store.GetMachine(ctx, req.MachineId)
+	if err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
+	}
+
+	// Create a copy of the current machine for updating
+	updatedMachine := &pb.MachineInfo{
+		Id:       currentMachine.Id,
+		Name:     currentMachine.Name,
+		Network:  currentMachine.Network,
+		PublicIp: currentMachine.PublicIp,
+	}
+
+	// Apply updates from the request
+	if req.Name != nil {
+		// Check for empty name
+		if *req.Name == "" {
+			return nil, status.Error(codes.InvalidArgument, "machine name cannot be empty")
+		}
+		// Check for duplicate names (excluding the current machine)
+		if *req.Name != currentMachine.Name {
+			machines, err := c.store.ListMachines(ctx)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "list machines: %v", err)
+			}
+			for _, m := range machines {
+				if m.Id != req.MachineId && m.Name == *req.Name {
+					return nil, status.Errorf(codes.AlreadyExists, "machine with name %q already exists", *req.Name)
+				}
+			}
+		}
+		updatedMachine.Name = *req.Name
+	}
+	if req.PublicIp != nil {
+		// Check if this is an empty IP (used to signal removal)
+		if len(req.PublicIp.Ip) == 0 {
+			// User wants to remove public IP
+			updatedMachine.PublicIp = nil
+		} else {
+			// Validate and set the new IP
+			ip, err := req.PublicIp.ToAddr()
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid public IP: %v", err)
+			}
+			if !ip.IsValid() {
+				return nil, status.Error(codes.InvalidArgument, "invalid public IP")
+			}
+			updatedMachine.PublicIp = req.PublicIp
+		}
+	}
+	if req.Endpoints != nil {
+		updatedMachine.Network.Endpoints = req.Endpoints
+	}
+
+	// Update the machine in the store
+	if err = c.store.UpdateMachine(ctx, updatedMachine); err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
+	}
+
+	slog.Info("Machine configuration updated in the cluster.",
+		"id", updatedMachine.Id, "name", updatedMachine.Name)
+
+	resp := &pb.UpdateMachineResponse{Machine: updatedMachine}
+	return resp, nil
+}
+
 // ListMachines lists all machines in the cluster including their membership states.
 func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListMachinesResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {

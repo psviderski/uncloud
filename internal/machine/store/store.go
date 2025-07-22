@@ -16,7 +16,8 @@ var (
 	//go:embed schema.sql
 	Schema string
 
-	ErrKeyNotFound = errors.New("key not found")
+	ErrKeyNotFound     = errors.New("key not found")
+	ErrMachineNotFound = errors.New("machine not found")
 )
 
 // Store is a cluster store backed by a distributed Corrosion database.
@@ -65,6 +66,79 @@ func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {
 		return fmt.Errorf("insert query: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) UpdateMachine(ctx context.Context, m *pb.MachineInfo) error {
+	if m == nil {
+		return fmt.Errorf("machine info cannot be nil")
+	}
+	if m.Id == "" {
+		return fmt.Errorf("machine ID cannot be empty")
+	}
+
+	mJSON, err := protojson.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("marshal machine info: %w", err)
+	}
+
+	result, err := s.corro.ExecContext(ctx, "UPDATE machines SET info = ? WHERE id = ?", string(mJSON), m.Id)
+	if err != nil {
+		return fmt.Errorf("update machine: %w", err)
+	}
+
+	// Check if machine exists
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("%w: %s", ErrMachineNotFound, m.Id)
+	}
+
+	return nil
+}
+
+func (s *Store) GetMachine(ctx context.Context, machineID string) (*pb.MachineInfo, error) {
+	if machineID == "" {
+		return nil, fmt.Errorf("machine ID cannot be empty")
+	}
+
+	rows, err := s.corro.QueryContext(ctx, "SELECT info FROM machines WHERE id = ?", machineID)
+	if err != nil {
+		return nil, fmt.Errorf("query machine: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("query error: %w", err)
+		}
+		return nil, fmt.Errorf("%w: %s", ErrMachineNotFound, machineID)
+	}
+
+	var mJSON string
+	if err = rows.Scan(&mJSON); err != nil {
+		return nil, fmt.Errorf("scan machine info: %w", err)
+	}
+
+	if mJSON == "" {
+		return nil, fmt.Errorf("machine info is empty for id %s", machineID)
+	}
+
+	protojsonParser := protojson.UnmarshalOptions{DiscardUnknown: true}
+	var m pb.MachineInfo
+	if err = protojsonParser.Unmarshal([]byte(mJSON), &m); err != nil {
+		return nil, fmt.Errorf("unmarshal machine info for id %s: %w", machineID, err)
+	}
+
+	// Validate the unmarshaled data. just in case
+	if m.Id != machineID {
+		return nil, fmt.Errorf("machine ID mismatch: expected %s, got %s", machineID, m.Id)
+	}
+
+	if m.Network != nil {
+		if err = m.Network.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid network configuration for machine %s: %w", m.Id, err)
+		}
+	}
+
+	return &m, nil
 }
 
 func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
