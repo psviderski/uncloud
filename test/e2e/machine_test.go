@@ -30,7 +30,6 @@ func TestMachineRename(t *testing.T) {
 		// Select the second machine to rename
 		originalMachine := machines[1]
 		originalName := originalMachine.Machine.Name
-		// nolint:goconst
 		newName := "renamed-machine-1"
 
 		// Rename the machine
@@ -223,8 +222,6 @@ func TestUpdateMachine(t *testing.T) {
 		// Select a machine to update
 		targetMachine := machines[1]
 		originalName := targetMachine.Machine.Name
-		//TODO: From my point of view, the most correct option is to use exclusions.rules list for `_test\.go$` files
-		// nolint:goconst
 		newName := "updated-machine-name"
 
 		// Update the machine name using UpdateMachine directly

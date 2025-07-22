@@ -108,8 +108,8 @@ $(LINT_TARGETS): _lint
 lint: ARGS=
 lint-and-fix: ARGS=--fix
 _lint:
-	# Explicitly set OS to Linux to not skip *_linux.go files when running on macOS.
-	# Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
+# Explicitly set OS to Linux to not skip *_linux.go files when running on macOS.
+# Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
 	GOOS=linux golangci-lint run $(ARGS)
 
 .PHONY: docs-image-push
