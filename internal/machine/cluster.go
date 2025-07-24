@@ -30,7 +30,8 @@ const (
 )
 
 // clusterController is the main controller for the machine that is a cluster member. It manages components such as
-// the WireGuard network, Corrosion service, Docker network and containers, and embedded DNS server.
+// the WireGuard network, API server listening the WireGuard network, Corrosion service, Docker network and containers,
+// and others.
 type clusterController struct {
 	state *State
 	store *store.Store
@@ -38,9 +39,10 @@ type clusterController struct {
 	wgnet           *network.WireGuardNetwork
 	endpointChanges <-chan network.EndpointChangeEvent
 
-	server       *grpc.Server
-	corroService corroservice.Service
-	dockerCli    *client.Client
+	server        *grpc.Server
+	corroService  corroservice.Service
+	dockerCli     *client.Client
+	dockerManager *docker.Manager
 	// dockerReady is signalled when Docker is configured and ready for containers.
 	dockerReady     chan<- struct{}
 	caddyconfigCtrl *caddyconfig.Controller
@@ -48,6 +50,9 @@ type clusterController struct {
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
 	dnsServer   *dns.Server
 	dnsResolver *dns.ClusterResolver
+
+	// stopped is a channel that is closed when the controller is stopped.
+	stopped chan struct{}
 }
 
 func newClusterController(
@@ -76,14 +81,18 @@ func newClusterController(
 		server:          server,
 		corroService:    corroService,
 		dockerCli:       dockerCli,
+		dockerManager:   docker.NewManager(dockerCli, state.ID, store),
 		dockerReady:     dockerReady,
 		caddyconfigCtrl: caddyfileCtrl,
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
+		stopped:         make(chan struct{}),
 	}, nil
 }
 
 func (cc *clusterController) Run(ctx context.Context) error {
+	defer close(cc.stopped)
+
 	if err := firewall.ConfigureIptablesChains(); err != nil {
 		return fmt.Errorf("configure iptables chains: %w", err)
 	}
@@ -210,7 +219,6 @@ func (cc *clusterController) Run(ctx context.Context) error {
 
 	// It's safe to stop the Corrosion service after the controllers depending on it and API server are stopped.
 	if corroErr := cc.corroService.Stop(ctx); corroErr != nil {
-		slog.Error("Failed to stop corrosion service.", "err", corroErr)
 		err = errors.Join(err, fmt.Errorf("stop corrosion service: %w", corroErr))
 	} else {
 		slog.Info("Corrosion service stopped.")
@@ -222,12 +230,15 @@ func (cc *clusterController) Run(ctx context.Context) error {
 // prepareAndWatchDocker configures the Docker network and watches local Docker containers to sync them
 // to the cluster store.
 func (cc *clusterController) prepareAndWatchDocker(ctx context.Context) error {
-	manager := docker.NewManager(cc.dockerCli, cc.state.ID, cc.store)
-	if err := manager.WaitDaemonReady(ctx); err != nil {
+	if err := cc.dockerManager.WaitDaemonReady(ctx); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
 
-	if err := manager.EnsureUncloudNetwork(ctx, cc.state.Network.Subnet, cc.dnsServer.ListenAddr()); err != nil {
+	if err := cc.dockerManager.EnsureUncloudNetwork(
+		ctx,
+		cc.state.Network.Subnet,
+		cc.dnsServer.ListenAddr(),
+	); err != nil {
 		return fmt.Errorf("ensure Docker network: %w", err)
 	}
 	slog.Info("Docker network configured.")
@@ -243,7 +254,7 @@ func (cc *clusterController) prepareAndWatchDocker(ctx context.Context) error {
 		backoff.WithMaxElapsedTime(0),
 	), ctx)
 	watchAndSync := func() error {
-		if wErr := manager.WatchAndSyncContainers(ctx); wErr != nil {
+		if wErr := cc.dockerManager.WatchAndSyncContainers(ctx); wErr != nil {
 			slog.Error("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
 			return wErr
 		}
@@ -385,4 +396,20 @@ func (cc *clusterController) configurePeers(machines []*pb.MachineInfo) error {
 	return nil
 }
 
-// TODO: method to shutdown network when leaving a cluster. Regular context cancellation shouldn't bring it down.
+// Cleanup cleans up the cluster resources such as the WireGuard network, iptables rules, Docker network and containers.
+func (cc *clusterController) Cleanup() error {
+	// Wait for the controller to stop before cleaning up.
+	<-cc.stopped
+
+	var errs []error
+	if err := cc.dockerManager.Cleanup(); err != nil {
+		errs = append(errs, fmt.Errorf("cleanup Docker resources: %w", err))
+	}
+	if err := cc.wgnet.Cleanup(); err != nil {
+		errs = append(errs, fmt.Errorf("cleanup WireGuard network: %w", err))
+	}
+	// TODO: cleanup custom iptables chains. They're flushed when the machine is initialised again but it would
+	//  cleaner to delete them here.
+
+	return errors.Join(errs...)
+}

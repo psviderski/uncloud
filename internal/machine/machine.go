@@ -152,6 +152,8 @@ type Machine struct {
 	initialised chan struct{}
 	// networkReady is signalled when the Docker network is configured and ready for containers.
 	networkReady chan struct{}
+	// resetting is true when the machine is being reset.
+	resetting bool
 	// stop cancels the Run method context to stop the machine gracefully.
 	stop func()
 
@@ -421,6 +423,8 @@ func (m *Machine) Run(ctx context.Context) error {
 
 	// Shutdown goroutine.
 	errGroup.Go(func() error {
+		var err error
+
 		<-ctx.Done()
 		slog.Info("Stopping local machine API server.")
 		// TODO: implement timeout for graceful shutdown.
@@ -434,8 +438,19 @@ func (m *Machine) Run(ctx context.Context) error {
 		m.proxyDirector.Close()
 		slog.Info("Local API proxy server stopped.")
 
+		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
+		m.mu.RLock()
+		resetting := m.resetting
+		m.mu.RUnlock()
+		if resetting {
+			slog.Info("Cleaning up machine data and resources.")
+			if err = m.cleanup(); err != nil {
+				slog.Error("Failed to clean up machine data and resources.", "err", err)
+			}
+		}
+
 		m.config.DockerClient.Close()
-		return nil
+		return err
 	})
 
 	return errGroup.Wait()
@@ -524,6 +539,29 @@ func (m *Machine) configureCorrosion() error {
 	}
 
 	return nil
+}
+
+// cleanup removes the machine resources and persistent state.
+func (m *Machine) cleanup() error {
+	var errs []error
+
+	m.mu.RLock()
+	clusterCtrl := m.clusterCtrl
+	m.mu.RUnlock()
+	if clusterCtrl != nil {
+		if err := clusterCtrl.Cleanup(); err != nil {
+			errs = append(errs, fmt.Errorf("cleanup cluster resources: %w", err))
+		}
+	}
+
+	if err := os.RemoveAll(m.config.DataDir); err != nil {
+		errs = append(errs,
+			fmt.Errorf("remove data directory with persistent machine state '%s': %w", m.config.DataDir, err))
+	} else {
+		slog.Info("Removed data directory storing persistent machine state.", "path", m.config.DataDir)
+	}
+
+	return errors.Join(errs...)
 }
 
 // CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
@@ -791,33 +829,28 @@ func (m *Machine) WaitForNetworkReady(ctx context.Context) error {
 	}
 }
 
-// Reset restores the machine to a clean state, removing all cluster-related configuration and data and scheduling
-// a graceful shutdown. The uncloud daemon will restart the machine if managed by systemd.
+// Reset restores the machine to a clean state, scheduling a graceful shutdown and removing all cluster-related
+// configuration and resource. The uncloud daemon will restart the machine if managed by systemd.
 func (m *Machine) Reset(ctx context.Context, _ *pb.ResetRequest) (*emptypb.Empty, error) {
 	if !m.Initialised() {
 		return nil, nil
 	}
 
+	// Check if the machine is already being reset to avoid concurrent resets.
+	m.mu.Lock()
+	if m.resetting {
+		m.mu.Unlock()
+		return nil, status.Error(codes.FailedPrecondition, "machine is already being reset")
+	}
+	m.resetting = true
+	m.mu.Unlock()
+
 	slog.Info("Resetting machine to a clean state.")
+	// Trigger the machine shutdown. The resetting boolean informs the machine to clean up its resources on shutdown.
+	// We can't clean up the resources synchronously here because this is an RPC call that depends on the running
+	// gRPC server and network.
+	m.stop()
 
-	// TODO: stop and remove all managed service containers.
-	// TODO: check if the request is coming from the unix or network socket. For the network socket, the reset should
-	//  be called in a separate goroutine to avoid blocking the RPC response.
-
-	// TODO: Stop the machine asynchronously. The gRPC servers will wait for this request to complete before stopping.
-	go func() {
-		m.stop()
-		// TODO: wait for the cluster controller to stop.
-		// TODO: Cleanup cluster controller (WG network, Docker network, iptables rules, etc.)
-
-		// TODO: uncomment after testing all other cleanup steps.
-		//if err := os.RemoveAll(m.config.DataDir); err != nil {
-		//	slog.Error("Failed to remove data directory storing persistent machine state.",
-		//		"path", m.config.DataDir, "err", err)
-		//	return nil, status.Errorf(codes.Internal, "remove data directory on machine '%s': %v", m.config.DataDir, err)
-		//}
-		//slog.Info("Removed data directory storing persistent machine state.", "path", m.config.DataDir)
-	}()
 	return &emptypb.Empty{}, nil
 }
 

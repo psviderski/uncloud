@@ -155,6 +155,7 @@ func (m *Manager) syncContainersToStore(ctx context.Context) error {
 		Filters: filters.NewArgs(
 			filters.Arg("label", api.LabelServiceID),
 			filters.Arg("label", api.LabelServiceName),
+			filters.Arg("label", api.LabelManaged),
 		),
 	})
 	if err != nil {

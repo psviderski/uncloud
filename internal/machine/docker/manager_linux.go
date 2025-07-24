@@ -2,11 +2,14 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/netip"
 	"strconv"
 
+	dockercontainer "github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	dnetwork "github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/libnetwork/iptables"
@@ -113,4 +116,76 @@ func configureIptables(bridgeName string, dnsServer netip.Addr) error {
 	}
 
 	return nil
+}
+
+// cleanupIptables deletes the iptables rules for the uncloud Docker network.
+func cleanupIptables(bridgeName string) error {
+	ipt := iptables.GetIptable(iptables.IPv4)
+	// Delete the rule allowing traffic from the WireGuard network to the Docker bridge.
+	wgRule := []string{"--in-interface", network.WireGuardInterfaceName, "--out-interface", bridgeName, "-j", "ACCEPT"}
+	if err := ipt.ProgramRule(iptables.Filter, firewall.DockerUserChain, iptables.Delete, wgRule); err != nil {
+		return fmt.Errorf("delete iptables rule: %w", err)
+	}
+	// Rules in uncloud-owned chains will be automatically cleaned up by the machine cleanup.
+
+	return nil
+}
+
+// Cleanup removes all uncloud-managed containers and the uncloud Docker network.
+func (m *Manager) Cleanup() error {
+	ctx := context.Background()
+	var errs []error
+
+	// Remove uncloud-managed Docker containers.
+	containers, err := m.client.ContainerList(ctx, dockercontainer.ListOptions{
+		All: true, // Include stopped containers.
+		Filters: filters.NewArgs(
+			filters.Arg("label", api.LabelManaged),
+		),
+	})
+	if err != nil {
+		errs = append(errs, fmt.Errorf("list uncloud-managed Docker containers: %w", err))
+	} else if len(containers) > 0 {
+		slog.Info("Removing uncloud-managed Docker containers.", "count", len(containers))
+		removed := 0
+
+		for _, ctr := range containers {
+			err = m.client.ContainerStop(ctx, ctr.ID, dockercontainer.StopOptions{})
+			if err != nil && !client.IsErrNotFound(err) {
+				errs = append(errs, fmt.Errorf("stop container '%s': %w", ctr.ID, err))
+			}
+
+			err = m.client.ContainerRemove(ctx, ctr.ID, dockercontainer.RemoveOptions{
+				// Remove anonymous volumes created by the container.
+				RemoveVolumes: true,
+			})
+			if err == nil {
+				removed++
+			} else if !client.IsErrNotFound(err) {
+				errs = append(errs, fmt.Errorf("remove container '%s': %w", ctr.ID, err))
+			}
+		}
+		slog.Info("Removed uncloud-managed Docker containers.", "count", removed)
+	}
+
+	// Remove the uncloud Docker network and related iptables rules.
+	nw, err := m.client.NetworkInspect(ctx, NetworkName, dnetwork.InspectOptions{})
+	if err == nil {
+		bridgeName := "br-" + nw.ID[:12]
+		if err = cleanupIptables(bridgeName); err != nil {
+			errs = append(errs, fmt.Errorf("cleanup iptables for Docker network '%s': %w", NetworkName, err))
+		} else {
+			slog.Info("Cleaned up iptables rules for Docker network.", "name", NetworkName, "bridge", bridgeName)
+		}
+
+		if err = m.client.NetworkRemove(ctx, NetworkName); err == nil {
+			slog.Info("Docker network removed.", "name", NetworkName)
+		} else if !client.IsErrNotFound(err) {
+			errs = append(errs, fmt.Errorf("remove Docker network '%s': %w", NetworkName, err))
+		}
+	} else if !client.IsErrNotFound(err) {
+		errs = append(errs, fmt.Errorf("inspect Docker network '%s': %w", NetworkName, err))
+	}
+
+	return errors.Join(errs...)
 }

@@ -27,6 +27,8 @@ type WireGuardNetwork struct {
 	peers map[string]*peer
 	// watchers is a list of channels that are notified when the endpoints of the peers change.
 	watchers []chan EndpointChangeEvent
+	// running indicates whether the network control loop (Run) is currently running.
+	running bool
 	// mu synchronises concurrent network configuration changes.
 	mu sync.Mutex
 }
@@ -273,6 +275,14 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 	}
 	defer wg.Close()
 
+	n.mu.Lock()
+	if n.running {
+		n.mu.Unlock()
+		return errors.New("network is already running")
+	}
+	n.running = true
+	n.mu.Unlock()
+
 	ticker := time.NewTicker(1 * time.Second)
 	for {
 		select {
@@ -291,6 +301,11 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 			for _, ch := range n.watchers {
 				close(ch)
 			}
+
+			n.mu.Lock()
+			n.running = false
+			n.mu.Unlock()
+
 			return nil
 		}
 	}
@@ -426,5 +441,25 @@ func (n *WireGuardNetwork) notifyWatchers(ctx context.Context, events []Endpoint
 			}
 		}
 	}
+	return nil
+}
+
+// Cleanup deletes the WireGuard link. The network must not be running when this method is called.
+func (n *WireGuardNetwork) Cleanup() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.running {
+		return errors.New("network is still running, stop it before cleanup")
+	}
+
+	// Delete the WireGuard link.
+	name := n.link.Attrs().Name
+	if err := netlink.LinkDel(n.link); err != nil {
+		return fmt.Errorf("delete WireGuard link %q: %w", name, err)
+	}
+	n.link = nil
+	slog.Info("Deleted WireGuard interface.", "name", name)
+
 	return nil
 }

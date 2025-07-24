@@ -16,16 +16,13 @@ const (
 
 // ConfigureIptablesChains sets up custom iptables chains and initial firewall rules for Uncloud networking.
 func ConfigureIptablesChains() error {
-	// Ensure iptables UNCLOUD-INPUT chain with a RETURN rule exists. All existing rules are flushed.
+	// Ensure iptables UNCLOUD-INPUT chain exists. All existing rules are flushed.
 	ipt := iptables.GetIptable(iptables.IPv4)
 	if _, err := ipt.NewChain(UncloudInputChain, iptables.Filter); err != nil {
 		return fmt.Errorf("create iptables chain '%s': %w", UncloudInputChain, err)
 	}
 	if err := ipt.RawCombinedOutput("-t", string(iptables.Filter), "-F", UncloudInputChain); err != nil {
 		return fmt.Errorf("flush iptables chain '%s': %w", UncloudInputChain, err)
-	}
-	if err := ipt.AddReturnRule(UncloudInputChain); err != nil {
-		return fmt.Errorf("add the RETURN rule for iptables chain '%s': %w", UncloudInputChain, err)
 	}
 
 	// Ensure the main iptables INPUT chain has a jump rule to the UNCLOUD-INPUT chain before any DROP/REJECT rules.
