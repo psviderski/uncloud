@@ -19,6 +19,8 @@ type Client struct {
 	connector Connector
 	conn      *grpc.ClientConn
 
+	// TODO: refactor to not embed MachineClient and instead expose only required methods.
+	//  Methods such as Reset or Inspect are ambiguous in the context of a machine+cluster client.
 	pb.MachineClient
 	pb.ClusterClient
 	// Docker is a namespaced client for the Docker service to distinguish Uncloud-specific service container operations

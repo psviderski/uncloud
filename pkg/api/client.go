@@ -42,6 +42,8 @@ type ImageClient interface {
 type MachineClient interface {
 	InspectMachine(ctx context.Context, id string) (*pb.MachineMember, error)
 	ListMachines(ctx context.Context, filter *MachineFilter) (MachineMembersList, error)
+	UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.MachineInfo, error)
+	RenameMachine(ctx context.Context, nameOrID, newName string) (*pb.MachineInfo, error)
 }
 
 type ServiceClient interface {
