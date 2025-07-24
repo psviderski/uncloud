@@ -14,7 +14,7 @@ service Machine {
   rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
   rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
-  // Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data.
+  // Reset restores the machine to a clean state, removing all cluster-related configuration and data.
   rpc Reset(ResetRequest) returns (google.protobuf.Empty);
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);

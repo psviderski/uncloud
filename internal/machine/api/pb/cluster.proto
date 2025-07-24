@@ -12,6 +12,7 @@ service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachines(google.protobuf.Empty) returns (ListMachinesResponse);
   rpc UpdateMachine(UpdateMachineRequest) returns (UpdateMachineResponse);
+  // TODO: add RemoveMachine (see stashed changes)
 
   rpc ReserveDomain(ReserveDomainRequest) returns (Domain);
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
@@ -81,7 +82,7 @@ message DNSRecord {
 message UpdateMachineRequest {
   // Machine to update
   string machine_id = 1;
-  
+
   // Updated machine information
   optional string name = 2;
   optional IP public_ip = 3;

@@ -39,7 +39,7 @@ type MachineClient interface {
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error)
 	Inspect(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MachineInfo, error)
-	// Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data.
+	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
 }
@@ -132,7 +132,7 @@ type MachineServer interface {
 	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
 	Token(context.Context, *emptypb.Empty) (*TokenResponse, error)
 	Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error)
-	// Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data.
+	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(context.Context, *ResetRequest) (*emptypb.Empty, error)
 	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
 	mustEmbedUnimplementedMachineServer()
