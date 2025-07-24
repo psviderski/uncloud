@@ -52,6 +52,20 @@ func (s *DockerService) Start(ctx context.Context) error {
 	return s.startNewContainer(ctx)
 }
 
+func (s *DockerService) Stop(ctx context.Context) error {
+	if err := s.Client.ContainerStop(ctx, s.Name, container.StopOptions{}); err != nil {
+		return fmt.Errorf("stop container %q: %w", s.Name, err)
+	}
+	slog.Debug("Corrosion Docker container stopped.", "name", s.Name)
+
+	if err := s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{}); err != nil {
+		return fmt.Errorf("remove container %q: %w", s.Name, err)
+	}
+	slog.Debug("Corrosion Docker container removed.", "name", s.Name)
+
+	return nil
+}
+
 func (s *DockerService) Restart(ctx context.Context) error {
 	if err := s.Client.ContainerRestart(ctx, s.Name, container.StopOptions{}); err != nil {
 		return fmt.Errorf("restart container %q: %w", s.Name, err)

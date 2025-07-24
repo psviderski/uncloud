@@ -152,9 +152,10 @@ type Machine struct {
 	initialised chan struct{}
 	// networkReady is signalled when the Docker network is configured and ready for containers.
 	networkReady chan struct{}
-	// networkReadyMu protects networkReady channel operations
-	networkReadyMu sync.RWMutex
+	// stop cancels the Run method context to stop the machine gracefully.
+	stop func()
 
+	clusterCtrl *clusterController
 	// store is the cluster store backed by a distributed Corrosion database.
 	store   *store.Store
 	cluster *cluster.Cluster
@@ -168,6 +169,9 @@ type Machine struct {
 	// It proxies requests to the local or remote machine API servers depending on the request targets
 	// and aggregates responses.
 	localProxyServer *grpc.Server
+
+	// mu protects the Machine from concurrent reads and writes.
+	mu sync.RWMutex
 }
 
 func NewMachine(config *Config) (*Machine, error) {
@@ -258,10 +262,6 @@ func NewMachine(config *Config) (*Machine, error) {
 
 	if m.Initialised() {
 		m.initialised <- struct{}{}
-	} else {
-		// For non-initialized machines, signal network is ready immediately
-		// since there's no cluster network to set up
-		close(m.networkReady)
 	}
 
 	return m, nil
@@ -299,6 +299,9 @@ func (m *Machine) IP() netip.Addr {
 }
 
 func (m *Machine) Run(ctx context.Context) error {
+	// Create a cancellable context for the Run method to allow stopping the machine gracefully.
+	ctx, m.stop = context.WithCancel(ctx)
+
 	// Docker dependency is essential for the machine to function. Block until it's ready.
 	if err := docker.WaitDaemonReady(ctx, m.config.DockerClient); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
@@ -306,7 +309,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
 	// member. This provides the store required for the machine to initialise a new cluster on it. Once the machine
-	// is initialised, the corrosion service is managed by the networkController.
+	// is initialised, the corrosion service is managed by the clusterController.
 	if !m.Initialised() {
 		if err := m.configureCorrosion(); err != nil {
 			return fmt.Errorf("configure corrosion service: %w", err)
@@ -326,153 +329,114 @@ func (m *Machine) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen machine API unix socket %q: %w", m.config.MachineSockPath, err)
 	}
-	errGroup.Go(
-		func() error {
-			slog.Info("Starting local machine API server.", "path", m.config.MachineSockPath)
-			if err := m.localMachineServer.Serve(machineListener); err != nil {
-				return fmt.Errorf("local machine API server failed: %w", err)
-			}
-			return nil
-		},
-	)
+	errGroup.Go(func() error {
+		slog.Info("Starting local machine API server.", "path", m.config.MachineSockPath)
+		if err := m.localMachineServer.Serve(machineListener); err != nil {
+			return fmt.Errorf("local machine API server failed: %w", err)
+		}
+		return nil
+	})
 
 	// Start the local API proxy server.
 	proxyListener, err := listenUnixSocket(m.config.UncloudSockPath)
 	if err != nil {
 		return fmt.Errorf("listen API proxy unix socket %q: %w", m.config.UncloudSockPath, err)
 	}
-	errGroup.Go(
-		func() error {
-			slog.Info("Starting local API proxy server.", "path", m.config.UncloudSockPath)
-			if err := m.localProxyServer.Serve(proxyListener); err != nil {
-				return fmt.Errorf("local API proxy server failed: %w", err)
-			}
-			return nil
-		},
-	)
+	errGroup.Go(func() error {
+		slog.Info("Starting local API proxy server.", "path", m.config.UncloudSockPath)
+		if err := m.localProxyServer.Serve(proxyListener); err != nil {
+			return fmt.Errorf("local API proxy server failed: %w", err)
+		}
+		return nil
+	})
 	// Signal that the machine is ready.
 	close(m.started)
 
-	// Control loop for managing components that depend on the machine being initialised as a cluster member.
-	errGroup.Go(
-		func() error {
-			if !m.Initialised() {
-				slog.Info(
-					"Waiting for the machine to be initialised as a member of a cluster " +
-						"to start the network controller.",
-				)
-			}
+	// Wait for the machine to be initialised as a member of a cluster and run the cluster controller.
+	errGroup.Go(func() error {
+		if !m.Initialised() {
+			slog.Info(
+				"Waiting for the machine to be initialised as a member of a cluster to start the cluster controller.",
+			)
+		}
+		<-m.initialised
 
-			var ctrl *networkController
-			// Error channel for communicating the termination of the network controller.
-			errCh := make(chan error)
+		m.cluster.UpdateMachineID(m.state.ID)
 
-			for {
-				select {
-				// Wait for the machine to be initialised as a member of a cluster to start the network controller.
-				// It can be reset when leaving the cluster and then re-initialised again with a new configuration.
-				case <-m.initialised:
-					var err error
+		// Ensure the corrosion config is up to date, including a new gossip address if the machine
+		// has just joined a cluster.
+		if err := m.configureCorrosion(); err != nil {
+			return fmt.Errorf("configure corrosion service: %w", err)
+		}
+		slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
 
-					// Reset networkReady channel for the new cluster configuration
-					m.networkReadyMu.Lock()
-					m.networkReady = make(chan struct{})
-					m.networkReadyMu.Unlock()
+		slog.Info("Starting cluster controller.")
+		// Update the proxy director's local address to the machine's management IP address, allowing
+		// the proxy to identify which requests should be proxied to the local machine API server.
+		m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
+		proxyServer := grpc.NewServer(
+			grpc.ForceServerCodecV2(proxy.Codec()),
+			grpc.UnknownServiceHandler(
+				proxy.TransparentHandler(m.proxyDirector.Director),
+			),
+		)
 
-					m.cluster.UpdateMachineID(m.state.ID)
+		// Create a new caddyconfig controller for managing the Caddy reverse proxy configuration.
+		// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
+		caddyconfigCtrl, err := caddyconfig.NewController(m.store, m.config.CaddyConfigPath, m.state.ID)
+		if err != nil {
+			return fmt.Errorf("create caddyconfig controller: %w", err)
+		}
 
-					// Ensure the corrosion config is up to date, including a new gossip address if the machine
-					// has just joined a cluster.
-					if err = m.configureCorrosion(); err != nil {
-						return fmt.Errorf("configure corrosion service: %w", err)
-					}
-					slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
+		dnsResolver := dns.NewClusterResolver(m.store)
+		dnsServer, err := dns.NewServer(m.IP(), dnsResolver, m.config.DNSUpstreams)
+		if err != nil {
+			return fmt.Errorf("create embedded DNS server: %w", err)
+		}
 
-					slog.Info("Starting network controller.")
-					// Update the proxy director's local address to the machine's management IP address, allowing
-					// the proxy to identify which requests should be proxied to the local machine API server.
-					m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
-					proxyServer := grpc.NewServer(
-						grpc.ForceServerCodecV2(proxy.Codec()),
-						grpc.UnknownServiceHandler(
-							proxy.TransparentHandler(m.proxyDirector.Director),
-						),
-					)
+		m.mu.Lock()
+		m.clusterCtrl, err = newClusterController(
+			m.state,
+			m.store,
+			proxyServer,
+			m.config.CorrosionService,
+			m.config.DockerClient,
+			m.networkReady,
+			caddyconfigCtrl,
+			dnsServer,
+			dnsResolver,
+		)
+		m.mu.Unlock()
+		if err != nil {
+			return fmt.Errorf("initialise cluster controller: %w", err)
+		}
 
-					// Create a new Caddyfile controller for managing the Caddy reverse proxy configuration.
-					// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
-					caddyfileCtrl, err := caddyconfig.NewController(m.store, m.config.CaddyConfigPath, m.state.ID)
-					if err != nil {
-						return fmt.Errorf("create Caddyfile controller: %w", err)
-					}
+		if err = m.clusterCtrl.Run(ctx); err != nil {
+			return fmt.Errorf("run cluster controller: %w", err)
+		}
+		slog.Info("Cluster controller stopped.")
 
-					dnsResolver := dns.NewClusterResolver(m.store)
-					dnsServer, err := dns.NewServer(m.IP(), dnsResolver, m.config.DNSUpstreams)
-					if err != nil {
-						return fmt.Errorf("create embedded DNS server: %w", err)
-					}
-
-					ctrl, err = newNetworkController(
-						m.state,
-						m.store,
-						proxyServer,
-						m.config.CorrosionService,
-						m.config.DockerClient,
-						caddyfileCtrl,
-						dnsServer,
-						dnsResolver,
-						m.networkReady,
-					)
-					if err != nil {
-						return fmt.Errorf("initialise network controller: %w", err)
-					}
-
-					go func() {
-						if err = ctrl.Run(ctx); err != nil {
-							errCh <- fmt.Errorf("run network controller: %w", err)
-						} else {
-							slog.Info("Network controller stopped.")
-							errCh <- nil
-						}
-					}()
-				case err := <-errCh:
-					if err != nil {
-						return err
-					}
-					ctrl = nil
-				case <-ctx.Done():
-					// Wait for the network controller to stop before returning.
-					if ctrl != nil {
-						if err := <-errCh; err != nil {
-							return err
-						}
-					}
-					return nil
-				}
-			}
-		},
-	)
+		return nil
+	})
 
 	// Shutdown goroutine.
-	errGroup.Go(
-		func() error {
-			<-ctx.Done()
-			slog.Info("Stopping local machine API server.")
-			// TODO: implement timeout for graceful shutdown.
-			m.localMachineServer.GracefulStop()
-			slog.Info("Local machine API server stopped.")
+	errGroup.Go(func() error {
+		<-ctx.Done()
+		slog.Info("Stopping local machine API server.")
+		// TODO: implement timeout for graceful shutdown.
+		m.localMachineServer.GracefulStop()
+		slog.Info("Local machine API server stopped.")
 
-			slog.Info("Stopping local API proxy server.")
-			// TODO: implement timeout for graceful shutdown.
-			m.localProxyServer.GracefulStop()
-			// Close the proxy director to close all backend connections.
-			m.proxyDirector.Close()
-			slog.Info("Local API proxy server stopped.")
+		slog.Info("Stopping local API proxy server.")
+		// TODO: implement timeout for graceful shutdown.
+		m.localProxyServer.GracefulStop()
+		// Close the proxy director to close all backend connections.
+		m.proxyDirector.Close()
+		slog.Info("Local API proxy server stopped.")
 
-			m.config.DockerClient.Close()
-			return nil
-		},
-	)
+		m.config.DockerClient.Close()
+		return nil
+	})
 
 	return errGroup.Wait()
 }
@@ -798,13 +762,10 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 func (m *Machine) IsNetworkReady() bool {
 	if !m.Initialised() {
 		// If machine is not initialized, there's no network to check
-		return true
+		return false
 	}
 
 	// Check if network is ready by checking if the networkReady channel has been closed
-	m.networkReadyMu.RLock()
-	defer m.networkReadyMu.RUnlock()
-
 	select {
 	case <-m.networkReady:
 		return true
@@ -821,34 +782,43 @@ func (m *Machine) WaitForNetworkReady(ctx context.Context) error {
 		return nil
 	}
 
-	// Get a copy of the channel to wait on
-	m.networkReadyMu.RLock()
-	networkReady := m.networkReady
-	m.networkReadyMu.RUnlock()
-
 	// Wait for network to be ready or context to be cancelled
 	select {
-	case <-networkReady:
+	case <-m.networkReady:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-// Reset restores the machine to a clean state, removing all cluster-related сonfiguration and data and scheduling
+// Reset restores the machine to a clean state, removing all cluster-related configuration and data and scheduling
 // a graceful shutdown. The uncloud daemon will restart the machine if managed by systemd.
 func (m *Machine) Reset(ctx context.Context, _ *pb.ResetRequest) (*emptypb.Empty, error) {
+	if !m.Initialised() {
+		return nil, nil
+	}
+
 	slog.Info("Resetting machine to a clean state.")
 
 	// TODO: stop and remove all managed service containers.
 	// TODO: check if the request is coming from the unix or network socket. For the network socket, the reset should
 	//  be called in a separate goroutine to avoid blocking the RPC response.
-	// TODO: stop the network controller
-	// TODO: implement and call Cleanup on the network controller to remove Docker network, WG interface, iptables
-	//  rules, corrosion state, ?stop corrosion service.
-	// TODO: stop the machine and remove the machine.json state. The daemon should restart it to a clean state.
 
-	return &emptypb.Empty{}, status.Error(codes.Unimplemented, "reset machine is not implemented yet")
+	// TODO: Stop the machine asynchronously. The gRPC servers will wait for this request to complete before stopping.
+	go func() {
+		m.stop()
+		// TODO: wait for the cluster controller to stop.
+		// TODO: Cleanup cluster controller (WG network, Docker network, iptables rules, etc.)
+
+		// TODO: uncomment after testing all other cleanup steps.
+		//if err := os.RemoveAll(m.config.DataDir); err != nil {
+		//	slog.Error("Failed to remove data directory storing persistent machine state.",
+		//		"path", m.config.DataDir, "err", err)
+		//	return nil, status.Errorf(codes.Internal, "remove data directory on machine '%s': %v", m.config.DataDir, err)
+		//}
+		//slog.Info("Removed data directory storing persistent machine state.", "path", m.config.DataDir)
+	}()
+	return &emptypb.Empty{}, nil
 }
 
 // InspectService returns detailed information about a service and its containers stored in the cluster store.

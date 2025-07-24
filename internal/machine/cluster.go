@@ -29,39 +29,38 @@ const (
 	APIPort = 51000
 )
 
-type networkController struct {
+// clusterController is the main controller for the machine that is a cluster member. It manages components such as
+// the WireGuard network, Corrosion service, Docker network and containers, and embedded DNS server.
+type clusterController struct {
 	state *State
 	store *store.Store
 
 	wgnet           *network.WireGuardNetwork
 	endpointChanges <-chan network.EndpointChangeEvent
 
-	server        *grpc.Server
-	corroService  corroservice.Service
-	dockerCli     *client.Client
-	caddyfileCtrl *caddyconfig.Controller
+	server       *grpc.Server
+	corroService corroservice.Service
+	dockerCli    *client.Client
+	// dockerReady is signalled when Docker is configured and ready for containers.
+	dockerReady     chan<- struct{}
+	caddyconfigCtrl *caddyconfig.Controller
 
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
 	dnsServer   *dns.Server
 	dnsResolver *dns.ClusterResolver
-
-	// networkReady is signalled when the Docker network is configured and ready for containers.
-	networkReady chan<- struct{}
 }
 
-func newNetworkController(
+func newClusterController(
 	state *State,
 	store *store.Store,
 	server *grpc.Server,
 	corroService corroservice.Service,
 	dockerCli *client.Client,
+	dockerReady chan<- struct{},
 	caddyfileCtrl *caddyconfig.Controller,
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
-	networkReady chan<- struct{},
-) (
-	*networkController, error,
-) {
+) (*clusterController, error) {
 	slog.Info("Starting WireGuard network.")
 	wgnet, err := network.NewWireGuardNetwork()
 	if err != nil {
@@ -69,7 +68,7 @@ func newNetworkController(
 	}
 	endpointChanges := wgnet.WatchEndpoints()
 
-	return &networkController{
+	return &clusterController{
 		state:           state,
 		store:           store,
 		wgnet:           wgnet,
@@ -77,59 +76,55 @@ func newNetworkController(
 		server:          server,
 		corroService:    corroService,
 		dockerCli:       dockerCli,
-		caddyfileCtrl:   caddyfileCtrl,
+		dockerReady:     dockerReady,
+		caddyconfigCtrl: caddyfileCtrl,
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
-		networkReady:    networkReady,
 	}, nil
 }
 
-func (nc *networkController) Run(ctx context.Context) error {
+func (cc *clusterController) Run(ctx context.Context) error {
 	if err := firewall.ConfigureIptablesChains(); err != nil {
 		return fmt.Errorf("configure iptables chains: %w", err)
 	}
 
-	if err := nc.wgnet.Configure(*nc.state.Network); err != nil {
+	if err := cc.wgnet.Configure(*cc.state.Network); err != nil {
 		return fmt.Errorf("configure WireGuard network: %w", err)
 	}
 	slog.Info("WireGuard network configured.")
 
-	if nc.corroService.Running() {
+	if cc.corroService.Running() {
 		// Corrosion service was running before the WireGuard network was configured so we need to restart it.
 		slog.Info("Restarting corrosion service to apply new configuration with WireGuard network.")
-		if err := nc.corroService.Restart(ctx); err != nil {
+		if err := cc.corroService.Restart(ctx); err != nil {
 			return fmt.Errorf("restart corrosion service: %w", err)
 		}
 	} else {
 		slog.Info("Starting corrosion service.")
-		if err := nc.corroService.Start(ctx); err != nil {
+		if err := cc.corroService.Start(ctx); err != nil {
 			return fmt.Errorf("start corrosion service: %w", err)
 		}
 	}
-	// TODO: Figure out if we need to manually stop the corrosion service when the context is done or just
-	//  rely on systemd to handle service dependencies on its own.
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Start the network API server. Assume the management IP can't be changed when the network is running.
-	apiAddr := net.JoinHostPort(nc.state.Network.ManagementIP.String(), strconv.Itoa(APIPort))
+	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(APIPort))
 	listener, err := net.Listen("tcp", apiAddr)
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
 	}
-	errGroup.Go(
-		func() error {
-			slog.Info("Starting network API server.", "addr", apiAddr)
-			if err := nc.server.Serve(listener); err != nil {
-				return fmt.Errorf("network API server failed: %w", err)
-			}
-			return nil
-		},
-	)
+	errGroup.Go(func() error {
+		slog.Info("Starting network API server.", "addr", apiAddr)
+		if err := cc.server.Serve(listener); err != nil {
+			return fmt.Errorf("network API server failed: %w", err)
+		}
+		return nil
+	})
 
 	errGroup.Go(func() error {
 		slog.Info("Starting embedded DNS resolver.")
-		if err := nc.dnsResolver.Run(ctx); err != nil {
+		if err := cc.dnsResolver.Run(ctx); err != nil {
 			return fmt.Errorf("embedded DNS resolver failed: %w", err)
 		}
 		return nil
@@ -137,7 +132,7 @@ func (nc *networkController) Run(ctx context.Context) error {
 
 	errGroup.Go(func() error {
 		slog.Info("Starting embedded DNS server.")
-		if err := nc.dnsServer.Run(ctx); err != nil {
+		if err := cc.dnsServer.Run(ctx); err != nil {
 			return fmt.Errorf("embedded DNS server failed: %w", err)
 		}
 		return nil
@@ -145,13 +140,13 @@ func (nc *networkController) Run(ctx context.Context) error {
 
 	// Setup Docker network and synchronise containers to the cluster store.
 	errGroup.Go(func() error {
-		return nc.prepareAndWatchDocker(ctx)
+		return cc.prepareAndWatchDocker(ctx)
 	})
 
 	// Handle machine changes in the cluster. Handling machine and endpoint changes should be done
 	// in separate goroutines to avoid a deadlock when reconfiguring the network.
 	errGroup.Go(func() error {
-		if err := nc.handleMachineChanges(ctx); err != nil {
+		if err := cc.handleMachineChanges(ctx); err != nil {
 			return fmt.Errorf("handle new machines: %w", err)
 		}
 		return nil
@@ -161,24 +156,24 @@ func (nc *networkController) Run(ctx context.Context) error {
 	errGroup.Go(func() error {
 		for {
 			select {
-			case e, ok := <-nc.endpointChanges:
+			case e, ok := <-cc.endpointChanges:
 				if !ok {
 					// The channel was closed, stop watching for changes.
-					nc.endpointChanges = nil
+					cc.endpointChanges = nil
 					return nil
 				}
 
-				nc.state.mu.Lock()
-				for i := range nc.state.Network.Peers {
-					if nc.state.Network.Peers[i].PublicKey.Equal(e.PublicKey) {
-						nc.state.Network.Peers[i].Endpoint = &e.Endpoint
+				cc.state.mu.Lock()
+				for i := range cc.state.Network.Peers {
+					if cc.state.Network.Peers[i].PublicKey.Equal(e.PublicKey) {
+						cc.state.Network.Peers[i].Endpoint = &e.Endpoint
 						break
 					}
 				}
-				if err := nc.state.Save(); err != nil {
+				if err := cc.state.Save(); err != nil {
 					slog.Error("Failed to save machine state.", "err", err)
 				}
-				nc.state.mu.Unlock()
+				cc.state.mu.Unlock()
 
 				slog.Debug("Preserved endpoint change in the machine state.",
 					"public_key", e.PublicKey, "endpoint", e.Endpoint)
@@ -189,49 +184,56 @@ func (nc *networkController) Run(ctx context.Context) error {
 	})
 
 	errGroup.Go(func() error {
-		if err := nc.wgnet.Run(ctx); err != nil {
+		if err := cc.wgnet.Run(ctx); err != nil {
 			return fmt.Errorf("WireGuard network failed: %w", err)
 		}
 		return nil
 	})
 
 	errGroup.Go(func() error {
-		slog.Info("Starting Caddyconfig controller.")
-		if err := nc.caddyfileCtrl.Run(ctx); err != nil {
-			//goland:noinspection GoErrorStringFormat
-			return fmt.Errorf("Caddyconfig controller failed: %w", err)
+		slog.Info("Starting caddyconfig controller.")
+		if err := cc.caddyconfigCtrl.Run(ctx); err != nil {
+			return fmt.Errorf("caddyconfig controller failed: %w", err)
 		}
 		return nil
 	})
 
 	// Wait for the context to be done and stop the network API server.
-	errGroup.Go(func() error {
-		<-ctx.Done()
-		slog.Info("Stopping network API server.")
-		// TODO: implement timeout for graceful shutdown.
-		nc.server.GracefulStop()
-		slog.Info("Network API server stopped.")
-		return nil
-	})
+	<-ctx.Done()
+	slog.Info("Stopping network API server.")
+	// TODO: implement timeout for graceful shutdown.
+	cc.server.GracefulStop()
+	slog.Info("Network API server stopped.")
 
-	return errGroup.Wait()
+	// Wait for all controllers to finish.
+	err = errGroup.Wait()
+
+	// It's safe to stop the Corrosion service after the controllers depending on it and API server are stopped.
+	if corroErr := cc.corroService.Stop(ctx); corroErr != nil {
+		slog.Error("Failed to stop corrosion service.", "err", corroErr)
+		err = errors.Join(err, fmt.Errorf("stop corrosion service: %w", corroErr))
+	} else {
+		slog.Info("Corrosion service stopped.")
+	}
+
+	return err
 }
 
 // prepareAndWatchDocker configures the Docker network and watches local Docker containers to sync them
 // to the cluster store.
-func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
-	manager := docker.NewManager(nc.dockerCli, nc.state.ID, nc.store)
+func (cc *clusterController) prepareAndWatchDocker(ctx context.Context) error {
+	manager := docker.NewManager(cc.dockerCli, cc.state.ID, cc.store)
 	if err := manager.WaitDaemonReady(ctx); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
 
-	if err := manager.EnsureUncloudNetwork(ctx, nc.state.Network.Subnet, nc.dnsServer.ListenAddr()); err != nil {
+	if err := manager.EnsureUncloudNetwork(ctx, cc.state.Network.Subnet, cc.dnsServer.ListenAddr()); err != nil {
 		return fmt.Errorf("ensure Docker network: %w", err)
 	}
 	slog.Info("Docker network configured.")
 
-	// Signal that the Docker network is ready for containers
-	close(nc.networkReady)
+	// Signal that Docker is ready for containers.
+	close(cc.dockerReady)
 
 	slog.Info("Watching Docker containers and syncing them to cluster store.")
 	// Retry to watch and sync containers until the context is done.
@@ -259,7 +261,7 @@ func (nc *networkController) prepareAndWatchDocker(ctx context.Context) error {
 
 // handleMachineChanges subscribes to machine changes in the cluster and reconfigures the network peers accordingly
 // when changes occur.
-func (nc *networkController) handleMachineChanges(ctx context.Context) error {
+func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
 	for {
 		// Retry to subscribe to machine changes indefinitely until the context is done.
 		boff := backoff.WithContext(backoff.NewExponentialBackOff(
@@ -274,7 +276,7 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 			err      error
 		)
 		subscribe := func() error {
-			if machines, changes, err = nc.store.SubscribeMachines(ctx); err != nil {
+			if machines, changes, err = cc.store.SubscribeMachines(ctx); err != nil {
 				slog.Info("Failed to subscribe to machine changes, retrying.", "err", err)
 			}
 			return err
@@ -292,7 +294,7 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 		// completes. Skip configuration now and apply it when the store changes are received.
 		if len(machines) > 0 {
 			slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
-			if err = nc.configurePeers(machines); err != nil {
+			if err = cc.configurePeers(machines); err != nil {
 				slog.Error("Failed to configure peers.", "err", err)
 			}
 		}
@@ -304,11 +306,11 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 			//  be reworked as well.
 			case <-changes:
 				slog.Info("Cluster machines changed, reconfiguring network peers.")
-				if machines, err = nc.store.ListMachines(ctx); err != nil {
+				if machines, err = cc.store.ListMachines(ctx); err != nil {
 					slog.Error("Failed to list machines.", "err", err)
 					continue
 				}
-				if err = nc.configurePeers(machines); err != nil {
+				if err = cc.configurePeers(machines); err != nil {
 					slog.Error("Failed to configure peers.", "err", err)
 				}
 			case <-ctx.Done():
@@ -318,23 +320,23 @@ func (nc *networkController) handleMachineChanges(ctx context.Context) error {
 	}
 }
 
-func (nc *networkController) configurePeers(machines []*pb.MachineInfo) error {
+func (cc *clusterController) configurePeers(machines []*pb.MachineInfo) error {
 	if len(machines) == 0 {
 		return fmt.Errorf("no machines to configure peers")
 	}
 
-	nc.state.mu.RLock()
-	currentPeerEndpoints := make(map[string]*netip.AddrPort, len(nc.state.Network.Peers))
-	for _, p := range nc.state.Network.Peers {
+	cc.state.mu.RLock()
+	currentPeerEndpoints := make(map[string]*netip.AddrPort, len(cc.state.Network.Peers))
+	for _, p := range cc.state.Network.Peers {
 		currentPeerEndpoints[p.PublicKey.String()] = p.Endpoint
 	}
-	nc.state.mu.RUnlock()
+	cc.state.mu.RUnlock()
 
 	// Construct the list of peers from the machine configurations ensuring that the current endpoint is preserved.
 	peers := make([]network.PeerConfig, 0, len(machines)-1)
 	for _, m := range machines {
 		// Skip the current machine.
-		if m.Id == nc.state.ID {
+		if m.Id == cc.state.ID {
 			continue
 		}
 		if err := m.Network.Validate(); err != nil {
@@ -367,17 +369,17 @@ func (nc *networkController) configurePeers(machines []*pb.MachineInfo) error {
 	}
 
 	// Preserve the new list of peers in the machine state.
-	nc.state.mu.Lock()
-	nc.state.Network.Peers = peers
-	err := nc.state.Save()
-	nc.state.mu.Unlock()
+	cc.state.mu.Lock()
+	cc.state.Network.Peers = peers
+	err := cc.state.Save()
+	cc.state.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("save machine state: %w", err)
 	}
 
-	nc.state.mu.RLock()
-	defer nc.state.mu.RUnlock()
-	if err = nc.wgnet.Configure(*nc.state.Network); err != nil {
+	cc.state.mu.RLock()
+	defer cc.state.mu.RUnlock()
+	if err = cc.wgnet.Configure(*cc.state.Network); err != nil {
 		return fmt.Errorf("configure network peers: %w", err)
 	}
 	return nil

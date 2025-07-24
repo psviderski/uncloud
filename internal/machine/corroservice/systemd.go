@@ -27,6 +27,15 @@ func (s *SystemdService) Start(ctx context.Context) error {
 	return s.startOrRestart(ctx, "start")
 }
 
+func (s *SystemdService) Stop(ctx context.Context) error {
+	if _, err := exec.Command("systemctl", "stop", s.Unit).Output(); err != nil {
+		return fmt.Errorf("systemctl stop %s: %w", s.Unit, err)
+	}
+	slog.Info("Corrosion systemd service stopped.", "unit", s.Unit)
+
+	return nil
+}
+
 func (s *SystemdService) Restart(ctx context.Context) error {
 	return s.startOrRestart(ctx, "restart")
 }
