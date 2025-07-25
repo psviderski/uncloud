@@ -2,6 +2,7 @@ package firewall
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -65,6 +66,37 @@ func ConfigureIptablesChains() error {
 	err := ipt.ProgramRule(iptables.Filter, UncloudInputChain, iptables.Insert, acceptWireGuardRule)
 	if err != nil {
 		return fmt.Errorf("insert iptables rule '%s': %w", strings.Join(acceptWireGuardRule, " "), err)
+	}
+
+	return nil
+}
+
+// CleanupIptablesChains removes the custom iptables chains and rules created by ConfigureIptablesChains.
+func CleanupIptablesChains() error {
+	ipt := iptables.GetIptable(iptables.IPv4)
+
+	// First, remove the jump rule from INPUT chain to UNCLOUD-INPUT.
+	jumpRule := []string{"-m", "comment", "--comment", "Uncloud-managed", "-j", UncloudInputChain}
+	if err := ipt.ProgramRule(iptables.Filter, "INPUT", iptables.Delete, jumpRule); err != nil {
+		return fmt.Errorf("delete iptables jump rule from INPUT: %w", err)
+	}
+
+	// Flush all rules from UNCLOUD-INPUT chain as it must be empty before deletion.
+	if err := ipt.RawCombinedOutput("-t", string(iptables.Filter), "-F", UncloudInputChain); err != nil {
+		// Chain might not exist which is fine.
+		if !strings.Contains(err.Error(), "No chain") {
+			return fmt.Errorf("flush iptables chain '%s': %w", UncloudInputChain, err)
+		}
+	}
+
+	// Delete the UNCLOUD-INPUT chain.
+	if err := ipt.RawCombinedOutput("-t", string(iptables.Filter), "-X", UncloudInputChain); err != nil {
+		// Chain might not exist which is fine.
+		if !strings.Contains(err.Error(), "No chain") {
+			return fmt.Errorf("delete iptables chain '%s': %w", UncloudInputChain, err)
+		}
+	} else {
+		slog.Info("Deleted iptables chain.", "chain", UncloudInputChain)
 	}
 
 	return nil

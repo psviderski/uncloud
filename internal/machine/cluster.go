@@ -408,8 +408,9 @@ func (cc *clusterController) Cleanup() error {
 	if err := cc.wgnet.Cleanup(); err != nil {
 		errs = append(errs, fmt.Errorf("cleanup WireGuard network: %w", err))
 	}
-	// TODO: cleanup custom iptables chains. They're flushed when the machine is initialised again but it would
-	//  cleaner to delete them here.
+	if err := firewall.CleanupIptablesChains(); err != nil {
+		errs = append(errs, fmt.Errorf("cleanup iptables chains: %w", err))
+	}
 
 	return errors.Join(errs...)
 }
