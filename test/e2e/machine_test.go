@@ -13,6 +13,8 @@ import (
 )
 
 func TestMachineRename(t *testing.T) {
+	t.Parallel()
+
 	name := "ucind-test.machine-rename"
 	ctx := context.Background()
 	c, _ := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3}, true)
@@ -205,6 +207,8 @@ func TestMachineRename(t *testing.T) {
 }
 
 func TestUpdateMachine(t *testing.T) {
+	t.Parallel()
+
 	name := "ucind-test.machine-update"
 	ctx := context.Background()
 	c, _ := createTestCluster(t, name, ucind.CreateClusterOptions{Machines: 3}, true)
