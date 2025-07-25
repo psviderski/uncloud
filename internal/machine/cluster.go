@@ -218,6 +218,9 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	err = errGroup.Wait()
 
 	// It's safe to stop the Corrosion service after the controllers depending on it and API server are stopped.
+	// Use a new context with a timeout as the current context is already canceled.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	if corroErr := cc.corroService.Stop(ctx); corroErr != nil {
 		err = errors.Join(err, fmt.Errorf("stop corrosion service: %w", corroErr))
 	} else {

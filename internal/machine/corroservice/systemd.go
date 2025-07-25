@@ -27,7 +27,7 @@ func (s *SystemdService) Start(ctx context.Context) error {
 	return s.startOrRestart(ctx, "start")
 }
 
-func (s *SystemdService) Stop(ctx context.Context) error {
+func (s *SystemdService) Stop(_ context.Context) error {
 	if _, err := exec.Command("systemctl", "stop", s.Unit).Output(); err != nil {
 		return fmt.Errorf("systemctl stop %s: %w", s.Unit, err)
 	}
