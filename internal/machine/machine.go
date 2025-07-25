@@ -361,62 +361,67 @@ func (m *Machine) Run(ctx context.Context) error {
 				"Waiting for the machine to be initialised as a member of a cluster to start the cluster controller.",
 			)
 		}
-		<-m.initialised
 
-		m.cluster.UpdateMachineID(m.state.ID)
+		select {
+		case <-m.initialised:
+			m.cluster.UpdateMachineID(m.state.ID)
 
-		// Ensure the corrosion config is up to date, including a new gossip address if the machine
-		// has just joined a cluster.
-		if err := m.configureCorrosion(); err != nil {
-			return fmt.Errorf("configure corrosion service: %w", err)
+			// Ensure the corrosion config is up to date, including a new gossip address if the machine
+			// has just joined a cluster.
+			if err := m.configureCorrosion(); err != nil {
+				return fmt.Errorf("configure corrosion service: %w", err)
+			}
+			slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
+
+			slog.Info("Starting cluster controller.")
+			// Update the proxy director's local address to the machine's management IP address, allowing
+			// the proxy to identify which requests should be proxied to the local machine API server.
+			m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
+			proxyServer := grpc.NewServer(
+				grpc.ForceServerCodecV2(proxy.Codec()),
+				grpc.UnknownServiceHandler(
+					proxy.TransparentHandler(m.proxyDirector.Director),
+				),
+			)
+
+			// Create a new caddyconfig controller for managing the Caddy reverse proxy configuration.
+			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
+			caddyconfigCtrl, err := caddyconfig.NewController(m.store, m.config.CaddyConfigPath, m.state.ID)
+			if err != nil {
+				return fmt.Errorf("create caddyconfig controller: %w", err)
+			}
+
+			dnsResolver := dns.NewClusterResolver(m.store)
+			dnsServer, err := dns.NewServer(m.IP(), dnsResolver, m.config.DNSUpstreams)
+			if err != nil {
+				return fmt.Errorf("create embedded DNS server: %w", err)
+			}
+
+			m.mu.Lock()
+			m.clusterCtrl, err = newClusterController(
+				m.state,
+				m.store,
+				proxyServer,
+				m.config.CorrosionService,
+				m.config.DockerClient,
+				m.networkReady,
+				caddyconfigCtrl,
+				dnsServer,
+				dnsResolver,
+			)
+			m.mu.Unlock()
+			if err != nil {
+				return fmt.Errorf("initialise cluster controller: %w", err)
+			}
+
+			if err = m.clusterCtrl.Run(ctx); err != nil {
+				return fmt.Errorf("run cluster controller: %w", err)
+			}
+			slog.Info("Cluster controller stopped.")
+
+		case <-ctx.Done():
+			// The context was cancelled before the machine was initialised.
 		}
-		slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
-
-		slog.Info("Starting cluster controller.")
-		// Update the proxy director's local address to the machine's management IP address, allowing
-		// the proxy to identify which requests should be proxied to the local machine API server.
-		m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
-		proxyServer := grpc.NewServer(
-			grpc.ForceServerCodecV2(proxy.Codec()),
-			grpc.UnknownServiceHandler(
-				proxy.TransparentHandler(m.proxyDirector.Director),
-			),
-		)
-
-		// Create a new caddyconfig controller for managing the Caddy reverse proxy configuration.
-		// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
-		caddyconfigCtrl, err := caddyconfig.NewController(m.store, m.config.CaddyConfigPath, m.state.ID)
-		if err != nil {
-			return fmt.Errorf("create caddyconfig controller: %w", err)
-		}
-
-		dnsResolver := dns.NewClusterResolver(m.store)
-		dnsServer, err := dns.NewServer(m.IP(), dnsResolver, m.config.DNSUpstreams)
-		if err != nil {
-			return fmt.Errorf("create embedded DNS server: %w", err)
-		}
-
-		m.mu.Lock()
-		m.clusterCtrl, err = newClusterController(
-			m.state,
-			m.store,
-			proxyServer,
-			m.config.CorrosionService,
-			m.config.DockerClient,
-			m.networkReady,
-			caddyconfigCtrl,
-			dnsServer,
-			dnsResolver,
-		)
-		m.mu.Unlock()
-		if err != nil {
-			return fmt.Errorf("initialise cluster controller: %w", err)
-		}
-
-		if err = m.clusterCtrl.Run(ctx); err != nil {
-			return fmt.Errorf("run cluster controller: %w", err)
-		}
-		slog.Info("Cluster controller stopped.")
 
 		return nil
 	})
