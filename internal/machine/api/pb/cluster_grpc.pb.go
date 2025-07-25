@@ -23,6 +23,7 @@ const (
 	Cluster_AddMachine_FullMethodName          = "/api.Cluster/AddMachine"
 	Cluster_ListMachines_FullMethodName        = "/api.Cluster/ListMachines"
 	Cluster_UpdateMachine_FullMethodName       = "/api.Cluster/UpdateMachine"
+	Cluster_RemoveMachine_FullMethodName       = "/api.Cluster/RemoveMachine"
 	Cluster_ReserveDomain_FullMethodName       = "/api.Cluster/ReserveDomain"
 	Cluster_GetDomain_FullMethodName           = "/api.Cluster/GetDomain"
 	Cluster_ReleaseDomain_FullMethodName       = "/api.Cluster/ReleaseDomain"
@@ -36,6 +37,7 @@ type ClusterClient interface {
 	AddMachine(ctx context.Context, in *AddMachineRequest, opts ...grpc.CallOption) (*AddMachineResponse, error)
 	ListMachines(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListMachinesResponse, error)
 	UpdateMachine(ctx context.Context, in *UpdateMachineRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
+	RemoveMachine(ctx context.Context, in *RemoveMachineRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReserveDomain(ctx context.Context, in *ReserveDomainRequest, opts ...grpc.CallOption) (*Domain, error)
 	GetDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	ReleaseDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
@@ -74,6 +76,16 @@ func (c *clusterClient) UpdateMachine(ctx context.Context, in *UpdateMachineRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateMachineResponse)
 	err := c.cc.Invoke(ctx, Cluster_UpdateMachine_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterClient) RemoveMachine(ctx context.Context, in *RemoveMachineRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Cluster_RemoveMachine_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +139,7 @@ type ClusterServer interface {
 	AddMachine(context.Context, *AddMachineRequest) (*AddMachineResponse, error)
 	ListMachines(context.Context, *emptypb.Empty) (*ListMachinesResponse, error)
 	UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error)
+	RemoveMachine(context.Context, *RemoveMachineRequest) (*emptypb.Empty, error)
 	ReserveDomain(context.Context, *ReserveDomainRequest) (*Domain, error)
 	GetDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	ReleaseDomain(context.Context, *emptypb.Empty) (*Domain, error)
@@ -149,6 +162,9 @@ func (UnimplementedClusterServer) ListMachines(context.Context, *emptypb.Empty) 
 }
 func (UnimplementedClusterServer) UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateMachine not implemented")
+}
+func (UnimplementedClusterServer) RemoveMachine(context.Context, *RemoveMachineRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveMachine not implemented")
 }
 func (UnimplementedClusterServer) ReserveDomain(context.Context, *ReserveDomainRequest) (*Domain, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReserveDomain not implemented")
@@ -233,6 +249,24 @@ func _Cluster_UpdateMachine_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterServer).UpdateMachine(ctx, req.(*UpdateMachineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Cluster_RemoveMachine_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveMachineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).RemoveMachine(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_RemoveMachine_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).RemoveMachine(ctx, req.(*RemoveMachineRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -327,6 +361,10 @@ var Cluster_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateMachine",
 			Handler:    _Cluster_UpdateMachine_Handler,
+		},
+		{
+			MethodName: "RemoveMachine",
+			Handler:    _Cluster_RemoveMachine_Handler,
 		},
 		{
 			MethodName: "ReserveDomain",

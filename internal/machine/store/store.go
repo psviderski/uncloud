@@ -68,32 +68,6 @@ func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {
 	return nil
 }
 
-func (s *Store) UpdateMachine(ctx context.Context, m *pb.MachineInfo) error {
-	if m == nil {
-		return fmt.Errorf("machine info cannot be nil")
-	}
-	if m.Id == "" {
-		return fmt.Errorf("machine ID cannot be empty")
-	}
-
-	mJSON, err := protojson.Marshal(m)
-	if err != nil {
-		return fmt.Errorf("marshal machine info: %w", err)
-	}
-
-	result, err := s.corro.ExecContext(ctx, "UPDATE machines SET info = ? WHERE id = ?", string(mJSON), m.Id)
-	if err != nil {
-		return fmt.Errorf("update machine: %w", err)
-	}
-
-	// Check if machine exists
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("%w: %s", ErrMachineNotFound, m.Id)
-	}
-
-	return nil
-}
-
 func (s *Store) GetMachine(ctx context.Context, machineID string) (*pb.MachineInfo, error) {
 	if machineID == "" {
 		return nil, fmt.Errorf("machine ID cannot be empty")
@@ -168,6 +142,45 @@ func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
 		machines = append(machines, &m)
 	}
 	return machines, nil
+}
+
+func (s *Store) UpdateMachine(ctx context.Context, m *pb.MachineInfo) error {
+	if m == nil {
+		return fmt.Errorf("machine info cannot be nil")
+	}
+	if m.Id == "" {
+		return fmt.Errorf("machine ID cannot be empty")
+	}
+
+	mJSON, err := protojson.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("marshal machine info: %w", err)
+	}
+
+	result, err := s.corro.ExecContext(ctx, "UPDATE machines SET info = ? WHERE id = ?", string(mJSON), m.Id)
+	if err != nil {
+		return fmt.Errorf("update machine: %w", err)
+	}
+
+	// Check if machine exists
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("%w: %s", ErrMachineNotFound, m.Id)
+	}
+
+	return nil
+}
+
+func (s *Store) DeleteMachine(ctx context.Context, id string) error {
+	result, err := s.corro.ExecContext(ctx, "DELETE FROM machines WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("delete machine: %w", err)
+	}
+	// Check if machine was deleted.
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("%w: %s", ErrMachineNotFound, id)
+	}
+
+	return nil
 }
 
 // SubscribeMachines returns a list of machines and a channel that signals changes to the list. The channel doesn't

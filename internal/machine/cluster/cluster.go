@@ -326,3 +326,24 @@ func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListM
 
 	return &pb.ListMachinesResponse{Machines: members}, nil
 }
+
+// RemoveMachine removes a machine from the cluster.
+func (c *Cluster) RemoveMachine(ctx context.Context, req *pb.RemoveMachineRequest) (*emptypb.Empty, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+
+	if req.Id == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine ID not set")
+	}
+
+	if err := c.store.DeleteMachine(ctx, req.Id); err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.Id)
+		}
+		return nil, status.Errorf(codes.Internal, "delete machine from store: %v", err)
+	}
+	slog.Info("Machine removed from the cluster.", "id", req.Id)
+
+	return &emptypb.Empty{}, nil
+}
