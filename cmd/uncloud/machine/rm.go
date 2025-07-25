@@ -14,6 +14,7 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -30,13 +31,12 @@ func NewRmCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rm MACHINE",
 		Aliases: []string{"remove", "delete"},
-		Short:   "Remove a machine from a cluster.",
+		Short:   "Remove a machine from a cluster and reset it.",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return remove(cmd.Context(), uncli, args[0], opts)
 		},
-		Hidden: true,
 	}
 
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
@@ -47,7 +47,7 @@ func NewRmCommand() *cobra.Command {
 	return cmd
 }
 
-func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts removeOptions) error {
+func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOptions) error {
 	client, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -55,35 +55,40 @@ func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts remove
 	defer client.Close()
 
 	// Verify the machine exists and list all service containers on it including stopped ones.
-	listCtx, machines, err := api.ProxyMachinesContext(ctx, client, []string{machineName})
+	mctx, machines, err := api.ProxyMachinesContext(ctx, client, []string{nameOrID})
 	if err != nil {
 		return err
 	}
 	if len(machines) == 0 {
-		return fmt.Errorf("machine '%s' not found in the cluster", machineName)
+		return fmt.Errorf("machine '%s' not found in the cluster", nameOrID)
 	}
 	m := machines[0].Machine
 
-	listOpts := container.ListOptions{All: true}
-	machineContainers, err := client.Docker.ListServiceContainers(listCtx, "", listOpts)
-	if err != nil {
-		return fmt.Errorf("list containers: %w", err)
-	}
-	containers := machineContainers[0].Containers
+	// TODO: mark the machine as being removed and unschedulable when this is possible to prevent new containers
+	//  from being scheduled on it while the removal is in progress.
 
-	if len(containers) > 0 {
-		plural := ""
-		if len(containers) > 1 {
-			plural = "s"
+	machineUp := false
+	listOpts := container.ListOptions{All: true}
+	machineContainers, err := client.Docker.ListServiceContainers(mctx, "", listOpts)
+	if err == nil {
+		machineUp = true
+		containers := machineContainers[0].Containers
+		if len(containers) > 0 {
+			plural := ""
+			if len(containers) > 1 {
+				plural = "s"
+			}
+			fmt.Printf("Found %d service container%s on machine '%s':\n", len(containers), plural, m.Name)
+			fmt.Println(formatContainerTree(containers))
+			fmt.Println()
+			fmt.Println("This will remove all service containers on the machine, remove it from the cluster, " +
+				"and reset it to the uninitialised state.")
+		} else {
+			fmt.Printf("No service containers found on machine '%s'.\n", m.Name)
+			fmt.Println("This will remove the machine from the cluster and reset it to the uninitialised state.")
 		}
-		fmt.Printf("Found %d service container%s on machine '%s':\n", len(containers), plural, m.Name)
-		fmt.Println(formatContainerTree(containers))
-		fmt.Println()
-		fmt.Println("This will remove all service containers on the machine, reset it to the uninitialised state, " +
-			"and remove it from the cluster.")
 	} else {
-		fmt.Printf("No service containers found on machine '%s'.\n", m.Name)
-		fmt.Println("This will reset the machine to the uninitialised state and remove it from the cluster.")
+		fmt.Printf("This will remove machine '%s' from the cluster without resetting it as it's unreachable.\n", m.Name)
 	}
 
 	if !opts.yes {
@@ -97,22 +102,44 @@ func remove(ctx context.Context, uncli *cli.CLI, machineName string, opts remove
 		}
 	}
 
-	if len(containers) > 0 {
-		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-			return removeContainers(ctx, client, containers)
-		}, uncli.ProgressOut(), "Removing containers")
-		if err != nil {
-			return fmt.Errorf("remove containers: %w", err)
+	if machineUp {
+		containers := machineContainers[0].Containers
+		if len(containers) > 0 {
+			err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+				return removeContainers(ctx, client, containers)
+			}, uncli.ProgressOut(), "Removing containers")
+			if err != nil {
+				return fmt.Errorf("remove containers: %w", err)
+			}
+			fmt.Println()
 		}
-		fmt.Println()
 	}
 
-	// TODO: 4. Implement and call Reset via Machine API to reset the machine state to uninitialised.
-	// TODO: 5. Remove the machine from the cluster store.
+	// TODO: when removing the machine the client is currently connected to, it doesn't have time to send corrosion
+	//  updates about the removal. Other machines will still see it as Down and will need to remove it again.
+	//  Should we fail and ask the user to use a connection to another machine or try to do it automatically?
 
-	return fmt.Errorf("resetting machine is not fully implemented yet")
-	// fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
-	// return nil
+	if _, err = client.RemoveMachine(ctx, &pb.RemoveMachineRequest{Id: m.Id}); err != nil {
+		return fmt.Errorf("remove machine from cluster: %w", err)
+	}
+	fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
+
+	if machineUp {
+		_, err = client.MachineClient.Reset(mctx, &pb.ResetRequest{})
+		if err != nil {
+			fmt.Printf("WARNING: Failed to reset machine: %v\n", err)
+		} else {
+			fmt.Println("Machine reset initiated and will complete in the background.")
+		}
+	}
+
+	// TODO: remove the connection to the machine from the uncloud config if it exists. We need a way to associate
+	//  the machine with its connection in the config, e.g. by storing the machine name in the connection metadata.
+
+	// TODO: If Caddy was running on this machine and a cluster domain is reserved,
+	//  let the user know that the DNS records should be updated.
+
+	return nil
 }
 
 // formatContainerTree formats a list of containers grouped by service as a tree structure.
