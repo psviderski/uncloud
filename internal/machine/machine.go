@@ -321,6 +321,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		if err := m.config.CorrosionService.Start(ctx); err != nil {
 			return fmt.Errorf("start corrosion service: %w", err)
 		}
+		slog.Info("Corrosion service started.")
 	}
 
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple machine components.

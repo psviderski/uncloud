@@ -27,29 +27,33 @@ type DockerService struct {
 	User    string
 }
 
-func NewDockerService(cli *client.Client, image, name, dataDir string) *DockerService {
-	return &DockerService{
-		Client:  cli,
-		Image:   image,
-		Name:    name,
-		DataDir: dataDir,
-	}
-}
-
 func (s *DockerService) Start(ctx context.Context) error {
 	_, err := s.Client.ContainerInspect(ctx, s.Name)
 	if err != nil {
-		if client.IsErrNotFound(err) {
-			return s.startNewContainer(ctx)
+		if !client.IsErrNotFound(err) {
+			return fmt.Errorf("inspect container %q: %w", s.Name, err)
 		}
-		return fmt.Errorf("inspect container %q: %w", s.Name, err)
-	}
-	// TODO: recreate only if the container configuration has to be changed.
-	if err = s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{Force: true}); err != nil {
-		return fmt.Errorf("remove container %q: %w", s.Name, err)
+		if err = s.startNewContainer(ctx); err != nil {
+			return err
+		}
+	} else {
+		// Container already exists.
+		// TODO: recreate only if the container configuration has to be changed.
+		if err = s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{Force: true}); err != nil {
+			return fmt.Errorf("remove container %q: %w", s.Name, err)
+		}
+		if err = s.startNewContainer(ctx); err != nil {
+			return err
+		}
 	}
 
-	return s.startNewContainer(ctx)
+	slog.Debug("Waiting for corrosion service to be ready.")
+	if err = WaitReady(ctx, s.DataDir); err != nil {
+		return err
+	}
+	slog.Debug("Corrosion service is ready.")
+
+	return nil
 }
 
 func (s *DockerService) Stop(ctx context.Context) error {

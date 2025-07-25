@@ -108,11 +108,13 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		if err := cc.corroService.Restart(ctx); err != nil {
 			return fmt.Errorf("restart corrosion service: %w", err)
 		}
+		slog.Info("Corrosion service restarted.")
 	} else {
 		slog.Info("Starting corrosion service.")
 		if err := cc.corroService.Start(ctx); err != nil {
 			return fmt.Errorf("start corrosion service: %w", err)
 		}
+		slog.Info("Corrosion service started.")
 	}
 
 	errGroup, ctx := errgroup.WithContext(ctx)
