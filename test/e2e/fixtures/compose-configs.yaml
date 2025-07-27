@@ -1,0 +1,22 @@
+services:
+  web:
+    image: portainer/pause:3.9
+    environment:
+      - APP_ENV=production
+    configs:
+      - source: nginx-config
+        target: /etc/nginx/nginx.conf
+        mode: 0644
+      - source: app-config
+        target: /app/config.yml
+        uid: "1000"
+        gid: "1000"
+        mode: 0600
+    deploy:
+      replicas: 2
+
+configs:
+  nginx-config:
+    file: ./fixtures/configs/nginx.conf
+  app-config:
+    file: ./fixtures/configs/app-config.yml

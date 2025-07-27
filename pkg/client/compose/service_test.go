@@ -191,6 +191,12 @@ func TestServiceSpecFromCompose(t *testing.T) {
 								ContainerPath: "/tmpfs",
 							},
 						},
+						ConfigMounts: []api.ConfigMount{
+							{
+								Source: "config1",
+								Target: "/etc/config1",
+							},
+						},
 					},
 					Ports: []api.PortSpec{
 						{
@@ -251,6 +257,13 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							TmpfsOptions: &mount.TmpfsOptions{
 								SizeBytes: 10 * units.MiB,
 							},
+						},
+					},
+					Configs: []api.ConfigSpec{
+						{
+							Name:   "config1",
+							File:   "/home/tonyo/prog/github/uncloud/pkg/client/compose/testdata/config1.txt",
+							Labels: map[string]string{},
 						},
 					},
 				},
