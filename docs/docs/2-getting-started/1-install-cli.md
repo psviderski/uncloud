@@ -89,6 +89,8 @@ For example, move it to `/usr/local/bin` which is a common location for user-ins
 sudo mv ./uc /usr/local/bin
 ```
 
+Follow the same steps to upgrade to the latest version in the future.
+
 ## Debian
 
 On a Debian system, you can install Uncloud CLI from an unofficial
