@@ -20,7 +20,7 @@ import (
 )
 
 type removeOptions struct {
-	force   bool
+	noReset bool
 	yes     bool
 	context string
 }
@@ -43,11 +43,14 @@ func NewRmCommand() *cobra.Command {
 		"Name of the cluster context. (default is the current context)")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Do not prompt for confirmation before removing the machine.")
+	cmd.Flags().BoolVar(&opts.noReset, "no-reset", false,
+		"Do not reset the machine after removing it from the cluster. This will leave all containers and data intact.")
 
 	return cmd
 }
 
 func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOptions) error {
+	// TODO: automatically choose a connection to the machine that is not being removed.
 	client, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -64,31 +67,55 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	}
 	m := machines[0].Machine
 
+	// Verify if the machine being removed is the proxy machine we're connected to.
+	proxyMachine, err := client.MachineClient.Inspect(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("inspect proxy machine: %w", err)
+	}
+	if proxyMachine.Id == m.Id {
+		allMachines, err := client.ListMachines(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("list machines: %w", err)
+		}
+		if len(allMachines) > 1 {
+			return errors.New("cannot remove the machine you are currently connected to. " +
+				"Please connect to another machine in the cluster and try again. " +
+				"Use --connect flag or update 'connections' for the cluster context in your Uncloud config")
+			// It's ok to remove the proxy machine if it's the last one in the cluster.
+		}
+	}
+
 	// TODO: mark the machine as being removed and unschedulable when this is possible to prevent new containers
 	//  from being scheduled on it while the removal is in progress.
 
-	machineUp := false
-	listOpts := container.ListOptions{All: true}
-	machineContainers, err := client.Docker.ListServiceContainers(mctx, "", listOpts)
-	if err == nil {
-		machineUp = true
-		containers := machineContainers[0].Containers
-		if len(containers) > 0 {
-			plural := ""
-			if len(containers) > 1 {
-				plural = "s"
+	reset := !opts.noReset
+	var containers []api.ServiceContainer
+	if reset {
+		// Check if the machine is up and has service containers.
+		listOpts := container.ListOptions{All: true}
+		machineContainers, err := client.Docker.ListServiceContainers(mctx, "", listOpts)
+		if err == nil {
+			containers = machineContainers[0].Containers
+			if len(containers) > 0 {
+				plural := ""
+				if len(containers) > 1 {
+					plural = "s"
+				}
+				fmt.Printf("Found %d service container%s on machine '%s':\n", len(containers), plural, m.Name)
+				fmt.Println(formatContainerTree(containers))
+				fmt.Println()
+				fmt.Println("This will remove all service containers on the machine, remove it from the cluster, " +
+					"and reset it to the uninitialised state.")
+			} else {
+				fmt.Printf("No service containers found on machine '%s'.\n", m.Name)
+				fmt.Println("This will remove the machine from the cluster and reset it to the uninitialised state.")
 			}
-			fmt.Printf("Found %d service container%s on machine '%s':\n", len(containers), plural, m.Name)
-			fmt.Println(formatContainerTree(containers))
-			fmt.Println()
-			fmt.Println("This will remove all service containers on the machine, remove it from the cluster, " +
-				"and reset it to the uninitialised state.")
 		} else {
-			fmt.Printf("No service containers found on machine '%s'.\n", m.Name)
-			fmt.Println("This will remove the machine from the cluster and reset it to the uninitialised state.")
+			fmt.Printf("This will remove machine '%s' from the cluster without resetting it as it's unreachable.\n",
+				m.Name)
 		}
 	} else {
-		fmt.Printf("This will remove machine '%s' from the cluster without resetting it as it's unreachable.\n", m.Name)
+		fmt.Printf("This will remove machine '%s' from the cluster without resetting it.\n", m.Name)
 	}
 
 	if !opts.yes {
@@ -102,8 +129,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 		}
 	}
 
-	if machineUp {
-		containers := machineContainers[0].Containers
+	if reset {
 		if len(containers) > 0 {
 			err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 				return removeContainers(ctx, client, containers)
@@ -115,16 +141,12 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 		}
 	}
 
-	// TODO: when removing the machine the client is currently connected to, it doesn't have time to send corrosion
-	//  updates about the removal. Other machines will still see it as Down and will need to remove it again.
-	//  Should we fail and ask the user to use a connection to another machine or try to do it automatically?
-
 	if _, err = client.RemoveMachine(ctx, &pb.RemoveMachineRequest{Id: m.Id}); err != nil {
 		return fmt.Errorf("remove machine from cluster: %w", err)
 	}
 	fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
 
-	if machineUp {
+	if reset {
 		_, err = client.MachineClient.Reset(mctx, &pb.ResetRequest{})
 		if err != nil {
 			fmt.Printf("WARNING: Failed to reset machine: %v\n", err)
