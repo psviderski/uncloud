@@ -9,7 +9,7 @@ infrastructure with secure internet access.
 Before you begin, you'll need:
 
 - **Uncloud CLI** [installed](1-install-cli.md) on your local machine
-- A **Ubuntu or Debian server** with **public IP address** and **SSH access** (as `root` or a user with [passwordless `sudo`](https://serverfault.com/a/160587)
+- A **Ubuntu or Debian server** with **public IP address** and **SSH access** (as `root` or a user with [passwordless `sudo`](https://github.com/psviderski/uncloud/issues/104#issuecomment-3135718289)
   privileges) using a **private key**.
 
 :::tip Need a server?
