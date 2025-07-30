@@ -10,12 +10,12 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Uncloud Docs',
-  tagline: 'Dinosaurs are cool',
+  title: 'Uncloud',
+  tagline: 'Self-host and scale web apps without Kubernetes complexity',
   favicon: 'img/favicon.png',
 
   // Set the production url of your site here
-  url: 'https://docs.uncloud.run',
+  url: 'https://uncloud.run',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
@@ -56,7 +56,7 @@ const config = {
           // Remove this to remove the "edit this page" links.
           editUrl: 'https://github.com/psviderski/uncloud/edit/main/docs/',
           // Serve the docs at the site's root.
-          routeBasePath: '/',
+          // routeBasePath: '/',
           showLastUpdateTime: true,
           sidebarPath: './sidebars.js',
         },
@@ -68,8 +68,8 @@ const config = {
         //   },
         //   // Please change this to your repo.
         //   // Remove this to remove the "edit this page" links.
-        //   editUrl:
-        //     'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+        //   // editUrl:
+        //   //   'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
         //   // Useful options to enforce blogging best practices
         //   onInlineTags: 'warn',
         //   onInlineAuthors: 'warn',
@@ -96,12 +96,22 @@ const config = {
       // Relative to your site's "static" directory. Cannot be SVGs. Can be external URLs too.
       image: 'img/social-card.png',
       navbar: {
-        title: 'Uncloud Docs',
+        title: 'Uncloud',
         logo: {
           alt: 'Uncloud Logo',
           src: 'img/logo.svg',
         },
         items: [
+          {
+            type: 'doc',
+            docId: 'overview',
+            label: 'Docs',
+            position: 'left',
+          },
+          {
+            to: 'blog',
+            label: 'Blog',
+            position: 'left'},
           {
             type: 'search',
             position: 'right',
@@ -148,6 +158,20 @@ const config = {
         //darkTheme: prismThemes.dracula,
       },
     }),
+
+    plugins: [
+        [
+            '@docusaurus/plugin-client-redirects',
+            {
+                redirects: [
+                    {
+                        from: '/',
+                        to: '/new-index.html',
+                    },
+                ],
+            },
+        ],
+    ],
 };
 
 export default config;
