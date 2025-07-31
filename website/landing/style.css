@@ -41,10 +41,8 @@ html {
   /* 1 */
   -webkit-text-size-adjust: 100%;
   /* 2 */
-  -moz-tab-size: 4;
   /* 3 */
-  -o-tab-size: 4;
-     tab-size: 4;
+  tab-size: 4;
   /* 3 */
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   /* 4 */
@@ -374,13 +372,6 @@ textarea {
 2. Set the default placeholder color to the user's configured gray 400 color.
 */
 
-input::-moz-placeholder, textarea::-moz-placeholder {
-  opacity: 1;
-  /* 1 */
-  color: #9ca3af;
-  /* 2 */
-}
-
 input::placeholder,
 textarea::placeholder {
   opacity: 1;
@@ -443,9 +434,7 @@ video {
 }
 
 [type='text'],input:where(:not([type])),[type='email'],[type='url'],[type='password'],[type='number'],[type='date'],[type='datetime-local'],[type='month'],[type='search'],[type='tel'],[type='time'],[type='week'],[multiple],textarea,select{
-  -webkit-appearance: none;
-     -moz-appearance: none;
-          appearance: none;
+  appearance: none;
   background-color: #fff;
   border-color: #6b7280;
   border-width: 1px;
@@ -470,11 +459,6 @@ video {
   --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   border-color: #2563eb;
-}
-
-input::-moz-placeholder, textarea::-moz-placeholder{
-  color: #6b7280;
-  opacity: 1;
 }
 
 input::placeholder,textarea::placeholder{
@@ -521,9 +505,7 @@ select{
 }
 
 [type='checkbox'],[type='radio']{
-  -webkit-appearance: none;
-     -moz-appearance: none;
-          appearance: none;
+  appearance: none;
   padding: 0;
   -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
@@ -531,7 +513,6 @@ select{
   vertical-align: middle;
   background-origin: border-box;
   -webkit-user-select: none;
-     -moz-user-select: none;
           user-select: none;
   flex-shrink: 0;
   height: 1rem;
@@ -577,9 +558,7 @@ select{
 
 @media (forced-colors: active) {
   [type='checkbox']:checked{
-    -webkit-appearance: auto;
-       -moz-appearance: auto;
-            appearance: auto;
+    appearance: auto;
   }
 }
 
@@ -589,9 +568,7 @@ select{
 
 @media (forced-colors: active) {
   [type='radio']:checked{
-    -webkit-appearance: auto;
-       -moz-appearance: auto;
-            appearance: auto;
+    appearance: auto;
   }
 }
 
@@ -611,9 +588,7 @@ select{
 
 @media (forced-colors: active) {
   [type='checkbox']:indeterminate{
-    -webkit-appearance: auto;
-       -moz-appearance: auto;
-            appearance: auto;
+    appearance: auto;
   }
 }
 
@@ -772,9 +747,7 @@ select{
 }
 
 .form-input,.form-textarea,.form-select,.form-multiselect{
-  -webkit-appearance: none;
-     -moz-appearance: none;
-          appearance: none;
+  appearance: none;
   background-color: #fff;
   border-color: #6b7280;
   border-width: 1px;
@@ -799,11 +772,6 @@ select{
   --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   border-color: #2563eb;
-}
-
-.form-input::-moz-placeholder, .form-textarea::-moz-placeholder{
-  color: #6b7280;
-  opacity: 1;
 }
 
 .form-input::placeholder,.form-textarea::placeholder{
@@ -850,9 +818,7 @@ select{
 }
 
 .form-checkbox,.form-radio{
-  -webkit-appearance: none;
-     -moz-appearance: none;
-          appearance: none;
+  appearance: none;
   padding: 0;
   -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
@@ -860,7 +826,6 @@ select{
   vertical-align: middle;
   background-origin: border-box;
   -webkit-user-select: none;
-     -moz-user-select: none;
           user-select: none;
   flex-shrink: 0;
   height: 1rem;
@@ -906,9 +871,7 @@ select{
 
 @media (forced-colors: active) {
   .form-checkbox:checked{
-    -webkit-appearance: auto;
-       -moz-appearance: auto;
-            appearance: auto;
+    appearance: auto;
   }
 }
 
@@ -918,9 +881,7 @@ select{
 
 @media (forced-colors: active) {
   .form-radio:checked{
-    -webkit-appearance: auto;
-       -moz-appearance: auto;
-            appearance: auto;
+    appearance: auto;
   }
 }
 
@@ -940,9 +901,7 @@ select{
 
 @media (forced-colors: active) {
   .form-checkbox:indeterminate{
-    -webkit-appearance: auto;
-       -moz-appearance: auto;
-            appearance: auto;
+    appearance: auto;
   }
 }
 
@@ -1097,11 +1056,6 @@ input[type="search"]::-webkit-search-results-decoration {
   color: rgb(82 82 91 / var(--tw-text-opacity));
 }
 
-.form-input::-moz-placeholder, .form-textarea::-moz-placeholder{
-  --tw-placeholder-opacity: 1;
-  color: rgb(161 161 170 / var(--tw-placeholder-opacity));
-}
-
 .form-input::placeholder,
 .form-textarea::placeholder{
   --tw-placeholder-opacity: 1;
@@ -1183,14 +1137,6 @@ input[type="search"]::-webkit-search-results-decoration {
   y: 11;
   transform: rotate(135deg);
   transition: y 0.1s ease-out, transform 0.22s 0.12s cubic-bezier(0.215, 0.61, 0.355, 1), width 0.1s ease-out;
-}
-
-.visible{
-  visibility: visible;
-}
-
-.collapse{
-  visibility: collapse;
 }
 
 .absolute{
@@ -1418,13 +1364,8 @@ input[type="search"]::-webkit-search-results-decoration {
   flex-grow: 1;
 }
 
-.transform{
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-
 .select-none{
   -webkit-user-select: none;
-     -moz-user-select: none;
           user-select: none;
 }
 

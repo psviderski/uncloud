@@ -1,0 +1,6 @@
+services:
+  website:
+    build: .
+    user: nobody
+    ports:
+      - "8000:8000"

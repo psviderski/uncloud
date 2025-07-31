@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="./website/images/logo.svg" height="100" width="100" alt="Uncloud logo"/>
+  <img src="./website/landing/images/logo.svg" height="100" width="100" alt="Uncloud logo"/>
   <h1>Uncloud</h1>
   <p><strong>Docker simplicity. Multi-machine power.</strong></p>
 
   <p>
-    <a href="https://docs.uncloud.run"><img src="https://img.shields.io/badge/Docs-blue.svg?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
+    <a href="https://uncloud.run/docs"><img src="https://img.shields.io/badge/Docs-blue.svg?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
     <a href="https://discord.gg/eR35KQJhPu"><img src="https://img.shields.io/badge/discord-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
     <a href="https://x.com/psviderski"><img src="https://img.shields.io/badge/follow-black?style=for-the-badge&logo=X&logoColor=while" alt="Follow on X"></a>
     <a href="https://github.com/sponsors/psviderski"><img src="https://img.shields.io/badge/Donate-EA4AAA.svg?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Donate"></a>
@@ -52,11 +52,11 @@ complexity of Kubernetes.
 
 ## 🎬 Quick demo
 
-The screenshot below demonstrates how I use Uncloud to deploy the [Uncloud Documentation](https://docs.uncloud.run)
-website to 2 remote machines (why not?) from the [`compose.yaml`](docs/compose.yaml) file on my local machine.
+The screenshot below demonstrates how I use Uncloud to deploy https://uncloud.run website to 2 remote machines from
+the [`compose.yaml`](website/compose.yaml) file on my local machine.
 
-It exposes the container port `8000/tcp` as HTTPS on the domain `docs.uncloud.run`, served by the Caddy reverse proxy on
-the remote machines. All managed by Uncloud.
+It exposes the container port `8000/tcp` as HTTPS on the domain `uncloud.run`, served by the Caddy reverse proxy on the
+remote machines. All managed by Uncloud.
 
 ![Uncloud compose deployment demo](.github/images/compose-deploy.jpg)
 
@@ -96,8 +96,8 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    # or using curl (macOS/Linux)
    curl -fsS https://get.uncloud.run/install.sh | sh
    ```
-   
-   See [Installation](https://docs.uncloud.run/getting-started/install-cli) for more options.
+
+   See [Installation](https://uncloud.run/docs/getting-started/install-cli) for more options.
 
 2. Initialise your first machine:
 
@@ -130,15 +130,15 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    uncloud-uninstall
    ```
 
-View the [Documentation](https://docs.uncloud.run) for more information.
+View the [Documentation](https://uncloud.run/docs) for more information.
 
 ## ⚙️ How it works
 
-Check out the [design document](docs/design.md) to understand Uncloud's design philosophy and goals.
+Check out the [design document](misc/design.md) to understand Uncloud's design philosophy and goals.
 
 Here is a diagram of an Uncloud multi-provider cluster of 3 machines:
 
-![Diagram: multi-provider cluster of 3 machines](website/images/diagram.webp)
+![Diagram: multi-provider cluster of 3 machines](website/landing/images/diagram.webp)
 
 <details>
 <summary>Peek under the hood to see what happens when you run certain commands.</summary>

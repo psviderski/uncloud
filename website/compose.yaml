@@ -1,0 +1,8 @@
+services:
+  uncloud-website:
+    image: ghcr.io/psviderski/uncloud-website:latest
+    pull_policy: always
+    user: nobody
+    x-ports:
+      - uncloud.run:8000/https
+    scale: 2

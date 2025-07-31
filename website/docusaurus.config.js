@@ -54,12 +54,13 @@ const config = {
       ({
         docs: {
           // Remove this to remove the "edit this page" links.
-          editUrl: 'https://github.com/psviderski/uncloud/edit/main/docs/',
+          editUrl: 'https://github.com/psviderski/uncloud/edit/main/website/',
           // Serve the docs at the site's root.
           // routeBasePath: '/',
           showLastUpdateTime: true,
           sidebarPath: './sidebars.js',
         },
+        blog: false,
         // blog: {
         //   showReadingTime: true,
         //   feedOptions: {
@@ -100,6 +101,7 @@ const config = {
         logo: {
           alt: 'Uncloud Logo',
           src: 'img/logo.svg',
+          href: 'https://uncloud.run',
         },
         items: [
           {
@@ -108,10 +110,11 @@ const config = {
             label: 'Docs',
             position: 'left',
           },
-          {
-            to: 'blog',
-            label: 'Blog',
-            position: 'left'},
+          // {
+          //   to: 'blog',
+          //   label: 'Blog',
+          //   position: 'left',
+          // },
           {
             type: 'search',
             position: 'right',
@@ -158,20 +161,6 @@ const config = {
         //darkTheme: prismThemes.dracula,
       },
     }),
-
-    plugins: [
-        [
-            '@docusaurus/plugin-client-redirects',
-            {
-                redirects: [
-                    {
-                        from: '/',
-                        to: '/new-index.html',
-                    },
-                ],
-            },
-        ],
-    ],
 };
 
 export default config;

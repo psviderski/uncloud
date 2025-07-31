@@ -32,6 +32,13 @@
           content="Take your Docker Compose apps to production with zero-downtime deployments, automatic HTTPS, and cross-machine scaling. Self-hosting made reliable without the complexity.">
     <meta name="twitter:image" content="https://uncloud.run/images/logo-wide.png">
     <meta name="twitter:image:alt" content="Uncloud logo - Self-host web apps with ease">
+    <style>
+        /* Prevent all inline SVGs from appearing full screen */
+        svg {
+            max-width: 24px;
+            max-height: 24px;
+        }
+    </style>
 </head>
 
 <body class="font-inter antialiased bg-white text-zinc-900 tracking-tight">
@@ -45,8 +52,9 @@
             <div class="flex items-center justify-between h-14">
                 <!-- Site branding -->
                 <div class="shrink-0 mr-4">
-                    <a class="flex items-center" href="index.html">
-                        <img class="w-8 h-8 rounded shadow-sm shadow-zinc-950/20" src="./images/logo.svg" alt="Logo">
+                    <a class="flex items-center" href="/">
+                        <img class="w-8 h-8 rounded shadow-sm shadow-zinc-950/20" src="./images/logo.svg" alt="Logo"
+                             width="32" height="32">
                         <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
                     </a>
                 </div>
@@ -56,7 +64,7 @@
                     <ul class="flex grow justify-end flex-wrap items-center">
                         <li>
                             <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-3 lg:px-5 py-2 flex items-center transition"
-                               href="https://docs.uncloud.run">
+                               href="/docs">
                                 <svg class="w-4 h-4 mr-1 fill-current hidden sm:inline"
                                      xmlns="http://www.w3.org/2000/svg"
                                      viewBox="0 0 24 24">
@@ -713,11 +721,11 @@
                     <ul class="text-sm space-y-2">
                         <li>
                             <a class="text-zinc-500 hover:text-zinc-900 transition"
-                               href="https://docs.uncloud.run/#use-cases">Use cases</a>
+                               href="/docs/#use-cases">Use cases</a>
                         </li>
                         <li>
                             <a class="text-zinc-500 hover:text-zinc-900 transition"
-                               href="https://docs.uncloud.run/getting-started/quick-start">Quick start</a>
+                               href="/docs/getting-started/deploy-demo-app">Quick start</a>
                         </li>
                     </ul>
                 </div>

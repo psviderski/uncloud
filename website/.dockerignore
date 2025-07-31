@@ -2,7 +2,9 @@
 *
 
 # Allow files and directories.
+!blog2/
 !docs/
+!landing/
 !src/
 !static/
 !pkg/

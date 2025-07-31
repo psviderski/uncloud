@@ -5,5 +5,5 @@
 :8000 {
     root * /usr/share/caddy
     file_server
-    try_files {path} /index.html
+    log
 }

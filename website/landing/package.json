@@ -1,0 +1,16 @@
+{
+  "name": "gray-html",
+  "description": "Gray HTML template - Cruip.com",
+  "version": "1.0.0",
+  "homepage": "https://cruip.com",
+  "author": "Pasquale Vitiello",
+  "license": "https://cruip.com/terms/",
+  "scripts": {
+    "dev": "npx tailwindcss -i ./css/style.css -o ./style.css --watch",
+    "build": "npx tailwindcss -i ./css/style.css -o ./style.css"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.7",
+    "tailwindcss": "^3.3.6"
+  }
+}

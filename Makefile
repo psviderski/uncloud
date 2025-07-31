@@ -1,6 +1,5 @@
 CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
-DOCS_IMAGE ?= ghcr.io/psviderski/uncloud-docs:latest
 
 update-dev:
 	GOOS=linux GOARCH=amd64 go build -o uncloudd-linux-amd64 ./cmd/uncloudd && \
@@ -112,6 +111,3 @@ _lint:
 # Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
 	GOOS=linux golangci-lint run $(ARGS)
 
-.PHONY: docs-image-push
-docs-image-push:
-	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(DOCS_IMAGE)" ./docs
