@@ -2,7 +2,7 @@
 *
 
 # Allow files and directories.
-!blog2/
+!blog/
 !docs/
 !landing/
 !src/
