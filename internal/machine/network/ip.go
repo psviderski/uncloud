@@ -14,7 +14,7 @@ func MachineIP(subnet netip.Prefix) netip.Addr {
 }
 
 // ManagementIP returns the IPv6 address of a peer derived from the first 14 bytes of its public key.
-// This address is intended for cluster management traffic.
+// This address always starts with fdcc: and is intended for cluster management traffic.
 func ManagementIP(publicKey secret.Secret) netip.Addr {
 	bytes := [16]byte{0xfd, 0xcc}
 	copy(bytes[2:], publicKey[:14])

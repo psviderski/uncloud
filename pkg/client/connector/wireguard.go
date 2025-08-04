@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/psviderski/uncloud/internal/cli/config"
-	machine2 "github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/network/tunnel"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -49,7 +49,7 @@ func (c *WireGuardConnector) Connect(ctx context.Context) (*grpc.ClientConn, err
 	}
 	endpoint := netip.AddrPortFrom(endpointAddr, tunnel.DefaultEndpointPort)
 	machineManagementIP := network.ManagementIP(machine.PublicKey)
-	machineAPIAddr := net.JoinHostPort(machineManagementIP.String(), strconv.Itoa(machine2.APIPort))
+	machineAPIAddr := net.JoinHostPort(machineManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
 
 	tunCfg := &tunnel.Config{
 		LocalAddress:    c.user.ManagementIP(),

@@ -15,6 +15,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/docker"
@@ -23,10 +24,6 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-)
-
-const (
-	APIPort = 51000
 )
 
 // clusterController is the main controller for the machine that is a cluster member. It manages components such as
@@ -120,7 +117,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Start the network API server. Assume the management IP can't be changed when the network is running.
-	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(APIPort))
+	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
 	listener, err := net.Listen("tcp", apiAddr)
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)

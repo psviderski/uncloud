@@ -24,6 +24,7 @@ import (
 	apiproxy "github.com/psviderski/uncloud/internal/machine/api/proxy"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
@@ -233,7 +234,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	}
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
-	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, APIPort)
+	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)
 	localProxyServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.UnknownServiceHandler(
