@@ -103,10 +103,16 @@ func createIptablesChains() error {
 
 			var addJumpRule []string
 			if firstRejectRuleNum > 0 {
-				addJumpRule = append([]string{"-t", string(iptables.Filter), "-I", "INPUT",
-					strconv.Itoa(firstRejectRuleNum)}, jumpRule...)
+				addJumpRule = append([]string{
+					"-t", string(iptables.Filter),
+					"-I", "INPUT",
+					strconv.Itoa(firstRejectRuleNum),
+				}, jumpRule...)
 			} else {
-				addJumpRule = append([]string{"-t", string(iptables.Filter), "-A", "INPUT"}, jumpRule...)
+				addJumpRule = append([]string{
+					"-t", string(iptables.Filter),
+					"-A", "INPUT",
+				}, jumpRule...)
 			}
 			if err = ipt.RawCombinedOutput(addJumpRule...); err != nil {
 				return fmt.Errorf("add %s rule '%s': %w", iptBin, strings.Join(addJumpRule, " "), err)
