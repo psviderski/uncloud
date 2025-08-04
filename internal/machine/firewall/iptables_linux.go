@@ -149,7 +149,7 @@ func CleanupIptablesChains() error {
 				return fmt.Errorf("delete %s chain '%s': %w", iptBin, UncloudInputChain, err)
 			}
 		} else {
-			slog.Info("Deleted %s chain.", "chain", iptBin, UncloudInputChain)
+			slog.Info(fmt.Sprintf("Deleted %s chain.", iptBin), "chain", UncloudInputChain)
 		}
 	}
 
