@@ -94,6 +94,11 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return fmt.Errorf("configure iptables chains: %w", err)
 	}
 
+	if err := cc.ensureDockerNetwork(ctx); err != nil {
+		return err
+	}
+	slog.Info("Docker network configured.")
+
 	if err := cc.wgnet.Configure(*cc.state.Network); err != nil {
 		return fmt.Errorf("configure WireGuard network: %w", err)
 	}
@@ -138,6 +143,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
+	// The Docker network must be created before starting the DNS server because it listens on the machine IP.
 	errGroup.Go(func() error {
 		slog.Info("Starting embedded DNS server.")
 		if err := cc.dnsServer.Run(ctx); err != nil {
@@ -146,9 +152,10 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// Setup Docker network and synchronise containers to the cluster store.
+	// Synchronise Docker containers to the cluster store.
 	errGroup.Go(func() error {
-		return cc.prepareAndWatchDocker(ctx)
+		slog.Info("Watching Docker containers and syncing them to cluster store.")
+		return cc.syncDockerContainers(ctx)
 	})
 
 	// Handle machine changes in the cluster. Handling machine and endpoint changes should be done
@@ -229,9 +236,8 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	return err
 }
 
-// prepareAndWatchDocker configures the Docker network and watches local Docker containers to sync them
-// to the cluster store.
-func (cc *clusterController) prepareAndWatchDocker(ctx context.Context) error {
+// ensureDockerNetwork ensures that the Docker network is configured and ready for containers.
+func (cc *clusterController) ensureDockerNetwork(ctx context.Context) error {
 	if err := cc.dockerManager.WaitDaemonReady(ctx); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
@@ -243,12 +249,15 @@ func (cc *clusterController) prepareAndWatchDocker(ctx context.Context) error {
 	); err != nil {
 		return fmt.Errorf("ensure Docker network: %w", err)
 	}
-	slog.Info("Docker network configured.")
 
 	// Signal that Docker is ready for containers.
 	close(cc.dockerReady)
 
-	slog.Info("Watching Docker containers and syncing them to cluster store.")
+	return nil
+}
+
+// syncDockerContainers watches local Docker containers and syncs them to the cluster store.
+func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
 	// Retry to watch and sync containers until the context is done.
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(100*time.Millisecond),

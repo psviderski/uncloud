@@ -84,7 +84,7 @@ func (m *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix,
 	// https://github.com/moby/moby/blob/v27.2.1/libnetwork/drivers/bridge/bridge_linux.go#L664
 	bridgeName := "br-" + nw.ID[:12]
 
-	if err = configureIptables(bridgeName, dnsServer); err != nil {
+	if err = configureIptables(bridgeName, subnet, dnsServer); err != nil {
 		return fmt.Errorf("configure iptables for Docker network '%s': %w", NetworkName, err)
 	}
 
@@ -92,11 +92,15 @@ func (m *Manager) EnsureUncloudNetwork(ctx context.Context, subnet netip.Prefix,
 }
 
 // configureIptables configures iptables rules for the uncloud Docker network.
-func configureIptables(bridgeName string, dnsServer netip.Addr) error {
+func configureIptables(bridgeName string, subnet netip.Prefix, dnsServer netip.Addr) error {
 	ipt := iptables.GetIptable(iptables.IPv4)
 	// Allow traffic from other machines and their containers through the WG mesh to the Uncloud containers
 	// on the machine.
-	wgRule := []string{"--in-interface", network.WireGuardInterfaceName, "--out-interface", bridgeName, "-j", "ACCEPT"}
+	wgRule := []string{
+		"--in-interface", network.WireGuardInterfaceName,
+		"--out-interface", bridgeName,
+		"-j", "ACCEPT",
+	}
 	if err := ipt.ProgramRule(iptables.Filter, firewall.DockerUserChain, iptables.Insert, wgRule); err != nil {
 		return fmt.Errorf("insert iptables rule: %w", err)
 	}
@@ -115,17 +119,49 @@ func configureIptables(bridgeName string, dnsServer netip.Addr) error {
 		}
 	}
 
+	// Skip masquerading for the container traffic going from the uncloud Docker network through the WG mesh.
+	// https://uncloud.run/blog/connect-docker-containers-across-hosts-wireguard#step-3-configure-ip-routing
+	skipMasqueradeRule := []string{
+		"--src", subnet.String(),
+		"--out-interface", network.WireGuardInterfaceName,
+		"-j", "RETURN",
+	}
+	// Delete and reinsert the rule to ensure it's at the top of the POSTROUTING chain before the MASQUERADE rule
+	// added by Docker: POSTROUTING -s 10.210.X.0/24 ! -o br-XXX -j MASQUERADE
+	if err := ipt.ProgramRule(iptables.Nat, "POSTROUTING", iptables.Delete, skipMasqueradeRule); err != nil {
+		return fmt.Errorf("delete iptables rule: %w", err)
+	}
+	if err := ipt.ProgramRule(iptables.Nat, "POSTROUTING", iptables.Insert, skipMasqueradeRule); err != nil {
+		return fmt.Errorf("insert iptables rule: %w", err)
+	}
+
 	return nil
 }
 
 // cleanupIptables deletes the iptables rules for the uncloud Docker network.
-func cleanupIptables(bridgeName string) error {
+func cleanupIptables(bridgeName string, subnet netip.Prefix) error {
 	ipt := iptables.GetIptable(iptables.IPv4)
 	// Delete the rule allowing traffic from the WireGuard network to the Docker bridge.
-	wgRule := []string{"--in-interface", network.WireGuardInterfaceName, "--out-interface", bridgeName, "-j", "ACCEPT"}
+	wgRule := []string{
+		"--in-interface", network.WireGuardInterfaceName,
+		"--out-interface", bridgeName,
+		"-j", "ACCEPT",
+	}
 	if err := ipt.ProgramRule(iptables.Filter, firewall.DockerUserChain, iptables.Delete, wgRule); err != nil {
 		return fmt.Errorf("delete iptables rule: %w", err)
 	}
+
+	// Delete the rule that skips masquerading for the container traffic going from the uncloud Docker network
+	// through the WG mesh.
+	skipMasqueradeRule := []string{
+		"--src", subnet.String(),
+		"--out-interface", network.WireGuardInterfaceName,
+		"-j", "RETURN",
+	}
+	if err := ipt.ProgramRule(iptables.Nat, "POSTROUTING", iptables.Delete, skipMasqueradeRule); err != nil {
+		return fmt.Errorf("delete iptables rule: %w", err)
+	}
+
 	// Rules in uncloud-owned chains will be automatically cleaned up by the machine cleanup.
 
 	return nil
@@ -172,10 +208,17 @@ func (m *Manager) Cleanup() error {
 	nw, err := m.client.NetworkInspect(ctx, NetworkName, dnetwork.InspectOptions{})
 	if err == nil {
 		bridgeName := "br-" + nw.ID[:12]
-		if err = cleanupIptables(bridgeName); err != nil {
-			errs = append(errs, fmt.Errorf("cleanup iptables for Docker network '%s': %w", NetworkName, err))
-		} else {
-			slog.Info("Cleaned up iptables rules for Docker network.", "name", NetworkName, "bridge", bridgeName)
+		var subnet netip.Prefix
+		if len(nw.IPAM.Config) > 0 {
+			subnet, _ = netip.ParsePrefix(nw.IPAM.Config[0].Subnet)
+		}
+
+		if subnet.IsValid() {
+			if err = cleanupIptables(bridgeName, subnet); err != nil {
+				errs = append(errs, fmt.Errorf("cleanup iptables for Docker network '%s': %w", NetworkName, err))
+			} else {
+				slog.Info("Cleaned up iptables rules for Docker network.", "name", NetworkName, "bridge", bridgeName)
+			}
 		}
 
 		if err = m.client.NetworkRemove(ctx, NetworkName); err == nil {

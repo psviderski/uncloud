@@ -81,19 +81,15 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	}
 	slog.Info("Configured WireGuard interface.", "name", n.link.Attrs().Name)
 
-	machinePrefix := netip.PrefixFrom(MachineIP(config.Subnet), config.Subnet.Bits())
 	managementPrefix, err := addrToSingleIPPrefix(config.ManagementIP)
 	if err != nil {
 		return fmt.Errorf("parse management IP: %w", err)
 	}
-	addrs := []netip.Prefix{managementPrefix, machinePrefix}
+	addrs := []netip.Prefix{managementPrefix}
 	if err = n.updateAddresses(addrs); err != nil {
 		return err
 	}
-	slog.Info(
-		"Updated addresses of the WireGuard interface.",
-		"name", n.link.Attrs().Name, "addrs", addrs,
-	)
+	slog.Info("Updated addresses of the WireGuard interface.", "name", n.link.Attrs().Name, "addrs", addrs)
 
 	// Bring the WireGuard interface up if it's not already up.
 	if n.link.Attrs().Flags&unix.IFF_UP != unix.IFF_UP {
@@ -102,7 +98,7 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 		}
 		slog.Info("Brought WireGuard interface up.", "name", n.link.Attrs().Name)
 	}
-	if err = n.updatePeerRoutes(); err != nil {
+	if err = n.updatePeerRoutes(MachineIP(config.Subnet)); err != nil {
 		return err
 	}
 	slog.Info(
@@ -205,7 +201,7 @@ func (n *WireGuardNetwork) updateAddresses(addrs []netip.Prefix) error {
 
 // updatePeerRoutes adds routes to the peers via the WireGuard interface and removes old routes to peers
 // that are no longer in the configuration.
-func (n *WireGuardNetwork) updatePeerRoutes() error {
+func (n *WireGuardNetwork) updatePeerRoutes(machineIP netip.Addr) error {
 	// Build a set of compacted IP ranges for all peers.
 	var ipsetBuilder netipx.IPSetBuilder
 	for _, p := range n.peers {
@@ -225,11 +221,18 @@ func (n *WireGuardNetwork) updatePeerRoutes() error {
 	// Add routes to the computed IP ranges via the WireGuard link.
 	for _, prefix := range ipset.Prefixes() {
 		dst := prefixToIPNet(prefix)
+		var src net.IP
+		// Use the machine IP as the source address for IPv4 routes to other peers.
+		if prefix.Addr().Is4() {
+			src = machineIP.AsSlice()
+		}
+
 		if err = netlink.RouteAdd(
 			&netlink.Route{
 				LinkIndex: n.link.Attrs().Index,
 				Scope:     netlink.SCOPE_LINK,
 				Dst:       &dst,
+				Src:       src,
 			},
 		); err != nil {
 			if !errors.Is(err, unix.EEXIST) {
