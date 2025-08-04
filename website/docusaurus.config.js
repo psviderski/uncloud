@@ -61,6 +61,9 @@ const config = {
           sidebarPath: './sidebars.js',
         },
         blog: {
+          blogDescription: 'Blog posts from the Uncloud team and community',
+          blogSidebarTitle: 'All posts',
+          blogSidebarCount: 'ALL',
           showReadingTime: true,
           feedOptions: {
             type: ['rss', 'atom'],

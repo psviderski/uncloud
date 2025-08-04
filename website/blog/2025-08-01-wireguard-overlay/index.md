@@ -1,27 +1,30 @@
 ---
-title: Connect Docker containers across multiple hosts with WireGuard
-description: Configure full mesh WireGuard overlay network that enables Docker containers on different machines to
-  communicate using private IPs.
-slug: connect-docker-containers-across-multiple-hosts-with-wireguard
+title: How to connect Docker containers across multiple hosts with WireGuard
+description: Learn how to configure a WireGuard overlay network that lets Docker containers securely communicate
+  across multiple hosts. No exposed ports needed.
+slug: connect-docker-containers-across-hosts-wireguard
 authors: psviderski
-tags: [docker, wireguard]
+tags: [ docker, wireguard, networking, vpn ]
 ---
 
-You have Docker containers running on different Linux machines. You want container A on one machine to talk directly to
-container B on another machine using their private IPs. For example, to run your application and database containers on
-separate machines without exposing them publicly. Here's how you can use pure WireGuard and some networking tricks to
-make this work.
+You want your Docker containers to talk to each other, but they're running on different machines. Perhaps across
+different cloud providers or mixing cloud with on-prem. The usual approach of mapping services to host ports quickly
+becomes a pain. Worse, if they're on the public internet, you need to secure every exposed endpoint with TLS and auth.
+
+What if your containers on different machines could communicate directly without exposing any ports? Using their private
+Docker IPs, as if they were on the same machine. Here's how you can use pure WireGuard and some clever networking tricks
+to make this work.
 
 ## What we're building
 
 Docker containers are typically connected to a [bridge network](https://docs.docker.com/engine/network/drivers/bridge/)
 on their host machine, which allows them to communicate with each other. A bridge network also provides isolation from
-containers not connected to it and other networks on the host. What we want to achieve is to connect these bridge
+containers not connected to it and other networks on the host. What we want to achieve is connecting these bridge
 networks across machines so that containers on different machines can communicate as if they were connected to the same
 local bridge network.
 
 The incantation we need is called a site-to-site VPN. Any solution would work. Moreover, if the machines are on the same
-local network, they're already connected and only miss the appropriate routing configuration. But I'll describe a more
+local network, they're already connected and only lack the appropriate routing configuration. But I'll describe a more
 versatile approach that works even when the machines are on different continents or behind NAT. WireGuard is the ideal
 solution for this use case: it's lightweight, [fast](https://www.wireguard.com/performance/), simple to configure,
 provides [strong security](https://www.wireguard.com/protocol/) and NAT traversal.
@@ -33,10 +36,10 @@ communicate with each other using their private IPs.
 
 I will use these two machines:
 
-* Machine 1: Debian 12 virtual machine in my homelab network in Australia which is behind NAT
+* Machine 1: Debian 12 virtual machine in my homelab network in Australia, which is behind NAT
 * Machine 2: Ubuntu 24.04 server from Hetzner in Finland that has a public IP
 
-![WireGuard overlay network](img/wireguard-overlay.png)
+![WireGuard overlay network](wireguard-overlay.png)
 
 <!-- truncate -->
 
@@ -44,8 +47,8 @@ I will use these two machines:
 
 - Basic knowledge of [Docker networking](https://docs.docker.com/network/) and [WireGuard](https://www.wireguard.com/).
   If you're new to these topics, you might want to read up on them first.
-- At least two Linux machines with root access and Docker installed. They should be on the same network or reachable
-  over the internet.
+- At least two Linux machines with root access and Docker installed. They should be on the same network or be able to
+  communicate over the internet.
 
 ## Step 1: Configure Docker networks
 
@@ -60,7 +63,7 @@ Therefore, let's create new Docker bridge networks on each machine with manually
 choose any subnets from
 the [private IPv4 address ranges](https://en.wikipedia.org/wiki/Private_network#Private_IPv4_addresses)
 that do not overlap with each other or with your existing networks. I'll use `10.200.1.0/24` and `10.200.2.0/24`
-for Machine 1 and Machine 2 respectively. They don't even need to be sequential or be part of the same larger network.
+for Machine 1 and Machine 2, respectively. They don't even need to be sequential or be part of the same larger network.
 However, using a common parent network (like `10.200.0.0/16` in my case) can simplify firewall rules and make it easier
 to manage more machines later.
 
@@ -77,16 +80,16 @@ Starting with Docker 28.2.0 ([PR](https://github.com/moby/moby/pull/49832)), you
 host interfaces you
 allow [direct routing](https://docs.docker.com/engine/network/packet-filtering-firewalls/#direct-routing) to containers
 in bridge networks. This is done by specifying the `com.docker.network.bridge.trusted_host_interfaces` option when
-creating the network. In our case, we want to allow routing via the WireGuard interface `wg0` that we be created in the
-next step.
+creating the network. In our case, we want to allow routing via the WireGuard interface `wg0` that will be created in
+the next step.
 
-Provide this option even if you're using an older Docker version as it'll be required if you upgrade Docker in the
+Provide this option even if you're using an older Docker version, as it'll be required if you upgrade Docker in the
 future.
 
 ## Step 2: Connect Docker networks with WireGuard
 
-By default, WireGuard uses the UDP port 51280 for communication. To establish a tunnel, at least one of the machines
-need to be able to reach the other's port over the internet or local network. Please make sure it's not blocked by a
+By default, WireGuard uses the UDP port 51820 for communication. To establish a tunnel, at least one of the machines
+needs to be able to reach the other's port over the internet or local network. Please make sure it's not blocked by a
 firewall on both machines.
 
 For example, when using `iptables`, you can allow incoming UDP traffic on port 51820 with the following command:
@@ -118,7 +121,7 @@ PrivateKey = <replace with 'privatekey' file content from Machine 1>
 
 [Peer]
 PublicKey = <replace with 'publickey' file content from Machine 2>
-# IP ranges for which a peer will route traffic - Docker subnet on Machine 2
+# IP ranges for which a peer will route traffic: Docker subnet on Machine 2
 AllowedIPs = 10.200.2.0/24
 # Public IP of Machine 2
 Endpoint = 157.180.72.195:51820
@@ -135,7 +138,7 @@ PrivateKey = <replace with 'privatekey' file content from Machine 2>
 
 [Peer]
 PublicKey = <replace with 'publickey' file content from Machine 1>
-# IP ranges for which a peer will route traffic - Docker subnet on Machine 1
+# IP ranges for which a peer will route traffic: Docker subnet on Machine 1
 AllowedIPs = 10.200.1.0/24
 # Reachable endpoint of Machine 1
 # Endpoint =
@@ -152,14 +155,14 @@ In my case, Machine 1 is behind NAT in my private homelab network which is not r
 server (Machine 2). The bidirectional tunnel can still be established in this case but Machine 1 must initiate the
 connection.
 
-If both of your machine are reachable from each other, you should specify the `Endpoint` option in both configs which
+If both of your machines are reachable from each other, you should specify the `Endpoint` option in both configs which
 will allow them to establish the connection without waiting for the other side to initiate it. If both of your machines
 are behind NAT, see [NAT to NAT Connections](https://github.com/pirate/wireguard-docs#NAT-to-NAT-Connections) for more
 information.
 
-Note also that we don't set `Address` option in the configs because we don't want to assign any IP addresses to the
+Note also that we don't set the `Address` option in the configs because we don't want to assign any IP addresses to the
 WireGuard interfaces. We want the tunnel to only encapsulate and transfer packets from the `multi-host` bridge networks
-and don't want any end of it to be the destination for the packets.
+and don't want either end of it to be the destination for the packets.
 
 As the key pairs are now specified in the configuration files, you can remove the `privatekey` and `publickey` files on
 both machines:
@@ -204,8 +207,10 @@ Docker daemon automatically enables IP forwarding in the kernel when it starts, 
 The challenge is that Docker blocks traffic between external interfaces and container networks by default for security
 reasons. You need to explicitly allow WireGuard traffic from `wg0` interface to reach your containers via the
 `multi-host` bridge interface. Docker uses iptables, so you can allow this traffic by adding a rule to the `FORWARD`
-chain before any other Docker-managed rules that would drop it. Luckily, Docker creates a special `DOCKER-USER` chain
-exactly for this purpose that the `FORWARD` chain jumps to before jumping to any other Docker-managed chains.
+chain before any other Docker-managed rules that would drop it.
+
+Fortunately, Docker creates a special `DOCKER-USER` chain exactly for this purpose. It's processed before other
+Docker-managed chains, allowing you to add custom rules that won't be overridden by Docker.
 
 To create the required iptables rule, you need to find the bridge interface name for the `multi-host` network you
 created earlier. It's named `br-<short-network-id>`, where `<short-network-id>` is the first 12 characters of the
@@ -229,7 +234,7 @@ NETWORK ID     NAME         DRIVER    SCOPE
 $ iptables -I DOCKER-USER -i wg0 -o br-48f808048e7c -j ACCEPT
 ```
 
-The traffic the other way around (from `multi-host` bridge to `wg0`) is not blocked by Docker by default. But it still
+The traffic in the other direction (from `multi-host` bridge to `wg0`) is not blocked by Docker by default. But it still
 won't be able to make it through the tunnel. The reason is that Docker creates a `MASQUERADE` rule in the `nat` table
 for every bridge network with option
 [`com.docker.network.bridge.enable_ip_masquerade`](https://docs.docker.com/engine/network/drivers/bridge/#options) set
@@ -239,13 +244,13 @@ to `true` (which is the default). In my case, the rule looks like this on Machin
 POSTROUTING -s 10.200.1.0/24 ! -o br-661096b2a5d9 -j MASQUERADE
 ```
 
-This essentially configures NAT for all external traffic coming from containers which is necessary to allow them to
+This essentially configures NAT for all external traffic coming from containers which is necessary for allowing them to
 access the internet and other external networks. However, it equally applies to the traffic going through the `wg0`
 interface. It tries to masquerade the source IP address of the packets with the IP address of the `wg0` interface and
 fails because the `wg0` interface doesn't have an IP. This results in the packets being
 [dropped](https://elixir.bootlin.com/linux/v6.15.5/source/net/netfilter/nf_nat_masquerade.c#L54-L58).
 
-You cloud assign an IP address to `wg0` but this would cause the following unwanted side effects:
+You could assign an IP address to `wg0` but this would cause the following unwanted side effects:
 
 - Containers from other Docker networks on the same machine could route through the tunnel to reach remote `multi-host`
   containers, violating Docker's network isolation model.
@@ -315,7 +320,7 @@ PING 10.200.2.2 (10.200.2.2): 56 data bytes
 64 bytes from 10.200.2.2: seq=2 ttl=62 time=297.285 ms
 ```
 
-Both hosts have IPs assigned to the `multi-host` bridges, `10.200.1.1` and `10.200.2.1` respectively which should aslo
+Both hosts have IPs assigned to the `multi-host` bridges, `10.200.1.1` and `10.200.2.1` respectively, which should also
 be reachable from the containers or hosts on both machines.
 
 You can see from the `ping` command the latency is quite high (~300 ms) in my case because the packets have to travel
@@ -337,12 +342,12 @@ be to use `PostUp` and `PostDown` options in the WireGuard configs to automatica
 starts/stops.
 
 Append the following lines to the `[Interface]` section in `/etc/wireguard/wg0.conf`. Make sure to replace
-`<network-id>` with your actual Docker network ID from Step 3. The `%i` is replaced by WireGuard with the interface
-name (`wg0`).
+`<network-id>` with your actual Docker network ID from [Step 3](#step-3-configure-ip-routing). The `%i` is replaced by
+WireGuard with the interface name (`wg0`).
 
 On Machine 1:
 
-```shell
+```ini
 [Interface]
 ...
 PostUp = iptables -I DOCKER-USER -i %i -o br-<network-id> -j ACCEPT; iptables -t nat -I POSTROUTING -s 10.200.1.0/24 -o %i -j RETURN
@@ -351,7 +356,7 @@ PostDown = iptables -D DOCKER-USER -i %i -o br-<network-id> -j ACCEPT; iptables 
 
 On Machine 2:
 
-```shell
+```ini
 [Interface]
 ...
 PostUp = iptables -I DOCKER-USER -i %i -o br-<network-id> -j ACCEPT; iptables -t nat -I POSTROUTING -s 10.200.2.0/24 -o %i -j RETURN
@@ -361,7 +366,7 @@ PostDown = iptables -D DOCKER-USER -i %i -o br-<network-id> -j ACCEPT; iptables 
 ### Start WireGuard on boot
 
 The `wireguard-tools` package provides a convenient systemd service to manage WireGuard interfaces. Since our iptables
-rules should have a priority over Docker's rules, WireGuard must start after Docker.
+rules should have priority over Docker's rules, WireGuard must start after Docker.
 
 Create a systemd drop-in configuration for this:
 
@@ -379,7 +384,7 @@ Then enable the WireGuard service to start on boot:
 ```shell
 systemctl enable wg-quick@wg0.service
 systemctl daemon-reload
-# Verify the unit includes the drop-in configuration.
+# Verify the unit includes the drop-in configuration
 systemctl cat wg-quick@wg0.service
 ```
 
@@ -389,10 +394,7 @@ Adding a third machine means following the same steps as above on it and updatin
 machines. Each machine needs a `[Peer]` section for every other machine in the network. With 5 machines, that's 4 peer
 entries per config file or 20 peer configurations total that establish a full mesh topology.
 
-![WireGuard full mesh](img/wireguard-mesh.png)
-
-As your setup grows, managing subnet allocation for Docker networks (ensuring each gets a unique range like
-`10.200.1.0/24`, `10.200.2.0/24`) and updating WireGuard configs manually may become tedious pretty quickly.
+![WireGuard full mesh](wireguard-mesh.png)
 
 ## Limitations
 
@@ -412,12 +414,16 @@ this guide.
 
 Common scenarios that work:
 
+- ✅ Cloud VPS (public or private IP) ↔ Cloud VPS (public or private IP). Both can use private IPs only if they're in the
+  same cloud provider's network
 - ✅ Homelab (behind NAT) ↔ Cloud VPS (public IP)
-- ✅ Cloud VPS (public or private IP) ↔ Cloud VPS (public or private IP)
-- ✅ Homelab (private IP) ↔ Homelab (private IP)
+- ✅ Homelab (private IP) ↔ Homelab (private IP on the same local network)
 - ❌ Homelab (behind NAT) ↔ Friend's homelab (behind NAT) — requires a relay server
 
 ## Automating with Uncloud
+
+As your setup grows, managing subnet allocation for Docker networks (ensuring each gets a unique range like
+`10.200.1.0/24`, `10.200.2.0/24`) and updating WireGuard configs manually may become tedious quickly.
 
 I built [Uncloud](https://github.com/psviderski/uncloud), an open source clustering and deployment tool for Docker, to
 handle all the heavy lifting automatically. You can get the same result and much more with just a few commands.
@@ -441,7 +447,7 @@ This is what these commands do:
 - Generate WireGuard key pairs and distribute public keys across machines.
 - Start a full mesh WireGuard network.
 - Configure iptables rules for container communication.
-- Makes everything persistent across reboots.
+- Make everything persistent across reboots.
 
 Beyond the network setup, you also get:
 
@@ -464,12 +470,12 @@ This introduces additional complexity:
 
 - Cluster nodes must
   [maintain the quorum](https://docs.docker.com/engine/swarm/admin_guide/#maintain-the-quorum-of-managers). Losing
-  quorum will impact the functionality of overlay networks.
+  quorum impacts the functionality of overlay networks.
 - Ports 2377, 7946, and 4789 must be exposed to untrusted networks (if connecting machines over the internet) for
   cluster management, node communication, and VXLAN overlay traffic.
 - VXLAN traffic is unencrypted by default, requiring additional
   [hardening](https://docs.docker.com/engine/swarm/swarm-tutorial/#open-protocols-and-ports-between-the-hosts) with
-  IPSec and firewall.
+  IPSec and firewalls.
 - Every node must be publicly reachable. VXLAN fails if machines are behind NAT.
 
 If these limitations are acceptable, an overlay network is a great option. Note that you can use an overlay network with
@@ -491,8 +497,9 @@ Kubernetes. But if you're just running a few Docker hosts, it might seem like ov
 designed as a generic site-to-site VPN for connecting networks. Instead, it connects individual devices and provides
 identity-based access controls.
 
-The recommended approach of using Tailscale with Docker is to connect each individual container to a Tailscale network.
-This means deploying an additional Tailscale container alongside every application container.
+The recommended approach for using [Tailscale with Docker](https://tailscale.com/kb/1282/docker) is to connect each
+individual container to a Tailscale network. This means deploying an additional Tailscale container alongside every
+application container.
 
 Tailscale's [subnet router](https://tailscale.com/kb/1019/subnets) feature might work to expose Docker networks similar
 to our setup, but I haven't tested this approach.
@@ -500,11 +507,12 @@ to our setup, but I haven't tested this approach.
 ## Conclusion
 
 That's it! Now you know how to securely connect Docker containers across multiple machines using WireGuard. The manual
-setup works great for a handful of machines you don't need to change often, but configuration management becomes tedious
-as you scale.
+setup works great for a handful of machines that you don't need to change often, but configuration management becomes
+tedious as you scale.
 
 If you don't want to mess with manual configuration, consider automation tools like Uncloud or evaluate if you need a
 full orchestration platform.
 
-Questions or suggestions? Find me on X [@psviderski](https://x.com/psviderski) or check my GitHub profile
-[psviderski](https://github.com/psviderski/) for other contacts.
+Feel free to reach out if you have any questions or suggestions. You can find me on X
+at [@psviderski](https://x.com/psviderski) or check my GitHub profile [psviderski](https://github.com/psviderski/)
+for other contacts.
