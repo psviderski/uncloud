@@ -3,6 +3,7 @@ title: How to connect Docker containers across multiple hosts with WireGuard
 description: Learn how to configure a WireGuard overlay network that lets Docker containers securely communicate
   across multiple hosts. No exposed ports needed.
 slug: connect-docker-containers-across-hosts-wireguard
+image: ./wireguard-overlay.png
 authors: psviderski
 tags: [ docker, wireguard, networking, vpn ]
 ---
