@@ -46,6 +46,26 @@ func provisionMachine(ctx context.Context, exec sshexec.Executor, version string
 		return fmt.Errorf("run whoami: %w", err)
 	}
 
+	if user != "root" {
+		// 'sudo -n' is not used because it fails with 'sudo: a password is required' when the user has no password
+		// in /etc/shadow even though it may have valid sudo access.
+		out, err := exec.Run(ctx, "sudo true")
+		if err != nil {
+			if strings.Contains(out, "password is required") {
+				return fmt.Errorf(
+					"user '%[1]s' requires a password for sudo, but Uncloud needs passwordless sudo or root access "+
+						"to install and configure the uncloudd daemon on the remote machine.\n\n"+
+						"Possible solutions:\n"+
+						"1. Use root user or a user with passwordless sudo instead.\n"+
+						"2. Configure passwordless sudo for the user '%[1]s' by running on the remote machine:\n"+
+						"   echo '%[1]s ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/%[1]s",
+					user)
+			}
+			return fmt.Errorf("sudo command failed for user '%s': %w. "+
+				"Please ensure the user has sudo privileges or use root user instead", user, err)
+		}
+	}
+
 	cmd := installCmd(user, version)
 
 	fmt.Println("Downloading Uncloud install script:", installScriptURL)
