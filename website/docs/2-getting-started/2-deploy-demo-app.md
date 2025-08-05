@@ -9,8 +9,8 @@ infrastructure with secure internet access.
 Before you begin, you'll need:
 
 - **Uncloud CLI** [installed](1-install-cli.md) on your local machine
-- A **Ubuntu or Debian server** with **public IP address** and **SSH access** (as `root` or a user with `sudo`
-  privileges) using a **private key**.
+- A **Ubuntu or Debian server** with **public IP address** and **SSH access** using a **private key** (as `root` or a
+  user with **passwordless** `sudo` privileges).
 
 :::tip Need a server?
 
@@ -273,9 +273,11 @@ Add a CNAME record `excalidraw.example.com` in your DNS provider (Cloudflare, Na
 
 :::info note
 
-These instructions set up your own domain _in addition to_ uncloud's managed DNS service.
+These instructions set up your own domain **in addition to** the Uncloud managed DNS name
+`excalidraw.7za6s7.cluster.uncloud.run`.
 
-If you want to avoid the managed service altogether, add `--no-dns` to your `uc machine init` command, and point an `A`-type DNS record to your server(s)'s IP(s).
+If you want to avoid the managed service altogether, add `--no-dns` to your `uc machine init` command, and point an A
+DNS record to your server(s)'s IP(s).
 
 :::
 
