@@ -9,8 +9,11 @@ import (
 	"github.com/psviderski/uncloud/internal/sshexec"
 )
 
-// TODO: support pinning the script version to the CLI version.
-const installScriptURL = "https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/install.sh"
+const (
+	// TODO: support pinning the script version to the CLI version.
+	installScriptURL = "https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/install.sh"
+	rootUser         = "root"
+)
 
 type RemoteMachine struct {
 	User    string
@@ -24,7 +27,7 @@ func installCmd(user string, version string) string {
 	var env []string
 
 	// Add the SSH user (non-root) to the uncloud group to allow access to the Uncloud daemon unix socket.
-	if user != "root" {
+	if user != rootUser {
 		sudoPrefix = "sudo"
 		env = append(env, "UNCLOUD_GROUP_ADD_USER="+sshexec.Quote(user))
 	}
@@ -46,7 +49,7 @@ func provisionMachine(ctx context.Context, exec sshexec.Executor, version string
 		return fmt.Errorf("run whoami: %w", err)
 	}
 
-	if user != "root" {
+	if user != rootUser {
 		// 'sudo -n' is not used because it fails with 'sudo: a password is required' when the user has no password
 		// in /etc/shadow even though it may have valid sudo access.
 		out, err := exec.Run(ctx, "sudo true")
