@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"slices"
 
-	"github.com/charmbracelet/huh"
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -195,7 +195,7 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		return nil, fmt.Errorf("inspect machine: %w", err)
 	}
 	if minfo.Id != "" {
-		if err = cli.promptResetMachine(); err != nil {
+		if err = promptResetMachine(ctx, machineClient.MachineClient); err != nil {
 			return nil, err
 		}
 	}
@@ -293,7 +293,18 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		return nil, nil, fmt.Errorf("inspect machine: %w", err)
 	}
 	if minfo.Id != "" {
-		if err = cli.promptResetMachine(); err != nil {
+		// Check if the machine is already a member of this cluster.
+		machines, err := c.ListMachines(ctx, nil)
+		if err != nil {
+			return nil, nil, fmt.Errorf("list cluster machines: %w", err)
+		}
+		if slices.ContainsFunc(machines, func(m *pb.MachineMember) bool {
+			return m.Machine.Id == minfo.Id
+		}) {
+			return nil, nil, fmt.Errorf("machine is already a member of this cluster (%s)", minfo.Name)
+		}
+
+		if err = promptResetMachine(ctx, machineClient.MachineClient); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -344,7 +355,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		return nil, nil, fmt.Errorf("add machine to cluster (context '%s'): %w", contextName, err)
 	}
 
-	// List other machines in the cluster to include them in the join request.
+	// Get the most up-to-date list of other machines in the cluster to include them in the join request.
 	machines, err := c.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list cluster machines: %w", err)
@@ -432,31 +443,6 @@ func provisionRemoteMachine(
 		return nil, fmt.Errorf("connect to remote machine: %w", err)
 	}
 	return machineClient, nil
-}
-
-func (cli *CLI) promptResetMachine() error {
-	var confirm bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(
-					"The remote machine is already initialised as a cluster member. Do you want to reset it first?",
-				).
-				Affirmative("Yes!").
-				Negative("No").
-				Value(&confirm),
-		),
-	).WithAccessible(true)
-	if err := form.Run(); err != nil {
-		return fmt.Errorf("prompt user to confirm: %w", err)
-	}
-
-	if !confirm {
-		return fmt.Errorf("remote machine is already initialised as a cluster member")
-	}
-	// TODO: implement resetting the remote machine.
-	return fmt.Errorf("resetting the remote machine is not implemented yet. " +
-		"Please manually run 'uncloud-uninstall' on the remote machine to fully uninstall Uncloud from it")
 }
 
 // ProgressOut returns an output stream for progress writer.

@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
+	"github.com/charmbracelet/huh"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/sshexec"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (
@@ -78,4 +83,57 @@ func provisionMachine(ctx context.Context, exec sshexec.Executor, version string
 		return fmt.Errorf("download and run install script: %w", err)
 	}
 	return nil
+}
+
+func promptResetMachine(ctx context.Context, machineClient pb.MachineClient) error {
+	var confirm bool
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(
+					"The remote machine is already initialised as a cluster member. Do you want to reset it first?\n" +
+						"This will:\n" +
+						"- Remove all service containers from the machine\n" +
+						"- Reset the machine to the uninitialised state",
+				).
+				Affirmative("Yes!").
+				Negative("No").
+				Value(&confirm),
+		),
+	).WithAccessible(true)
+	if err := form.Run(); err != nil {
+		return fmt.Errorf("prompt user to confirm: %w", err)
+	}
+
+	if !confirm {
+		return fmt.Errorf("remote machine is already initialised as a cluster member")
+	}
+
+	if _, err := machineClient.Reset(ctx, &pb.ResetRequest{}); err != nil {
+		return fmt.Errorf("reset remote machine: %w. You can also manually run 'uncloud-uninstall' "+
+			"on the remote machine to fully uninstall Uncloud from it", err)
+	}
+	fmt.Println("Resetting the remote machine...")
+	if err := waitMachineReady(ctx, machineClient, 1*time.Minute); err != nil {
+		return fmt.Errorf("wait for machine to be ready after reset: %w", err)
+	}
+
+	return nil
+}
+
+// waitMachineReady waits for the machine to be ready to serve requests.
+func waitMachineReady(ctx context.Context, machineClient pb.MachineClient, timeout time.Duration) error {
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxElapsedTime(timeout),
+	), ctx)
+
+	inspect := func() error {
+		_, err := machineClient.Inspect(ctx, &emptypb.Empty{})
+		if err != nil {
+			return fmt.Errorf("inspect machine: %w", err)
+		}
+		return nil
+	}
+	return backoff.Retry(inspect, boff)
 }
