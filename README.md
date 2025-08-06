@@ -323,6 +323,15 @@ SQLite database used to share Uncloud's cluster state.
   features, and be the first to know when it's ready for production use.
 * Watch this repository for releases.
 
+## 💖 Sponsors
+
+These companies and projects are helping Uncloud with their generous sponsorship and/or services:
+
+<!-- Sentry -->
+<a href="https://sentry.io/welcome/">
+  <img height="100" alt="Sentry" src="https://github.com/user-attachments/assets/6c1439c0-d20d-40dc-a669-c9aa94651dfa" />
+</a>
+
 ## ❤️ Contributors
 
 Thank you [@cedws](https://github.com/cedws) for being the first contributor to Uncloud! 🎉
