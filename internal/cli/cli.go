@@ -22,7 +22,12 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-const defaultContextName = "default"
+const (
+	// DefaultSSHKeyPath is the fallback location for the SSH private key when provisioning remote machines.
+	// Used when no key is explicitly provided and SSH agent authentication fails.
+	DefaultSSHKeyPath  = "~/.ssh/id_ed25519"
+	defaultContextName = "default"
+)
 
 type CLI struct {
 	Config *config.Config
@@ -173,7 +178,7 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		return nil, fmt.Errorf("cluster context '%s' already exists", contextName)
 	}
 
-	machineClient, err := cli.provisionRemoteMachine(ctx, *opts.RemoteMachine, opts.Version)
+	machineClient, err := provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +254,7 @@ type AddMachineOptions struct {
 	Context       string
 	MachineName   string
 	PublicIP      *netip.Addr
-	RemoteMachine RemoteMachine
+	RemoteMachine *RemoteMachine
 	Version       string
 }
 
@@ -272,7 +277,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		}
 	}()
 
-	machineClient, err := cli.provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
+	machineClient, err := provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -382,11 +387,20 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 // provisionRemoteMachine installs the Uncloud daemon and dependencies on the remote machine over SSH and returns
 // a machine API client to interact with the machine. The client should be closed after use by the caller.
 // The version parameter specifies the version of the Uncloud daemon to install. If empty, the latest version is used.
-func (cli *CLI) provisionRemoteMachine(
-	ctx context.Context, remoteMachine RemoteMachine, version string,
+// The remoteMachine.SSHKeyPath could be updated to the default SSH key path if it is not set and the SSH agent
+// authentication fails.
+func provisionRemoteMachine(
+	ctx context.Context, remoteMachine *RemoteMachine, version string,
 ) (*client.Client, error) {
 	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
+	// If the SSH connection using SSH agent fails and no key path is provided, try to use the default SSH key.
+	if err != nil && remoteMachine.KeyPath == "" {
+		remoteMachine.KeyPath = DefaultSSHKeyPath
+		sshClient, err = sshexec.Connect(
+			remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath,
+		)
+	}
 	if err != nil {
 		return nil, fmt.Errorf(
 			"SSH login to remote machine %s: %w",

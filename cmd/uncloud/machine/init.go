@@ -80,8 +80,9 @@ func NewInitCommand() *cobra.Command {
 			fmt.Sprintf("blank '' or '%s' to disable ingress on this machine, or specify an IP address.", PublicIPNone),
 	)
 	cmd.Flags().StringVarP(
-		&opts.sshKey, "ssh-key", "i", "~/.ssh/id_ed25519",
-		"Path to SSH private key for remote login (if not already added to SSH agent).",
+		&opts.sshKey, "ssh-key", "i", "",
+		fmt.Sprintf("Path to SSH private key for remote login (if not already added to SSH agent). (default %q)",
+			cli.DefaultSSHKeyPath),
 	)
 	cmd.Flags().StringVar(
 		&opts.version, "version", "latest",
