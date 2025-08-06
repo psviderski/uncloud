@@ -446,10 +446,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		slog.Info("Local API proxy server stopped.")
 
 		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
-		m.mu.RLock()
-		resetting := m.resetting
-		m.mu.RUnlock()
-		if resetting {
+		if m.resetting {
 			slog.Info("Cleaning up machine data and resources.")
 			if err = m.cleanup(); err != nil {
 				slog.Error("Failed to clean up machine data and resources.", "err", err)

@@ -90,11 +90,13 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 
 	reset := !opts.noReset
 	var containers []api.ServiceContainer
+	reachable := false
 	if reset {
 		// Check if the machine is up and has service containers.
 		listOpts := container.ListOptions{All: true}
 		machineContainers, err := client.Docker.ListServiceContainers(mctx, "", listOpts)
 		if err == nil {
+			reachable = true
 			containers = machineContainers[0].Containers
 			if len(containers) > 0 {
 				plural := ""
@@ -104,7 +106,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 				fmt.Printf("Found %d service container%s on machine '%s':\n", len(containers), plural, m.Name)
 				fmt.Println(formatContainerTree(containers))
 				fmt.Println()
-				fmt.Println("This will remove all service containers on the machine, remove it from the cluster, " +
+				fmt.Println("This will remove all service containers from the machine, remove it from the cluster, " +
 					"and reset it to the uninitialised state.")
 			} else {
 				fmt.Printf("No service containers found on machine '%s'.\n", m.Name)
@@ -129,16 +131,14 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 		}
 	}
 
-	if reset {
-		if len(containers) > 0 {
-			err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-				return removeContainers(ctx, client, containers)
-			}, uncli.ProgressOut(), "Removing containers")
-			if err != nil {
-				return fmt.Errorf("remove containers: %w", err)
-			}
-			fmt.Println()
+	if reset && len(containers) > 0 {
+		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+			return removeContainers(ctx, client, containers)
+		}, uncli.ProgressOut(), "Removing containers")
+		if err != nil {
+			return fmt.Errorf("remove containers: %w", err)
 		}
+		fmt.Println()
 	}
 
 	if _, err = client.RemoveMachine(ctx, &pb.RemoveMachineRequest{Id: m.Id}); err != nil {
@@ -146,7 +146,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	}
 	fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
 
-	if reset {
+	if reset && reachable {
 		_, err = client.MachineClient.Reset(mctx, &pb.ResetRequest{})
 		if err != nil {
 			fmt.Printf("WARNING: Failed to reset machine: %v\n", err)
