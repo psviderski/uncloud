@@ -21,6 +21,7 @@ type deployOptions struct {
 	profiles []string
 	services []string
 	noBuild  bool
+	recreate bool
 
 	context string
 }
@@ -50,6 +51,8 @@ func NewDeployCommand() *cobra.Command {
 		"Name of the cluster context to deploy to (default is the current context)")
 	cmd.Flags().BoolVarP(&opts.noBuild, "no-build", "n", false,
 		"Do not build images before deploying services. (default false)")
+	cmd.Flags().BoolVar(&opts.recreate, "recreate", false,
+		"Recreate containers even if their configuration and image haven't changed.")
 
 	// TODO: Consider adding a filter flag to specify which machines to deploy to but keep the rest running.
 	//  Could be useful to test a new version on a subset of machines before rolling out to all.
@@ -108,7 +111,11 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 	defer clusterClient.Close()
 
-	composeDeploy, err := compose.NewDeployment(ctx, clusterClient, project)
+	var strategy deploy.Strategy
+	if opts.recreate {
+		strategy = &deploy.RollingStrategy{ForceRecreate: true}
+	}
+	composeDeploy, err := compose.NewDeploymentWithStrategy(ctx, clusterClient, project, strategy)
 	if err != nil {
 		return fmt.Errorf("create compose deployment: %w", err)
 	}

@@ -25,11 +25,16 @@ type Deployment struct {
 	Client       Client
 	Project      *types.Project
 	SpecResolver *deploy.ServiceSpecResolver
+	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
 	plan         *deploy.SequenceOperation
 }
 
 func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
+	return NewDeploymentWithStrategy(ctx, cli, project, nil)
+}
+
+func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.Project, strategy deploy.Strategy) (*Deployment, error) {
 	state, err := scheduler.InspectClusterState(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("inspect cluster state: %w", err)
@@ -39,16 +44,20 @@ func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*De
 	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return nil, fmt.Errorf("get cluster domain: %w", err)
 	}
-
 	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: domain,
+	}
+
+	if strategy == nil {
+		strategy = &deploy.RollingStrategy{State: state}
 	}
 
 	return &Deployment{
 		Client:       cli,
 		Project:      project,
 		SpecResolver: resolver,
+		Strategy:     strategy,
 		state:        state,
 	}, nil
 }
@@ -90,7 +99,7 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
 		// Pass the update cluster state with scheduled volumes to the deployment.
-		deployment := deploy.NewDeployment(d.Client, spec, &deploy.RollingStrategy{State: d.state})
+		deployment := deploy.NewDeployment(d.Client, spec, d.Strategy)
 		servicePlan, err := deployment.Plan(ctx)
 		if err != nil {
 			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)

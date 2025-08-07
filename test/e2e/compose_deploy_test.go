@@ -9,6 +9,7 @@ import (
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/compose"
+	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,14 +35,14 @@ func TestComposeDeployment(t *testing.T) {
 		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-basic.yaml"})
 		require.NoError(t, err)
 
-		deploy, err := compose.NewDeployment(ctx, cli, project)
+		deployment, err := compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err := deploy.Plan(ctx)
+		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
 
-		err = deploy.Run(ctx)
+		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, name)
@@ -71,6 +72,137 @@ func TestComposeDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, svc, expectedSpec)
 	})
 
+	t.Run("multi-service deployment with redeploy and recreate", func(t *testing.T) {
+		t.Parallel()
+
+		serviceNames := []string{
+			"test-compose-multi-web",
+			"test-compose-multi-api",
+			"test-compose-multi-worker",
+		}
+		t.Cleanup(func() {
+			removeServices(t, cli, serviceNames...)
+		})
+
+		// Initial deployment.
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-multi-service.yaml"})
+		require.NoError(t, err)
+
+		deployment, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deployment.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, plan.Operations, 3, "Expected 3 services to deploy")
+
+		err = deployment.Run(ctx)
+		require.NoError(t, err)
+
+		// Verify web service.
+		webSvc, err := cli.InspectService(ctx, "test-compose-multi-web")
+		require.NoError(t, err)
+		expectedWebSpec := api.ServiceSpec{
+			Name: "test-compose-multi-web",
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Env: map[string]string{
+					"SERVICE": "web",
+					"VERSION": "1.0",
+				},
+				Image: "portainer/pause:3.9",
+			},
+			Ports: []api.PortSpec{
+				{
+					Hostname:      "multi.example.com",
+					ContainerPort: 80,
+					Protocol:      api.ProtocolHTTPS,
+					Mode:          api.PortModeIngress,
+				},
+			},
+			Replicas: 2,
+		}
+		assertServiceMatchesSpec(t, webSvc, expectedWebSpec)
+
+		// Verify api service.
+		apiSvc, err := cli.InspectService(ctx, "test-compose-multi-api")
+		require.NoError(t, err)
+		expectedApiSpec := api.ServiceSpec{
+			Name: "test-compose-multi-api",
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Env: map[string]string{
+					"SERVICE": "api",
+					"PORT":    "8080",
+				},
+				Image: "portainer/pause:3.9",
+			},
+			Replicas: 3,
+		}
+		assertServiceMatchesSpec(t, apiSvc, expectedApiSpec)
+
+		// Verify worker service.
+		workerSvc, err := cli.InspectService(ctx, "test-compose-multi-worker")
+		require.NoError(t, err)
+		expectedWorkerSpec := api.ServiceSpec{
+			Name: "test-compose-multi-worker",
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Env: map[string]string{
+					"SERVICE":     "worker",
+					"CONCURRENCY": "5",
+				},
+				Image: "portainer/pause:3.9",
+			},
+			Replicas: 1,
+		}
+		assertServiceMatchesSpec(t, workerSvc, expectedWorkerSpec)
+
+		// Save container IDs for later verification.
+		containers := serviceContainerIDs(webSvc).
+			Union(serviceContainerIDs(apiSvc)).
+			Union(serviceContainerIDs(workerSvc))
+
+		// Redeploy without changes - should be up to date.
+		redeploy, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		redeployPlan, err := redeploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, redeployPlan.Operations, 0, "Expected no operations - deployment should be up to date")
+
+		// Deploy with ForceRecreate - should recreate all service containers.
+		strategy := &deploy.RollingStrategy{ForceRecreate: true}
+		recreateDeploy, err := compose.NewDeploymentWithStrategy(ctx, cli, project, strategy)
+		require.NoError(t, err)
+
+		recreatePlan, err := recreateDeploy.Plan(ctx)
+		require.NoError(t, err)
+		assert.Len(t, recreatePlan.Operations, 3, "Expected 3 services to be recreated")
+
+		err = recreateDeploy.Run(ctx)
+		require.NoError(t, err)
+
+		// Verify services match the expected specs after recreate.
+		webSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-web")
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, webSvcAfter, expectedWebSpec)
+
+		apiSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-api")
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, apiSvcAfter, expectedApiSpec)
+
+		workerSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-worker")
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, workerSvcAfter, expectedWorkerSpec)
+
+		// Verify that all containers have been recreated.
+		afterContainers := serviceContainerIDs(webSvcAfter).
+			Union(serviceContainerIDs(apiSvcAfter)).
+			Union(serviceContainerIDs(workerSvcAfter))
+		assert.NotEqual(t, containers.ToSlice(), afterContainers.ToSlice(),
+			"Expected containers to be recreated after deployment with ForceRecreate strategy")
+	})
+
 	t.Run("multiple services with volumes", func(t *testing.T) {
 		t.Parallel()
 
@@ -94,10 +226,10 @@ func TestComposeDeployment(t *testing.T) {
 		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-volumes.yaml"})
 		require.NoError(t, err)
 
-		deploy, err := compose.NewDeployment(ctx, cli, project)
+		deployment, err := compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		_, err = deploy.Plan(ctx)
+		_, err = deployment.Plan(ctx)
 		require.ErrorContains(t, err, "external volumes not found: 'test-compose-volumes-external'")
 
 		externalVolumeOpts := volume.CreateOptions{Name: "test-compose-volumes-external"}
@@ -105,14 +237,14 @@ func TestComposeDeployment(t *testing.T) {
 		require.NoError(t, err)
 
 		// Recreate the deployment as it caches the cluster state.
-		deploy, err = compose.NewDeployment(ctx, cli, project)
+		deployment, err = compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err := deploy.Plan(ctx)
+		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 5, "Expected 2 volumes creation and 3 services to deploy")
 
-		err = deploy.Run(ctx)
+		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		// Verify data1 and data2 volumes have been created.
@@ -247,10 +379,10 @@ func TestComposeDeployment(t *testing.T) {
 			"service3 should be on the same machine as external volume")
 
 		// Verify deployment is up-to-date.
-		deploy, err = compose.NewDeployment(ctx, cli, project)
+		deployment, err = compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err = deploy.Plan(ctx)
+		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 0, "Expected no new operations after deployment")
 	})
@@ -266,14 +398,14 @@ func TestComposeDeployment(t *testing.T) {
 		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-placement.yaml"})
 		require.NoError(t, err)
 
-		deploy, err := compose.NewDeployment(ctx, cli, project)
+		deployment, err := compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err := deploy.Plan(ctx)
+		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
 
-		err = deploy.Run(ctx)
+		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, name)
@@ -319,14 +451,14 @@ func TestComposeDeployment(t *testing.T) {
 		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-placement-nonexistent.yaml"})
 		require.NoError(t, err)
 
-		deploy, err := compose.NewDeployment(ctx, cli, project)
+		deployment, err := compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err := deploy.Plan(ctx)
+		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
 
-		err = deploy.Run(ctx)
+		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, name)
@@ -367,14 +499,14 @@ func TestComposeDeployment(t *testing.T) {
 		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-placement-comma.yaml"})
 		require.NoError(t, err)
 
-		deploy, err := compose.NewDeployment(ctx, cli, project)
+		deployment, err := compose.NewDeployment(ctx, cli, project)
 		require.NoError(t, err)
 
-		plan, err := deploy.Plan(ctx)
+		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
 
-		err = deploy.Run(ctx)
+		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, name)

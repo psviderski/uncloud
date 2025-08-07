@@ -25,7 +25,8 @@ type Strategy interface {
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
 // to minimize service disruption.
 type RollingStrategy struct {
-	State *scheduler.ClusterState
+	State         *scheduler.ClusterState
+	ForceRecreate bool
 }
 
 func (s *RollingStrategy) Type() string {
@@ -92,7 +93,12 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 				continue
 			}
 
-			status := EvalContainerSpecChange(c.Container.ServiceSpec, spec)
+			var status ContainerSpecStatus
+			if s.ForceRecreate {
+				status = ContainerNeedsRecreate
+			} else {
+				status = EvalContainerSpecChange(c.Container.ServiceSpec, spec)
+			}
 			containerSpecStatuses[c.Container.ID] = status
 
 			if status == ContainerUpToDate {
@@ -225,7 +231,7 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 
 	for _, m := range availableMachines {
 		containers := containersOnMachine[m.Info.Id]
-		ops, err := reconcileGlobalContainer(containers, spec, plan.ServiceID, m.Info.Id)
+		ops, err := reconcileGlobalContainer(containers, spec, plan.ServiceID, m.Info.Id, s.ForceRecreate)
 		if err != nil {
 			return plan, err
 		}
@@ -252,7 +258,7 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 // It ensures exactly one container with the desired spec is running on the machine by creating a new container and
 // removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
-	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string,
+	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string, forceRecreate bool,
 ) ([]Operation, error) {
 	var ops []Operation
 
@@ -274,7 +280,13 @@ func reconcileGlobalContainer(
 			continue
 		}
 
-		status := EvalContainerSpecChange(c.Container.ServiceSpec, spec)
+		var status ContainerSpecStatus
+		if forceRecreate {
+			status = ContainerNeedsRecreate
+		} else {
+			status = EvalContainerSpecChange(c.Container.ServiceSpec, spec)
+		}
+
 		if status == ContainerUpToDate {
 			// The container is already running with the same spec.
 			upToDate = true

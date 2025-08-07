@@ -1,0 +1,24 @@
+services:
+  test-compose-multi-web:
+    image: portainer/pause:3.9
+    environment:
+      SERVICE: web
+      VERSION: "1.0"
+    deploy:
+      replicas: 2
+    x-ports:
+      - multi.example.com:80/https
+
+  test-compose-multi-api:
+    image: portainer/pause:3.9
+    environment:
+      SERVICE: api
+      PORT: "8080"
+    deploy:
+      replicas: 3
+
+  test-compose-multi-worker:
+    image: portainer/pause:3.9
+    environment:
+      SERVICE: worker
+      CONCURRENCY: "5"
