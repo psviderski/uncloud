@@ -279,35 +279,11 @@ func TestDeployment(t *testing.T) {
 
 		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
 		require.NoError(t, err)
-		assert.Equal(t, client.CaddyServiceName, svc.Name)
-		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3)
+		assertServiceMatchesSpec(t, svc, deployment.Spec)
 
 		ctr := svc.Containers[0].Container
 		assert.Regexp(t, `^caddy:2\.\d+\.\d+$`, ctr.Config.Image)
-
-		ports, err := ctr.ServicePorts()
-		require.NoError(t, err)
-		expectedPorts := []api.PortSpec{
-			{
-				PublishedPort: 80,
-				ContainerPort: 80,
-				Protocol:      api.ProtocolTCP,
-				Mode:          api.PortModeHost,
-			},
-			{
-				PublishedPort: 443,
-				ContainerPort: 443,
-				Protocol:      api.ProtocolTCP,
-				Mode:          api.PortModeHost,
-			},
-		}
-		assert.Equal(t, expectedPorts, ports)
-
-		assert.Equal(t, container.RestartPolicy{
-			Name:              container.RestartPolicyAlways,
-			MaximumRetryCount: 0,
-		}, ctr.HostConfig.RestartPolicy)
 	})
 
 	t.Run("caddy with machine placement", func(t *testing.T) {

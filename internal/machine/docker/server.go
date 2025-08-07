@@ -546,10 +546,10 @@ func (s *Server) CreateServiceContainer(
 			Memory:            spec.Container.Resources.Memory,
 			MemoryReservation: spec.Container.Resources.MemoryReservation,
 		},
-		// Always restart service containers if they exit or a machine restarts.
+		// Restart service containers if they exit or a machine restarts unless they are explicitly stopped.
 		// For one-off containers and batch jobs we plan to use a different service type/mode.
 		RestartPolicy: container.RestartPolicy{
-			Name: container.RestartPolicyAlways,
+			Name: container.RestartPolicyUnlessStopped,
 		},
 	}
 

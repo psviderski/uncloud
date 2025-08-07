@@ -100,7 +100,7 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 	assert.Equal(t, portBindings, ctr.HostConfig.PortBindings)
 
 	assert.Equal(t, container.RestartPolicy{
-		Name:              container.RestartPolicyAlways,
+		Name:              container.RestartPolicyUnlessStopped,
 		MaximumRetryCount: 0,
 	}, ctr.HostConfig.RestartPolicy)
 
