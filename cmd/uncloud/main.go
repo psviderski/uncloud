@@ -9,6 +9,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
+	"github.com/psviderski/uncloud/cmd/uncloud/logs"
 	"github.com/psviderski/uncloud/cmd/uncloud/machine"
 	"github.com/psviderski/uncloud/cmd/uncloud/service"
 	"github.com/psviderski/uncloud/cmd/uncloud/volume"
@@ -79,6 +80,7 @@ func main() {
 		caddy.NewRootCommand(),
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
+		logs.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
 		service.NewInspectCommand(),
