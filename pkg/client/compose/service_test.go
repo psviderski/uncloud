@@ -38,6 +38,7 @@ func loadProjectFromContent(t *testing.T, content string) (*types.Project, error
 		if o.KnownExtensions == nil {
 			o.KnownExtensions = map[string]any{}
 		}
+		o.KnownExtensions[CaddyExtensionKey] = Caddy{}
 		o.KnownExtensions[PortsExtensionKey] = PortsSource{}
 		o.KnownExtensions[MachinesExtensionKey] = MachinesSource{}
 	})

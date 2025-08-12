@@ -24,6 +24,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		composecli.WithConfigFileEnv,
 		// If none was selected, get default Compose file names from current or parent folders.
 		composecli.WithDefaultConfigPath,
+		composecli.WithExtension(CaddyExtensionKey, Caddy{}),
 		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
 		composecli.WithExtension(MachinesExtensionKey, MachinesSource{}),
 	}

@@ -1,6 +1,10 @@
 package compose
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/mitchellh/mapstructure"
+)
 
 const CaddyExtensionKey = "x-caddy"
 
@@ -17,16 +21,20 @@ func (c *Caddy) DecodeMapstructure(value any) error {
 		*c = *v
 		return nil
 	case string:
-		// Handle x-caddy: "caddyfile config"
+		// Handle x-caddy: "Caddyfile config"
 		*c = Caddy{Config: v}
 	case map[string]any:
-		// Handle the long syntax with a config key.
-		if config, ok := v["config"]; ok {
-			configStr, ok := config.(string)
-			if !ok {
-				return fmt.Errorf("x-caddy.config must be a string, got %T", config)
-			}
-			*c = Caddy{Config: configStr}
+		// Use mapstructure to decode the map directly to the struct.
+		decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+			Result:           c,
+			ErrorUnused:      true,  // Error if there are extra keys not in the struct.
+			WeaklyTypedInput: false, // Enforce strict type matching.
+		})
+		if err != nil {
+			return fmt.Errorf("create decoder for x-caddy extension: %w", err)
+		}
+		if err := decoder.Decode(v); err != nil {
+			return fmt.Errorf("decode x-caddy extension: %w", err)
 		}
 	default:
 		return fmt.Errorf("invalid type %T for x-caddy extension: expected string or object", value)
