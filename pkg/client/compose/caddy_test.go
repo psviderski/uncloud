@@ -9,10 +9,10 @@ import (
 
 func TestCaddyExtension(t *testing.T) {
 	tests := []struct {
-		name           string
-		composeYAML    string
-		expectedConfig string
-		wantErr        bool
+		name        string
+		composeYAML string
+		wantConfig  string
+		wantErr     bool
 	}{
 		{
 			name: "x-caddy as string",
@@ -25,7 +25,7 @@ services:
         reverse_proxy web:80
       }
 `,
-			expectedConfig: `example.com {
+			wantConfig: `example.com {
   reverse_proxy web:80
 }
 `,
@@ -42,12 +42,24 @@ services:
           reverse_proxy web:80
         }
 `,
-			expectedConfig: `example.com {
+			wantConfig: `example.com {
   reverse_proxy web:80
 }
 `,
 		},
-
+		{
+			name: "x-caddy with path to Caddyfile",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: testdata/Caddyfile
+`,
+			wantConfig: `test.example.com {
+  reverse_proxy test:8000
+}
+`,
+		},
 		{
 			name: "x-caddy with empty object",
 			composeYAML: `
@@ -56,7 +68,7 @@ services:
     image: nginx
     x-caddy: {}
 `,
-			expectedConfig: "",
+			wantConfig: "",
 		},
 		{
 			name: "x-caddy with empty string",
@@ -66,7 +78,7 @@ services:
     image: nginx
     x-caddy: ""
 `,
-			expectedConfig: "",
+			wantConfig: "",
 		},
 		{
 			name: "x-caddy with extra unknown field should fail",
@@ -117,7 +129,40 @@ services:
 			caddy, ok := caddyExt.(Caddy)
 			require.True(t, ok, "x-caddy extension is not Caddy type")
 
-			assert.Equal(t, tt.expectedConfig, caddy.Config)
+			assert.Equal(t, tt.wantConfig, caddy.Config)
+		})
+	}
+}
+
+func TestIsCaddyfilePath(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		// Should be detected as file paths.
+		{"relative path with slash", "./Caddyfile", true},
+		{"relative path parent", "../Caddyfile", true},
+		{"relative path", "relative/path/to/file", true},
+		{"absolute path", "/etc/caddy/Caddyfile", true},
+		{"just Caddyfile", "Caddyfile", true},
+		{"Caddyfile with suffix", "Caddyfile.app", true},
+		{"caddyfile lowercase", "caddyfile", true},
+		{"with .caddyfile extension", "my.caddyfile", true},
+		{"with .Caddyfile extension", "my.Caddyfile", true},
+		{"with .caddy extension", "config.caddy", true},
+		{"with .conf extension", "caddy.conf", true},
+		{"simple filename", "config", true},
+
+		// Should NOT be detected as file paths.
+		{"multiline config", "example.com {\n  reverse_proxy :8080\n}", false},
+		{"empty string", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isCaddyfilePath(tt.input)
+			assert.Equal(t, tt.want, result, "isCaddyfilePath(%q) should be %v", tt.input, tt.want)
 		})
 	}
 }

@@ -46,7 +46,10 @@ func loadProjectFromContent(t *testing.T, content string) (*types.Project, error
 		return nil, err
 	}
 
-	// Apply ports extension transformation since we're not using LoadProject
+	// Apply extension transformations since we're not using LoadProject.
+	if project, err = transformServicesCaddyExtension(project); err != nil {
+		return nil, err
+	}
 	if project, err = transformServicesPortsExtension(project); err != nil {
 		return nil, err
 	}

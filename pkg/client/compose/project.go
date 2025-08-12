@@ -25,8 +25,8 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		// If none was selected, get default Compose file names from current or parent folders.
 		composecli.WithDefaultConfigPath,
 		composecli.WithExtension(CaddyExtensionKey, Caddy{}),
-		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
 		composecli.WithExtension(MachinesExtensionKey, MachinesSource{}),
+		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
 	}
 
 	options, err := composecli.NewProjectOptions(
@@ -42,6 +42,9 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, err
 	}
 
+	if project, err = transformServicesCaddyExtension(project); err != nil {
+		return nil, err
+	}
 	if project, err = transformServicesPortsExtension(project); err != nil {
 		return nil, err
 	}
