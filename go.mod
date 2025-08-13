@@ -35,6 +35,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lmittmann/tint v1.0.5
 	github.com/miekg/dns v1.1.65
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.5.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
@@ -204,7 +205,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/buildkit v0.17.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
