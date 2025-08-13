@@ -72,6 +72,10 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	}
 
 	// Check if any mutable properties changed.
+	if !current.Caddy.Equals(new.Caddy) {
+		return ContainerNeedsRecreate
+	}
+
 	if !reflect.DeepEqual(current.Container.Resources, newResources) {
 		return ContainerNeedsUpdate
 	}

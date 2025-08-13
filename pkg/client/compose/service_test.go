@@ -264,8 +264,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					Caddy: &api.CaddySpec{
 						Config: `test-caddy-config.example.com {
   reverse_proxy {{ upstreams 80 }}
-}
-`,
+}`,
 					},
 				},
 			},
@@ -315,8 +314,27 @@ services:
 			want: &api.CaddySpec{
 				Config: `example.com {
   reverse_proxy web:80
-}
+}`,
+			},
+		},
+		{
+			name: "x-caddy as string with extra spaces",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: |+
+
+      example.com {
+        reverse_proxy web:80
+      }
+
+
 `,
+			want: &api.CaddySpec{
+				Config: `example.com {
+  reverse_proxy web:80
+}`,
 			},
 		},
 		{
@@ -334,8 +352,28 @@ services:
 			want: &api.CaddySpec{
 				Config: `example.com {
   reverse_proxy web:80
-}
+}`,
+			},
+		},
+		{
+			name: "x-caddy as object with config field and extra spaces",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy:
+      config: |+
+
+        example.com {
+          reverse_proxy web:80
+        }
+
+
 `,
+			want: &api.CaddySpec{
+				Config: `example.com {
+  reverse_proxy web:80
+}`,
 			},
 		},
 		{
@@ -349,8 +387,7 @@ services:
 			want: &api.CaddySpec{
 				Config: `test.example.com {
   reverse_proxy test:8000
-}
-`,
+}`,
 			},
 		},
 		{

@@ -84,8 +84,10 @@ func transformServicesCaddyExtension(project *types.Project) (*types.Project, er
 			}
 
 			caddy.Config = string(content)
-			service.Extensions[CaddyExtensionKey] = caddy
 		}
+
+		caddy.Config = strings.TrimSpace(caddy.Config)
+		service.Extensions[CaddyExtensionKey] = caddy
 
 		return service, nil
 	})

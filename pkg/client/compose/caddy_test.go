@@ -27,8 +27,25 @@ services:
 `,
 			wantConfig: `example.com {
   reverse_proxy web:80
-}
+}`,
+		},
+		{
+			name: "x-caddy as string with extra spaces",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: |+
+
+      example.com {
+        reverse_proxy web:80
+      }
+
+
 `,
+			wantConfig: `example.com {
+  reverse_proxy web:80
+}`,
 		},
 		{
 			name: "x-caddy as object with config field",
@@ -44,8 +61,26 @@ services:
 `,
 			wantConfig: `example.com {
   reverse_proxy web:80
-}
+}`,
+		},
+		{
+			name: "x-caddy as object with config field and extra spaces",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy:
+      config: |+
+
+        example.com {
+          reverse_proxy web:80
+        }
+
+
 `,
+			wantConfig: `example.com {
+  reverse_proxy web:80
+}`,
 		},
 		{
 			name: "x-caddy with path to Caddyfile",
@@ -57,8 +92,7 @@ services:
 `,
 			wantConfig: `test.example.com {
   reverse_proxy test:8000
-}
-`,
+}`,
 		},
 		{
 			name: "x-caddy with empty object",
