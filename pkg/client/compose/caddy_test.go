@@ -12,7 +12,7 @@ func TestCaddyExtension(t *testing.T) {
 		name        string
 		composeYAML string
 		wantConfig  string
-		wantErr     bool
+		wantErr     string
 	}{
 		{
 			name: "x-caddy as string",
@@ -93,7 +93,7 @@ services:
         }
       unknown_field: "should cause error"
 `,
-			wantErr: true,
+			wantErr: "invalid keys: unknown_field",
 		},
 		{
 			name: "x-caddy with non-string config field should fail",
@@ -104,7 +104,22 @@ services:
     x-caddy:
       config: 123
 `,
-			wantErr: true,
+			wantErr: "expected type 'string'",
+		},
+		{
+			name: "x-caddy with x-ports conflict",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: |
+      example.com {
+        reverse_proxy web:80
+      }
+    x-ports:
+      - example.com:80/http
+`,
+			wantErr: "cannot specify both 'x-caddy' and 'x-ports'",
 		},
 	}
 
@@ -112,8 +127,8 @@ services:
 		t.Run(tt.name, func(t *testing.T) {
 			project, err := loadProjectFromContent(t, tt.composeYAML)
 
-			if tt.wantErr {
-				require.Error(t, err, "expected error for test case with invalid extension")
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 

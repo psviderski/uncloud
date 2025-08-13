@@ -6,6 +6,7 @@ import (
 	"maps"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/distribution/reference"
 	"github.com/google/go-cmp/cmp"
@@ -42,6 +43,10 @@ func ValidateServiceID(id string) bool {
 // ServiceSpec defines the desired state of a service.
 // ATTENTION: after changing this struct, verify if deploy.EvalContainerSpecChange needs to be updated.
 type ServiceSpec struct {
+	// Caddy is the optional Caddy reverse proxy configuration for the service.
+	// Caddy and Ports cannot be specified simultaneously.
+	Caddy *CaddySpec `json:",omitempty"`
+	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
 	Mode string
@@ -49,6 +54,7 @@ type ServiceSpec struct {
 	// Placement defines the placement constraints for the service.
 	Placement Placement
 	// Ports defines what service ports to publish to make the service accessible outside the cluster.
+	// Caddy and Ports cannot be specified simultaneously.
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
@@ -112,8 +118,15 @@ func (s *ServiceSpec) Validate() error {
 			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
 		}
 		if !dnsLabelRegexp.MatchString(s.Name) {
-			return fmt.Errorf("invalid service name: %q. must be 1-63 characters, lowercase letters, numbers, and dashes only; must start and end with a letter or number", s.Name)
+			return fmt.Errorf("invalid service name: %q. must be 1-63 characters, lowercase letters, numbers, "+
+				"and dashes only; must start and end with a letter or number", s.Name)
 		}
+	}
+
+	// Validate that Caddy and Ports are not used together.
+	if s.Caddy != nil && strings.TrimSpace(s.Caddy.Config) != "" && len(s.Ports) > 0 {
+		return fmt.Errorf("ports and Caddy configuration cannot be specified simultaneously: " +
+			"Caddy config is auto-generated from ports, use only one of them")
 	}
 
 	for _, p := range s.Ports {
@@ -151,11 +164,16 @@ func (s *ServiceSpec) Validate() error {
 func (s *ServiceSpec) Clone() ServiceSpec {
 	spec := *s
 
+	if s.Caddy != nil {
+		caddyCopy := *s.Caddy
+		spec.Caddy = &caddyCopy
+	}
+	spec.Container = s.Container.Clone()
+
 	if s.Ports != nil {
 		spec.Ports = make([]PortSpec, len(s.Ports))
 		copy(spec.Ports, s.Ports)
 	}
-	spec.Container = s.Container.Clone()
 
 	if s.Volumes != nil {
 		spec.Volumes = make([]VolumeSpec, len(s.Volumes))

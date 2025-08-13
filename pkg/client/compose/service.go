@@ -57,6 +57,12 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		Mode: api.ServiceModeReplicated,
 	}
 
+	// Map x-caddy extension to spec.Caddy if specified.
+	if caddy, ok := service.Extensions[CaddyExtensionKey].(Caddy); ok && caddy.Config != "" {
+		spec.Caddy = &api.CaddySpec{
+			Config: caddy.Config,
+		}
+	}
 	if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok {
 		spec.Ports = ports
 	}
@@ -241,4 +247,27 @@ func tmpfsVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig) api.Vol
 	}
 
 	return spec
+}
+
+// validateServicesExtensions validates extension combinations across all services in the project.
+func validateServicesExtensions(project *types.Project) error {
+	for _, service := range project.Services {
+		// Check for x-caddy and x-ports conflict.
+		hasCaddy := false
+		if caddy, ok := service.Extensions[CaddyExtensionKey].(Caddy); ok && caddy.Config != "" {
+			hasCaddy = true
+		}
+
+		hasPorts := false
+		if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok && len(ports) > 0 {
+			hasPorts = true
+		}
+
+		if hasCaddy && hasPorts {
+			return fmt.Errorf("service '%s' cannot specify both 'x-caddy' and 'x-ports': "+
+				"Caddy config is auto-generated from ports, use only one of them", service.Name)
+		}
+	}
+
+	return nil
 }

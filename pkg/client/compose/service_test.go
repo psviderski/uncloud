@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"net/netip"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -51,6 +52,11 @@ func loadProjectFromContent(t *testing.T, content string) (*types.Project, error
 		return nil, err
 	}
 	if project, err = transformServicesPortsExtension(project); err != nil {
+		return nil, err
+	}
+
+	// Validate extension combinations after all transformations.
+	if err = validateServicesExtensions(project); err != nil {
 		return nil, err
 	}
 
@@ -186,6 +192,25 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							},
 						},
 					},
+					Ports: []api.PortSpec{
+						{
+							Hostname:      "test.example.com",
+							ContainerPort: 80,
+							Protocol:      api.ProtocolHTTPS,
+							Mode:          api.PortModeIngress,
+						},
+						{
+							ContainerPort: 8000,
+							Protocol:      api.ProtocolHTTP,
+							Mode:          api.PortModeIngress,
+						},
+						{
+							ContainerPort: 3000,
+							PublishedPort: 5000,
+							Protocol:      "tcp",
+							Mode:          api.PortModeHost,
+						},
+					},
 					Replicas: 3,
 					Volumes: []api.VolumeSpec{
 						{
@@ -229,6 +254,20 @@ func TestServiceSpecFromCompose(t *testing.T) {
 						},
 					},
 				},
+				"test-caddy-config": {
+					Name: "test-caddy-config",
+					Mode: api.ServiceModeReplicated,
+					Container: api.ContainerSpec{
+						Image:      "myapp:1.2.3",
+						PullPolicy: api.PullPolicyMissing,
+					},
+					Caddy: &api.CaddySpec{
+						Config: `test-caddy-config.example.com {
+  reverse_proxy {{ upstreams 80 }}
+}
+`,
+					},
+				},
 			},
 		},
 	}
@@ -249,9 +288,111 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					return strings.Compare(a.Name, b.Name)
 				})
 
-				assert.True(t, cmp.Equal(spec, expectedSpec, cmpopts.EquateEmpty()),
-					cmp.Diff(spec, expectedSpec, cmpopts.EquateEmpty()))
+				cmpOpts := cmp.Options{cmpopts.EquateEmpty(), cmpopts.EquateComparable(netip.Addr{})}
+				assert.True(t, cmp.Equal(spec, expectedSpec, cmpOpts...), cmp.Diff(spec, expectedSpec, cmpOpts...))
 			}
+		})
+	}
+}
+
+func TestServiceSpecFromCompose_Caddy(t *testing.T) {
+	tests := []struct {
+		name        string
+		composeYAML string
+		want        *api.CaddySpec
+	}{
+		{
+			name: "x-caddy as string",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: |
+      example.com {
+        reverse_proxy web:80
+      }
+`,
+			want: &api.CaddySpec{
+				Config: `example.com {
+  reverse_proxy web:80
+}
+`,
+			},
+		},
+		{
+			name: "x-caddy as object with config field",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy:
+      config: |
+        example.com {
+          reverse_proxy web:80
+        }
+`,
+			want: &api.CaddySpec{
+				Config: `example.com {
+  reverse_proxy web:80
+}
+`,
+			},
+		},
+		{
+			name: "x-caddy with path to Caddyfile",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: testdata/Caddyfile
+`,
+			want: &api.CaddySpec{
+				Config: `test.example.com {
+  reverse_proxy test:8000
+}
+`,
+			},
+		},
+		{
+			name: "x-caddy with empty string",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: ""
+`,
+			want: nil,
+		},
+		{
+			name: "no x-caddy extension",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+`,
+			want: nil,
+		},
+		{
+			name: "x-caddy with empty object",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: {}
+`,
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := loadProjectFromContent(t, tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "web")
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, spec.Caddy)
 		})
 	}
 }

@@ -31,6 +31,18 @@ services:
         target: /tmpfs
         tmpfs:
           size: 10485760
+    x-ports:
+      - test.example.com:80/https
+      - 8000/http
+      - 5000:3000@host
+
+  test-caddy-config:
+    image: myapp:1.2.3
+    # x-ports and x-caddy are mutually exclusive.
+    x-caddy: |
+      test-caddy-config.example.com {
+        reverse_proxy {{ upstreams 80 }}
+      }
 
 volumes:
   data1:

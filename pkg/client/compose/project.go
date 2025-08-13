@@ -49,5 +49,10 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, err
 	}
 
+	// Validate extension combinations after all transformations.
+	if err = validateServicesExtensions(project); err != nil {
+		return nil, err
+	}
+
 	return project, nil
 }
