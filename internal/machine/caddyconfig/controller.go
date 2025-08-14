@@ -23,23 +23,24 @@ const (
 // network.
 type Controller struct {
 	store          *store.Store
-	path           string
+	configDir      string
 	verifyResponse string
+	log            *slog.Logger
 }
 
-func NewController(store *store.Store, path string, verifyResponse string) (*Controller, error) {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return nil, fmt.Errorf("create parent directory for Caddy configuration '%s': %w", dir, err)
+func NewController(store *store.Store, configDir string, verifyResponse string) (*Controller, error) {
+	if err := os.MkdirAll(configDir, 0o750); err != nil {
+		return nil, fmt.Errorf("create directory for Caddy configuration '%s': %w", configDir, err)
 	}
-	if err := fs.Chown(dir, "", CaddyGroup); err != nil {
-		return nil, fmt.Errorf("change owner of parent directory for Caddy configuration '%s': %w", dir, err)
+	if err := fs.Chown(configDir, "", CaddyGroup); err != nil {
+		return nil, fmt.Errorf("change owner of directory for Caddy configuration '%s': %w", configDir, err)
 	}
 
 	return &Controller{
 		store:          store,
-		path:           path,
+		configDir:      configDir,
 		verifyResponse: verifyResponse,
+		log:            slog.With("component", "caddy-controller"),
 	}, nil
 }
 
@@ -48,14 +49,18 @@ func (c *Controller) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("subscribe to container changes: %w", err)
 	}
-	slog.Info("Subscribed to container changes in the cluster to generate Caddy configuration.")
+	c.log.Info("Subscribed to container changes in the cluster to generate Caddy configuration.")
 
 	containers, err := c.filterAvailableContainers(containerRecords)
 	if err != nil {
 		return fmt.Errorf("filter available containers: %w", err)
 	}
-	if err = c.generateConfig(containers); err != nil {
-		return fmt.Errorf("generate Caddy configuration: %w", err)
+
+	if err = c.generateCaddyfile(containers); err != nil {
+		return fmt.Errorf("generate Caddyfile configuration: %w", err)
+	}
+	if err = c.generateJSONConfig(containers); err != nil {
+		return fmt.Errorf("generate Caddy JSON configuration: %w", err)
 	}
 
 	for {
@@ -64,23 +69,27 @@ func (c *Controller) Run(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("containers subscription failed")
 			}
-			slog.Debug("Cluster containers changed, updating Caddy configuration.")
+			c.log.Info("Cluster containers changed, updating Caddy configuration.")
 
 			containerRecords, err = c.store.ListContainers(ctx, store.ListOptions{})
 			if err != nil {
-				slog.Error("Failed to list containers.", "err", err)
+				c.log.Info("Failed to list containers.", "err", err)
 				continue
 			}
 			containers, err = c.filterAvailableContainers(containerRecords)
 			if err != nil {
-				slog.Error("Failed to filter available containers.", "err", err)
+				c.log.Info("Failed to filter available containers.", "err", err)
 				continue
 			}
-			if err = c.generateConfig(containers); err != nil {
-				slog.Error("Failed to generate Caddy configuration.", "err", err)
+
+			if err = c.generateCaddyfile(containers); err != nil {
+				c.log.Info("Failed to generate Caddyfile configuration.", "err", err)
+			}
+			if err = c.generateJSONConfig(containers); err != nil {
+				c.log.Info("Failed to generate Caddy JSON configuration.", "err", err)
 			}
 
-			slog.Debug("Updated Caddy configuration.", "path", c.path)
+			c.log.Info("Updated Caddy configuration.", "dir", c.configDir)
 		case <-ctx.Done():
 			return nil
 		}
@@ -100,8 +109,25 @@ func (c *Controller) filterAvailableContainers(
 	return containers, nil
 }
 
-func (c *Controller) generateConfig(containers []api.ServiceContainer) error {
-	config, err := GenerateConfig(containers, c.verifyResponse)
+func (c *Controller) generateCaddyfile(containers []api.ServiceContainer) error {
+	caddyfile, err := GenerateCaddyfile(containers, c.verifyResponse)
+	if err != nil {
+		return fmt.Errorf("generate Caddyfile: %w", err)
+	}
+	caddyfilePath := filepath.Join(c.configDir, "Caddyfile")
+
+	if err = os.WriteFile(caddyfilePath, []byte(caddyfile), 0o640); err != nil {
+		return fmt.Errorf("write Caddyfile to file '%s': %w", caddyfilePath, err)
+	}
+	if err = fs.Chown(caddyfilePath, "", CaddyGroup); err != nil {
+		return fmt.Errorf("change owner of Caddyfile '%s': %w", caddyfilePath, err)
+	}
+
+	return nil
+}
+
+func (c *Controller) generateJSONConfig(containers []api.ServiceContainer) error {
+	config, err := GenerateJSONConfig(containers, c.verifyResponse)
 	if err != nil {
 		return err
 	}
@@ -110,12 +136,13 @@ func (c *Controller) generateConfig(containers []api.ServiceContainer) error {
 	if err != nil {
 		return fmt.Errorf("marshal Caddy configuration: %w", err)
 	}
+	configPath := filepath.Join(c.configDir, "caddy.json")
 
-	if err = os.WriteFile(c.path, configBytes, 0o640); err != nil {
-		return fmt.Errorf("write Caddy configuration to file '%s': %w", c.path, err)
+	if err = os.WriteFile(configPath, configBytes, 0o640); err != nil {
+		return fmt.Errorf("write Caddy configuration to file '%s': %w", configPath, err)
 	}
-	if err = fs.Chown(c.path, "", CaddyGroup); err != nil {
-		return fmt.Errorf("change owner of Caddy configuration file '%s': %w", c.path, err)
+	if err = fs.Chown(configPath, "", CaddyGroup); err != nil {
+		return fmt.Errorf("change owner of Caddy configuration file '%s': %w", configPath, err)
 	}
 
 	return nil

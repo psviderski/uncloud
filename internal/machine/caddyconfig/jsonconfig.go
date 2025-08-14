@@ -19,7 +19,7 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
-func GenerateConfig(containers []api.ServiceContainer, verifyResponse string) (*caddy.Config, error) {
+func GenerateJSONConfig(containers []api.ServiceContainer, verifyResponse string) (*caddy.Config, error) {
 	// Maps hostnames to lists of upstreams (container IP:port pairs).
 	httpHostUpstreams := make(map[string][]string)
 	httpsHostUpstreams := make(map[string][]string)

@@ -378,7 +378,7 @@ func TestGenerateConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := GenerateConfig(tt.containers, "verification-response-body")
+			config, err := GenerateJSONConfig(tt.containers, "verification-response-body")
 
 			if tt.wantErr {
 				assert.Error(t, err)
