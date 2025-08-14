@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,8 +44,9 @@ var fullDockerIDRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.
 type Server struct {
 	pb.UnimplementedDockerServer
-	client *client.Client
-	db     *sqlx.DB
+	client  *client.Client
+	service *Service
+	db      *sqlx.DB
 	// internalDNSIP is a function that returns the IP address of the internal DNS server. It may return an empty
 	// address if the address is unknown (e.g. when the machine is not initialised yet).
 	internalDNSIP func() netip.Addr
@@ -74,10 +74,10 @@ func WithWaitForNetworkReady(waitForNetworkReady func(ctx context.Context) error
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker service.
-// TODO: refactor to use methods from the Docker service instead of querying the database directly.
 func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, opts ...ServerOption) *Server {
 	s := &Server{
 		client:        service.Client,
+		service:       service,
 		db:            db,
 		internalDNSIP: internalDNSIP,
 	}
@@ -456,6 +456,7 @@ func (s *Server) RemoveVolume(ctx context.Context, req *pb.RemoveVolumeRequest) 
 }
 
 // CreateServiceContainer creates a new container for the service with the given specifications.
+// TODO: move the main logic to the Docker service and remove db dependency from the server.
 func (s *Server) CreateServiceContainer(
 	ctx context.Context, req *pb.CreateServiceContainerRequest,
 ) (*pb.CreateContainerResponse, error) {
@@ -710,7 +711,7 @@ func (s *Server) verifyDockerVolumesExist(ctx context.Context, mounts []mount.Mo
 func (s *Server) InspectServiceContainer(
 	ctx context.Context, req *pb.InspectContainerRequest,
 ) (*pb.ServiceContainer, error) {
-	ctr, err := s.client.ContainerInspect(ctx, req.Id)
+	serviceCtr, err := s.service.InspectServiceContainer(ctx, req.Id)
 	if err != nil {
 		if client.IsErrNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, err.Error())
@@ -718,19 +719,14 @@ func (s *Server) InspectServiceContainer(
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
-	ctrBytes, err := json.Marshal(ctr)
+	ctrBytes, err := json.Marshal(serviceCtr.Container)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+		return nil, status.Errorf(codes.Internal, "marshal container: %v", err)
 	}
 
-	var specBytes []byte
-	err = s.db.QueryRowContext(ctx, `SELECT service_spec FROM containers WHERE id = $1`, ctr.ID).Scan(&specBytes)
+	specBytes, err := json.Marshal(serviceCtr.ServiceSpec)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "service spec not found for container: '%s'", ctr.ID)
-		}
-		return nil, status.Errorf(codes.Internal, "get service spec for container '%s' from machine database: %v",
-			ctr.ID, err)
+		return nil, status.Errorf(codes.Internal, "marshal service spec: %v", err)
 	}
 
 	return &pb.ServiceContainer{
@@ -762,54 +758,28 @@ func (s *Server) ListServiceContainers(
 				return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
 			}
 			opts.Filters = args
-		} else {
-			opts.Filters = filters.NewArgs()
 		}
 	}
-	// Only uncloud-managed containers that belong to some service.
-	opts.Filters.Add("label", api.LabelServiceID)
-	opts.Filters.Add("label", api.LabelManaged)
 
-	containerSummaries, err := s.client.ContainerList(ctx, opts)
+	containers, err := s.service.ListServiceContainers(ctx, req.ServiceId, opts)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	containers := make([]*pb.ServiceContainer, 0, len(containerSummaries))
-	for _, cs := range containerSummaries {
-		if req.ServiceId != "" &&
-			cs.Labels[api.LabelServiceID] != req.ServiceId && cs.Labels[api.LabelServiceName] != req.ServiceId {
-			continue
-		}
-
-		ctr, err := s.client.ContainerInspect(ctx, cs.ID)
-		if err != nil {
-			if client.IsErrNotFound(err) {
-				// The listed container may have been removed while we were inspecting other containers.
-				continue
-			}
-			return nil, status.Errorf(codes.Internal, "inspect container %s: %v", cs.ID, err)
-		}
-		ctrBytes, err := json.Marshal(ctr)
+	// Convert to protobuf format.
+	pbContainers := make([]*pb.ServiceContainer, 0, len(containers))
+	for _, ctr := range containers {
+		ctrBytes, err := json.Marshal(ctr.Container)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "marshal container: %v", err)
 		}
 
-		var specBytes []byte
-		err = s.db.QueryRowContext(ctx, `SELECT service_spec FROM containers WHERE id = $1`, ctr.ID).Scan(&specBytes)
+		specBytes, err := json.Marshal(ctr.ServiceSpec)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				// If this happens, there is a bug in the code, or someone manually removed the container from the DB,
-				// or created a managed container out of band.
-				slog.Error("Service container not found in machine database.", "id", ctr.ID)
-				// Just ignore such a container to not fail the list operation as it's not easily recoverable.
-				continue
-			}
-			return nil, status.Errorf(codes.Internal, "get service spec for container '%s' from machine database: %v",
-				ctr.ID, err)
+			return nil, status.Errorf(codes.Internal, "marshal service spec: %v", err)
 		}
 
-		containers = append(containers, &pb.ServiceContainer{
+		pbContainers = append(pbContainers, &pb.ServiceContainer{
 			Container:   ctrBytes,
 			ServiceSpec: specBytes,
 		})
@@ -818,7 +788,7 @@ func (s *Server) ListServiceContainers(
 	return &pb.ListServiceContainersResponse{
 		Messages: []*pb.MachineServiceContainers{
 			{
-				Containers: containers,
+				Containers: pbContainers,
 			},
 		},
 	}, nil
