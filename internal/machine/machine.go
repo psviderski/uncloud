@@ -30,7 +30,6 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
-	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -162,7 +161,9 @@ type Machine struct {
 	// store is the cluster store backed by a distributed Corrosion database.
 	store   *store.Store
 	cluster *cluster.Cluster
-	docker  *machinedocker.Server
+	// dockerService provides high-level operations for managing Docker containers.
+	dockerService *machinedocker.Service
+	dockerServer  *machinedocker.Server
 	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
 	localMachineServer *grpc.Server
 
@@ -222,16 +223,13 @@ func NewMachine(config *Config) (*Machine, error) {
 	c := cluster.NewCluster(corroStore, corroAdmin)
 
 	// Init dependencies for a gRPC Docker server that proxies requests to the local Docker daemon.
-	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, fmt.Errorf("create Docker client: %w", err)
-	}
-
 	dbFilePath := filepath.Join(config.DataDir, DBFileName)
 	db, err := NewDB(dbFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("init machine database: %w", err)
 	}
+
+	dockerService := machinedocker.NewService(config.DockerClient, db)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)
@@ -250,6 +248,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		networkReady:     make(chan struct{}),
 		store:            corroStore,
 		cluster:          c,
+		dockerService:    dockerService,
 		localProxyServer: localProxyServer,
 		proxyDirector:    proxyDirector,
 	}
@@ -258,10 +257,10 @@ func NewMachine(config *Config) (*Machine, error) {
 	internalDNSIP := func() netip.Addr {
 		return m.IP()
 	}
-	m.docker = machinedocker.NewServer(dockerCli, db, internalDNSIP,
+	m.dockerServer = machinedocker.NewServer(dockerService, db, internalDNSIP,
 		machinedocker.WithNetworkReady(m.IsNetworkReady),
 		machinedocker.WithWaitForNetworkReady(m.WaitForNetworkReady))
-	m.localMachineServer = newGRPCServer(m, c, m.docker)
+	m.localMachineServer = newGRPCServer(m, c, m.dockerServer)
 
 	if m.Initialised() {
 		m.initialised <- struct{}{}
@@ -405,7 +404,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.store,
 				proxyServer,
 				m.config.CorrosionService,
-				m.config.DockerClient,
+				m.dockerService,
 				m.networkReady,
 				caddyconfigCtrl,
 				dnsServer,
@@ -569,7 +568,7 @@ func (m *Machine) cleanup() error {
 }
 
 // CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
-func (m *Machine) CheckPrerequisites(ctx context.Context, _ *emptypb.Empty) (*pb.CheckPrerequisitesResponse, error) {
+func (m *Machine) CheckPrerequisites(_ context.Context, _ *emptypb.Empty) (*pb.CheckPrerequisitesResponse, error) {
 	// Check DNS port (UDP) availability.
 	if err := checkDNSPortAvailable(); err != nil {
 		return &pb.CheckPrerequisitesResponse{
@@ -835,7 +834,7 @@ func (m *Machine) WaitForNetworkReady(ctx context.Context) error {
 
 // Reset restores the machine to a clean state, scheduling a graceful shutdown and removing all cluster-related
 // configuration and resource. The uncloud daemon will restart the machine if managed by systemd.
-func (m *Machine) Reset(ctx context.Context, _ *pb.ResetRequest) (*emptypb.Empty, error) {
+func (m *Machine) Reset(_ context.Context, _ *pb.ResetRequest) (*emptypb.Empty, error) {
 	if !m.Initialised() {
 		return nil, nil
 	}
@@ -890,7 +889,7 @@ func (m *Machine) InspectService(
 		}
 	}
 
-	ctr := api.ServiceContainer{Container: records[0].Container}
+	ctr := records[0].Container
 	svc := &pb.Service{
 		Id:         ctr.ServiceID(),
 		Name:       ctr.ServiceName(),

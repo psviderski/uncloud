@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/internal/machine/constants"
@@ -36,10 +35,9 @@ type clusterController struct {
 	wgnet           *network.WireGuardNetwork
 	endpointChanges <-chan network.EndpointChangeEvent
 
-	server        *grpc.Server
-	corroService  corroservice.Service
-	dockerCli     *client.Client
-	dockerManager *docker.Manager
+	server       *grpc.Server
+	corroService corroservice.Service
+	dockerCtrl   *docker.Controller
 	// dockerReady is signalled when Docker is configured and ready for containers.
 	dockerReady     chan<- struct{}
 	caddyconfigCtrl *caddyconfig.Controller
@@ -57,7 +55,7 @@ func newClusterController(
 	store *store.Store,
 	server *grpc.Server,
 	corroService corroservice.Service,
-	dockerCli *client.Client,
+	dockerService *docker.Service,
 	dockerReady chan<- struct{},
 	caddyfileCtrl *caddyconfig.Controller,
 	dnsServer *dns.Server,
@@ -77,8 +75,7 @@ func newClusterController(
 		endpointChanges: endpointChanges,
 		server:          server,
 		corroService:    corroService,
-		dockerCli:       dockerCli,
-		dockerManager:   docker.NewManager(dockerCli, state.ID, store),
+		dockerCtrl:      docker.NewController(state.ID, dockerService, store),
 		dockerReady:     dockerReady,
 		caddyconfigCtrl: caddyfileCtrl,
 		dnsServer:       dnsServer,
@@ -238,11 +235,11 @@ func (cc *clusterController) Run(ctx context.Context) error {
 
 // ensureDockerNetwork ensures that the Docker network is configured and ready for containers.
 func (cc *clusterController) ensureDockerNetwork(ctx context.Context) error {
-	if err := cc.dockerManager.WaitDaemonReady(ctx); err != nil {
+	if err := cc.dockerCtrl.WaitDaemonReady(ctx); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
 
-	if err := cc.dockerManager.EnsureUncloudNetwork(
+	if err := cc.dockerCtrl.EnsureUncloudNetwork(
 		ctx,
 		cc.state.Network.Subnet,
 		cc.dnsServer.ListenAddr(),
@@ -257,6 +254,7 @@ func (cc *clusterController) ensureDockerNetwork(ctx context.Context) error {
 }
 
 // syncDockerContainers watches local Docker containers and syncs them to the cluster store.
+// TODO: move this to the Docker controller.
 func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
 	// Retry to watch and sync containers until the context is done.
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
@@ -265,7 +263,7 @@ func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
 		backoff.WithMaxElapsedTime(0),
 	), ctx)
 	watchAndSync := func() error {
-		if wErr := cc.dockerManager.WatchAndSyncContainers(ctx); wErr != nil {
+		if wErr := cc.dockerCtrl.WatchAndSyncContainers(ctx); wErr != nil {
 			slog.Error("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
 			return wErr
 		}
@@ -413,7 +411,7 @@ func (cc *clusterController) Cleanup() error {
 	<-cc.stopped
 
 	var errs []error
-	if err := cc.dockerManager.Cleanup(); err != nil {
+	if err := cc.dockerCtrl.Cleanup(); err != nil {
 		errs = append(errs, fmt.Errorf("cleanup Docker resources: %w", err))
 	}
 	if err := cc.wgnet.Cleanup(); err != nil {

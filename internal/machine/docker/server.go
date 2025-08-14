@@ -73,10 +73,11 @@ func WithWaitForNetworkReady(waitForNetworkReady func(ctx context.Context) error
 	}
 }
 
-// NewServer creates a new Docker gRPC server with the provided Docker client.
-func NewServer(cli *client.Client, db *sqlx.DB, internalDNSIP func() netip.Addr, opts ...ServerOption) *Server {
+// NewServer creates a new Docker gRPC server with the provided Docker service.
+// TODO: refactor to use methods from the Docker service instead of querying the database directly.
+func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, opts ...ServerOption) *Server {
 	s := &Server{
-		client:        cli,
+		client:        service.Client,
 		db:            db,
 		internalDNSIP: internalDNSIP,
 	}

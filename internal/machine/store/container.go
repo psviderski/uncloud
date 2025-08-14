@@ -23,7 +23,7 @@ const (
 )
 
 type ContainerRecord struct {
-	Container  api.Container
+	Container  api.ServiceContainer
 	MachineID  string
 	SyncStatus string
 	UpdatedAt  time.Time
@@ -48,10 +48,12 @@ type DeleteOptions struct {
 
 // CreateOrUpdateContainer creates a new container record or updates an existing one in the store database.
 // The container is associated with the given machine ID that indicates which machine the container is running on.
-func (s *Store) CreateOrUpdateContainer(ctx context.Context, ctr api.Container, machineID string) error {
+func (s *Store) CreateOrUpdateContainer(ctx context.Context, ctr api.ServiceContainer, machineID string) error {
 	// Remove the environment variables from the container record before storing it in the database
 	// to avoid leaking secrets.
 	ctr.Config.Env = nil
+	ctr.ServiceSpec.Container.Env = nil
+
 	cJSON, err := json.Marshal(ctr)
 	if err != nil {
 		return fmt.Errorf("marshal container: %w", err)
@@ -118,7 +120,7 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]Contain
 			return nil, fmt.Errorf("scan container record: %w", err)
 		}
 
-		var c api.Container
+		var c api.ServiceContainer
 		if err = json.Unmarshal([]byte(cJSON), &c); err != nil {
 			return nil, fmt.Errorf("unmarshal container: %w", err)
 		}

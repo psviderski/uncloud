@@ -95,10 +95,7 @@ func (c *Controller) filterAvailableContainers(
 ) ([]api.ServiceContainer, error) {
 	containers := make([]api.ServiceContainer, len(containerRecords))
 	for i, cr := range containerRecords {
-		containers[i] = api.ServiceContainer{
-			Container: cr.Container,
-			// TODO: restore ServiceSpec from the container record once it's saved in the store.
-		}
+		containers[i] = cr.Container
 	}
 	return containers, nil
 }

@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/psviderski/uncloud/internal/machine/store"
-	"github.com/psviderski/uncloud/pkg/api"
 )
 
 // ClusterResolver implements Resolver by tracking containers in the cluster and resolving service names
@@ -84,17 +82,13 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 			continue
 		}
 
-		ctr := api.ServiceContainer{Container: record.Container}
+		ctr := record.Container
 		if ctr.ServiceID() == "" || ctr.ServiceName() == "" {
 			// Container is not part of a service, skip it.
 			continue
 		}
 
-		// TODO: remove normalisation after implementing service name validation:
-		//.https://github.com/psviderski/uncloud/issues/53
-		serviceName := strings.ToLower(ctr.ServiceName())
-
-		newServiceIPs[serviceName] = append(newServiceIPs[serviceName], ip)
+		newServiceIPs[ctr.ServiceName()] = append(newServiceIPs[ctr.ServiceName()], ip)
 		// Also add the service ID as a valid lookup.
 		newServiceIPs[ctr.ServiceID()] = append(newServiceIPs[ctr.ServiceID()], ip)
 		containersCount++
