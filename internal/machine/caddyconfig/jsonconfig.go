@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"maps"
-	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -20,46 +18,7 @@ import (
 )
 
 func GenerateJSONConfig(containers []api.ServiceContainer, verifyResponse string) (*caddy.Config, error) {
-	// Maps hostnames to lists of upstreams (container IP:port pairs).
-	httpHostUpstreams := make(map[string][]string)
-	httpsHostUpstreams := make(map[string][]string)
-	for _, ctr := range containers {
-		if !ctr.Healthy() {
-			continue
-		}
-
-		ip := ctr.UncloudNetworkIP()
-		if !ip.IsValid() {
-			// Container is not connected to the uncloud Docker network (could be host network).
-			continue
-		}
-		log := slog.With("container", ctr.ID)
-
-		ports, err := ctr.ServicePorts()
-		if err != nil {
-			log.Error("Failed to parse service ports for container.", "err", err)
-			continue
-		}
-
-		for _, port := range ports {
-			if port.Mode != api.PortModeIngress {
-				continue
-			}
-
-			switch port.Protocol {
-			case api.ProtocolHTTP:
-				upstream := net.JoinHostPort(ip.String(), strconv.Itoa(int(port.ContainerPort)))
-				httpHostUpstreams[port.Hostname] = append(httpHostUpstreams[port.Hostname], upstream)
-			case api.ProtocolHTTPS:
-				upstream := net.JoinHostPort(ip.String(), strconv.Itoa(int(port.ContainerPort)))
-				httpsHostUpstreams[port.Hostname] = append(httpsHostUpstreams[port.Hostname], upstream)
-			default:
-				// TODO: implement L4 ingress routing for TCP and UDP.
-				log.Error("Unsupported protocol for ingress port.", "port", port)
-				continue
-			}
-		}
-	}
+	httpHostUpstreams, httpsHostUpstreams := httpUpstreamsFromContainers(containers)
 
 	var warnings []caddyconfig.Warning
 	servers := make(map[string]*caddyhttp.Server)

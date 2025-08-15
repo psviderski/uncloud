@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateConfig(t *testing.T) {
+func TestGenerateJSONConfig(t *testing.T) {
 	configWithoutServices := `{
 		"servers": {
 			"http": {
