@@ -196,13 +196,27 @@ func (c *Client) RemoveContainer(ctx context.Context, id string, opts container.
 	return err
 }
 
+// PullOptions defines the options for pulling an image from a remote registry.
+// This is a copy of image.PullOptions from the Docker API without the PrivilegeFunc field that is non-serialisable.
+type PullOptions struct {
+	All bool
+	// RegistryAuth is the base64 encoded credentials for the registry.
+	RegistryAuth string
+	Platform     string
+}
+
 type PullImageMessage struct {
 	Message jsonmessage.JSONMessage
 	Err     error
 }
 
-func (c *Client) PullImage(ctx context.Context, image string) (<-chan PullImageMessage, error) {
-	stream, err := c.grpcClient.PullImage(ctx, &pb.PullImageRequest{Image: image})
+func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) (<-chan PullImageMessage, error) {
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	stream, err := c.grpcClient.PullImage(ctx, &pb.PullImageRequest{Image: image, Options: optsBytes})
 	if err != nil {
 		return nil, err
 	}

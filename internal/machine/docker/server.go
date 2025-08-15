@@ -8,12 +8,15 @@ import (
 	"io"
 	"log/slog"
 	"net/netip"
+	"os"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/distribution/reference"
+	dockercommand "github.com/docker/cli/cli/command"
+	dockerconfig "github.com/docker/cli/cli/config"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -266,11 +269,18 @@ func (s *Server) RemoveContainer(ctx context.Context, req *pb.RemoveContainerReq
 func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreamingServer[pb.JSONMessage]) error {
 	ctx := stream.Context()
 
-	// TODO: replace with another JSON serializable type (PullOptions.PrivilegeFunc is not serializable).
 	var opts image.PullOptions
 	if len(req.Options) > 0 {
 		if err := json.Unmarshal(req.Options, &opts); err != nil {
 			return status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+	}
+
+	if opts.RegistryAuth == "" {
+		// Try to retrieve the authentication token for the image from the default local Docker config file.
+		dockerConfig := dockerconfig.LoadDefaultConfigFile(os.Stderr)
+		if encodedAuth, err := dockercommand.RetrieveAuthTokenFromImage(dockerConfig, req.Image); err == nil {
+			opts.RegistryAuth = encodedAuth
 		}
 	}
 
