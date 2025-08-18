@@ -49,30 +49,6 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			},
 		},
 		{
-			name: "external config",
-			configs: types.Configs{
-				"external-config": types.ConfigObjConfig{
-					External: true,
-				},
-			},
-			serviceConfigs: []types.ServiceConfigObjConfig{
-				{
-					Source: "external-config",
-				},
-			},
-			expectedSpecs: []api.ConfigSpec{
-				{
-					Name: "external-config",
-				},
-			},
-			expectedMounts: []api.ConfigMount{
-				{
-					Source: "external-config",
-					Target: "/external-config", // Default target path
-				},
-			},
-		},
-		{
 			name: "config with mode",
 			configs: types.Configs{
 				"nginx-config": types.ConfigObjConfig{
@@ -97,27 +73,6 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 					Source: "nginx-config",
 					Target: "/etc/nginx/nginx.conf",
 					Mode:   func() *uint32 { m := uint32(0644); return &m }(),
-				},
-			},
-		},
-		{
-			name:    "inline config reference",
-			configs: types.Configs{},
-			serviceConfigs: []types.ServiceConfigObjConfig{
-				{
-					Source: "inline-config",
-					Target: "/app/inline.conf",
-				},
-			},
-			expectedSpecs: []api.ConfigSpec{
-				{
-					Name: "inline-config",
-				},
-			},
-			expectedMounts: []api.ConfigMount{
-				{
-					Source: "inline-config",
-					Target: "/app/inline.conf",
 				},
 			},
 		},

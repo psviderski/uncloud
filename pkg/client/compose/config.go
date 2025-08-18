@@ -19,9 +19,17 @@ func configSpecsFromCompose(
 
 		if projectConfig, exists := configs[serviceConfig.Source]; exists {
 			// Project-level config
+
+			if projectConfig.External {
+				// External configs are not supported yet
+				return nil, nil, fmt.Errorf("external configs are not supported yet: %s",
+					serviceConfig.Source)
+			}
+
 			spec = api.ConfigSpec{
-				Name: serviceConfig.Source,
-				File: projectConfig.File,
+				Name:    serviceConfig.Source,
+				File:    projectConfig.File,
+				Content: projectConfig.Content,
 			}
 		} else {
 			return nil, nil, fmt.Errorf("config '%s' not found in project configs", serviceConfig.Source)
