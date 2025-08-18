@@ -23,9 +23,6 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			configs: types.Configs{
 				"app-config": types.ConfigObjConfig{
 					File: "/path/to/config.json",
-					Labels: map[string]string{
-						"env": "production",
-					},
 				},
 			},
 			serviceConfigs: []types.ServiceConfigObjConfig{
@@ -40,9 +37,6 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 				{
 					Name: "app-config",
 					File: "/path/to/config.json",
-					Labels: map[string]string{
-						"env": "production",
-					},
 				},
 			},
 			expectedMounts: []api.ConfigMount{
@@ -68,9 +62,7 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			},
 			expectedSpecs: []api.ConfigSpec{
 				{
-					Name:     "external-config",
-					External: true,
-					Labels:   map[string]string{},
+					Name: "external-config",
 				},
 			},
 			expectedMounts: []api.ConfigMount{
@@ -96,9 +88,8 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			},
 			expectedSpecs: []api.ConfigSpec{
 				{
-					Name:   "nginx-config",
-					File:   "./nginx.conf",
-					Labels: map[string]string{},
+					Name: "nginx-config",
+					File: "./nginx.conf",
 				},
 			},
 			expectedMounts: []api.ConfigMount{
@@ -152,25 +143,16 @@ func TestConfigSpecEquals(t *testing.T) {
 	config1 := api.ConfigSpec{
 		Name: "test-config",
 		File: "/path/to/config",
-		Labels: map[string]string{
-			"env": "test",
-		},
 	}
 
 	config2 := api.ConfigSpec{
 		Name: "test-config",
 		File: "/path/to/config",
-		Labels: map[string]string{
-			"env": "test",
-		},
 	}
 
 	config3 := api.ConfigSpec{
 		Name: "test-config",
 		File: "/different/path",
-		Labels: map[string]string{
-			"env": "test",
-		},
 	}
 
 	assert.True(t, config1.Equals(config2))

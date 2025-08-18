@@ -59,4 +59,6 @@ configs:
   config1:
     file: ./config1.txt
   config2:
-    file: ./config2.txt
+    content: |
+      test config content line 1
+      test config content line 2

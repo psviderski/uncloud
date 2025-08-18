@@ -1,17 +1,26 @@
+// Implementation of Config feature from the Compose spec
 package api
 
 // ConfigSpec defines a configuration object that can be mounted into containers
 type ConfigSpec struct {
+	// Do we need this, if external is not supported yet?
 	Name string `json:"name"`
 
 	// File path (when External is false)
 	File string `json:"file,omitempty"`
 
-	// External indicates this config already exists and should not be created
-	External bool `json:"external,omitempty"`
+	// Content of the config when specified inline
+	Content string `json:"content,omitempty"`
 
+	// Note: NOT IMPLEMENTED
+	// External indicates this config already exists and should not be created
+	// External bool `json:"external,omitempty"`
+
+	// Note: NOT IMPLEMENTED
 	// Labels for the config
-	Labels map[string]string `json:"labels,omitempty"`
+	// Labels map[string]string `json:"labels,omitempty"`
+
+	// TODO: add support for "environment"
 }
 
 // ConfigMount defines how a config is mounted into a container
@@ -36,19 +45,7 @@ type ConfigMount struct {
 func (c ConfigSpec) Equals(other ConfigSpec) bool {
 	return c.Name == other.Name &&
 		c.File == other.File &&
-		c.External == other.External &&
-		mapsEqual(c.Labels, other.Labels)
-}
-
-// mapsEqual compares two string maps for equality
-func mapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
+		c.Content == other.Content
+	// c.External == other.External &&
+	// mapsEqual(c.Labels, other.Labels)
 }

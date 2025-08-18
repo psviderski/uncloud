@@ -2,17 +2,16 @@ package compose
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
+// TODO: add support for short syntax configs
 func configSpecsFromCompose(
 	configs types.Configs, serviceConfigs []types.ServiceConfigObjConfig,
 ) ([]api.ConfigSpec, []api.ConfigMount, error) {
-	configSpecs := make(map[string]api.ConfigSpec)
+	var configSpecs []api.ConfigSpec
 	var configMounts []api.ConfigMount
 
 	for _, serviceConfig := range serviceConfigs {
@@ -21,29 +20,14 @@ func configSpecsFromCompose(
 		if projectConfig, exists := configs[serviceConfig.Source]; exists {
 			// Project-level config
 			spec = api.ConfigSpec{
-				Name:     serviceConfig.Source,
-				File:     projectConfig.File,
-				External: bool(projectConfig.External),
-				Labels:   make(map[string]string),
-			}
-			// Copy labels if they exist
-			for k, v := range projectConfig.Labels {
-				spec.Labels[k] = v
+				Name: serviceConfig.Source,
+				File: projectConfig.File,
 			}
 		} else {
-			// Inline config reference
-			spec = api.ConfigSpec{
-				Name: serviceConfig.Source,
-			}
+			return nil, nil, fmt.Errorf("config '%s' not found in project configs", serviceConfig.Source)
 		}
 
-		if existing, ok := configSpecs[spec.Name]; ok {
-			if !existing.Equals(spec) {
-				return nil, nil, fmt.Errorf("config '%s' is used multiple times with different options", spec.Name)
-			}
-		} else {
-			configSpecs[spec.Name] = spec
-		}
+		configSpecs = append(configSpecs, spec)
 
 		// Create config mount
 		target := serviceConfig.Target
@@ -66,5 +50,5 @@ func configSpecsFromCompose(
 		configMounts = append(configMounts, mount)
 	}
 
-	return slices.Collect(maps.Values(configSpecs)), configMounts, nil
+	return configSpecs, configMounts, nil
 }

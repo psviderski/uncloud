@@ -584,14 +584,12 @@ func TestComposeDeployment(t *testing.T) {
 			},
 			Configs: []api.ConfigSpec{
 				{
-					Name:   "nginx-config",
-					File:   "/home/tonyo/prog/github/uncloud/test/e2e/fixtures/configs/nginx.conf",
-					Labels: map[string]string{},
+					Name: "nginx-config",
+					File: "/home/tonyo/prog/github/uncloud/test/e2e/fixtures/configs/nginx.conf",
 				},
 				{
-					Name:   "app-config",
-					File:   "/home/tonyo/prog/github/uncloud/test/e2e/fixtures/configs/app-config.yml",
-					Labels: map[string]string{},
+					Name: "app-config",
+					File: "/home/tonyo/prog/github/uncloud/test/e2e/fixtures/configs/app-config.yml",
 				},
 			},
 			Replicas: 2,

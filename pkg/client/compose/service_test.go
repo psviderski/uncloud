@@ -261,9 +261,8 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					},
 					Configs: []api.ConfigSpec{
 						{
-							Name:   "config1",
-							File:   "/home/tonyo/prog/github/uncloud/pkg/client/compose/testdata/config1.txt",
-							Labels: map[string]string{},
+							Name: "config1",
+							File: "/home/tonyo/prog/github/uncloud/pkg/client/compose/testdata/config1.txt",
 						},
 					},
 				},
