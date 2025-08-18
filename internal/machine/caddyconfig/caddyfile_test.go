@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateCaddyfile(t *testing.T) {
+func TestCaddyfileGenerator(t *testing.T) {
 	caddyfileHeader := `http:// {
 	handle /.uncloud-verify {
-		respond "verification-response-body" 200
+		respond "test-machine-id" 200
 	}
 	log
 }
@@ -23,6 +23,10 @@ func TestGenerateCaddyfile(t *testing.T) {
 	fail_duration 30s
 }
 `
+
+	generator := &CaddyfileGenerator{
+		MachineID: "test-machine-id",
+	}
 
 	tests := []struct {
 		name       string
@@ -182,7 +186,7 @@ http://app.example.com {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := GenerateCaddyfile(tt.containers, "verification-response-body")
+			config, err := generator.Generate(tt.containers)
 
 			if tt.wantErr {
 				assert.Error(t, err)

@@ -42,6 +42,9 @@ const (
 	DefaultMachineSockPath = "/run/uncloud/machine.sock"
 	DefaultUncloudSockPath = "/run/uncloud/uncloud.sock"
 	DefaultSockGroup       = "uncloud"
+	// DefaultCaddyAdminSockPath is the default path to the Caddy admin socket for validating the generated Caddy
+	// reverse proxy configuration.
+	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
 )
 
 type Config struct {
@@ -387,7 +390,12 @@ func (m *Machine) Run(ctx context.Context) error {
 
 			// Create a new caddyconfig controller for managing the Caddy reverse proxy configuration.
 			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
-			caddyconfigCtrl, err := caddyconfig.NewController(m.store, m.config.CaddyConfigDir, m.state.ID)
+			caddyconfigCtrl, err := caddyconfig.NewController(
+				m.state.ID,
+				m.config.CaddyConfigDir,
+				DefaultCaddyAdminSockPath,
+				m.store,
+			)
 			if err != nil {
 				return fmt.Errorf("create caddyconfig controller: %w", err)
 			}

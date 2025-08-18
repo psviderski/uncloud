@@ -22,13 +22,14 @@ const (
 // proxy. The generated configuration allows Caddy to route external traffic to service containers across the internal
 // network.
 type Controller struct {
-	store          *store.Store
-	configDir      string
-	verifyResponse string
-	log            *slog.Logger
+	machineID string
+	configDir string
+	generator *CaddyfileGenerator
+	store     *store.Store
+	log       *slog.Logger
 }
 
-func NewController(store *store.Store, configDir string, verifyResponse string) (*Controller, error) {
+func NewController(machineID, configDir, adminSock string, store *store.Store) (*Controller, error) {
 	if err := os.MkdirAll(configDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create directory for Caddy configuration '%s': %w", configDir, err)
 	}
@@ -36,11 +37,16 @@ func NewController(store *store.Store, configDir string, verifyResponse string) 
 		return nil, fmt.Errorf("change owner of directory for Caddy configuration '%s': %w", configDir, err)
 	}
 
+	generator := &CaddyfileGenerator{
+		MachineID: machineID,
+	}
+
 	return &Controller{
-		store:          store,
-		configDir:      configDir,
-		verifyResponse: verifyResponse,
-		log:            slog.With("component", "caddy-controller"),
+		machineID: machineID,
+		configDir: configDir,
+		generator: generator,
+		store:     store,
+		log:       slog.With("component", "caddy-controller"),
 	}, nil
 }
 
@@ -73,20 +79,20 @@ func (c *Controller) Run(ctx context.Context) error {
 
 			containerRecords, err = c.store.ListContainers(ctx, store.ListOptions{})
 			if err != nil {
-				c.log.Info("Failed to list containers.", "err", err)
+				c.log.Error("Failed to list containers.", "err", err)
 				continue
 			}
 			containers, err = c.filterAvailableContainers(containerRecords)
 			if err != nil {
-				c.log.Info("Failed to filter available containers.", "err", err)
+				c.log.Error("Failed to filter available containers.", "err", err)
 				continue
 			}
 
 			if err = c.generateCaddyfile(containers); err != nil {
-				c.log.Info("Failed to generate Caddyfile configuration.", "err", err)
+				c.log.Error("Failed to generate Caddyfile configuration.", "err", err)
 			}
 			if err = c.generateJSONConfig(containers); err != nil {
-				c.log.Info("Failed to generate Caddy JSON configuration.", "err", err)
+				c.log.Error("Failed to generate Caddy JSON configuration.", "err", err)
 			}
 
 			c.log.Info("Updated Caddy configuration.", "dir", c.configDir)
@@ -110,12 +116,13 @@ func (c *Controller) filterAvailableContainers(
 }
 
 func (c *Controller) generateCaddyfile(containers []api.ServiceContainer) error {
-	caddyfile, err := GenerateCaddyfile(containers, c.verifyResponse)
+	caddyfile, err := c.generator.Generate(containers)
 	if err != nil {
 		return fmt.Errorf("generate Caddyfile: %w", err)
 	}
 	caddyfilePath := filepath.Join(c.configDir, "Caddyfile")
 
+	// TODO: use atomic file write to avoid partial loads on Caddy watch reload.
 	if err = os.WriteFile(caddyfilePath, []byte(caddyfile), 0o640); err != nil {
 		return fmt.Errorf("write Caddyfile to file '%s': %w", caddyfilePath, err)
 	}
@@ -127,7 +134,7 @@ func (c *Controller) generateCaddyfile(containers []api.ServiceContainer) error 
 }
 
 func (c *Controller) generateJSONConfig(containers []api.ServiceContainer) error {
-	config, err := GenerateJSONConfig(containers, c.verifyResponse)
+	config, err := GenerateJSONConfig(containers, c.machineID)
 	if err != nil {
 		return err
 	}

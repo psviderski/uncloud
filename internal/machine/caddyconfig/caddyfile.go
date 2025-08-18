@@ -45,7 +45,43 @@ https://{{$hostname}} {
 }{{end}}
 `
 
-func GenerateCaddyfile(containers []api.ServiceContainer, verifyResponse string) (string, error) {
+// CaddyfileGenerator generates a Caddyfile configuration for the Caddy reverse proxy.
+type CaddyfileGenerator struct {
+	// MachineID is the unique identifier of the machine where the controller is running.
+	MachineID string
+	Validator CaddyfileValidator
+}
+
+// CaddyfileValidator is an interface for validating Caddyfile configurations.
+type CaddyfileValidator interface {
+	Validate(caddyfile string) error
+}
+
+// Generate creates a Caddyfile configuration based on the provided service containers.
+// If a 'caddy' service container is running on this machine and defines a custom Caddy config (x-caddy) in its service
+// spec, it will be validated and prepended to the generated Caddyfile. Custom Caddy configs (x-caddy) defined in other
+// service specs are validated and appended to the generated Caddyfile. Invalid configs are logged and skipped to ensure
+// the generated Caddyfile remains valid.
+//
+// The final Caddyfile structure includes:
+//
+//	[caddy x-caddy]
+//	[generated Caddyfile from all service ports]
+//	[service-a x-caddy]
+//	...
+//	[service-z x-caddy]
+func (g *CaddyfileGenerator) Generate(containers []api.ServiceContainer) (string, error) {
+	baseCaddyfile, err := g.generateBaseFromPorts(containers)
+	if err != nil {
+		return "", fmt.Errorf("generate base Caddyfile from service ports: %w", err)
+	}
+
+	// TODO: Implement support for custom Caddy configs (x-caddy) in service specs.
+
+	return baseCaddyfile, nil
+}
+
+func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceContainer) (string, error) {
 	httpHostUpstreams, httpsHostUpstreams := httpUpstreamsFromContainers(containers)
 
 	funcs := template.FuncMap{"join": strings.Join}
@@ -61,7 +97,7 @@ func GenerateCaddyfile(containers []api.ServiceContainer, verifyResponse string)
 		HTTPSHostUpstreams map[string][]string
 	}{
 		VerifyPath:         VerifyPath,
-		VerifyResponse:     verifyResponse,
+		VerifyResponse:     g.MachineID,
 		HTTPHostUpstreams:  httpHostUpstreams,
 		HTTPSHostUpstreams: httpsHostUpstreams,
 	}
