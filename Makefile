@@ -66,6 +66,10 @@ ucind-image:
 ucind-multiarch-image-push:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(UCIND_IMAGE)" --target ucind .
 
+.PHONY: mocks
+mocks:
+	@mockery
+
 .PHONY: test
 test:
 ifeq ($(TEST_NAME),)

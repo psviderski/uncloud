@@ -1,0 +1,4 @@
+packages:
+  github.com/psviderski/uncloud/internal/machine/caddyconfig:
+    interfaces:
+      CaddyfileValidator:
