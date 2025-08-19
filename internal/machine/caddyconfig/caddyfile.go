@@ -2,13 +2,18 @@ package caddyconfig
 
 import (
 	"bytes"
+	"cmp"
+	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
 
+	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -47,14 +52,26 @@ https://{{$hostname}} {
 
 // CaddyfileGenerator generates a Caddyfile configuration for the Caddy reverse proxy.
 type CaddyfileGenerator struct {
-	// MachineID is the unique identifier of the machine where the controller is running.
-	MachineID string
-	Validator CaddyfileValidator
+	// machineID is the unique identifier of the machine where the controller is running.
+	machineID string
+	validator CaddyfileValidator
+	log       *slog.Logger
 }
 
 // CaddyfileValidator is an interface for validating Caddyfile configurations.
 type CaddyfileValidator interface {
-	Validate(caddyfile string) error
+	Validate(ctx context.Context, caddyfile string) error
+}
+
+func NewCaddyfileGenerator(machineID string, validator CaddyfileValidator, log *slog.Logger) *CaddyfileGenerator {
+	if log == nil {
+		log = slog.Default()
+	}
+	return &CaddyfileGenerator{
+		machineID: machineID,
+		validator: validator,
+		log:       log,
+	}
 }
 
 // Generate creates a Caddyfile configuration based on the provided service containers.
@@ -70,15 +87,87 @@ type CaddyfileValidator interface {
 //	[service-a x-caddy]
 //	...
 //	[service-z x-caddy]
-func (g *CaddyfileGenerator) Generate(containers []api.ServiceContainer) (string, error) {
-	baseCaddyfile, err := g.generateBaseFromPorts(containers)
+func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.ContainerRecord) (string, error) {
+	containers := make([]api.ServiceContainer, len(records))
+	for i, cr := range records {
+		containers[i] = cr.Container
+	}
+	// Sort containers by service name and container ID to generate a stable Caddyfile.
+	slices.SortFunc(containers, func(a, b api.ServiceContainer) int {
+		return cmp.Or(
+			strings.Compare(a.ServiceName(), b.ServiceName()),
+			strings.Compare(a.ID, b.ID),
+		)
+	})
+
+	caddyfile, err := g.generateBaseFromPorts(containers)
 	if err != nil {
 		return "", fmt.Errorf("generate base Caddyfile from service ports: %w", err)
 	}
 
-	// TODO: Implement support for custom Caddy configs (x-caddy) in service specs.
+	// Find the 'caddy' service container on this machine. Use the most recent one if multiple exist.
+	var caddyCtr *api.ServiceContainer
+	for _, cr := range records {
+		if cr.MachineID == g.machineID && cr.Container.ServiceName() == CaddyServiceName &&
+			(caddyCtr == nil || cr.Container.Created > caddyCtr.Created) {
+			caddyCtr = &cr.Container
+		}
+	}
 
-	return baseCaddyfile, nil
+	// If the caddy container is running on this machine and has a custom Caddy config, prepend it to the generated
+	// Caddyfile and validate it.
+	if caddyCtr != nil && caddyCtr.ServiceSpec.CaddyConfig() != "" {
+		// TODO: render the template actions in the Caddy config.
+		caddyfileCandidate := caddyCtr.ServiceSpec.CaddyConfig() + "\n\n" + caddyfile
+
+		if err = g.validator.Validate(ctx, caddyfileCandidate); err != nil {
+			g.log.Error("Custom Caddy config on the caddy container on this machine is invalid, skipping it.",
+				"service", caddyCtr.ServiceName(), "container", caddyCtr.ID, "err", err)
+		} else {
+			caddyfile = caddyfileCandidate
+		}
+	}
+
+	// There could be multiple service containers for the same service with different custom Caddy configs, for example,
+	// if the service has been partially updated. The most recent container for each service defines the current custom
+	// Caddy config for that service.
+	latestServiceContainers := make(map[string]api.ServiceContainer, len(containers))
+	for _, ctr := range containers {
+		if latest, ok := latestServiceContainers[ctr.ServiceName()]; ok {
+			if ctr.Created > latest.Created {
+				latestServiceContainers[ctr.ServiceName()] = ctr
+			}
+		} else {
+			latestServiceContainers[ctr.ServiceName()] = ctr
+		}
+	}
+	sortedServiceNames := slices.Sorted(maps.Keys(latestServiceContainers))
+
+	for _, serviceName := range sortedServiceNames {
+		// Skip the caddy container as we already processed it.
+		if serviceName == CaddyServiceName {
+			continue
+		}
+
+		ctr := latestServiceContainers[serviceName]
+		if ctr.ServiceSpec.CaddyConfig() == "" {
+			continue
+		}
+
+		// TODO: render the template actions in the Caddy config.
+		caddyfileCandidate := fmt.Sprintf("%s\n# Service: %s\n%s\n",
+			caddyfile, ctr.ServiceName(), ctr.ServiceSpec.CaddyConfig())
+
+		if err = g.validator.Validate(ctx, caddyfileCandidate); err != nil {
+			g.log.Error("Custom Caddy config for service is invalid, skipping it.",
+				"service", ctr.ServiceName(), "err", err)
+			continue
+		}
+
+		caddyfile = caddyfileCandidate
+	}
+
+	return caddyfile, nil
 }
 
 func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceContainer) (string, error) {
@@ -97,7 +186,7 @@ func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceConta
 		HTTPSHostUpstreams map[string][]string
 	}{
 		VerifyPath:         VerifyPath,
-		VerifyResponse:     g.MachineID,
+		VerifyResponse:     g.machineID,
 		HTTPHostUpstreams:  httpHostUpstreams,
 		HTTPSHostUpstreams: httpsHostUpstreams,
 	}
@@ -111,16 +200,12 @@ func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceConta
 }
 
 // httpUpstreamsFromContainers extracts upstreams for HTTP and HTTPS protocols from the published ports of the provided
-// service containers.
+// service containers. It's expected that all containers are healthy.
 func httpUpstreamsFromContainers(containers []api.ServiceContainer) (map[string][]string, map[string][]string) {
 	// Maps hostnames to lists of upstreams (container IP:port pairs).
 	httpHostUpstreams := make(map[string][]string)
 	httpsHostUpstreams := make(map[string][]string)
 	for _, ctr := range containers {
-		if !ctr.Healthy() {
-			continue
-		}
-
 		ip := ctr.UncloudNetworkIP()
 		if !ip.IsValid() {
 			// Container is not connected to the uncloud Docker network (could be host network).

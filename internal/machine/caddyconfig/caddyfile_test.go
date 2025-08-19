@@ -1,8 +1,10 @@
 package caddyconfig
 
 import (
+	"context"
 	"testing"
 
+	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,25 +26,24 @@ func TestCaddyfileGenerator(t *testing.T) {
 }
 `
 
-	generator := &CaddyfileGenerator{
-		MachineID: "test-machine-id",
-	}
+	// TODO: mock validator
+	generator := NewCaddyfileGenerator("test-machine-id", nil, nil)
 
 	tests := []struct {
 		name       string
-		containers []api.ServiceContainer
+		containers []store.ContainerRecord
 		want       string
 		wantErr    bool
 	}{
 		{
 			name:       "empty containers",
-			containers: []api.ServiceContainer{},
+			containers: []store.ContainerRecord{},
 			want:       caddyfileHeader,
 		},
 		{
 			name: "HTTP container",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2", "app.example.com:8080/http"),
+			containers: []store.ContainerRecord{
+				newContainerRecord(newContainer("10.210.0.2", "app.example.com:8080/http"), "mach1"),
 			},
 			want: caddyfileHeader + `
 http://app.example.com {
@@ -56,9 +57,9 @@ http://app.example.com {
 		},
 		{
 			name: "load balancing multiple containers",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2", "app.example.com:8080/http"),
-				newContainer("10.210.0.3", "app.example.com:8080/http"),
+			containers: []store.ContainerRecord{
+				newContainerRecord(newContainer("10.210.0.2", "app.example.com:8080/http"), "mach1"),
+				newContainerRecord(newContainer("10.210.0.3", "app.example.com:8080/http"), "mach1"),
 			},
 			want: caddyfileHeader + `
 http://app.example.com {
@@ -72,8 +73,8 @@ http://app.example.com {
 		},
 		{
 			name: "HTTPS container",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2", "secure.example.com:8000/https"),
+			containers: []store.ContainerRecord{
+				newContainerRecord(newContainer("10.210.0.2", "secure.example.com:8000/https"), "mach1"),
 			},
 			want: caddyfileHeader + `
 https://secure.example.com {
@@ -87,20 +88,32 @@ https://secure.example.com {
 		},
 		{
 			name: "mixed HTTP and HTTPS",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2",
-					"app.example.com:8080/http",
-					"web.example.com:8000/http"),
-				newContainer("10.210.0.3",
-					"app.example.com:8080/http",
-					"secure.example.com:8888/https"),
-				newContainer("10.210.0.4",
-					"web.example.com:8000/http",
-					"secure.example.com:8888/https"),
-				newContainer("10.210.0.5",
-					"app.example.com:8080/http",
-					"web.example.com:8000/http",
-					"secure.example.com:8888/https"),
+			containers: []store.ContainerRecord{
+				newContainerRecord(
+					newContainer("10.210.0.2",
+						"app.example.com:8080/http",
+						"web.example.com:8000/http"),
+					"mach1",
+				),
+				newContainerRecord(
+					newContainer("10.210.0.3",
+						"app.example.com:8080/http",
+						"secure.example.com:8888/https"),
+					"mach1",
+				),
+				newContainerRecord(
+					newContainer("10.210.0.4",
+						"web.example.com:8000/http",
+						"secure.example.com:8888/https"),
+					"mach1",
+				),
+				newContainerRecord(
+					newContainer("10.210.0.5",
+						"app.example.com:8080/http",
+						"web.example.com:8000/http",
+						"secure.example.com:8888/https"),
+					"mach1",
+				),
 			},
 			want: caddyfileHeader + `
 http://app.example.com {
@@ -130,63 +143,33 @@ https://secure.example.com {
 		},
 		{
 			name: "container without uncloud network ignored",
-			containers: []api.ServiceContainer{
-				newContainerWithoutNetwork("ignored.example.com:8080/http"),
+			containers: []store.ContainerRecord{
+				newContainerRecord(newContainerWithoutNetwork("ignored.example.com:8080/http"), "mach1"),
 			},
 			want: caddyfileHeader,
 		},
 		{
 			name: "container with invalid port ignored",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2", "invalid-port"),
+			containers: []store.ContainerRecord{
+				newContainerRecord(newContainer("10.210.0.2", "invalid-port"), "mach1"),
 			},
 			want: caddyfileHeader,
 		},
 		{
 			name: "containers with unsupported protocols and host mode ignored",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2", "5000/tcp"),
-				newContainer("10.210.0.3", "5000/udp"),
-				newContainer("10.210.0.4", "80:8080/tcp@host"),
+			containers: []store.ContainerRecord{
+				newContainerRecord(newContainer("10.210.0.2", "5000/tcp"), "mach1"),
+				newContainerRecord(newContainer("10.210.0.3", "5000/udp"), "mach1"),
+				newContainerRecord(newContainer("10.210.0.4", "80:8080/tcp@host"), "mach1"),
 			},
 			want: caddyfileHeader,
-		},
-		{
-			name: "restarting container ignored",
-			containers: []api.ServiceContainer{
-				newRestartingContainer("10.210.0.2", "app.example.com:8080/http"),
-			},
-			want: caddyfileHeader,
-		},
-		{
-			name: "stopped container ignored",
-			containers: []api.ServiceContainer{
-				newStoppedContainer("10.210.0.2", "app.example.com:8080/http"),
-			},
-			want: caddyfileHeader,
-		},
-		{
-			name: "mix of running, restarting, and stopped containers",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2", "app.example.com:8080/http"),
-				newRestartingContainer("10.210.0.3", "app.example.com:8080/http"),
-				newStoppedContainer("10.210.0.4", "app.example.com:8080/http"),
-			},
-			want: caddyfileHeader + `
-http://app.example.com {
-	reverse_proxy {
-		to 10.210.0.2:8080
-		import common_proxy
-	}
-	log
-}
-`,
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := generator.Generate(tt.containers)
+			config, err := generator.Generate(ctx, tt.containers)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -196,5 +179,12 @@ http://app.example.com {
 
 			assert.Equal(t, tt.want, config, "Generated Caddyfile doesn't match")
 		})
+	}
+}
+
+func newContainerRecord(ctr api.ServiceContainer, machineID string) store.ContainerRecord {
+	return store.ContainerRecord{
+		Container: ctr,
+		MachineID: machineID,
 	}
 }

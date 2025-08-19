@@ -312,68 +312,6 @@ func TestGenerateJSONConfig(t *testing.T) {
 			want:    configWithoutServices,
 			wantErr: false,
 		},
-		{
-			name: "restarting container ignored",
-			containers: []api.ServiceContainer{
-				newRestartingContainer("10.210.0.2", "app.example.com:8080/http"),
-			},
-			want:    configWithoutServices,
-			wantErr: false,
-		},
-		{
-			name: "stopped container ignored",
-			containers: []api.ServiceContainer{
-				newStoppedContainer("10.210.0.2", "app.example.com:8080/http"),
-			},
-			want:    configWithoutServices,
-			wantErr: false,
-		},
-		{
-			name: "mix of running, restarting, and stopped containers",
-			containers: []api.ServiceContainer{
-				newContainer("10.210.0.2", "app.example.com:8080/http"),
-				newRestartingContainer("10.210.0.3", "app.example.com:8080/http"),
-				newStoppedContainer("10.210.0.4", "app.example.com:8080/http"),
-			},
-			want: `{
-                "servers": {
-                    "http": {
-                        "listen": [":80"],
-                        "routes": [
-                            {
-                                "match": [{"host": ["app.example.com"]}],
-                                "handle": [{
-                                    "handler": "reverse_proxy",
-									"health_checks": {
-                                        "passive": {
-                                            "fail_duration": 30000000000
-                                        }
-                                    },
-                                    "load_balancing": {
-                                        "retries": 3
-                                    },
-                                    "upstreams": [{"dial": "10.210.0.2:8080"}]
-                                }]
-                            },
-                            {
-                                "match": [{"path": ["/.uncloud-verify"]}],
-                                "handle": [{
-                                    "body": "verification-response-body",
-                                    "handler": "static_response",
-                                    "status_code": 200
-                                }]
-                            }
-                        ],
-						"logs": {}
-                    },
-                    "https": {
-                        "listen": [":443"],
-						"logs": {}
-                    }
-                }
-            }`,
-			wantErr: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -438,16 +376,4 @@ func newContainerWithoutNetwork(ports ...string) api.ServiceContainer {
 			},
 		},
 	}}}
-}
-
-func newRestartingContainer(ip string, ports ...string) api.ServiceContainer {
-	ctr := newContainer(ip, ports...)
-	ctr.Container.State.Restarting = true
-	return ctr
-}
-
-func newStoppedContainer(ip string, ports ...string) api.ServiceContainer {
-	ctr := newContainer(ip, ports...)
-	ctr.Container.State.Running = false
-	return ctr
 }

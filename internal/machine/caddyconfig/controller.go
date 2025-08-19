@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	CaddyGroup = "uncloud"
-	VerifyPath = "/.uncloud-verify"
+	CaddyServiceName = "caddy"
+	CaddyGroup       = "uncloud"
+	VerifyPath       = "/.uncloud-verify"
 )
 
 // Controller monitors container changes in the cluster store and generates a configuration file for Caddy reverse
@@ -37,32 +38,28 @@ func NewController(machineID, configDir, adminSock string, store *store.Store) (
 		return nil, fmt.Errorf("change owner of directory for Caddy configuration '%s': %w", configDir, err)
 	}
 
-	generator := &CaddyfileGenerator{
-		MachineID: machineID,
-	}
+	log := slog.With("component", "caddy-controller")
+	validator := NewCaddyAdminValidator(adminSock)
+	generator := NewCaddyfileGenerator(machineID, validator, log)
 
 	return &Controller{
 		machineID: machineID,
 		configDir: configDir,
 		generator: generator,
 		store:     store,
-		log:       slog.With("component", "caddy-controller"),
+		log:       log,
 	}, nil
 }
 
 func (c *Controller) Run(ctx context.Context) error {
-	containerRecords, changes, err := c.store.SubscribeContainers(ctx)
+	containers, changes, err := c.store.SubscribeContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("subscribe to container changes: %w", err)
 	}
 	c.log.Info("Subscribed to container changes in the cluster to generate Caddy configuration.")
 
-	containers, err := c.filterAvailableContainers(containerRecords)
-	if err != nil {
-		return fmt.Errorf("filter available containers: %w", err)
-	}
-
-	if err = c.generateCaddyfile(containers); err != nil {
+	containers = filterHealthyContainers(containers)
+	if err = c.generateCaddyfile(ctx, containers); err != nil {
 		return fmt.Errorf("generate Caddyfile configuration: %w", err)
 	}
 	if err = c.generateJSONConfig(containers); err != nil {
@@ -77,18 +74,14 @@ func (c *Controller) Run(ctx context.Context) error {
 			}
 			c.log.Info("Cluster containers changed, updating Caddy configuration.")
 
-			containerRecords, err = c.store.ListContainers(ctx, store.ListOptions{})
+			containers, err = c.store.ListContainers(ctx, store.ListOptions{})
 			if err != nil {
 				c.log.Error("Failed to list containers.", "err", err)
 				continue
 			}
-			containers, err = c.filterAvailableContainers(containerRecords)
-			if err != nil {
-				c.log.Error("Failed to filter available containers.", "err", err)
-				continue
-			}
+			containers = filterHealthyContainers(containers)
 
-			if err = c.generateCaddyfile(containers); err != nil {
+			if err = c.generateCaddyfile(ctx, containers); err != nil {
 				c.log.Error("Failed to generate Caddyfile configuration.", "err", err)
 			}
 			if err = c.generateJSONConfig(containers); err != nil {
@@ -102,21 +95,22 @@ func (c *Controller) Run(ctx context.Context) error {
 	}
 }
 
-// filterAvailableContainers filters out containers from this machine that are likely unavailable. The availability
-// is determined by the cluster membership state of the machine that the container is running on.
-// TODO: implement machine membership check using Corrossion Admin client.
-func (c *Controller) filterAvailableContainers(
-	containerRecords []store.ContainerRecord,
-) ([]api.ServiceContainer, error) {
-	containers := make([]api.ServiceContainer, len(containerRecords))
-	for i, cr := range containerRecords {
-		containers[i] = cr.Container
+// filterHealthyContainers filters out containers that are not healthy.
+// TODO: Filters out containers from this machine that are likely unavailable. The availability can be determined
+// by the cluster membership state of the machine that the container is running on. Implement machine membership
+// check using Corrossion Admin client.
+func filterHealthyContainers(containers []store.ContainerRecord) []store.ContainerRecord {
+	healthy := make([]store.ContainerRecord, 0, len(containers))
+	for _, cr := range containers {
+		if cr.Container.Healthy() {
+			healthy = append(healthy, cr)
+		}
 	}
-	return containers, nil
+	return healthy
 }
 
-func (c *Controller) generateCaddyfile(containers []api.ServiceContainer) error {
-	caddyfile, err := c.generator.Generate(containers)
+func (c *Controller) generateCaddyfile(ctx context.Context, containers []store.ContainerRecord) error {
+	caddyfile, err := c.generator.Generate(ctx, containers)
 	if err != nil {
 		return fmt.Errorf("generate Caddyfile: %w", err)
 	}
@@ -133,8 +127,13 @@ func (c *Controller) generateCaddyfile(containers []api.ServiceContainer) error 
 	return nil
 }
 
-func (c *Controller) generateJSONConfig(containers []api.ServiceContainer) error {
-	config, err := GenerateJSONConfig(containers, c.machineID)
+func (c *Controller) generateJSONConfig(containers []store.ContainerRecord) error {
+	serviceContainers := make([]api.ServiceContainer, 0, len(containers))
+	for i, cr := range containers {
+		serviceContainers[i] = cr.Container
+	}
+
+	config, err := GenerateJSONConfig(serviceContainers, c.machineID)
 	if err != nil {
 		return err
 	}

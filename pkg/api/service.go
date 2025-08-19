@@ -62,6 +62,14 @@ type ServiceSpec struct {
 	Volumes []VolumeSpec
 }
 
+// CaddyConfig returns the Caddy reverse proxy configuration for the service or an empty string if it's not defined.
+func (s *ServiceSpec) CaddyConfig() string {
+	if s.Caddy == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.Caddy.Config)
+}
+
 func (s *ServiceSpec) Volume(name string) (VolumeSpec, bool) {
 	for _, v := range s.Volumes {
 		if v.Name == name {
