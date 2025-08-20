@@ -52,8 +52,7 @@ func TestCaddyfileGenerator(t *testing.T) {
 			},
 			want: caddyfileHeader + `
 http://app.example.com {
-	reverse_proxy {
-		to 10.210.0.2:8080
+	reverse_proxy 10.210.0.2:8080 {
 		import common_proxy
 	}
 	log
@@ -68,8 +67,7 @@ http://app.example.com {
 			},
 			want: caddyfileHeader + `
 http://app.example.com {
-	reverse_proxy {
-		to 10.210.0.2:8080 10.210.0.3:8080
+	reverse_proxy 10.210.0.2:8080 10.210.0.3:8080 {
 		import common_proxy
 	}
 	log
@@ -83,8 +81,7 @@ http://app.example.com {
 			},
 			want: caddyfileHeader + `
 https://secure.example.com {
-	reverse_proxy {
-		to 10.210.0.2:8000
+	reverse_proxy 10.210.0.2:8000 {
 		import common_proxy
 	}
 	log
@@ -122,24 +119,21 @@ https://secure.example.com {
 			},
 			want: caddyfileHeader + `
 http://app.example.com {
-	reverse_proxy {
-		to 10.210.0.2:8080 10.210.0.3:8080 10.210.0.5:8080
+	reverse_proxy 10.210.0.2:8080 10.210.0.3:8080 10.210.0.5:8080 {
 		import common_proxy
 	}
 	log
 }
 
 http://web.example.com {
-	reverse_proxy {
-		to 10.210.0.2:8000 10.210.0.4:8000 10.210.0.5:8000
+	reverse_proxy 10.210.0.2:8000 10.210.0.4:8000 10.210.0.5:8000 {
 		import common_proxy
 	}
 	log
 }
 
 https://secure.example.com {
-	reverse_proxy {
-		to 10.210.0.3:8888 10.210.0.4:8888 10.210.0.5:8888
+	reverse_proxy 10.210.0.3:8888 10.210.0.4:8888 10.210.0.5:8888 {
 		import common_proxy
 	}
 	log
@@ -399,8 +393,7 @@ web.example.com {
 
 ` + caddyfileBase + `
 http://app.example.com {
-	reverse_proxy {
-		to 10.210.0.2:8080
+	reverse_proxy 10.210.0.2:8080 {
 		import common_proxy
 	}
 	log
@@ -433,8 +426,7 @@ api.example.com {
 			},
 			want: caddyfileBase + `
 http://api.example.com {
-	reverse_proxy {
-		to 10.210.0.3:8080
+	reverse_proxy 10.210.0.3:8080 {
 		import common_proxy
 	}
 	log
@@ -580,7 +572,7 @@ gateway.example.com {
 
 	# Service with mixed containers (web) and advanced template
 	handle /web {
-		reverse_proxy {{- range $up := index .Upstreams "web"}} {{$up}}{{end}}
+		reverse_proxy {{- range $ip := index .Upstreams "web"}} https://{{$ip}}{{end}}
 	}
 
 	# Non-existent service
@@ -620,24 +612,21 @@ localhost:8080 {
 
 ` + caddyfileBase + `
 http://api.example.com {
-	reverse_proxy {
-		to 10.210.1.2:8080 10.210.2.2:8080 10.210.3.2:8080
+	reverse_proxy 10.210.1.2:8080 10.210.2.2:8080 10.210.3.2:8080 {
 		import common_proxy
 	}
 	log
 }
 
 http://app.example.com {
-	reverse_proxy {
-		to 10.210.1.6:3000 10.210.2.6:3000
+	reverse_proxy 10.210.1.6:3000 10.210.2.6:3000 {
 		import common_proxy
 	}
 	log
 }
 
 http://web.example.com {
-	reverse_proxy {
-		to 10.210.3.3:3000
+	reverse_proxy 10.210.3.3:3000 {
 		import common_proxy
 	}
 	log
@@ -677,7 +666,7 @@ gateway.example.com {
 
 	# Service with mixed containers (web) and advanced template
 	handle /web {
-		reverse_proxy 10.210.1.3 10.210.3.3 10.210.2.3
+		reverse_proxy https://10.210.1.3 https://10.210.3.3 https://10.210.2.3
 	}
 
 	# Non-existent service

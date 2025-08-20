@@ -17,7 +17,6 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
-// TODO: change upstreams from 'to' to the directive arguments.
 const caddyfileTemplate = `http:// {
 	handle {{.VerifyPath}} {
 		respond "{{.VerifyResponse}}" 200
@@ -34,8 +33,7 @@ const caddyfileTemplate = `http:// {
 {{- range $hostname, $upstreams := .HTTPHostUpstreams}}
 
 http://{{$hostname}} {
-	reverse_proxy {
-		to {{join $upstreams " "}}
+	reverse_proxy {{join $upstreams " "}} {
 		import common_proxy
 	}
 	log
@@ -43,8 +41,7 @@ http://{{$hostname}} {
 {{- range $hostname, $upstreams := .HTTPSHostUpstreams}}
 
 https://{{$hostname}} {
-	reverse_proxy {
-		to {{join $upstreams " "}}
+	reverse_proxy {{join $upstreams " "}} {
 		import common_proxy
 	}
 	log
