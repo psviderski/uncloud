@@ -38,7 +38,7 @@ demo-reset:
 
 .PHONY: ucind-cluster
 ucind-cluster:
-	go run ./cmd/ucind cluster rm && go run ./cmd/ucind cluster create -m 3
+	go run ./cmd/ucind cluster rm && go run ./cmd/ucind cluster create -m $(if $(MACHINES_COUNT),$(MACHINES_COUNT),3)
 
 .PHONY: proto
 proto:
