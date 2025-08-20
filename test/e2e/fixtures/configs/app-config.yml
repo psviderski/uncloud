@@ -1,17 +1,1 @@
-app:
-  name: "web-app"
-  version: "1.0.0"
-  debug: false
-  
-database:
-  host: "localhost"
-  port: 5432
-  name: "myapp"
-  
-cache:
-  enabled: true
-  ttl: 3600
-  
-logging:
-  level: "info"
-  format: "json"
+debug: true
