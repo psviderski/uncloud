@@ -571,14 +571,14 @@ func TestComposeDeployment(t *testing.T) {
 					{
 						Source: "nginx-config",
 						Target: "/etc/nginx/nginx.conf",
-						Mode:   func() *uint32 { m := uint32(0644); return &m }(),
+						Mode:   func() *uint32 { m := uint32(0o644); return &m }(),
 					},
 					{
 						Source: "app-config",
 						Target: "/app/config.yml",
 						UID:    "1000",
 						GID:    "1000",
-						Mode:   func() *uint32 { m := uint32(0600); return &m }(),
+						Mode:   func() *uint32 { m := uint32(0o600); return &m }(),
 					},
 				},
 			},

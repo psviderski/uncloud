@@ -106,7 +106,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	spec.Container.VolumeMounts = volumeMounts
 
 	// Parse configs
-	configSpecs, configMounts, err := configSpecsFromCompose(project.Configs, service.Configs)
+	configSpecs, configMounts, err := configSpecsFromCompose(project.Configs, service.Configs, project.WorkingDir)
 	if err != nil {
 		return spec, err
 	}

@@ -22,7 +22,7 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			name: "project-level config with file",
 			configs: types.Configs{
 				"app-config": types.ConfigObjConfig{
-					File: "/path/to/config.json",
+					File: "testdata/config1.txt",
 				},
 			},
 			serviceConfigs: []types.ServiceConfigObjConfig{
@@ -35,8 +35,9 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			},
 			expectedSpecs: []api.ConfigSpec{
 				{
-					Name: "app-config",
-					File: "/path/to/config.json",
+					Name:    "app-config",
+					File:    "testdata/config1.txt",
+					Content: "test config content\n",
 				},
 			},
 			expectedMounts: []api.ConfigMount{
@@ -52,27 +53,28 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			name: "config with mode",
 			configs: types.Configs{
 				"nginx-config": types.ConfigObjConfig{
-					File: "./nginx.conf",
+					File: "./testdata/nginx.conf",
 				},
 			},
 			serviceConfigs: []types.ServiceConfigObjConfig{
 				{
 					Source: "nginx-config",
 					Target: "/etc/nginx/nginx.conf",
-					Mode:   func() *uint32 { m := uint32(0644); return &m }(),
+					Mode:   func() *uint32 { m := uint32(0o644); return &m }(),
 				},
 			},
 			expectedSpecs: []api.ConfigSpec{
 				{
-					Name: "nginx-config",
-					File: "./nginx.conf",
+					Name:    "nginx-config",
+					File:    "./testdata/nginx.conf",
+					Content: "user nginx;\nworker_processes auto;\n",
 				},
 			},
 			expectedMounts: []api.ConfigMount{
 				{
 					Source: "nginx-config",
 					Target: "/etc/nginx/nginx.conf",
-					Mode:   func() *uint32 { m := uint32(0644); return &m }(),
+					Mode:   func() *uint32 { m := uint32(0o644); return &m }(),
 				},
 			},
 		},
@@ -80,7 +82,7 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configSpecs, configMounts, err := configSpecsFromCompose(tt.configs, tt.serviceConfigs)
+			configSpecs, configMounts, err := configSpecsFromCompose(tt.configs, tt.serviceConfigs, ".")
 
 			if tt.expectError {
 				require.Error(t, err)
