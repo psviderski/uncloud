@@ -5,6 +5,8 @@
 package caddyconfig
 
 import (
+	"context"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -36,16 +38,16 @@ func (_m *MockCaddyfileValidator) EXPECT() *MockCaddyfileValidator_Expecter {
 }
 
 // Validate provides a mock function for the type MockCaddyfileValidator
-func (_mock *MockCaddyfileValidator) Validate(caddyfile string) error {
-	ret := _mock.Called(caddyfile)
+func (_mock *MockCaddyfileValidator) Validate(ctx context.Context, caddyfile string) error {
+	ret := _mock.Called(ctx, caddyfile)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Validate")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string) error); ok {
-		r0 = returnFunc(caddyfile)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = returnFunc(ctx, caddyfile)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -58,19 +60,25 @@ type MockCaddyfileValidator_Validate_Call struct {
 }
 
 // Validate is a helper method to define mock.On call
+//   - ctx context.Context
 //   - caddyfile string
-func (_e *MockCaddyfileValidator_Expecter) Validate(caddyfile interface{}) *MockCaddyfileValidator_Validate_Call {
-	return &MockCaddyfileValidator_Validate_Call{Call: _e.mock.On("Validate", caddyfile)}
+func (_e *MockCaddyfileValidator_Expecter) Validate(ctx interface{}, caddyfile interface{}) *MockCaddyfileValidator_Validate_Call {
+	return &MockCaddyfileValidator_Validate_Call{Call: _e.mock.On("Validate", ctx, caddyfile)}
 }
 
-func (_c *MockCaddyfileValidator_Validate_Call) Run(run func(caddyfile string)) *MockCaddyfileValidator_Validate_Call {
+func (_c *MockCaddyfileValidator_Validate_Call) Run(run func(ctx context.Context, caddyfile string)) *MockCaddyfileValidator_Validate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -81,7 +89,7 @@ func (_c *MockCaddyfileValidator_Validate_Call) Return(err error) *MockCaddyfile
 	return _c
 }
 
-func (_c *MockCaddyfileValidator_Validate_Call) RunAndReturn(run func(caddyfile string) error) *MockCaddyfileValidator_Validate_Call {
+func (_c *MockCaddyfileValidator_Validate_Call) RunAndReturn(run func(ctx context.Context, caddyfile string) error) *MockCaddyfileValidator_Validate_Call {
 	_c.Call.Return(run)
 	return _c
 }

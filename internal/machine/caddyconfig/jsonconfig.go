@@ -18,7 +18,7 @@ import (
 )
 
 func GenerateJSONConfig(containers []api.ServiceContainer, verifyResponse string) (*caddy.Config, error) {
-	httpHostUpstreams, httpsHostUpstreams := httpUpstreamsFromContainers(containers)
+	httpHostUpstreams, httpsHostUpstreams := httpUpstreamsFromPorts(containers)
 
 	var warnings []caddyconfig.Warning
 	servers := make(map[string]*caddyhttp.Server)
