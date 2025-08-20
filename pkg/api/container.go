@@ -24,6 +24,20 @@ const (
 
 type Container struct {
 	types.ContainerJSON
+	// created caches the parsed creation time by CreatedTime.
+	created time.Time
+}
+
+// CreatedTime returns the time when the container was created parsed from the Created field.
+func (c *Container) CreatedTime() time.Time {
+	if c.created.IsZero() {
+		created, err := time.Parse(time.RFC3339Nano, c.Created)
+		if err != nil {
+			return time.Time{}
+		}
+		c.created = created
+	}
+	return c.created
 }
 
 // Healthy determines if the container is running and healthy.
