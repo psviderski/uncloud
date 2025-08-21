@@ -4,6 +4,7 @@ backend = "aqua:vektra/mockery"
 
 [tools."aqua:vektra/mockery".checksums]
 "mockery_3.5.3_Darwin_arm64.tar.gz" = "sha256:a3a94b14c7414e148f2252199ffc4a0108d311358f3d336cbe05bb73cb203704"
+"mockery_3.5.3_Linux_x86_64.tar.gz" = "sha256:ebce416b0175338525246c376885a1579ca6cd4d4015140ba0c70e6b5339a39c"
 
 [tools.go]
 version = "1.23.10"
