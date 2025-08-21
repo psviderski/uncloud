@@ -114,6 +114,8 @@ func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.Conta
 	}
 
 	upstreams := serviceUpstreams(containers)
+	// Track validation errors for reporting.
+	var configErrors []string
 
 	// Find the 'caddy' service container on this machine. Use the most recent one if multiple exist.
 	var caddyCtr *api.ServiceContainer
@@ -136,6 +138,8 @@ func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.Conta
 		if err != nil {
 			g.log.Error("Failed to render template directives in user-defined global Caddy config, skipping it.",
 				"service", caddyCtr.ServiceName(), "container", caddyCtr.ID, "err", err)
+			configErrors = append(configErrors,
+				fmt.Sprintf("service '%s': failed to render template: %v", caddyCtr.ServiceName(), err))
 		} else {
 			caddyfileCandidate := fmt.Sprintf("# User-defined global config from service '%s'.\n%s\n\n%s",
 				caddyCtr.ServiceName(), renderedConfig, caddyfile)
@@ -143,6 +147,8 @@ func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.Conta
 			if err = g.validator.Validate(ctx, caddyfileCandidate); err != nil {
 				g.log.Error("User-defined global Caddy config is invalid, skipping it.",
 					"service", caddyCtr.ServiceName(), "container", caddyCtr.ID, "err", err)
+				configErrors = append(configErrors,
+					fmt.Sprintf("service '%s': validation failed: %v", caddyCtr.ServiceName(), err))
 			} else {
 				caddyfile = caddyfileCandidate
 			}
@@ -186,6 +192,8 @@ func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.Conta
 		if err != nil {
 			g.log.Error("Failed to render template directives in user-defined Caddy config for service, skipping it.",
 				"service", serviceName, "err", err)
+			configErrors = append(configErrors,
+				fmt.Sprintf("service '%s': failed to render template: %v", serviceName, err))
 			continue
 		}
 
@@ -194,15 +202,21 @@ func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.Conta
 		if err = g.validator.Validate(ctx, caddyfileCandidate); err != nil {
 			g.log.Error("User-defined Caddy config for service is invalid, skipping it.",
 				"service", serviceName, "err", err)
+			configErrors = append(configErrors, fmt.Sprintf("service '%s': validation failed: %v", serviceName, err))
 		} else {
 			caddyfile = caddyfileCandidate
 		}
 	}
 
-	// TODO: add ac omment with invalid configs and their validation errors:
-	//  # Skipped invalid configs:
-	//  # - Service 'api': Template error in x-caddy
-	//  # - Service 'web': Invalid Caddyfile syntax
+	// Append error summary as comment if there were any invalid configs.
+	if len(configErrors) > 0 {
+		errorsComment := "# Skipped invalid user-defined configs:\n"
+		for _, e := range configErrors {
+			errorsComment += fmt.Sprintf("# - %s\n", e)
+		}
+
+		caddyfile += "\n" + errorsComment
+	}
 
 	return caddyfileHeader + "\n" + caddyfile, nil
 }

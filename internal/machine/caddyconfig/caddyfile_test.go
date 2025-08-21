@@ -297,7 +297,10 @@ bad.config.com {
 					time.Now(),
 				),
 			},
-			want: caddyfileBase,
+			want: caddyfileBase + `
+# Skipped invalid user-defined configs:
+# - service 'bad-service': validation failed: invalid config detected
+`,
 		},
 		{
 			name: "service with invalid config template is skipped",
@@ -313,7 +316,10 @@ bad.template.com {
 					time.Now(),
 				),
 			},
-			want: caddyfileBase,
+			want: caddyfileBase + `
+# Skipped invalid user-defined configs:
+# - service 'bad-template': failed to render template: parse config as Go template: template: Caddyfile:3: unexpected "}" in operand
+`,
 		},
 		{
 			name: "caddy service with invalid global config is skipped",
@@ -329,7 +335,10 @@ localhost {
 					time.Now(),
 				),
 			},
-			want: caddyfileBase,
+			want: caddyfileBase + `
+# Skipped invalid user-defined configs:
+# - service 'caddy': validation failed: invalid config detected
+`,
 		},
 		{
 			name: "caddy service on different machine is ignored",
@@ -389,6 +398,9 @@ api.example.com {
 web.example.com {
 	reverse_proxy web:3000
 }
+
+# Skipped invalid user-defined configs:
+# - service 'invalid-svc': validation failed: invalid config detected
 `,
 		},
 		{
@@ -756,6 +768,63 @@ gateway.example.com {
 web-v2.example.com {
 	reverse_proxy 10.210.1.3:8080 10.210.3.3:8080 10.210.2.3:8080
 }
+
+# Skipped invalid user-defined configs:
+# - service 'invalid': validation failed: invalid config detected
+`,
+		},
+		{
+			name: "multiple errors: invalid global, template error, and validation error",
+			containers: []store.ContainerRecord{
+				newContainerRecordWithCaddyConfig(
+					"caddy",
+					"10.210.0.1",
+					`# test:invalid
+{
+	invalid global
+}`,
+					"test-machine-id",
+					time.Now(),
+				),
+				newContainerRecordWithCaddyConfig(
+					"broken-template",
+					"10.210.0.2",
+					`broken.example.com {
+	reverse_proxy {{upstreams "missing
+}`,
+					"test-machine-id",
+					time.Now(),
+				),
+				newContainerRecordWithCaddyConfig(
+					"invalid",
+					"10.210.0.3",
+					`# test:invalid
+invalid.example.com {
+	respond "Invalid config"
+}`,
+					"test-machine-id",
+					time.Now(),
+				),
+				newContainerRecordWithCaddyConfig(
+					"valid",
+					"10.210.0.4",
+					`valid.example.com {
+	respond "Valid config"
+}`,
+					"test-machine-id",
+					time.Now(),
+				),
+			},
+			want: caddyfileBase + `
+# User-defined config for service 'valid'.
+valid.example.com {
+	respond "Valid config"
+}
+
+# Skipped invalid user-defined configs:
+# - service 'caddy': validation failed: invalid config detected
+# - service 'broken-template': failed to render template: parse config as Go template: template: Caddyfile:2: unterminated quoted string
+# - service 'invalid': validation failed: invalid config detected
 `,
 		},
 	}
