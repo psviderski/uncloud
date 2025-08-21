@@ -263,7 +263,8 @@ func NewMachine(config *Config) (*Machine, error) {
 	m.dockerServer = machinedocker.NewServer(dockerService, db, internalDNSIP,
 		machinedocker.WithNetworkReady(m.IsNetworkReady),
 		machinedocker.WithWaitForNetworkReady(m.WaitForNetworkReady))
-	m.localMachineServer = newGRPCServer(m, c, m.dockerServer)
+	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir))
+	m.localMachineServer = newGRPCServer(m, c, m.dockerServer, caddyServer)
 
 	if m.Initialised() {
 		m.initialised <- struct{}{}
@@ -272,11 +273,12 @@ func NewMachine(config *Config) (*Machine, error) {
 	return m, nil
 }
 
-func newGRPCServer(m pb.MachineServer, c pb.ClusterServer, d pb.DockerServer) *grpc.Server {
+func newGRPCServer(m pb.MachineServer, c pb.ClusterServer, d pb.DockerServer, caddy pb.CaddyServer) *grpc.Server {
 	s := grpc.NewServer()
 	pb.RegisterMachineServer(s, m)
 	pb.RegisterClusterServer(s, c)
 	pb.RegisterDockerServer(s, d)
+	pb.RegisterCaddyServer(s, caddy)
 	return s
 }
 

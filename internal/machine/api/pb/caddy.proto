@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service Caddy {
+  // GetConfig retrieves the current Caddy configuration from the machine.
+  rpc GetConfig(google.protobuf.Empty) returns (GetCaddyConfigResponse);
+}
+
+message GetCaddyConfigResponse {
+  // The generated Caddyfile content.
+  string caddyfile = 1;
+  // Timestamp when the config was last modified.
+  google.protobuf.Timestamp modified_at = 2;
+}

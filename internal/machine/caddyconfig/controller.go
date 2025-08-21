@@ -128,7 +128,7 @@ func (c *Controller) generateCaddyfile(ctx context.Context, containers []store.C
 }
 
 func (c *Controller) generateJSONConfig(containers []store.ContainerRecord) error {
-	serviceContainers := make([]api.ServiceContainer, 0, len(containers))
+	serviceContainers := make([]api.ServiceContainer, len(containers))
 	for i, cr := range containers {
 		serviceContainers[i] = cr.Container
 	}
