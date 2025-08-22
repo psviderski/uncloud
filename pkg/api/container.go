@@ -30,7 +30,7 @@ type Container struct {
 
 // CreatedTime returns the time when the container was created parsed from the Created field.
 func (c *Container) CreatedTime() time.Time {
-	if c.created.IsZero() {
+	if c.created.IsZero() && c.Created != "" {
 		created, err := time.Parse(time.RFC3339Nano, c.Created)
 		if err != nil {
 			return time.Time{}
@@ -212,4 +212,25 @@ func (c *ServiceContainer) ConflictingServicePorts(ports []PortSpec) ([]PortSpec
 	}
 
 	return conflicting, nil
+}
+
+// UnmarshalJSON implements custom unmarshalling for ServiceContainer to override the custom unmarshaler
+// of the embedded Container field.
+func (c *ServiceContainer) UnmarshalJSON(data []byte) error {
+	// Unmarshal everything except Container into a temporary struct. Keep this in sync with ServiceContainer.
+	var temp struct {
+		ServiceSpec ServiceSpec
+	}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Let Container's UnmarshalJSON handle its part.
+	if err := json.Unmarshal(data, &c.Container); err != nil {
+		return err
+	}
+
+	c.ServiceSpec = temp.ServiceSpec
+
+	return nil
 }
