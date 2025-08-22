@@ -10,6 +10,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "Manage Caddy reverse proxy service.",
 	}
 	cmd.AddCommand(
+		NewConfigCommand(),
 		NewDeployCommand(),
 	)
 	return cmd
