@@ -71,7 +71,7 @@ func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 			wantErr: "",
 		},
 		{
-			name: "invalid with both Caddy and Ports",
+			name: "invalid with Caddy and Ports (default mode is ingress)",
 			spec: ServiceSpec{
 				Name: "test",
 				Container: ContainerSpec{
@@ -84,10 +84,105 @@ func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 					{
 						ContainerPort: 80,
 						Protocol:      ProtocolHTTP,
+						// Mode is empty, defaults to ingress
 					},
 				},
 			},
-			wantErr: "ports and Caddy configuration cannot be specified simultaneously",
+			wantErr: "ingress ports and Caddy configuration cannot be specified simultaneously",
+		},
+		{
+			name: "invalid with both Caddy and ingress Ports",
+			spec: ServiceSpec{
+				Name: "test",
+				Container: ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Caddy: &CaddySpec{
+					Config: "example.com {\n  reverse_proxy :8080\n}",
+				},
+				Ports: []PortSpec{
+					{
+						ContainerPort: 80,
+						Protocol:      ProtocolHTTP,
+						Mode:          PortModeIngress,
+					},
+				},
+			},
+			wantErr: "ingress ports and Caddy configuration cannot be specified simultaneously",
+		},
+		{
+			name: "valid with Caddy and host mode Ports",
+			spec: ServiceSpec{
+				Name: "test",
+				Container: ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Caddy: &CaddySpec{
+					Config: "example.com {\n  reverse_proxy :8080\n}",
+				},
+				Ports: []PortSpec{
+					{
+						ContainerPort: 3306,
+						PublishedPort: 3306,
+						Protocol:      ProtocolTCP,
+						Mode:          PortModeHost,
+					},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "invalid with Caddy and mixed mode Ports",
+			spec: ServiceSpec{
+				Name: "test",
+				Container: ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Caddy: &CaddySpec{
+					Config: "example.com {\n  reverse_proxy :8080\n}",
+				},
+				Ports: []PortSpec{
+					{
+						ContainerPort: 3306,
+						PublishedPort: 3306,
+						Protocol:      ProtocolTCP,
+						Mode:          PortModeHost,
+					},
+					{
+						ContainerPort: 80,
+						Protocol:      ProtocolHTTP,
+						Mode:          PortModeIngress,
+					},
+				},
+			},
+			wantErr: "ingress ports and Caddy configuration cannot be specified simultaneously",
+		},
+		{
+			name: "valid with Caddy and multiple host mode Ports",
+			spec: ServiceSpec{
+				Name: "test",
+				Container: ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Caddy: &CaddySpec{
+					Config: "example.com {\n  reverse_proxy :8080\n}",
+				},
+				Ports: []PortSpec{
+					{
+						ContainerPort: 3306,
+						PublishedPort: 3306,
+						Protocol:      ProtocolTCP,
+						Mode:          PortModeHost,
+					},
+					{
+						ContainerPort: 5432,
+						PublishedPort: 5432,
+						Protocol:      ProtocolTCP,
+						Mode:          PortModeHost,
+					},
+				},
+			},
+			wantErr: "",
 		},
 	}
 

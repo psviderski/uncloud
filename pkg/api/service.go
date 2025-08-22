@@ -131,12 +131,6 @@ func (s *ServiceSpec) Validate() error {
 		}
 	}
 
-	// Validate that Caddy and Ports are not used together.
-	if s.Caddy != nil && strings.TrimSpace(s.Caddy.Config) != "" && len(s.Ports) > 0 {
-		return fmt.Errorf("ports and Caddy configuration cannot be specified simultaneously: " +
-			"Caddy config is auto-generated from ports, use only one of them")
-	}
-
 	for _, p := range s.Ports {
 		if (p.Mode == "" || p.Mode == PortModeIngress) &&
 			p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
@@ -145,6 +139,23 @@ func (s *ServiceSpec) Validate() error {
 	}
 
 	// TODO: validate there is no conflict between ports.
+
+	// Validate that Caddy and Ports are not used together, unless all ports are host mode.
+	if s.Caddy != nil && strings.TrimSpace(s.Caddy.Config) != "" && len(s.Ports) > 0 {
+		// Check if all ports are in host mode.
+		hasIngressPort := false
+		for _, p := range s.Ports {
+			if p.Mode == "" || p.Mode == PortModeIngress {
+				hasIngressPort = true
+				break
+			}
+		}
+		if hasIngressPort {
+			return fmt.Errorf("ingress ports and Caddy configuration cannot be specified simultaneously: " +
+				"Caddy config is auto-generated from ingress ports, use only one of them. " +
+				"Host mode ports can be used with Caddy config")
+		}
+	}
 
 	volumeNames := make(map[string]struct{})
 	for _, v := range s.Volumes {
