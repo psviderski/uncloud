@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 
@@ -18,9 +19,10 @@ import (
 )
 
 type deployOptions struct {
-	image    string
-	machines []string
-	context  string
+	caddyfile string
+	image     string
+	machines  []string
+	context   string
 }
 
 func NewDeployCommand() *cobra.Command {
@@ -37,6 +39,8 @@ func NewDeployCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&opts.caddyfile, "caddyfile", "",
+		"Path to a custom global Caddy config (Caddyfile) that will be prepended to the auto-generated Caddy config.")
 	cmd.Flags().StringVar(&opts.image, "image", "",
 		"Caddy Docker image to deploy. (default caddy:LATEST_VERSION)")
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
@@ -51,6 +55,15 @@ func NewDeployCommand() *cobra.Command {
 }
 
 func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
+	caddyfile := ""
+	if opts.caddyfile != "" {
+		data, err := os.ReadFile(opts.caddyfile)
+		if err != nil {
+			return fmt.Errorf("read Caddyfile: %w", err)
+		}
+		caddyfile = strings.TrimSpace(string(data))
+	}
+
 	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -91,7 +104,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	placement := api.Placement{
 		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
 	}
-	d, err := clusterClient.NewCaddyDeployment(opts.image, "", placement)
+	d, err := clusterClient.NewCaddyDeployment(opts.image, caddyfile, placement)
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}

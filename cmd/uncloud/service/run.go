@@ -17,6 +17,7 @@ import (
 )
 
 type runOptions struct {
+	caddyfile         string
 	command           []string
 	cpu               dockeropts.NanoCPUs
 	entrypoint        string
@@ -57,6 +58,9 @@ func NewRunCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&opts.caddyfile, "caddyfile", "",
+		"Path to a custom Caddy config (Caddyfile) for the service. "+
+			"Cannot be used together with non-@host published ports.")
 	cmd.Flags().VarP(&opts.cpu, "cpu", "",
 		"Maximum number of CPU cores a service container can use. Fractional values are allowed: "+
 			"0.5 for half a core or 2.25 for two and a quarter cores.")
@@ -161,6 +165,15 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 	var spec api.ServiceSpec
 
+	caddyfile := ""
+	if opts.caddyfile != "" {
+		data, err := os.ReadFile(opts.caddyfile)
+		if err != nil {
+			return spec, fmt.Errorf("read Caddyfile: %w", err)
+		}
+		caddyfile = strings.TrimSpace(string(data))
+	}
+
 	env, err := parseEnv(opts.env)
 	if err != nil {
 		return spec, err
@@ -216,6 +229,12 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 		Ports:     ports,
 		Replicas:  opts.replicas,
 		Volumes:   volumes,
+	}
+
+	if caddyfile != "" {
+		spec.Caddy = &api.CaddySpec{
+			Config: caddyfile,
+		}
 	}
 
 	// Overwrite the default ENTRYPOINT of the image or reset it if an empty string is passed.
