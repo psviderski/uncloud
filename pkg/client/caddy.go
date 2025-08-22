@@ -35,12 +35,23 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Command: []string{"caddy", "run", "-c", "/config/caddy.json", "--watch"},
-			Image:   image,
+			Command: []string{"caddy", "run", "-c", "/config/Caddyfile", "--watch"},
+			Env: map[string]string{
+				"CADDY_ADMIN": "unix//run/caddy/admin.sock",
+			},
+			Image: image,
 			VolumeMounts: []api.VolumeMount{
 				{
-					VolumeName:    "config",
+					VolumeName:    "data",
 					ContainerPath: "/config",
+				},
+				{
+					VolumeName:    "data",
+					ContainerPath: "/data",
+				},
+				{
+					VolumeName:    "run",
+					ContainerPath: "/run/caddy",
 				},
 			},
 		},
@@ -63,10 +74,18 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 		},
 		Volumes: []api.VolumeSpec{
 			{
-				Name: "config",
+				Name: "data",
 				Type: api.VolumeTypeBind,
 				BindOptions: &api.BindOptions{
 					HostPath: "/var/lib/uncloud/caddy",
+				},
+			},
+			{
+				Name: "run",
+				Type: api.VolumeTypeBind,
+				BindOptions: &api.BindOptions{
+					HostPath:       "/run/uncloud/caddy",
+					CreateHostPath: true,
 				},
 			},
 		},
