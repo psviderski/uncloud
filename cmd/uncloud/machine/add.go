@@ -146,7 +146,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 
 	// TODO: scale the existing Caddy service to the new machine instead of running a new deployment
 	//  that may cause a small downtime.
-	d, err := clusterClient.NewCaddyDeployment(caddyImage, api.Placement{})
+	d, err := clusterClient.NewCaddyDeployment(caddyImage, "", api.Placement{})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}
