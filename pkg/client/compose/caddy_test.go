@@ -141,7 +141,7 @@ services:
 			wantErr: "expected type 'string'",
 		},
 		{
-			name: "x-caddy with x-ports conflict",
+			name: "x-caddy with ingress x-ports conflict",
 			composeYAML: `
 services:
   web:
@@ -153,7 +153,26 @@ services:
     x-ports:
       - example.com:80/http
 `,
-			wantErr: "cannot specify both 'x-caddy' and 'x-ports'",
+			wantErr: "ingress ports in 'x-ports' and 'x-caddy' cannot be specified simultaneously",
+		},
+		{
+			name: "x-caddy with host-only x-ports allowed",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    x-caddy: |
+      example.com {
+        reverse_proxy web:80
+      }
+    x-ports:
+      - 8080:80@host
+      - 9090:90/tcp@host
+`,
+			wantConfig: `example.com {
+  reverse_proxy web:80
+}`,
+			// Should not error - host ports are allowed with x-caddy
 		},
 	}
 

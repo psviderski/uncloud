@@ -252,20 +252,26 @@ func tmpfsVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig) api.Vol
 // validateServicesExtensions validates extension combinations across all services in the project.
 func validateServicesExtensions(project *types.Project) error {
 	for _, service := range project.Services {
-		// Check for x-caddy and x-ports conflict.
+		// Check for x-caddy and x-ports conflict, unless all ports are host mode.
 		hasCaddy := false
 		if caddy, ok := service.Extensions[CaddyExtensionKey].(Caddy); ok && caddy.Config != "" {
 			hasCaddy = true
 		}
 
-		hasPorts := false
-		if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok && len(ports) > 0 {
-			hasPorts = true
-		}
-
-		if hasCaddy && hasPorts {
-			return fmt.Errorf("service '%s' cannot specify both 'x-caddy' and 'x-ports': "+
-				"Caddy config is auto-generated from ports, use only one of them", service.Name)
+		if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok && len(ports) > 0 && hasCaddy {
+			// Check if all ports are in host mode.
+			hasIngressPort := false
+			for _, p := range ports {
+				if p.Mode == "" || p.Mode == api.PortModeIngress {
+					hasIngressPort = true
+					break
+				}
+			}
+			if hasIngressPort {
+				return fmt.Errorf("service '%s': ingress ports in 'x-ports' and 'x-caddy' cannot be specified "+
+					"simultaneously: Caddy config is auto-generated from ingress ports, use only one of them. "+
+					"Host mode ports in 'x-caddy' can be used with 'x-caddy'", service.Name)
+			}
 		}
 	}
 
