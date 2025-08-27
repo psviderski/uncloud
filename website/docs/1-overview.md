@@ -67,7 +67,7 @@ Docker containers running on different machines get **unique IP addresses** from
 The design and implementation were highly inspired by
 Talos [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/).
 
-### Managed DNS service
+### Managed DNS service (optional)
 
 Uncloud can provide **managed DNS records** like `<service-name>.<cluster-id>.cluster.uncloud.run` for your public
 services through free [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service. You can deploy a service and
@@ -99,7 +99,7 @@ containers by their service names, `curl` service endpoints, or analyse traffic 
 
 ## Getting started
 
-Install Uncloud CLI and deploy your first app in minutes:
+Install Uncloud CLI and deploy your first app:
 
 * [Install Uncloud CLI](./2-getting-started/1-install-cli.md)
 * [Deploy demo app](./2-getting-started/2-deploy-demo-app.md)
