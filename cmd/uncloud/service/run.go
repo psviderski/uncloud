@@ -86,7 +86,7 @@ func NewRunCommand() *cobra.Command {
 		"Give extended privileges to service containers. This is a security risk and should be used with caution.")
 	cmd.Flags().StringSliceVarP(&opts.publish, "publish", "p", nil,
 		"Publish a service port to make it accessible outside the cluster. Can be specified multiple times.\n"+
-			"Format: [hostname:][load_balancer_port:]container_port[/protocol] or [host_ip:]:host_port:container_port[/protocol]@host\n"+
+			"Format: [hostname:]container_port[/protocol] or [host_ip:]host_port:container_port[/protocol]@host\n"+
 			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified\n"+
 			"and a cluster domain is reserved, service-name.cluster-domain will be used as the hostname.\n"+
 			"Examples:\n"+
