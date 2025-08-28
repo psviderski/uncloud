@@ -1,0 +1,30 @@
+# uc
+
+A CLI tool for managing Uncloud resources such as clusters, machines, and services.
+
+## Options
+
+```
+      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file.
+                                Format: [ssh://]user@host[:port] or tcp://host:port
+  -h, --help                    help for uc
+      --uncloud-config string   Path to the Uncloud configuration file. (default "~/.config/uncloud/config.yaml")
+```
+
+## See also
+
+* [uc build](uc_build.md)	 - Build services from a Compose file.
+* [uc caddy](uc_caddy.md)	 - Manage Caddy reverse proxy service.
+* [uc completion](uc_completion.md)	 - Generate the autocompletion script for the specified shell
+* [uc ctx](uc_ctx.md)	 - Switch between different cluster contexts. Contains subcommands to manage contexts.
+* [uc deploy](uc_deploy.md)	 - Deploy services from a Compose file.
+* [uc dns](uc_dns.md)	 - Manage cluster domain in Uncloud DNS.
+* [uc inspect](uc_inspect.md)	 - Display detailed information on a service.
+* [uc ls](uc_ls.md)	 - List services.
+* [uc machine](uc_machine.md)	 - Manage machines in an Uncloud cluster.
+* [uc rm](uc_rm.md)	 - Remove one or more services.
+* [uc run](uc_run.md)	 - Run a service.
+* [uc scale](uc_scale.md)	 - Scale a replicated service by changing the number of replicas.
+* [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
+* [uc volume](uc_volume.md)	 - Manage volumes in an Uncloud cluster.
+

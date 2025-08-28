@@ -1,0 +1,29 @@
+# uc machine
+
+Manage machines in an Uncloud cluster.
+
+## Options
+
+```
+  -h, --help   help for machine
+```
+
+## Options inherited from parent commands
+
+```
+      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file.
+                                Format: [ssh://]user@host[:port] or tcp://host:port
+      --uncloud-config string   Path to the Uncloud configuration file. (default "~/.config/uncloud/config.yaml")
+```
+
+## See also
+
+* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as clusters, machines, and services.
+* [uc machine add](uc_machine_add.md)	 - Add a remote machine to a cluster.
+* [uc machine init](uc_machine_init.md)	 - Initialise a new cluster with a remote machine as the first member.
+* [uc machine ls](uc_machine_ls.md)	 - List machines in a cluster.
+* [uc machine rename](uc_machine_rename.md)	 - Rename a machine in the cluster.
+* [uc machine rm](uc_machine_rm.md)	 - Remove a machine from a cluster and reset it.
+* [uc machine token](uc_machine_token.md)	 - Print the local machine's token for adding it to a cluster.
+* [uc machine update](uc_machine_update.md)	 - Update machine configuration in the cluster.
+

@@ -27,7 +27,7 @@ type globalOptions struct {
 func main() {
 	opts := globalOptions{}
 	cmd := &cobra.Command{
-		Use:           "uncloud",
+		Use:           "uc",
 		Short:         "A CLI tool for managing Uncloud resources such as clusters, machines, and services.",
 		Version:       version.String(),
 		SilenceUsage:  true,
@@ -75,6 +75,7 @@ func main() {
 
 	cmd.AddCommand(
 		NewDeployCommand(),
+		NewDocsCommand(),
 		NewBuildCommand(),
 		caddy.NewRootCommand(),
 		cmdcontext.NewRootCommand(),

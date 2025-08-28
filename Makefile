@@ -115,3 +115,6 @@ _lint:
 # Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
 	GOOS=linux golangci-lint run $(ARGS)
 
+.PHONY: cli-docs
+cli-docs:
+	go run ./cmd/uncloud docs
