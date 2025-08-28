@@ -106,5 +106,5 @@ func postProcessMarkdown(filename string) error {
 		content = re.ReplaceAllString(content, r.new)
 	}
 
-	return os.WriteFile(filename, []byte(content), 0644)
+	return os.WriteFile(filename, []byte(content), 0o644)
 }
