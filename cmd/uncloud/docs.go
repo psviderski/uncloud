@@ -91,6 +91,18 @@ func postProcessMarkdown(filename string) error {
 	// Escape <id> to avoid Docusaurus treating it as an HTML tag.
 	content = strings.ReplaceAll(content, "<id>", "\\<id>")
 
+	// Remove broken links to completion docs.
+	if strings.Contains(content, "[uc completion") {
+		lines := strings.Split(content, "\n")
+		var filteredLines []string
+		for _, line := range lines {
+			if !strings.Contains(line, "[uc completion") {
+				filteredLines = append(filteredLines, line)
+			}
+		}
+		content = strings.Join(filteredLines, "\n")
+	}
+
 	// Adjust heading levels. Process from shortest to longest to avoid double replacements.
 	replacements := []struct {
 		old, new string

@@ -15,7 +15,6 @@ A CLI tool for managing Uncloud resources such as clusters, machines, and servic
 
 * [uc build](uc_build.md)	 - Build services from a Compose file.
 * [uc caddy](uc_caddy.md)	 - Manage Caddy reverse proxy service.
-* [uc completion](uc_completion.md)	 - Generate the autocompletion script for the specified shell
 * [uc ctx](uc_ctx.md)	 - Switch between different cluster contexts. Contains subcommands to manage contexts.
 * [uc deploy](uc_deploy.md)	 - Deploy services from a Compose file.
 * [uc dns](uc_dns.md)	 - Manage cluster domain in Uncloud DNS.
