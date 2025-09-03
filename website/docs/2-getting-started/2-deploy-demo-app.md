@@ -318,8 +318,126 @@ Give it a moment for Caddy to obtain a TLS certificate, then visit https://excal
 
 ## Clean up
 
-TBD
+When you're done experimenting, you can remove the `excalidraw` service or uninstall Uncloud completely.
 
-## Next steps
+### Remove the service
 
-TBD
+Remove the `excalidraw` service while keeping your Uncloud machine running for future deployments:
+
+```shell
+uc rm excalidraw
+```
+
+### Uninstall Uncloud
+
+If you want to completely uninstall Uncloud from your server and clean up everything it created, SSH into your server
+and run:
+
+```shell
+sudo uncloud-uninstall
+```
+
+This command will:
+
+- Remove all Uncloud-managed containers (including Caddy)
+- Remove the Uncloud-managed Docker and WireGuard networks
+- Uninstall the Uncloud daemon from the server
+
+<details>
+<summary>💡 Expand to see example output</summary>
+
+```
+⚠️This script will uninstall Uncloud and remove ALL Uncloud managed containers on this machine.
+The following actions will be performed:
+- Remove Uncloud systemd services
+- Remove Uncloud binaries and data
+- Remove Uncloud user and group
+- Remove all Docker containers managed by Uncloud
+- Remove Uncloud Docker network
+- Remove Uncloud WireGuard interface
+Do you want to proceed with uninstallation? [y/N] y
+⏳ Stopping systemd services...
+Removed "/etc/systemd/system/multi-user.target.wants/uncloud.service".
+The unit files have no installation config (WantedBy=, RequiredBy=, UpheldBy=,
+Also=, or Alias= settings in the [Install] section, and DefaultInstance= for
+template units). This means they are not meant to be enabled or disabled using systemctl.
+
+Possible reasons for having these kinds of units are:
+• A unit may be statically enabled by being symlinked from another unit's
+  .wants/, .requires/, or .upholds/ directory.
+• A unit's purpose may be to act as a helper for some other unit which has
+  a requirement dependency on it.
+• A unit may be started when needed via activation (socket, path, timer,
+  D-Bus, udev, scripted systemctl call, ...).
+• In case of template units, the unit is meant to be enabled with some
+  instance name specified.
+✓ Systemd services stopped.
+⏳ Removing systemd service files...
+removed '/etc/systemd/system/uncloud.service'
+removed '/etc/systemd/system/uncloud-corrosion.service'
+✓ Systemd service files removed.
+⏳ Removing binaries...
+removed '/usr/local/bin/uncloudd'
+removed '/usr/local/bin/uncloud-corrosion'
+✓ Binaries removed.
+⏳ Removing data and run directories...
+removed '/var/lib/uncloud/machine.db-wal'
+removed '/var/lib/uncloud/caddy/caddy/autosave.json'
+removed directory '/var/lib/uncloud/caddy/caddy'
+removed '/var/lib/uncloud/caddy/caddy.json'
+removed directory '/var/lib/uncloud/caddy'
+removed '/var/lib/uncloud/machine.json'
+removed '/var/lib/uncloud/machine.db-shm'
+removed '/var/lib/uncloud/corrosion/admin.sock'
+removed '/var/lib/uncloud/corrosion/config.toml'
+removed '/var/lib/uncloud/corrosion/subscriptions/b4e825113f1143e5b27715b62193a9f8/sub.sqlite-wal'
+removed '/var/lib/uncloud/corrosion/subscriptions/b4e825113f1143e5b27715b62193a9f8/sub.sqlite-shm'
+removed '/var/lib/uncloud/corrosion/subscriptions/b4e825113f1143e5b27715b62193a9f8/sub.sqlite'
+removed directory '/var/lib/uncloud/corrosion/subscriptions/b4e825113f1143e5b27715b62193a9f8'
+removed '/var/lib/uncloud/corrosion/subscriptions/5e04cbb20a2743c382cfbd4949922351/sub.sqlite'
+removed directory '/var/lib/uncloud/corrosion/subscriptions/5e04cbb20a2743c382cfbd4949922351'
+removed directory '/var/lib/uncloud/corrosion/subscriptions'
+removed '/var/lib/uncloud/corrosion/schema.sql'
+removed '/var/lib/uncloud/corrosion/store.db'
+removed directory '/var/lib/uncloud/corrosion'
+removed '/var/lib/uncloud/machine.db'
+removed directory '/var/lib/uncloud'
+removed directory '/run/uncloud'
+✓ Data and run directories removed.
+⏳ Removing Linux user and group...
+✓ Linux user 'uncloud' removed.
+Linux group 'uncloud' does not exist or was already removed.
+⏳ Looking for Docker containers and network created by Uncloud...
+Found 4 Uncloud managed containers.
+⏳ Stopping Uncloud managed containers...
+20613f6046d0
+1f1a65b78e93
+4300bde4a2b0
+053fdd57ec56
+⏳ Removing Uncloud managed containers...
+20613f6046d0
+1f1a65b78e93
+4300bde4a2b0
+053fdd57ec56
+✓ Uncloud managed containers stopped and removed.
+⏳ Removing Docker network uncloud...
+uncloud
+✓ Docker network uncloud removed.
+⏳ Removing WireGuard interface uncloud...
+✓ WireGuard interface uncloud removed.
+⏳ Removing uninstall script...
+removed '/usr/local/bin/uncloud-uninstall'
+✓ Uninstall script removed.
+
+✅ Uncloud has been uninstalled successfully!
+Note: Docker installation was preserved. If you want to completely remove Docker as well, follow https://docs.docker.com/engine/install/ubuntu/#uninstall-docker-engine
+```
+
+</details>
+
+## Further reading
+
+- **[Add more machines](../9-cli-reference/uc_machine_add.md)**: Scale horizontally by creating a cluster of machines
+- **[Ingress & HTTP](../3-concepts/1-ingress/1-overview.md)**: Learn how Uncloud handles incoming traffic and how to
+  expose your services to the internet
+- **[CLI reference](../9-cli-reference/uc.md)**: Explore all available commands and options
