@@ -1,8 +1,7 @@
 services:
   web:
-    image: portainer/pause:3.9
-    environment:
-      - APP_ENV=production
+    image: busybox:1.37.0-uclibc
+    command: ["true"]
     configs:
       - source: from-file
         target: /etc/config-from-file.conf

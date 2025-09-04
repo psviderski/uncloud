@@ -19,10 +19,10 @@ func TestComposeConfigs(t *testing.T) {
 	ctx := context.Background()
 	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 1}, true)
 
-	cli, err := c.Machines[0].Connect(ctx)
+	machine := c.Machines[0]
+	cli, err := machine.Connect(ctx)
 	require.NoError(t, err)
 
-	// Get absolute path to the current directory to be able to reference compose files relatively.
 	currentDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 
@@ -55,10 +55,8 @@ func TestComposeConfigs(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
-				Env: map[string]string{
-					"APP_ENV": "production",
-				},
-				Image: "portainer/pause:3.9",
+				Command: []string{"true"},
+				Image:   "busybox:1.37.0-uclibc",
 				ConfigMounts: []api.ConfigMount{
 					{
 						Source: "from-file",
@@ -96,5 +94,22 @@ func TestComposeConfigs(t *testing.T) {
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 0, "Expected no new operations after configs deployment")
+
+		// Verify the config files are actually created in the container and contain expected content
+		containerName := svc.Containers[0].Container.Name
+
+		configContentFirst, err := readFileInfoInContainer(t, &machine, containerName, "/etc/config-from-file.conf")
+		require.NoError(t, err)
+		assert.Equal(t, fileInfo{
+			permissions: 0o644,
+			content:     "this is file config\n",
+		}, configContentFirst)
+
+		configContentSecond, err := readFileInfoInContainer(t, &machine, containerName, "/etc/config-inline.conf")
+		require.NoError(t, err)
+		assert.Equal(t, fileInfo{
+			permissions: 0o600,
+			content:     "this is inline config\n",
+		}, configContentSecond)
 	})
 }
