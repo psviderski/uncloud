@@ -60,6 +60,8 @@ type ServiceSpec struct {
 	Replicas uint `json:",omitempty"`
 	// Volumes is list of data volumes that can be mounted into the container.
 	Volumes []VolumeSpec
+	// Configs is list of configuration objects that can be mounted into the container.
+	Configs []ConfigSpec
 }
 
 // CaddyConfig returns the Caddy reverse proxy configuration for the service or an empty string if it's not defined.
@@ -77,6 +79,15 @@ func (s *ServiceSpec) Volume(name string) (VolumeSpec, bool) {
 		}
 	}
 	return VolumeSpec{}, false
+}
+
+func (s *ServiceSpec) Config(name string) (ConfigSpec, bool) {
+	for _, c := range s.Configs {
+		if c.Name == name {
+			return c, true
+		}
+	}
+	return ConfigSpec{}, false
 }
 
 // MountedDockerVolumes returns the list of volumes of VolumeTypeVolume type that are mounted into the container.
@@ -230,6 +241,9 @@ type ContainerSpec struct {
 	// VolumeMounts specifies how volumes are mounted into the container filesystem.
 	// Each mount references a volume defined in ServiceSpec.Volumes.
 	VolumeMounts []VolumeMount
+	// ConfigMounts specifies how configs are mounted into the container filesystem.
+	// Each mount references a config defined in ServiceSpec.Configs.
+	ConfigMounts []ConfigMount
 	// Volumes is list of data volumes to mount into the container.
 	// TODO(lhf): delete all usage, has been replaced with []VolumeMounts.
 	Volumes []string
