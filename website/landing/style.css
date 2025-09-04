@@ -2203,6 +2203,10 @@ input[type="search"]::-webkit-search-results-decoration {
     margin-right: 0.25rem;
   }
 
+  .sm\:block{
+    display: block;
+  }
+
   .sm\:inline{
     display: inline;
   }
