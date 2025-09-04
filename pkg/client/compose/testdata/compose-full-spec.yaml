@@ -20,9 +20,6 @@ services:
     pull_policy: always
     scale: 3
     user: nginx:nginx
-    configs:
-      - source: config1
-        target: /etc/config1
     volumes:
       - /etc/passwd:/host/etc/passwd:ro
       - data1:/data1
@@ -54,11 +51,3 @@ volumes:
     driver: local
   data-external:
     external: true
-
-configs:
-  config1:
-    file: ./config1.txt
-  config2:
-    content: |
-      test config content line 1
-      test config content line 2
