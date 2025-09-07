@@ -713,7 +713,7 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 		// Determine file mode
 		fileMode := os.FileMode(0o644) // Default permissions
 		if mount.Mode != nil {
-			fileMode = os.FileMode(*mount.Mode)
+			fileMode = *mount.Mode
 		}
 
 		// Copy the config content directly into the container

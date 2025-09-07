@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"os"
 	"testing"
 
 	"github.com/compose-spec/compose-go/v2/types"
@@ -74,7 +75,7 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 				{
 					ConfigName:    "nginx-config",
 					ContainerPath: "/etc/nginx/nginx.conf",
-					Mode:          func() *uint32 { m := uint32(0o644); return &m }(),
+					Mode:          func() *os.FileMode { m := os.FileMode(0o644); return &m }(),
 				},
 			},
 		},

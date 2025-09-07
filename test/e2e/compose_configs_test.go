@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -60,14 +61,14 @@ func TestComposeConfigs(t *testing.T) {
 					{
 						ConfigName:    "from-file",
 						ContainerPath: "/etc/config-from-file.conf",
-						Mode:          func() *uint32 { m := uint32(0o644); return &m }(),
+						Mode:          func() *os.FileMode { m := os.FileMode(0o644); return &m }(),
 					},
 					{
 						ConfigName:    "from-inline",
 						ContainerPath: "/etc/config-inline.conf",
 						UID:           "1000",
 						GID:           "1000",
-						Mode:          func() *uint32 { m := uint32(0o600); return &m }(),
+						Mode:          func() *os.FileMode { m := os.FileMode(0o600); return &m }(),
 					},
 				},
 			},
