@@ -42,7 +42,6 @@ func TestComposeConfigs(t *testing.T) {
 
 		plan, err := deploy.Plan(ctx)
 		require.NoError(t, err)
-		// Should plan to deploy 1 service (configs are parsed but not yet deployed by uncloud)
 		assert.Len(t, plan.Operations, 1, "Expected 1 service deployment")
 
 		err = deploy.Run(ctx)

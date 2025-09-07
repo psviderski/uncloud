@@ -65,7 +65,7 @@ func configSpecsFromCompose(
 		}
 
 		if serviceConfig.Mode != nil {
-			mode := *serviceConfig.Mode
+			mode := os.FileMode(*serviceConfig.Mode)
 			mount.Mode = &mode
 		}
 

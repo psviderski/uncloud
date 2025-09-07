@@ -1,7 +1,10 @@
 // Implementation of Config feature from the Compose spec
 package api
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // ConfigSpec defines a configuration object that can be mounted into containers
 type ConfigSpec struct {
@@ -49,7 +52,7 @@ type ConfigMount struct {
 	// GID for the mounted config file
 	GID string `json:"gid,omitempty"`
 	// Mode (file permissions) for the mounted config file
-	Mode *uint32 `json:"mode,omitempty"`
+	Mode *os.FileMode `json:"mode,omitempty"`
 }
 
 func (c *ConfigMount) Validate() error {
