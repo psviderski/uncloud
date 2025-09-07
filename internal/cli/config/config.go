@@ -53,6 +53,10 @@ func (c *Config) Read() error {
 
 func (c *Config) Save() error {
 	dir, _ := filepath.Split(c.path)
+	// If dir is empty (e.g., when path is just a filename), use current directory
+	if dir == "" {
+		dir = "."
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create config directory '%s': %w", dir, err)
 	}
