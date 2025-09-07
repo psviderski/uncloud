@@ -27,7 +27,9 @@ assignees: ""
 - Uncloud versions:
   - Control (client) node (`uc --version`):
   - Uncloud daemon (from the server) (`uncloudd --version`):
-- OS version: <!-- e.g. macOS 14.5 or Ubuntu 24.04 -->
+- OS version (`uname -a`):
+  - Client (control node):
+  - Server:
 
 **Additional context**
 
