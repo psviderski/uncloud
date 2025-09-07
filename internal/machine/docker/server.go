@@ -698,15 +698,16 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 
 	// Process each config mount
 	for _, mount := range mounts {
-		config, exists := configMap[mount.Source]
+		config, exists := configMap[mount.ConfigName]
 		if !exists {
-			return fmt.Errorf("config mount references a config that doesn't exist: '%s'", mount.Source)
+			return fmt.Errorf("config mount references a config that doesn't exist: '%s'", mount.ConfigName)
 		}
 
 		// Determine target path in container
-		targetPath := mount.Target
+		targetPath := mount.ContainerPath
 		if targetPath == "" {
-			targetPath = "/" + mount.Source
+			// This is the default from the Compose spec
+			targetPath = "/" + mount.ConfigName
 		}
 
 		// Determine file mode

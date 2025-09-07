@@ -42,10 +42,10 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			},
 			expectedMounts: []api.ConfigMount{
 				{
-					Source: "app-config",
-					Target: "/app/config.json",
-					UID:    "1000",
-					GID:    "1000",
+					ConfigName:    "app-config",
+					ContainerPath: "/app/config.json",
+					UID:           "1000",
+					GID:           "1000",
 				},
 			},
 		},
@@ -72,9 +72,9 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			},
 			expectedMounts: []api.ConfigMount{
 				{
-					Source: "nginx-config",
-					Target: "/etc/nginx/nginx.conf",
-					Mode:   func() *uint32 { m := uint32(0o644); return &m }(),
+					ConfigName:    "nginx-config",
+					ContainerPath: "/etc/nginx/nginx.conf",
+					Mode:          func() *uint32 { m := uint32(0o644); return &m }(),
 				},
 			},
 		},

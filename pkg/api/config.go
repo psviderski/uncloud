@@ -40,24 +40,20 @@ func (c *ConfigSpec) Equals(other ConfigSpec) bool {
 
 // ConfigMount defines how a config is mounted into a container
 type ConfigMount struct {
-	// Source is the name of the config
-	Source string `json:"source"`
-
-	// Target path inside the container (defaults to /<source> if not specified)
-	Target string `json:"target,omitempty"`
-
+	// ConfigName references a config defined in ServiceSpec.Configs by its Name field
+	ConfigName string `json:"source"`
+	// ContainerPath is the absolute path where the config is mounted in the container
+	ContainerPath string `json:"target,omitempty"`
 	// UID for the mounted config file
 	UID string `json:"uid,omitempty"`
-
 	// GID for the mounted config file
 	GID string `json:"gid,omitempty"`
-
 	// Mode (file permissions) for the mounted config file
 	Mode *uint32 `json:"mode,omitempty"`
 }
 
 func (c *ConfigMount) Validate() error {
-	if c.Source == "" {
+	if c.ConfigName == "" {
 		return fmt.Errorf("config mount source is required")
 	}
 	return nil
@@ -81,8 +77,8 @@ func ValidateConfigsAndMounts(configs []ConfigSpec, mounts []ConfigMount) error 
 		if err := mount.Validate(); err != nil {
 			return fmt.Errorf("invalid config mount: %w", err)
 		}
-		if _, exists := configMap[mount.Source]; !exists {
-			return fmt.Errorf("config mount source '%s' does not refer to any defined config", mount.Source)
+		if _, exists := configMap[mount.ConfigName]; !exists {
+			return fmt.Errorf("config mount source '%s' does not refer to any defined config", mount.ConfigName)
 		}
 	}
 

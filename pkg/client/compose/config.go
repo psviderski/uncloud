@@ -58,10 +58,10 @@ func configSpecsFromCompose(
 		}
 
 		mount := api.ConfigMount{
-			Source: spec.Name,
-			Target: target,
-			UID:    serviceConfig.UID,
-			GID:    serviceConfig.GID,
+			ConfigName:    spec.Name,
+			ContainerPath: target,
+			UID:           serviceConfig.UID,
+			GID:           serviceConfig.GID,
 		}
 
 		if serviceConfig.Mode != nil {
