@@ -168,6 +168,7 @@ func (s *ServiceSpec) Validate() error {
 		}
 	}
 
+	// Validate volumes
 	volumeNames := make(map[string]struct{})
 	for _, v := range s.Volumes {
 		if err := v.Validate(); err != nil {
@@ -186,6 +187,11 @@ func (s *ServiceSpec) Validate() error {
 			return fmt.Errorf("volume mount references a volume that doesn't exist in the service spec: '%s'",
 				m.VolumeName)
 		}
+	}
+
+	// Validate configs
+	if err := ValidateConfigsAndMounts(s.Configs, s.Container.ConfigMounts); err != nil {
+		return fmt.Errorf("validate service spec: %w", err)
 	}
 
 	return nil

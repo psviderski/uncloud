@@ -1,9 +1,10 @@
 // Implementation of Config feature from the Compose spec
 package api
 
+import "fmt"
+
 // ConfigSpec defines a configuration object that can be mounted into containers
 type ConfigSpec struct {
-	// Do we need this, if external is not supported yet?
 	Name string `json:"name"`
 
 	// File path (when External is false)
@@ -21,6 +22,20 @@ type ConfigSpec struct {
 	// Labels map[string]string `json:"labels,omitempty"`
 
 	// TODO: add support for "environment"
+}
+
+func (c *ConfigSpec) Validate() error {
+	if c.Name == "" {
+		return fmt.Errorf("config name is required")
+	}
+	return nil
+}
+
+// Equals compares two ConfigSpec instances
+func (c *ConfigSpec) Equals(other ConfigSpec) bool {
+	return c.Name == other.Name &&
+		c.File == other.File &&
+		c.Content == other.Content
 }
 
 // ConfigMount defines how a config is mounted into a container
@@ -41,11 +56,35 @@ type ConfigMount struct {
 	Mode *uint32 `json:"mode,omitempty"`
 }
 
-// Equals compares two ConfigSpec instances
-func (c ConfigSpec) Equals(other ConfigSpec) bool {
-	return c.Name == other.Name &&
-		c.File == other.File &&
-		c.Content == other.Content
-	// c.External == other.External &&
-	// mapsEqual(c.Labels, other.Labels)
+func (c *ConfigMount) Validate() error {
+	if c.Source == "" {
+		return fmt.Errorf("config mount source is required")
+	}
+	return nil
+}
+
+// ValidateConfigsAndMounts takes config specs and config mounts and validates that all mounts refer to existing specs
+func ValidateConfigsAndMounts(configs []ConfigSpec, mounts []ConfigMount) error {
+	configMap := make(map[string]struct{})
+	for _, cfg := range configs {
+		if err := cfg.Validate(); err != nil {
+			return fmt.Errorf("invalid config: %w", err)
+		}
+		if _, ok := configMap[cfg.Name]; ok {
+			return fmt.Errorf("duplicate config name: '%s'", cfg.Name)
+		}
+
+		configMap[cfg.Name] = struct{}{}
+	}
+
+	for _, mount := range mounts {
+		if err := mount.Validate(); err != nil {
+			return fmt.Errorf("invalid config mount: %w", err)
+		}
+		if _, exists := configMap[mount.Source]; !exists {
+			return fmt.Errorf("config mount source '%s' does not refer to any defined config", mount.Source)
+		}
+	}
+
+	return nil
 }
