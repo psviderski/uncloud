@@ -89,7 +89,7 @@ func NewInitCommand() *cobra.Command {
 		"Version of the Uncloud daemon to install on the machine.",
 	)
 	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "default",
+		&opts.context, "context", "c", cli.DefaultContextName,
 		"Name of the created context for the initialised cluster in the Uncloud config.",
 	)
 

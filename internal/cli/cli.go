@@ -26,7 +26,7 @@ const (
 	// DefaultSSHKeyPath is the fallback location for the SSH private key when provisioning remote machines.
 	// Used when no key is explicitly provided and SSH agent authentication fails.
 	DefaultSSHKeyPath  = "~/.ssh/id_ed25519"
-	defaultContextName = "default"
+	DefaultContextName = "default"
 )
 
 type CLI struct {
@@ -170,12 +170,9 @@ func (cli *CLI) InitCluster(ctx context.Context, opts InitClusterOptions) (*clie
 }
 
 func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) (*client.Client, error) {
-	contextName := opts.Context
-	if contextName == "" {
-		contextName = defaultContextName
-	}
-	if _, ok := cli.Config.Contexts[contextName]; ok {
-		return nil, fmt.Errorf("cluster context '%s' already exists", contextName)
+	contextName, err := cli.newContextName(opts.Context)
+	if err != nil {
+		return nil, err
 	}
 
 	machineClient, err := provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
@@ -248,6 +245,32 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		return nil, fmt.Errorf("save config: %w", err)
 	}
 	return machineClient, nil
+}
+
+// newContextName returns a unique name for a new cluster context. If the provided name is not DefaultContextName,
+// and it's already taken, an error is returned. If the name is not provided or is DefaultContextName, the first
+// available name "default[-N]" is returned.
+func (cli *CLI) newContextName(name string) (string, error) {
+	if name == "" {
+		name = DefaultContextName
+	}
+
+	if _, exists := cli.Config.Contexts[name]; !exists {
+		return name, nil
+	}
+
+	// If non-default context already exists, error out.
+	if name != DefaultContextName {
+		return "", fmt.Errorf("cluster context '%s' already exists", name)
+	}
+
+	// The default context already exists, generate a numbered suffix to make it unique.
+	for i := 1; ; i++ {
+		name = fmt.Sprintf("%s-%d", DefaultContextName, i)
+		if _, exists := cli.Config.Contexts[name]; !exists {
+			return name, nil
+		}
+	}
 }
 
 type AddMachineOptions struct {
