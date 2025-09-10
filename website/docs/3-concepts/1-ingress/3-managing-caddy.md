@@ -74,7 +74,7 @@ config that uses the DNS challenge with Cloudflare to obtain a wildcard TLS cert
 services:
   caddy:
     image: caddybuilds/caddy-cloudflare:2.10.2
-    command: caddy run -c /config/Caddyfile --watch
+    command: caddy run -c /config/Caddyfile
     environment:
       CADDY_ADMIN: unix//run/caddy/admin.sock
     env_file:
