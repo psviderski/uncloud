@@ -109,9 +109,17 @@ func filterHealthyContainers(containers []store.ContainerRecord) []store.Contain
 }
 
 func (c *Controller) generateAndLoadCaddyfile(ctx context.Context, containers []store.ContainerRecord) {
-	caddyfile, err := c.generateCaddyfile(ctx, containers)
+	// Check if Caddy is available before attempting to generate and load config.
+	caddyAvailable := c.client.IsAvailable(ctx)
+
+	caddyfile, err := c.generateCaddyfile(ctx, containers, caddyAvailable)
 	if err != nil {
 		c.log.Error("Failed to generate Caddyfile configuration.", "err", err)
+		return
+	}
+
+	if !caddyAvailable {
+		c.log.Debug("Caddy is not running on this machine, skipping configuration load.", "path", c.caddyfilePath)
 		return
 	}
 
@@ -123,8 +131,10 @@ func (c *Controller) generateAndLoadCaddyfile(ctx context.Context, containers []
 	}
 }
 
-func (c *Controller) generateCaddyfile(ctx context.Context, containers []store.ContainerRecord) (string, error) {
-	caddyfile, err := c.generator.Generate(ctx, containers)
+func (c *Controller) generateCaddyfile(
+	ctx context.Context, containers []store.ContainerRecord, caddyAvailable bool,
+) (string, error) {
+	caddyfile, err := c.generator.Generate(ctx, containers, caddyAvailable)
 	if err != nil {
 		return "", fmt.Errorf("generate Caddyfile: %w", err)
 	}

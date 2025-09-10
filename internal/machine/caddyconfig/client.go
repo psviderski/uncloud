@@ -34,6 +34,24 @@ func NewCaddyAdminClient(socketPath string) *CaddyAdminClient {
 	}
 }
 
+// IsAvailable checks if the local Caddy instance is running and responding to admin API requests.
+func (c *CaddyAdminClient) IsAvailable(ctx context.Context) bool {
+	// Caddy doesn't serve a /ping endpoint. It's a random endpoint we can use to check if Caddy is running.
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/ping", nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Any HTTP response means Caddy is running and accessible.
+	return true
+}
+
 // Adapt converts a Caddyfile to JSON configuration without loading or running it.
 func (c *CaddyAdminClient) Adapt(ctx context.Context, caddyfile string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/adapt", strings.NewReader(caddyfile))

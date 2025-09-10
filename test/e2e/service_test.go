@@ -379,19 +379,16 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
-		// Check that the generated Caddyfile contains a comment with invalid user-defined configs.
+		// Check that the generated Caddyfile contains a comment that user-define configs were skipped.
 		var config *pb.GetCaddyConfigResponse
 		require.Eventually(t, func() bool {
 			config, err = cli.Caddy.GetConfig(ctx, nil)
 			if err != nil {
 				return false
 			}
-			return strings.Contains(config.Caddyfile, "invalid user-defined configs")
+			return strings.Contains(config.Caddyfile, "# NOTE: User-defined configs for services were skipped")
 		}, 5*time.Second, 100*time.Millisecond)
 
-		assert.Regexp(t, "- service 'test-custom-caddy-config': validation failed:.*"+
-			"/run/uncloud/caddy/admin.sock: connect:.*", config.Caddyfile,
-			"Expected comment about validation failure for service's user-defined Caddy config")
 		assert.NotContains(t, config.Caddyfile, "test-custom-caddy-config.example.com {")
 
 		// Now deploy caddy with custom config.
