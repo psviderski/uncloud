@@ -926,7 +926,8 @@ http://api.example.com {
 	log
 }
 
-# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine.
+# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine
+#       or the latest generated config is invalid. Please check the Caddy logs if it's running.
 `,
 		},
 		{
@@ -949,7 +950,8 @@ http://api.example.com {
 	log
 }
 
-# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine.
+# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine
+#       or the latest generated config is invalid. Please check the Caddy logs if it's running.
 `,
 		},
 	}

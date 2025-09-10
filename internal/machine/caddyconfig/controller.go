@@ -111,42 +111,51 @@ func filterHealthyContainers(containers []store.ContainerRecord) []store.Contain
 func (c *Controller) generateAndLoadCaddyfile(ctx context.Context, containers []store.ContainerRecord) {
 	// Check if Caddy is available before attempting to generate and load config.
 	caddyAvailable := c.client.IsAvailable(ctx)
-
-	caddyfile, err := c.generateCaddyfile(ctx, containers, caddyAvailable)
+	caddyfile, err := c.generator.Generate(ctx, containers, caddyAvailable)
 	if err != nil {
 		c.log.Error("Failed to generate Caddyfile configuration.", "err", err)
 		return
 	}
 
 	if !caddyAvailable {
+		// Caddy is not running so the generated Caddyfile should not include user-defined configs thus must be valid.
+		// It's safe to write the config to disk so that when Caddy is deployed on this machine, it can pick it up.
+		if err = c.writeCaddyfile(caddyfile); err != nil {
+			c.log.Error("Failed to write Caddyfile to disk.", "err", err)
+			return
+		}
 		c.log.Debug("Caddy is not running on this machine, skipping configuration load.", "path", c.caddyfilePath)
 		return
 	}
 
+	// Caddy is available, try to load the config which may fail if the config is invalid. Generally, a config can
+	// pass the adaptation/validation step but still fail to load, for example, if it references resources that are
+	// not available.
 	if err = c.client.Load(ctx, caddyfile); err != nil {
 		c.log.Error("Failed to load new Caddy configuration into local Caddy instance.",
 			"err", err, "path", c.caddyfilePath)
-	} else {
-		c.log.Info("New Caddy configuration loaded into local Caddy instance.", "path", c.caddyfilePath)
+		// Don't write invalid config to disk.
+		return
 	}
+
+	// Config loaded successfully, now write it to disk.
+	if err = c.writeCaddyfile(caddyfile); err != nil {
+		c.log.Error("Failed to write Caddyfile to disk after successful load.", "err", err)
+		// Config is already loaded in Caddy, so this is not critical.
+	}
+
+	c.log.Info("New Caddy configuration loaded into local Caddy instance.", "path", c.caddyfilePath)
 }
 
-func (c *Controller) generateCaddyfile(
-	ctx context.Context, containers []store.ContainerRecord, caddyAvailable bool,
-) (string, error) {
-	caddyfile, err := c.generator.Generate(ctx, containers, caddyAvailable)
-	if err != nil {
-		return "", fmt.Errorf("generate Caddyfile: %w", err)
+// writeCaddyfile writes the Caddyfile content to disk with proper permissions.
+func (c *Controller) writeCaddyfile(caddyfile string) error {
+	if err := os.WriteFile(c.caddyfilePath, []byte(caddyfile), 0o640); err != nil {
+		return fmt.Errorf("write Caddyfile to file '%s': %w", c.caddyfilePath, err)
 	}
-
-	if err = os.WriteFile(c.caddyfilePath, []byte(caddyfile), 0o640); err != nil {
-		return "", fmt.Errorf("write Caddyfile to file '%s': %w", c.caddyfilePath, err)
+	if err := fs.Chown(c.caddyfilePath, "", CaddyGroup); err != nil {
+		return fmt.Errorf("change owner of Caddyfile '%s': %w", c.caddyfilePath, err)
 	}
-	if err = fs.Chown(c.caddyfilePath, "", CaddyGroup); err != nil {
-		return "", fmt.Errorf("change owner of Caddyfile '%s': %w", c.caddyfilePath, err)
-	}
-
-	return caddyfile, nil
+	return nil
 }
 
 func (c *Controller) generateJSONConfig(containers []store.ContainerRecord) error {

@@ -55,6 +55,9 @@ https://{{$hostname}} {
 	log
 }{{end}}
 `
+	caddyfileUnavailabeFooter = `# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine
+#       or the latest generated config is invalid. Please check the Caddy logs if it's running.
+`
 )
 
 // CaddyfileGenerator generates a Caddyfile configuration for the Caddy reverse proxy.
@@ -118,9 +121,7 @@ func (g *CaddyfileGenerator) Generate(
 	}
 
 	if !includeCustom {
-		return fmt.Sprintf("%s\n%s\n"+
-			"# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine.\n",
-			caddyfileHeader, caddyfile), nil
+		return fmt.Sprintf("%s\n%s\n%s", caddyfileHeader, caddyfile, caddyfileUnavailabeFooter), nil
 	}
 
 	upstreams := serviceUpstreams(containers)

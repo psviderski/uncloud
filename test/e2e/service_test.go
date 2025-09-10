@@ -438,6 +438,48 @@ myapp.example.com {
 
 		assert.NotContains(t, config.Caddyfile, "invalid user-defined configs",
 			"Should not have validation failure comments after caddy is deployed")
+
+		// Store the current valid config for later comparison.
+		validConfig := config.Caddyfile
+
+		// Now deploy a service with invalid Caddyfile that references missing cert files and check it isn't included.
+		invalidServiceName := "test-invalid-caddy-config"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, invalidServiceName)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		invalidCaddyfile := `test-invalid.example.com {
+	tls cert.pem key.pem
+}`
+		invalidSpec := api.ServiceSpec{
+			Name: invalidServiceName,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+			Caddy: &api.CaddySpec{
+				Config: invalidCaddyfile,
+			},
+		}
+
+		invalidDeployment := cli.NewDeployment(invalidSpec, nil)
+		_, err = invalidDeployment.Run(ctx)
+		require.NoError(t, err)
+
+		invalidSvc, err := cli.InspectService(ctx, invalidServiceName)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, invalidSvc, invalidSpec)
+
+		// Wait a bit for any config updates to potentially happen.
+		time.Sleep(2 * time.Second)
+
+		// Check that the Caddy config hasn't changed.
+		newConfig, err := cli.Caddy.GetConfig(ctx, nil)
+		require.NoError(t, err)
+		assert.Equal(t, validConfig, newConfig.Caddyfile,
+			"Caddy config should not change when an invalid user-defined Caddy config is deployed")
 	})
 
 	t.Run("replicated", func(t *testing.T) {
