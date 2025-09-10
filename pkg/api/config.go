@@ -8,21 +8,21 @@ import (
 
 // ConfigSpec defines a configuration object that can be mounted into containers
 type ConfigSpec struct {
-	Name string `json:"name"`
+	Name string
 
 	// File path (when External is false)
-	File string `json:"file,omitempty"`
+	File string `json:",omitempty"`
 
 	// Content of the config when specified inline
-	Content string `json:"content,omitempty"`
+	Content string `json:",omitempty"`
 
 	// Note: NOT IMPLEMENTED
 	// External indicates this config already exists and should not be created
-	// External bool `json:"external,omitempty"`
+	// External bool `json:",omitempty"`
 
 	// Note: NOT IMPLEMENTED
 	// Labels for the config
-	// Labels map[string]string `json:"labels,omitempty"`
+	// Labels map[string]string `json:",omitempty"`
 
 	// TODO: add support for "environment"
 }
@@ -44,15 +44,15 @@ func (c *ConfigSpec) Equals(other ConfigSpec) bool {
 // ConfigMount defines how a config is mounted into a container
 type ConfigMount struct {
 	// ConfigName references a config defined in ServiceSpec.Configs by its Name field
-	ConfigName string `json:"source"`
+	ConfigName string
 	// ContainerPath is the absolute path where the config is mounted in the container
-	ContainerPath string `json:"target,omitempty"`
+	ContainerPath string `json:",omitempty"`
 	// UID for the mounted config file
-	UID string `json:"uid,omitempty"`
+	UID string `json:",omitempty"`
 	// GID for the mounted config file
-	GID string `json:"gid,omitempty"`
+	GID string `json:",omitempty"`
 	// Mode (file permissions) for the mounted config file
-	Mode *os.FileMode `json:"mode,omitempty"`
+	Mode *os.FileMode `json:",omitempty"`
 }
 
 func (c *ConfigMount) Validate() error {
