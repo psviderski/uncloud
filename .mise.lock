@@ -16,6 +16,11 @@ url = "https://github.com/vektra/mockery/releases/download/v3.5.3/mockery_3.5.3_
 version = "1.25.1"
 backend = "core:go"
 
+[tools.go.platforms.linux-x64]
+checksum = "sha256:7716a0d940a0f6ae8e1f3b3f4f36299dc53e31b16840dbd171254312c41ca12e"
+size = 59660846
+url = "https://dl.google.com/go/go1.25.1.linux-amd64.tar.gz"
+
 [tools.go.platforms.macos-arm64]
 checksum = "sha256:68deebb214f39d542e518ebb0598a406ab1b5a22bba8ec9ade9f55fb4dd94a6c"
 size = 57906702
@@ -24,6 +29,11 @@ url = "https://dl.google.com/go/go1.25.1.darwin-arm64.tar.gz"
 [[tools.golangci-lint]]
 version = "2.4.0"
 backend = "aqua:golangci/golangci-lint"
+
+[tools.golangci-lint.platforms.linux-x64]
+checksum = "sha256:fae792524c04424c0ac369f5b8076f04b45cf29fc945a370e55d369a8dc11840"
+size = 14126779
+url = "https://github.com/golangci/golangci-lint/releases/download/v2.4.0/golangci-lint-2.4.0-linux-amd64.tar.gz"
 
 [tools.golangci-lint.platforms.macos-arm64]
 checksum = "sha256:cd4dd53fa09b6646baff5fd22b8c64d91db02c21c7496df27992d75d34feec59"
