@@ -8,18 +8,13 @@ size = 5498859
 url = "https://github.com/vektra/mockery/releases/download/v3.5.3/mockery_3.5.3_Linux_x86_64.tar.gz"
 
 [[tools.go]]
-version = "1.23.12"
+version = "1.25.1"
 backend = "core:go"
 
-[tools.go.platforms.linux-x64]
-checksum = "sha256:d3847fef834e9db11bf64e3fb34db9c04db14e068eeb064f49af747010454f90"
-size = 73666637
-url = "https://dl.google.com/go/go1.23.12.linux-amd64.tar.gz"
-
 [tools.go.platforms.macos-arm64]
-checksum = "sha256:5bfa117e401ae64e7ffb960243c448b535fe007e682a13ff6c7371f4a6f0ccaa"
-size = 71669468
-url = "https://dl.google.com/go/go1.23.12.darwin-arm64.tar.gz"
+checksum = "sha256:68deebb214f39d542e518ebb0598a406ab1b5a22bba8ec9ade9f55fb4dd94a6c"
+size = 57906702
+url = "https://dl.google.com/go/go1.25.1.darwin-arm64.tar.gz"
 
 [[tools.golangci-lint]]
 version = "2.2.2"

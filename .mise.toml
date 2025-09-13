@@ -3,7 +3,7 @@ experimental = true
 
 [tools]
 "aqua:vektra/mockery" = "3.5.3"
-go = "1.23"
+go = "1.25.1"
 golangci-lint = "2.2.2"
 protoc = "27.3"
 protoc-gen-go = "1.34.2"

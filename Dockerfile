@@ -1,6 +1,6 @@
 ARG ALPINE_VERSION=3.20.3
 
-FROM golang:1.23.2-alpine AS uncloudd
+FROM golang:1.25.1-alpine AS uncloudd
 
 ARG TARGETOS
 ARG TARGETARCH
