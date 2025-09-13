@@ -31,3 +31,8 @@ func Confirm() (bool, error) {
 func IsStdinTerminal() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
+
+// IsStdoutTerminal checks if the standard output is a terminal (TTY).
+func IsStdoutTerminal() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
+}

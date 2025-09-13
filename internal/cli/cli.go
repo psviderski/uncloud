@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli/config"
-	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/sshexec"
@@ -73,8 +71,18 @@ func (cli *CLI) SetCurrentContext(name string) error {
 // ConnectCluster connects to a cluster using the given context name or the current context if not specified.
 // If the CLI was initialised with a machine connection, the config is ignored and the connection is used instead.
 func (cli *CLI) ConnectCluster(ctx context.Context, contextName string) (*client.Client, error) {
+	return cli.ConnectClusterWithOptions(ctx, contextName, ConnectOptions{
+		// Default to showing progress for CLI usage.
+		ShowProgress: true,
+	})
+}
+
+// ConnectClusterWithOptions connects to a cluster using the given context name and options.
+// If the CLI was initialised with a machine connection, the config is ignored and the connection is used instead.
+// Options are useful when using the CLI as a library where you may want to disable visual feedback.
+func (cli *CLI) ConnectClusterWithOptions(ctx context.Context, contextName string, opts ConnectOptions) (*client.Client, error) {
 	if cli.conn != nil {
-		return connectCluster(ctx, *cli.conn)
+		return ConnectCluster(ctx, *cli.conn, opts)
 	}
 
 	if len(cli.Config.Contexts) == 0 {
@@ -116,38 +124,20 @@ func (cli *CLI) ConnectCluster(ctx context.Context, contextName string) (*client
 		)
 	}
 
-	// TODO: iterate over all connections and try to connect to the cluster using the first successful connection.
-	conn := cfg.Connections[0]
-
-	c, err := connectCluster(ctx, conn)
-	if err != nil {
-		return nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
-	}
-
-	return c, nil
-}
-
-func connectCluster(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
-	if conn.SSH != "" {
-		user, host, port, err := conn.SSH.Parse()
-		if err != nil {
-			return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
+	// Try each connection in order until one succeeds.
+	var lastErr error
+	for _, conn := range cfg.Connections {
+		c, err := ConnectCluster(ctx, conn, opts)
+		if err == nil {
+			return c, nil
 		}
 
-		keyPath := fs.ExpandHomeDir(conn.SSHKeyFile)
-
-		sshConfig := &connector.SSHConnectorConfig{
-			User:    user,
-			Host:    host,
-			Port:    port,
-			KeyPath: keyPath,
-		}
-		return client.New(ctx, connector.NewSSHConnector(sshConfig))
-	} else if conn.TCP != nil && conn.TCP.IsValid() {
-		return client.New(ctx, connector.NewTCPConnector(*conn.TCP))
+		lastErr = err
 	}
 
-	return nil, errors.New("connection configuration is invalid")
+	return nil, fmt.Errorf("failed to connect to cluster context '%s': "+
+		"all connections (%d) in the Uncloud config (%s) failed; last error: %w",
+		contextName, len(cfg.Connections), cli.Config.Path(), lastErr)
 }
 
 type InitClusterOptions struct {

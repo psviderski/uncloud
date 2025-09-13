@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 	"strconv"
@@ -22,6 +23,15 @@ type MachineConnection struct {
 	TCP       *netip.AddrPort `yaml:"tcp,omitempty"`
 	Host      string          `yaml:"host,omitempty"`
 	PublicKey secret.Secret   `yaml:"public_key,omitempty"`
+}
+
+func (c MachineConnection) String() string {
+	if c.SSH != "" {
+		return string(c.SSH)
+	} else if c.TCP != nil && c.TCP.IsValid() {
+		return fmt.Sprintf("tcp://%s", c.TCP)
+	}
+	return "unknown connection"
 }
 
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".
