@@ -7,6 +7,11 @@ checksum = "sha256:ebce416b0175338525246c376885a1579ca6cd4d4015140ba0c70e6b5339a
 size = 5498859
 url = "https://github.com/vektra/mockery/releases/download/v3.5.3/mockery_3.5.3_Linux_x86_64.tar.gz"
 
+[tools."aqua:vektra/mockery".platforms.macos-arm64]
+checksum = "sha256:a3a94b14c7414e148f2252199ffc4a0108d311358f3d336cbe05bb73cb203704"
+size = 5238877
+url = "https://github.com/vektra/mockery/releases/download/v3.5.3/mockery_3.5.3_Darwin_arm64.tar.gz"
+
 [[tools.go]]
 version = "1.25.1"
 backend = "core:go"
@@ -34,6 +39,11 @@ checksum = "blake3:8c2938accf7061164ea3968529a47ced1db4824ca553857f6903c68ae4347
 size = 3235873
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-linux-x86_64.zip"
 
+[tools.protoc.platforms.macos-arm64]
+checksum = "blake3:650c2494c003e9fddd6f4164a0a36e31da51ae7e1e5208da8cb560a4fe886fcd"
+size = 2372763
+url = "https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-osx-aarch_64.zip"
+
 [[tools.protoc-gen-go]]
 version = "1.34.2"
 backend = "aqua:protocolbuffers/protobuf-go/protoc-gen-go"
@@ -43,6 +53,11 @@ checksum = "blake3:f765e393e0f0b25070c13848d88f5e6303e66090132afa1b753e981507a41
 size = 1848331
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.34.2/protoc-gen-go.v1.34.2.linux.amd64.tar.gz"
 
+[tools.protoc-gen-go.platforms.macos-arm64]
+checksum = "blake3:c237256a7f718ac4ccdc037ee30025a0b7c3f79300d7831ec59d76d782443fd5"
+size = 1784028
+url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.34.2/protoc-gen-go.v1.34.2.darwin.arm64.tar.gz"
+
 [[tools.protoc-gen-go-grpc]]
 version = "1.5.1"
 backend = "aqua:grpc/grpc-go/protoc-gen-go-grpc"
@@ -51,3 +66,8 @@ backend = "aqua:grpc/grpc-go/protoc-gen-go-grpc"
 checksum = "blake3:197739132f0408f017d0c83773ac1ace85c0572473fdd658ec6e4ccbf20e0552"
 size = 4859466
 url = "https://github.com/grpc/grpc-go/releases/download/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.linux.amd64.tar.gz"
+
+[tools.protoc-gen-go-grpc.platforms.macos-arm64]
+checksum = "blake3:3c668207565d23ea2cf006d699207e3a804ebb929a534bd38a3b4ff4e941e00c"
+size = 4565944
+url = "https://github.com/grpc/grpc-go/releases/download/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.darwin.arm64.tar.gz"
