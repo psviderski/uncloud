@@ -91,6 +91,11 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 		newServiceIPs[ctr.ServiceName()] = append(newServiceIPs[ctr.ServiceName()], ip)
 		// Also add the service ID as a valid lookup.
 		newServiceIPs[ctr.ServiceID()] = append(newServiceIPs[ctr.ServiceID()], ip)
+
+		// Add <machine-id>.m.<service-name> as a lookup
+		serviceNameWithMachineID := record.MachineID + ".m." + ctr.ServiceName()
+		newServiceIPs[serviceNameWithMachineID] = append(newServiceIPs[serviceNameWithMachineID], ip)
+
 		containersCount++
 	}
 
@@ -99,7 +104,7 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 	r.serviceIPs = newServiceIPs
 	r.mu.Unlock()
 
-	r.log.Debug("DNS records updated.", "services", len(newServiceIPs)/2, "containers", containersCount)
+	r.log.Debug("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
 }
 
 // Resolve returns IP addresses of the service containers.
