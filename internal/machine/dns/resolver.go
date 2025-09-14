@@ -42,7 +42,7 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 	r.log.Info("Subscribed to container changes in the cluster to keep DNS records updated.")
 
 	// TODO: implement machine membership check using Corrossion Admin client to filter available containers.
-	r.updateServiceIPs(containers)
+	r.updateServiceIPs(ctx, containers)
 
 	for {
 		select {
@@ -59,7 +59,7 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 			}
 
 			// TODO: implement machine membership check using Corrossion Admin client to filter available containers.
-			r.updateServiceIPs(containers)
+			r.updateServiceIPs(ctx, containers)
 		case <-ctx.Done():
 			return nil
 		}
@@ -67,7 +67,7 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 }
 
 // updateServiceIPs processes container records and updates the serviceIPs map.
-func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
+func (r *ClusterResolver) updateServiceIPs(ctx context.Context, containers []store.ContainerRecord) {
 	newServiceIPs := make(map[string][]netip.Addr, len(r.serviceIPs))
 
 	containersCount := 0
@@ -91,6 +91,16 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 		newServiceIPs[ctr.ServiceName()] = append(newServiceIPs[ctr.ServiceName()], ip)
 		// Also add the service ID as a valid lookup.
 		newServiceIPs[ctr.ServiceID()] = append(newServiceIPs[ctr.ServiceID()], ip)
+
+		// Add <machine-name>.<service-name> as a lookup
+		machineInfo, err := r.store.GetMachine(ctx, record.MachineID)
+		if err != nil {
+			// @todo
+		} else {
+			serviceNameWithMachine := machineInfo.Name + "." + ctr.ServiceName()
+			newServiceIPs[serviceNameWithMachine] = append(newServiceIPs[serviceNameWithMachine], ip)
+		}
+
 		containersCount++
 	}
 
