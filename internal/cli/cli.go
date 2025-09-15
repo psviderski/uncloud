@@ -146,6 +146,7 @@ type InitClusterOptions struct {
 	Network       netip.Prefix
 	PublicIP      *netip.Addr
 	RemoteMachine *RemoteMachine
+	SkipInstall   bool
 	Version       string
 }
 
@@ -165,7 +166,7 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		return nil, err
 	}
 
-	machineClient, err := provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
+	machineClient, err := provisionOrConnectRemoteMachine(ctx, opts.RemoteMachine, opts.SkipInstall, opts.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -268,6 +269,7 @@ type AddMachineOptions struct {
 	MachineName   string
 	PublicIP      *netip.Addr
 	RemoteMachine *RemoteMachine
+	SkipInstall   bool
 	Version       string
 }
 
@@ -290,7 +292,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		}
 	}()
 
-	machineClient, err := provisionRemoteMachine(ctx, opts.RemoteMachine, opts.Version)
+	machineClient, err := provisionOrConnectRemoteMachine(ctx, opts.RemoteMachine, opts.SkipInstall, opts.Version)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -408,15 +410,16 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	return c, machineClient, nil
 }
 
-// provisionRemoteMachine installs the Uncloud daemon and dependencies on the remote machine over SSH and returns
-// a machine API client to interact with the machine. The client should be closed after use by the caller.
+// provisionOrConnectRemoteMachine installs the Uncloud daemon and dependencies on the remote machine over SSH and
+// returns a machine API client to interact with the machine. The client should be closed after use by the caller.
 // The version parameter specifies the version of the Uncloud daemon to install. If empty, the latest version is used.
+// If skipInstall is true, the installation step is skipped, and it is assumed that the Uncloud daemon and dependencies
+// are already installed and running.
 // The remoteMachine.SSHKeyPath could be updated to the default SSH key path if it is not set and the SSH agent
 // authentication fails.
-func provisionRemoteMachine(
-	ctx context.Context, remoteMachine *RemoteMachine, version string,
+func provisionOrConnectRemoteMachine(
+	ctx context.Context, remoteMachine *RemoteMachine, skipInstall bool, version string,
 ) (*client.Client, error) {
-	// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
 	// If the SSH connection using SSH agent fails and no key path is provided, try to use the default SSH key.
 	if err != nil && remoteMachine.KeyPath == "" {
@@ -431,14 +434,17 @@ func provisionRemoteMachine(
 			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
 		)
 	}
-	exec := sshexec.NewRemote(sshClient)
-	// Install and run the Uncloud daemon and dependencies on the remote machine.
-	if err = provisionMachine(ctx, exec, version); err != nil {
-		return nil, fmt.Errorf("provision machine: %w", err)
+
+	if !skipInstall {
+		// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
+		exec := sshexec.NewRemote(sshClient)
+		if err = provisionMachine(ctx, exec, version); err != nil {
+			return nil, fmt.Errorf("provision machine: %w", err)
+		}
 	}
 
 	var machineClient *client.Client
-	if remoteMachine.User == "root" {
+	if remoteMachine.User == "root" || skipInstall {
 		// Create a machine API client over the established SSH connection to the remote machine.
 		machineClient, err = client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
 	} else {

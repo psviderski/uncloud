@@ -22,6 +22,7 @@ type initOptions struct {
 	network     string
 	noCaddy     bool
 	noDNS       bool
+	noInstall   bool
 	publicIP    string
 	sshKey      string
 	version     string
@@ -74,6 +75,11 @@ func NewInitCommand() *cobra.Command {
 		&opts.noDNS, "no-dns", false,
 		"Don't reserve a cluster domain in Uncloud DNS.",
 	)
+	cmd.Flags().BoolVar(
+		&opts.noInstall, "no-install", false,
+		"Skip installation of Docker, Uncloud daemon, and dependencies on the machine. "+
+			"Assumes they're already installed and running.",
+	)
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "auto",
 		"Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, "+
@@ -121,6 +127,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		Network:       netPrefix,
 		PublicIP:      publicIP,
 		RemoteMachine: remoteMachine,
+		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
 	})
 	if err != nil {
