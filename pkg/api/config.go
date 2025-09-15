@@ -11,9 +11,6 @@ import (
 type ConfigSpec struct {
 	Name string
 
-	// File path (when External is false)
-	File string `json:",omitempty"`
-
 	// Content of the config when specified inline
 	Content []byte `json:",omitempty"`
 
@@ -38,7 +35,6 @@ func (c *ConfigSpec) Validate() error {
 // Equals compares two ConfigSpec instances
 func (c *ConfigSpec) Equals(other ConfigSpec) bool {
 	return c.Name == other.Name &&
-		c.File == other.File &&
 		bytes.Equal(c.Content, other.Content)
 }
 

@@ -37,7 +37,6 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			expectedSpecs: []api.ConfigSpec{
 				{
 					Name:    "app-config",
-					File:    "testdata/config1.txt",
 					Content: []byte("test config content\n"),
 				},
 			},
@@ -67,7 +66,6 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 			expectedSpecs: []api.ConfigSpec{
 				{
 					Name:    "nginx-config",
-					File:    "./testdata/nginx.conf",
 					Content: []byte("user nginx;\nworker_processes auto;\n"),
 				},
 			},
@@ -100,17 +98,15 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 func TestConfigSpecEquals(t *testing.T) {
 	config1 := api.ConfigSpec{
 		Name: "test-config",
-		File: "/path/to/config",
 	}
 
 	config2 := api.ConfigSpec{
 		Name: "test-config",
-		File: "/path/to/config",
 	}
 
 	config3 := api.ConfigSpec{
-		Name: "test-config",
-		File: "/different/path",
+		Name:    "test-config",
+		Content: []byte("some content"),
 	}
 
 	assert.True(t, config1.Equals(config2))

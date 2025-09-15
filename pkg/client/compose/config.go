@@ -27,13 +27,12 @@ func configSpecsFromCompose(
 
 			spec = api.ConfigSpec{
 				Name:    serviceConfig.Source,
-				File:    projectConfig.File,
 				Content: []byte(projectConfig.Content),
 			}
 
 			// If File is specified, read the file contents
-			if spec.File != "" {
-				configPath := spec.File
+			if projectConfig.File != "" {
+				configPath := projectConfig.File
 				// TODO: handle this in a separate function?
 				if !filepath.IsAbs(configPath) {
 					configPath = filepath.Join(workingDir, configPath)
@@ -41,7 +40,7 @@ func configSpecsFromCompose(
 
 				fileContent, err := os.ReadFile(configPath)
 				if err != nil {
-					return nil, nil, fmt.Errorf("read config from file '%s': %w", spec.File, err)
+					return nil, nil, fmt.Errorf("read config from file '%s': %w", projectConfig.File, err)
 				}
 				spec.Content = fileContent
 			}

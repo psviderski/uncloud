@@ -191,7 +191,7 @@ func (s *ServiceSpec) Validate() error {
 
 	// Validate configs
 	if err := ValidateConfigsAndMounts(s.Configs, s.Container.ConfigMounts); err != nil {
-		return fmt.Errorf("validate service spec: %w", err)
+		return fmt.Errorf("validate service configs and mounts: %w", err)
 	}
 
 	return nil

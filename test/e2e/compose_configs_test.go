@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/psviderski/uncloud/internal/ucind"
@@ -22,9 +21,6 @@ func TestComposeConfigs(t *testing.T) {
 
 	machine := c.Machines[0]
 	cli, err := machine.Connect(ctx)
-	require.NoError(t, err)
-
-	currentDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 
 	t.Run("basic configs", func(t *testing.T) {
@@ -75,7 +71,6 @@ func TestComposeConfigs(t *testing.T) {
 			Configs: []api.ConfigSpec{
 				{
 					Name:    "from-file",
-					File:    filepath.Join(currentDir, "fixtures", "configs", "test-config.conf"),
 					Content: []byte("this is file config\n"),
 				},
 				{
