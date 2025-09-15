@@ -116,9 +116,9 @@ func (s *Server) CreateContainer(ctx context.Context, req *pb.CreateContainerReq
 	resp, err := s.client.ContainerCreate(ctx, &config, &hostConfig, &networkConfig, &platform, req.Name)
 	if err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	respBytes, err := json.Marshal(resp)
@@ -134,9 +134,9 @@ func (s *Server) InspectContainer(ctx context.Context, req *pb.InspectContainerR
 	resp, err := s.client.ContainerInspect(ctx, req.Id)
 	if err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	respBytes, err := json.Marshal(resp)
@@ -167,9 +167,9 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 
 	if err := s.client.ContainerStart(ctx, req.Id, opts); err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &emptypb.Empty{}, nil
@@ -186,9 +186,9 @@ func (s *Server) StopContainer(ctx context.Context, req *pb.StopContainerRequest
 
 	if err := s.client.ContainerStop(ctx, req.Id, opts); err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &emptypb.Empty{}, nil
@@ -218,7 +218,7 @@ func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersReque
 
 	containerSummaries, err := s.client.ContainerList(ctx, opts)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	containers := make([]types.ContainerJSON, 0, len(containerSummaries))
 	for _, cs := range containerSummaries {
@@ -258,9 +258,9 @@ func (s *Server) RemoveContainer(ctx context.Context, req *pb.RemoveContainerReq
 
 	if err := s.client.ContainerRemove(ctx, req.Id, opts); err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &emptypb.Empty{}, nil
@@ -286,7 +286,7 @@ func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreaming
 
 	respBody, err := s.client.ImagePull(ctx, req.Image, opts)
 	if err != nil {
-		return status.Errorf(codes.Internal, err.Error())
+		return status.Error(codes.Internal, err.Error())
 	}
 	defer respBody.Close()
 
@@ -317,7 +317,7 @@ func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreaming
 		case err = <-errCh:
 			return err
 		case <-ctx.Done():
-			return status.Errorf(codes.Canceled, ctx.Err().Error())
+			return status.Error(codes.Canceled, ctx.Err().Error())
 		}
 	}
 }
@@ -327,9 +327,9 @@ func (s *Server) InspectImage(ctx context.Context, req *pb.InspectImageRequest) 
 	resp, _, err := s.client.ImageInspectWithRaw(ctx, req.Id)
 	if err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	respBytes, err := json.Marshal(resp)
@@ -724,9 +724,9 @@ func (s *Server) InspectServiceContainer(
 	serviceCtr, err := s.service.InspectServiceContainer(ctx, req.Id)
 	if err != nil {
 		if client.IsErrNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	ctrBytes, err := json.Marshal(serviceCtr.Container)

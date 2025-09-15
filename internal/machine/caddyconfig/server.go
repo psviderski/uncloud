@@ -27,9 +27,9 @@ func (s *Server) GetConfig(ctx context.Context, _ *emptypb.Empty) (*pb.GetCaddyC
 	caddyfile, modifiedAt, err := s.service.Caddyfile()
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, status.Errorf(codes.NotFound, err.Error())
+			return nil, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &pb.GetCaddyConfigResponse{
