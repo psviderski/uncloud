@@ -28,7 +28,7 @@ func configSpecsFromCompose(
 			spec = api.ConfigSpec{
 				Name:    serviceConfig.Source,
 				File:    projectConfig.File,
-				Content: projectConfig.Content,
+				Content: []byte(projectConfig.Content),
 			}
 
 			// If File is specified, read the file contents
@@ -43,7 +43,7 @@ func configSpecsFromCompose(
 				if err != nil {
 					return nil, nil, fmt.Errorf("read config from file '%s': %w", spec.File, err)
 				}
-				spec.Content = string(fileContent)
+				spec.Content = fileContent
 			}
 		} else {
 			return nil, nil, fmt.Errorf("config '%s' not found in project configs", serviceConfig.Source)

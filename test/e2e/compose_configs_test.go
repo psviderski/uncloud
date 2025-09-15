@@ -76,11 +76,11 @@ func TestComposeConfigs(t *testing.T) {
 				{
 					Name:    "from-file",
 					File:    filepath.Join(currentDir, "fixtures", "configs", "test-config.conf"),
-					Content: "this is file config\n",
+					Content: []byte("this is file config\n"),
 				},
 				{
 					Name:    "from-inline",
-					Content: "this is inline config\n",
+					Content: []byte("this is inline config\n"),
 				},
 			},
 			Replicas: 1,

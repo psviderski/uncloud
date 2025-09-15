@@ -2,6 +2,7 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 )
@@ -14,7 +15,7 @@ type ConfigSpec struct {
 	File string `json:",omitempty"`
 
 	// Content of the config when specified inline
-	Content string `json:",omitempty"`
+	Content []byte `json:",omitempty"`
 
 	// Note: NOT IMPLEMENTED
 	// External indicates this config already exists and should not be created
@@ -38,7 +39,7 @@ func (c *ConfigSpec) Validate() error {
 func (c *ConfigSpec) Equals(other ConfigSpec) bool {
 	return c.Name == other.Name &&
 		c.File == other.File &&
-		c.Content == other.Content
+		bytes.Equal(c.Content, other.Content)
 }
 
 // ConfigMount defines how a config is mounted into a container

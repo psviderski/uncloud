@@ -38,7 +38,7 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 				{
 					Name:    "app-config",
 					File:    "testdata/config1.txt",
-					Content: "test config content\n",
+					Content: []byte("test config content\n"),
 				},
 			},
 			expectedMounts: []api.ConfigMount{
@@ -68,7 +68,7 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 				{
 					Name:    "nginx-config",
 					File:    "./testdata/nginx.conf",
-					Content: "user nginx;\nworker_processes auto;\n",
+					Content: []byte("user nginx;\nworker_processes auto;\n"),
 				},
 			},
 			expectedMounts: []api.ConfigMount{

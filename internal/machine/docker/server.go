@@ -717,7 +717,7 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 		}
 
 		// Copy the config content directly into the container
-		if err := s.copyContentToContainer(ctx, containerID, []byte(config.Content), targetPath, mount.UID, mount.GID, fileMode); err != nil {
+		if err := s.copyContentToContainer(ctx, containerID, config.Content, targetPath, mount.UID, mount.GID, fileMode); err != nil {
 			return fmt.Errorf("copy config file '%s' to container: %w", config.Name, err)
 		}
 
