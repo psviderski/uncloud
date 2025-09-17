@@ -11,14 +11,14 @@ Manage machines in an Uncloud cluster.
 ## Options inherited from parent commands
 
 ```
-      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file.
+      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port] or tcp://host:port
-      --uncloud-config string   Path to the Uncloud configuration file. (default "~/.config/uncloud/config.yaml")
+      --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 
 ## See also
 
-* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as clusters, machines, and services.
+* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc machine add](uc_machine_add.md)	 - Add a remote machine to a cluster.
 * [uc machine init](uc_machine_init.md)	 - Initialise a new cluster with a remote machine as the first member.
 * [uc machine ls](uc_machine_ls.md)	 - List machines in a cluster.

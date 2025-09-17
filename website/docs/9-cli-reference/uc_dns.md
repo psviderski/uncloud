@@ -16,14 +16,14 @@ DNS commands allow you to reserve or release a unique '\<id>.cluster.uncloud.run
 ## Options inherited from parent commands
 
 ```
-      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file.
+      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port] or tcp://host:port
-      --uncloud-config string   Path to the Uncloud configuration file. (default "~/.config/uncloud/config.yaml")
+      --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 
 ## See also
 
-* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as clusters, machines, and services.
+* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc dns release](uc_dns_release.md)	 - Release the reserved cluster domain.
 * [uc dns reserve](uc_dns_reserve.md)	 - Reserve a cluster domain in Uncloud DNS.
 * [uc dns show](uc_dns_show.md)	 - Print the cluster domain name.
