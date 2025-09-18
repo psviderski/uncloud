@@ -71,6 +71,18 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		}
 	}
 
+	// Compare configs.
+	if len(current.Configs) != len(new.Configs) {
+		return ContainerNeedsRecreate
+	}
+	sortConfigs(current.Configs)
+	sortConfigs(new.Configs)
+	for i := range current.Configs {
+		if !current.Configs[i].Equals(new.Configs[i]) {
+			return ContainerNeedsRecreate
+		}
+	}
+
 	// Check if any mutable properties changed.
 	if !current.Caddy.Equals(new.Caddy) {
 		return ContainerNeedsRecreate
@@ -86,5 +98,11 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 func sortVolumes(volumes []api.VolumeSpec) {
 	sort.Slice(volumes, func(i, j int) bool {
 		return volumes[i].Name < volumes[j].Name
+	})
+}
+
+func sortConfigs(configs []api.ConfigSpec) {
+	sort.Slice(configs, func(i, j int) bool {
+		return configs[i].Name < configs[j].Name
 	})
 }
