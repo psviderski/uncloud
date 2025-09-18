@@ -34,6 +34,8 @@ func NewDeployCommand() *cobra.Command {
 		Use:   "deploy [FLAGS] [SERVICE...]",
 		Short: "Deploy services from a Compose file.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
+
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			if len(args) > 0 {
@@ -55,8 +57,8 @@ func NewDeployCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.recreate, "recreate", false,
 		"Recreate containers even if their configuration and image haven't changed.")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
-		"Auto-confirm deployment plan. Enabled by default when running non-interactively,\n"+
-			"e.g., in CI/CD pipelines.")
+		"Auto-confirm deployment plan. Should be explicitly set when running non-interactively,\n"+
+			"e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	// TODO: Consider adding a filter flag to specify which machines to deploy to but keep the rest running.
 	//  Could be useful to test a new version on a subset of machines before rolling out to all.
@@ -140,20 +142,20 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 	fmt.Println()
 
-	// Ask for plan confirmation before proceeding with the deployment unless running in non-interactive mode
-	// or --yes is specified.
+	// Ask for plan confirmation before proceeding with the deployment unless auto-confirmed with --yes.
 	if !opts.yes {
-		if cli.IsStdinTerminal() {
-			confirmed, err := cli.Confirm()
-			if err != nil {
-				return fmt.Errorf("confirm deployment: %w", err)
-			}
-			if !confirmed {
-				fmt.Println("Cancelled. No changes were made.")
-				return nil
-			}
-		} else {
-			fmt.Println("Auto-confirming deployment plan in non-interactive mode.")
+		if !cli.IsStdinTerminal() {
+			return errors.New("cannot ask to confirm deployment plan in non-interactive mode, " +
+				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
+		}
+
+		confirmed, err := cli.Confirm()
+		if err != nil {
+			return fmt.Errorf("confirm deployment: %w", err)
+		}
+		if !confirmed {
+			fmt.Println("Cancelled. No changes were made.")
+			return nil
 		}
 	}
 
