@@ -711,13 +711,13 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 		}
 
 		// Determine file mode
-		fileMode := os.FileMode(0o644) // Default permissions
+		fileMode := os.FileMode(0o444) // Default permissions
 		if mount.Mode != nil {
 			fileMode = *mount.Mode
 		}
 
 		// Copy the config content directly into the container
-		if err := s.copyContentToContainer(ctx, containerID, config.Content, targetPath, mount.UID, mount.GID, fileMode); err != nil {
+		if err := s.copyContentToContainer(ctx, containerID, config.Content, targetPath, mount.Uid, mount.Gid, fileMode); err != nil {
 			return fmt.Errorf("copy config file '%s' to container: %w", config.Name, err)
 		}
 
@@ -731,7 +731,7 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 }
 
 // copyContentToContainer copies content directly to a file in the container using Docker's CopyToContainer API.
-func (s *Server) copyContentToContainer(ctx context.Context, containerID string, content []byte, targetPath, uid, gid string, fileMode os.FileMode) error {
+func (s *Server) copyContentToContainer(ctx context.Context, containerID string, content []byte, targetPath string, uid string, gid string, fileMode os.FileMode) error {
 	// Create a tar archive containing the file
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
@@ -747,13 +747,13 @@ func (s *Server) copyContentToContainer(ctx context.Context, containerID string,
 
 	// Set ownership if specified
 	if uid != "" {
-		if parsedUID, parseErr := strconv.Atoi(uid); parseErr == nil {
-			header.Uid = parsedUID
+		if uidInt, err := strconv.Atoi(uid); err == nil {
+			header.Uid = uidInt
 		}
 	}
 	if gid != "" {
-		if parsedGID, parseErr := strconv.Atoi(gid); parseErr == nil {
-			header.Gid = parsedGID
+		if gidInt, err := strconv.Atoi(gid); err == nil {
+			header.Gid = gidInt
 		}
 	}
 

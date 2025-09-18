@@ -44,8 +44,8 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 				{
 					ConfigName:    "app-config",
 					ContainerPath: "/app/config.json",
-					UID:           "1000",
-					GID:           "1000",
+					Uid:           "1000",
+					Gid:           "1000",
 				},
 			},
 		},

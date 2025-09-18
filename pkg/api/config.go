@@ -44,10 +44,10 @@ type ConfigMount struct {
 	ConfigName string
 	// ContainerPath is the absolute path where the config is mounted in the container
 	ContainerPath string `json:",omitempty"`
-	// UID for the mounted config file
-	UID string `json:",omitempty"`
-	// GID for the mounted config file
-	GID string `json:",omitempty"`
+	// Uid for the mounted config file
+	Uid string `json:",omitempty"`
+	// Gid for the mounted config file
+	Gid string `json:",omitempty"`
 	// Mode (file permissions) for the mounted config file
 	Mode *os.FileMode `json:",omitempty"`
 }

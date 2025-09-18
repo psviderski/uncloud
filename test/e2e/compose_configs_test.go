@@ -62,8 +62,8 @@ func TestComposeConfigs(t *testing.T) {
 					{
 						ConfigName:    "from-inline",
 						ContainerPath: "/etc/config-inline.conf",
-						UID:           "1000",
-						GID:           "1000",
+						Uid:           "1000",
+						Gid:           "1000",
 						Mode:          func() *os.FileMode { m := os.FileMode(0o600); return &m }(),
 					},
 				},
