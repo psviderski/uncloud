@@ -30,6 +30,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -408,6 +409,20 @@ func (m *Machine) Run(ctx context.Context) error {
 				return fmt.Errorf("create embedded DNS server: %w", err)
 			}
 
+			// Create an embedded container registry listening on the machine IP address and
+			// using the local Docker (containerd) image store as its backend.
+			unreg, err := unregistry.NewRegistry(unregistry.Config{
+				Addr:                net.JoinHostPort(m.IP().String(), strconv.Itoa(constants.UnregistryPort)),
+				ContainerdNamespace: "moby",
+				// TODO: auto-detect the containerd.sock path used by Docker and/or allow configuring it.
+				ContainerdSock: "/run/containerd/containerd.sock",
+				LogFormatter:   "text",
+				LogLevel:       "info",
+			})
+			if err != nil {
+				return fmt.Errorf("create embedded registry: %w", err)
+			}
+
 			m.mu.Lock()
 			m.clusterCtrl, err = newClusterController(
 				m.state,
@@ -419,6 +434,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				caddyconfigCtrl,
 				dnsServer,
 				dnsResolver,
+				unreg,
 			)
 			m.mu.Unlock()
 			if err != nil {

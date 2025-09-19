@@ -21,6 +21,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/firewall"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/unregistry"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
@@ -45,6 +46,8 @@ type clusterController struct {
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
 	dnsServer   *dns.Server
 	dnsResolver *dns.ClusterResolver
+	// unregistry is the embedded container registry that uses the local Docker (containerd) image store as its backend.
+	unregistry *unregistry.Registry
 
 	// stopped is a channel that is closed when the controller is stopped.
 	stopped chan struct{}
@@ -60,6 +63,7 @@ func newClusterController(
 	caddyfileCtrl *caddyconfig.Controller,
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
+	unregistry *unregistry.Registry,
 ) (*clusterController, error) {
 	slog.Info("Starting WireGuard network.")
 	wgnet, err := network.NewWireGuardNetwork()
@@ -80,6 +84,7 @@ func newClusterController(
 		caddyconfigCtrl: caddyfileCtrl,
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
+		unregistry:      unregistry,
 		stopped:         make(chan struct{}),
 	}, nil
 }
@@ -164,7 +169,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// Watch for endpoint changes and update the machine state accordingly.
+	// Watch for WireGuard peer endpoint changes and update the machine state accordingly.
 	errGroup.Go(func() error {
 		for {
 			select {
@@ -210,6 +215,14 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
+	errGroup.Go(func() error {
+		slog.Info("Starting unregistry server.")
+		if err := cc.unregistry.ListenAndServe(); err != nil {
+			return fmt.Errorf("unregistry server failed: %w", err)
+		}
+		return nil
+	})
+
 	// Wait for the context to be done and stop the network API server.
 	<-ctx.Done()
 	slog.Info("Stopping network API server.")
@@ -217,12 +230,23 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	cc.server.GracefulStop()
 	slog.Info("Network API server stopped.")
 
+	// Stop the unregistry server with a timeout.
+	unregTimeout := 30 * time.Second
+	slog.Info("Stopping unregistry server.", "timeout", unregTimeout)
+	unregCtx, cancel := context.WithTimeout(context.Background(), unregTimeout)
+	defer cancel()
+
+	if err = cc.unregistry.Shutdown(unregCtx); err != nil {
+		return fmt.Errorf("unregistry server forced to shutdown: %w", err)
+	}
+	slog.Info("Unregistry server stopped.")
+
 	// Wait for all controllers to finish.
 	err = errGroup.Wait()
 
 	// It's safe to stop the Corrosion service after the controllers depending on it and API server are stopped.
 	// Use a new context with a timeout as the current context is already canceled.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if corroErr := cc.corroService.Stop(ctx); corroErr != nil {
 		err = errors.Join(err, fmt.Errorf("stop corrosion service: %w", corroErr))
