@@ -64,6 +64,8 @@ type Config struct {
 
 	// DockerClient manages system and user containers using the local Docker daemon.
 	DockerClient *client.Client
+	// ContainerdSockPath is the path to the containerd.sock used by Docker.
+	ContainerdSockPath string
 
 	// CaddyConfigDir specifies the directory where the machine generates the Caddy reverse proxy configuration file
 	// for routing external traffic to service containers across the internal network. Default is DataDir/caddy.
@@ -93,6 +95,26 @@ func (c *Config) SetDefaults() (*Config, error) {
 			return nil, fmt.Errorf("create Docker client: %w", err)
 		}
 		cfg.DockerClient = cli
+	}
+	if cfg.ContainerdSockPath == "" {
+		// Auto-detect the containerd.sock path used by Docker.
+		paths := []string{
+			"/run/containerd/containerd.sock", // Default path on most Linux distributions.
+			"/run/docker/containerd/containerd.sock",
+			"/var/run/containerd/containerd.sock",
+			"/var/run/docker/containerd/containerd.sock",
+		}
+		for _, path := range paths {
+			if _, err := os.Stat(path); err == nil {
+				cfg.ContainerdSockPath = path
+				slog.Debug("Detected containerd socket used by Docker.", "path", path)
+				break
+			}
+		}
+
+		if cfg.ContainerdSockPath == "" {
+			slog.Warn("Failed to auto-detect containerd socket used by Docker.")
+		}
 	}
 
 	if cfg.CorrosionDir == "" {
@@ -409,18 +431,22 @@ func (m *Machine) Run(ctx context.Context) error {
 				return fmt.Errorf("create embedded DNS server: %w", err)
 			}
 
-			// Create an embedded container registry listening on the machine IP address and
-			// using the local Docker (containerd) image store as its backend.
-			unreg, err := unregistry.NewRegistry(unregistry.Config{
-				Addr:                net.JoinHostPort(m.IP().String(), strconv.Itoa(constants.UnregistryPort)),
-				ContainerdNamespace: "moby",
-				// TODO: auto-detect the containerd.sock path used by Docker and/or allow configuring it.
-				ContainerdSock: "/run/containerd/containerd.sock",
-				LogFormatter:   "text",
-				LogLevel:       "info",
-			})
-			if err != nil {
-				return fmt.Errorf("create embedded registry: %w", err)
+			var unreg *unregistry.Registry
+			if m.config.ContainerdSockPath != "" {
+				// Create an embedded container registry listening on the machine IP address and
+				// using the local Docker (containerd) image store as its backend.
+				unreg, err = unregistry.NewRegistry(unregistry.Config{
+					Addr:                net.JoinHostPort(m.IP().String(), strconv.Itoa(constants.UnregistryPort)),
+					ContainerdNamespace: "moby",
+					ContainerdSock:      m.config.ContainerdSockPath,
+					LogFormatter:        "text",
+					LogLevel:            "info",
+				})
+				if err != nil {
+					return fmt.Errorf("create embedded registry: %w", err)
+				}
+			} else {
+				slog.Warn("Skipping embedded unregistry setup as the containerd socket path is not configured.")
 			}
 
 			m.mu.Lock()
