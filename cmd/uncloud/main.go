@@ -28,11 +28,14 @@ func main() {
 	opts := globalOptions{}
 	cmd := &cobra.Command{
 		Use:           "uc",
-		Short:         "A CLI tool for managing Uncloud resources such as clusters, machines, and services.",
+		Short:         "A CLI tool for managing Uncloud resources such as machines, services, and volumes.",
 		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "connect", "UNCLOUD_CONNECT")
+			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
+
 			var conn *config.MachineConnection
 			if opts.connect != "" {
 				if strings.HasPrefix(opts.connect, "tcp://") {
@@ -65,11 +68,10 @@ func main() {
 	}
 
 	cmd.PersistentFlags().StringVar(&opts.connect, "connect", "",
-		"Connect to a remote cluster machine without using the Uncloud configuration file.\n"+
+		"Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]\n"+
 			"Format: [ssh://]user@host[:port] or tcp://host:port")
-	// TODO: allow to override using UNCLOUD_CONFIG env var.
 	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
-		"Path to the Uncloud configuration file.")
+		"Path to the Uncloud configuration file. [$UNCLOUD_CONFIG]")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
 	// TODO: make --context a global flag and pass it as a value of the command context.
 

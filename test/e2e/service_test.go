@@ -379,19 +379,16 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
-		// Check that the generated Caddyfile contains a comment with invalid user-defined configs.
+		// Check that the generated Caddyfile contains a comment that user-define configs were skipped.
 		var config *pb.GetCaddyConfigResponse
 		require.Eventually(t, func() bool {
 			config, err = cli.Caddy.GetConfig(ctx, nil)
 			if err != nil {
 				return false
 			}
-			return strings.Contains(config.Caddyfile, "invalid user-defined configs")
+			return strings.Contains(config.Caddyfile, "# NOTE: User-defined configs for services were skipped")
 		}, 5*time.Second, 100*time.Millisecond)
 
-		assert.Regexp(t, "- service 'test-custom-caddy-config': validation failed:.*"+
-			"/run/uncloud/caddy/admin.sock: connect:.*", config.Caddyfile,
-			"Expected comment about validation failure for service's user-defined Caddy config")
 		assert.NotContains(t, config.Caddyfile, "test-custom-caddy-config.example.com {")
 
 		// Now deploy caddy with custom config.
@@ -441,6 +438,48 @@ myapp.example.com {
 
 		assert.NotContains(t, config.Caddyfile, "invalid user-defined configs",
 			"Should not have validation failure comments after caddy is deployed")
+
+		// Store the current valid config for later comparison.
+		validConfig := config.Caddyfile
+
+		// Now deploy a service with invalid Caddyfile that references missing cert files and check it isn't included.
+		invalidServiceName := "test-invalid-caddy-config"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, invalidServiceName)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		invalidCaddyfile := `test-invalid.example.com {
+	tls cert.pem key.pem
+}`
+		invalidSpec := api.ServiceSpec{
+			Name: invalidServiceName,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+			Caddy: &api.CaddySpec{
+				Config: invalidCaddyfile,
+			},
+		}
+
+		invalidDeployment := cli.NewDeployment(invalidSpec, nil)
+		_, err = invalidDeployment.Run(ctx)
+		require.NoError(t, err)
+
+		invalidSvc, err := cli.InspectService(ctx, invalidServiceName)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, invalidSvc, invalidSpec)
+
+		// Wait a bit for any config updates to potentially happen.
+		time.Sleep(2 * time.Second)
+
+		// Check that the Caddy config hasn't changed.
+		newConfig, err := cli.Caddy.GetConfig(ctx, nil)
+		require.NoError(t, err)
+		assert.Equal(t, validConfig, newConfig.Caddyfile,
+			"Caddy config should not change when an invalid user-defined Caddy config is deployed")
 	})
 
 	t.Run("replicated", func(t *testing.T) {

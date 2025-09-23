@@ -22,6 +22,7 @@ type deployOptions struct {
 	services []string
 	noBuild  bool
 	recreate bool
+	yes      bool
 
 	context string
 }
@@ -33,6 +34,8 @@ func NewDeployCommand() *cobra.Command {
 		Use:   "deploy [FLAGS] [SERVICE...]",
 		Short: "Deploy services from a Compose file.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
+
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			if len(args) > 0 {
@@ -43,16 +46,19 @@ func NewDeployCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
-		"One or more Compose files to deploy services from. (default compose.yaml)")
-	cmd.Flags().StringSliceVarP(&opts.profiles, "profile", "p", nil,
-		"One or more Compose profiles to enable.")
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context to deploy to (default is the current context)")
+	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
+		"One or more Compose files to deploy services from. (default compose.yaml)")
 	cmd.Flags().BoolVarP(&opts.noBuild, "no-build", "n", false,
 		"Do not build images before deploying services. (default false)")
+	cmd.Flags().StringSliceVarP(&opts.profiles, "profile", "p", nil,
+		"One or more Compose profiles to enable.")
 	cmd.Flags().BoolVar(&opts.recreate, "recreate", false,
 		"Recreate containers even if their configuration and image haven't changed.")
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
+		"Auto-confirm deployment plan. Should be explicitly set when running non-interactively,\n"+
+			"e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	// TODO: Consider adding a filter flag to specify which machines to deploy to but keep the rest running.
 	//  Could be useful to test a new version on a subset of machines before rolling out to all.
@@ -136,13 +142,21 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 	fmt.Println()
 
-	confirmed, err := cli.Confirm()
-	if err != nil {
-		return fmt.Errorf("confirm deployment: %w", err)
-	}
-	if !confirmed {
-		fmt.Println("Cancelled. No changes were made.")
-		return nil
+	// Ask for plan confirmation before proceeding with the deployment unless auto-confirmed with --yes.
+	if !opts.yes {
+		if !cli.IsStdinTerminal() {
+			return errors.New("cannot ask to confirm deployment plan in non-interactive mode, " +
+				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
+		}
+
+		confirmed, err := cli.Confirm()
+		if err != nil {
+			return fmt.Errorf("confirm deployment: %w", err)
+		}
+		if !confirmed {
+			fmt.Println("Cancelled. No changes were made.")
+			return nil
+		}
 	}
 
 	return progress.RunWithTitle(ctx, func(ctx context.Context) error {

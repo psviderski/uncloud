@@ -22,6 +22,7 @@ type initOptions struct {
 	network     string
 	noCaddy     bool
 	noDNS       bool
+	noInstall   bool
 	publicIP    string
 	sshKey      string
 	version     string
@@ -33,7 +34,20 @@ func NewInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [USER@HOST:PORT]",
 		Short: "Initialise a new cluster with a remote machine as the first member.",
-		// TODO: include usage examples of initialising a remote machine.
+		Long: "Initialise a new cluster by setting up a remote machine as the first member.\n" +
+			"This command creates a new context in your Uncloud config to manage the cluster.",
+		Example: `  # Initialise a new cluster with default settings.
+  uc machine init root@<your-server-ip>
+
+  # Initialise with a context name 'prod' in the Uncloud config (~/.config/uncloud/config.yaml) and machine name 'vps1'.
+  uc machine init root@<your-server-ip> -c prod -n vps1
+
+  # Initialise with a non-root user and custom SSH port and key.
+  uc machine init ubuntu@<your-server-ip>:2222 -i ~/.ssh/mykey
+
+  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.cluster.uncloud.run).
+  # You can deploy Caddy with 'uc caddy deploy' and reserve a domain with 'uc dns reserve' later.
+  uc machine init root@<your-server-ip> --no-caddy --no-dns`,
 		// TODO: support initialising a cluster on the local machine.
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -68,11 +82,16 @@ func NewInitCommand() *cobra.Command {
 	)
 	cmd.Flags().BoolVar(
 		&opts.noCaddy, "no-caddy", false,
-		"Don't deploy Caddy reverse proxy service to the machine.",
+		"Don't deploy Caddy reverse proxy service to the machine. You can deploy it later with 'uc caddy deploy'.",
 	)
 	cmd.Flags().BoolVar(
 		&opts.noDNS, "no-dns", false,
-		"Don't reserve a cluster domain in Uncloud DNS.",
+		"Don't reserve a cluster domain in Uncloud DNS. You can reserve it later with 'uc dns reserve'.",
+	)
+	cmd.Flags().BoolVar(
+		&opts.noInstall, "no-install", false,
+		"Skip installation of Docker, Uncloud daemon, and dependencies on the machine. "+
+			"Assumes they're already installed and running.",
 	)
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "auto",
@@ -89,8 +108,8 @@ func NewInitCommand() *cobra.Command {
 		"Version of the Uncloud daemon to install on the machine.",
 	)
 	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "default",
-		"Name of the created context for the initialised cluster in the Uncloud config.",
+		&opts.context, "context", "c", cli.DefaultContextName,
+		"Name of the new context to be created in the Uncloud config to manage the cluster.",
 	)
 
 	return cmd
@@ -121,6 +140,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		Network:       netPrefix,
 		PublicIP:      publicIP,
 		RemoteMachine: remoteMachine,
+		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
 	})
 	if err != nil {

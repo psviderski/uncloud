@@ -11,7 +11,7 @@ import (
 
 type rmOptions struct {
 	services []string
-	cluster  string
+	context  string
 }
 
 func NewRmCommand() *cobra.Command {
@@ -28,14 +28,14 @@ func NewRmCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(
-		&opts.cluster, "context", "c", "",
+		&opts.context, "context", "c", "",
 		"Name of the cluster context. (default is the current context)",
 	)
 	return cmd
 }
 
 func rm(ctx context.Context, uncli *cli.CLI, opts rmOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.cluster)
+	client, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

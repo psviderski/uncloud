@@ -29,7 +29,7 @@ func TestComposeBuild(t *testing.T) {
 	clusterName := "ucind-test.compose-build"
 	ctx := context.Background()
 
-	registryInternalPort := "5000/tcp"
+	registryInternalPort := "5001/tcp"
 	clusterOpts := ucind.CreateClusterOptions{
 		Machines: 1,
 		PortMap: nat.PortMap{
@@ -79,7 +79,7 @@ func TestComposeBuild(t *testing.T) {
 			Ports: []api.PortSpec{
 				{
 					ContainerPort: 5000,
-					PublishedPort: 5000,
+					PublishedPort: 5001,
 					Mode:          api.PortModeHost,
 					Protocol:      api.ProtocolTCP,
 				},

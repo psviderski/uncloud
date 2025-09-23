@@ -12,8 +12,6 @@ import (
 )
 
 func NewListCommand() *cobra.Command {
-	var clusterContext string
-
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
@@ -23,11 +21,6 @@ func NewListCommand() *cobra.Command {
 			return list(uncli)
 		},
 	}
-
-	cmd.Flags().StringVarP(
-		&clusterContext, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 
 	return cmd
 }
@@ -51,7 +44,7 @@ func list(uncli *cli.CLI) error {
 	for _, name := range contextNames {
 		current := ""
 		if name == currentContext {
-			current = "*"
+			current = "✓"
 		}
 		connCount := len(uncli.Config.Contexts[name].Connections)
 		fmt.Fprintf(tw, "%s\t%s\t%d\n", name, current, connCount)

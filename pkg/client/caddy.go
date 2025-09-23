@@ -35,7 +35,7 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Command: []string{"caddy", "run", "-c", "/config/Caddyfile", "--watch"},
+			Command: []string{"caddy", "run", "-c", "/config/Caddyfile"},
 			Env: map[string]string{
 				"CADDY_ADMIN": "unix//run/caddy/admin.sock",
 			},

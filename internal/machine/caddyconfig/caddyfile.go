@@ -55,6 +55,9 @@ https://{{$hostname}} {
 	log
 }{{end}}
 `
+	caddyfileUnavailabeFooter = `# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine
+#       or the latest generated config is invalid. Please check the Caddy logs if it's running.
+`
 )
 
 // CaddyfileGenerator generates a Caddyfile configuration for the Caddy reverse proxy.
@@ -95,7 +98,11 @@ func NewCaddyfileGenerator(machineID string, validator CaddyfileValidator, log *
 //	[service-a x-caddy]
 //	...
 //	[service-z x-caddy]
-func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.ContainerRecord) (string, error) {
+//
+// If includeCustom is false, custom Caddy configs (x-caddy) are not included in the generated Caddyfile.
+func (g *CaddyfileGenerator) Generate(
+	ctx context.Context, records []store.ContainerRecord, includeCustom bool,
+) (string, error) {
 	containers := make([]api.ServiceContainer, len(records))
 	for i, cr := range records {
 		containers[i] = cr.Container
@@ -111,6 +118,10 @@ func (g *CaddyfileGenerator) Generate(ctx context.Context, records []store.Conta
 	caddyfile, err := g.generateBaseFromPorts(containers)
 	if err != nil {
 		return "", fmt.Errorf("generate base Caddyfile from service ports: %w", err)
+	}
+
+	if !includeCustom {
+		return fmt.Sprintf("%s\n%s\n%s", caddyfileHeader, caddyfile, caddyfileUnavailabeFooter), nil
 	}
 
 	upstreams := serviceUpstreams(containers)

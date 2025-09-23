@@ -19,7 +19,7 @@ CREATE TABLE machines
 CREATE TABLE containers
 (
     id           TEXT NOT NULL PRIMARY KEY,
-    -- container is a JSON-serialized api.Container struct.
+    -- container is a JSON-serialized api.ServiceContainer struct.
     container    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(container)),
     machine_id   TEXT NOT NULL DEFAULT '',
     service_id   TEXT AS (json_extract(container, '$.Config.Labels."uncloud.service.id"')),

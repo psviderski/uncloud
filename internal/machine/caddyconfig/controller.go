@@ -23,11 +23,12 @@ const (
 // proxy. The generated configuration allows Caddy to route external traffic to service containers across the internal
 // network.
 type Controller struct {
-	machineID string
-	configDir string
-	generator *CaddyfileGenerator
-	store     *store.Store
-	log       *slog.Logger
+	machineID     string
+	caddyfilePath string
+	generator     *CaddyfileGenerator
+	client        *CaddyAdminClient
+	store         *store.Store
+	log           *slog.Logger
 }
 
 func NewController(machineID, configDir, adminSock string, store *store.Store) (*Controller, error) {
@@ -39,15 +40,16 @@ func NewController(machineID, configDir, adminSock string, store *store.Store) (
 	}
 
 	log := slog.With("component", "caddy-controller")
-	validator := NewCaddyAdminValidator(adminSock)
-	generator := NewCaddyfileGenerator(machineID, validator, log)
+	client := NewCaddyAdminClient(adminSock)
+	generator := NewCaddyfileGenerator(machineID, client, log)
 
 	return &Controller{
-		machineID: machineID,
-		configDir: configDir,
-		generator: generator,
-		store:     store,
-		log:       log,
+		machineID:     machineID,
+		caddyfilePath: filepath.Join(configDir, "Caddyfile"),
+		generator:     generator,
+		client:        client,
+		store:         store,
+		log:           log,
 	}, nil
 }
 
@@ -59,11 +61,11 @@ func (c *Controller) Run(ctx context.Context) error {
 	c.log.Info("Subscribed to container changes in the cluster to generate Caddy configuration.")
 
 	containers = filterHealthyContainers(containers)
-	if err = c.generateCaddyfile(ctx, containers); err != nil {
-		return fmt.Errorf("generate Caddyfile configuration: %w", err)
-	}
+	c.generateAndLoadCaddyfile(ctx, containers)
+
+	// TODO: left for backward compatibility, remove later.
 	if err = c.generateJSONConfig(containers); err != nil {
-		return fmt.Errorf("generate Caddy JSON configuration: %w", err)
+		c.log.Error("Failed to generate Caddy JSON configuration to disk.", "err", err)
 	}
 
 	for {
@@ -80,15 +82,12 @@ func (c *Controller) Run(ctx context.Context) error {
 				continue
 			}
 			containers = filterHealthyContainers(containers)
+			c.generateAndLoadCaddyfile(ctx, containers)
 
-			if err = c.generateCaddyfile(ctx, containers); err != nil {
-				c.log.Error("Failed to generate Caddyfile configuration.", "err", err)
-			}
+			// TODO: left for backward compatibility, remove later.
 			if err = c.generateJSONConfig(containers); err != nil {
-				c.log.Error("Failed to generate Caddy JSON configuration.", "err", err)
+				c.log.Error("Failed to generate Caddy JSON configuration to disk.", "err", err)
 			}
-
-			c.log.Info("Updated Caddy configuration.", "dir", c.configDir)
 		case <-ctx.Done():
 			return nil
 		}
@@ -109,21 +108,53 @@ func filterHealthyContainers(containers []store.ContainerRecord) []store.Contain
 	return healthy
 }
 
-func (c *Controller) generateCaddyfile(ctx context.Context, containers []store.ContainerRecord) error {
-	caddyfile, err := c.generator.Generate(ctx, containers)
+func (c *Controller) generateAndLoadCaddyfile(ctx context.Context, containers []store.ContainerRecord) {
+	// Check if Caddy is available before attempting to generate and load config.
+	caddyAvailable := c.client.IsAvailable(ctx)
+	caddyfile, err := c.generator.Generate(ctx, containers, caddyAvailable)
 	if err != nil {
-		return fmt.Errorf("generate Caddyfile: %w", err)
-	}
-	caddyfilePath := filepath.Join(c.configDir, "Caddyfile")
-
-	// TODO: use atomic file write to avoid partial loads on Caddy watch reload.
-	if err = os.WriteFile(caddyfilePath, []byte(caddyfile), 0o640); err != nil {
-		return fmt.Errorf("write Caddyfile to file '%s': %w", caddyfilePath, err)
-	}
-	if err = fs.Chown(caddyfilePath, "", CaddyGroup); err != nil {
-		return fmt.Errorf("change owner of Caddyfile '%s': %w", caddyfilePath, err)
+		c.log.Error("Failed to generate Caddyfile configuration.", "err", err)
+		return
 	}
 
+	if !caddyAvailable {
+		// Caddy is not running so the generated Caddyfile should not include user-defined configs thus must be valid.
+		// It's safe to write the config to disk so that when Caddy is deployed on this machine, it can pick it up.
+		if err = c.writeCaddyfile(caddyfile); err != nil {
+			c.log.Error("Failed to write Caddyfile to disk.", "err", err)
+			return
+		}
+		c.log.Debug("Caddy is not running on this machine, skipping configuration load.", "path", c.caddyfilePath)
+		return
+	}
+
+	// Caddy is available, try to load the config which may fail if the config is invalid. Generally, a config can
+	// pass the adaptation/validation step but still fail to load, for example, if it references resources that are
+	// not available.
+	if err = c.client.Load(ctx, caddyfile); err != nil {
+		c.log.Error("Failed to load new Caddy configuration into local Caddy instance.",
+			"err", err, "path", c.caddyfilePath)
+		// Don't write invalid config to disk.
+		return
+	}
+
+	// Config loaded successfully, now write it to disk.
+	if err = c.writeCaddyfile(caddyfile); err != nil {
+		c.log.Error("Failed to write Caddyfile to disk after successful load.", "err", err)
+		// Config is already loaded in Caddy, so this is not critical.
+	}
+
+	c.log.Info("New Caddy configuration loaded into local Caddy instance.", "path", c.caddyfilePath)
+}
+
+// writeCaddyfile writes the Caddyfile content to disk with proper permissions.
+func (c *Controller) writeCaddyfile(caddyfile string) error {
+	if err := os.WriteFile(c.caddyfilePath, []byte(caddyfile), 0o640); err != nil {
+		return fmt.Errorf("write Caddyfile to file '%s': %w", c.caddyfilePath, err)
+	}
+	if err := fs.Chown(c.caddyfilePath, "", CaddyGroup); err != nil {
+		return fmt.Errorf("change owner of Caddyfile '%s': %w", c.caddyfilePath, err)
+	}
 	return nil
 }
 
@@ -142,7 +173,7 @@ func (c *Controller) generateJSONConfig(containers []store.ContainerRecord) erro
 	if err != nil {
 		return fmt.Errorf("marshal Caddy configuration: %w", err)
 	}
-	configPath := filepath.Join(c.configDir, "caddy.json")
+	configPath := filepath.Join(filepath.Dir(c.caddyfilePath), "caddy.json")
 
 	if err = os.WriteFile(configPath, configBytes, 0o640); err != nil {
 		return fmt.Errorf("write Caddy configuration to file '%s': %w", configPath, err)

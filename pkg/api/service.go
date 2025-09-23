@@ -366,6 +366,15 @@ type MachineServiceContainer struct {
 	Container ServiceContainer
 }
 
+// Images returns a sorted list of unique images used by the service containers.
+func (s *Service) Images() []string {
+	images := make(map[string]struct{})
+	for _, ctr := range s.Containers {
+		images[ctr.Container.Config.Image] = struct{}{}
+	}
+	return slices.Sorted(maps.Keys(images))
+}
+
 // Endpoints returns the exposed HTTP and HTTPS endpoints of the service.
 func (s *Service) Endpoints() []string {
 	endpoints := make(map[string]struct{})

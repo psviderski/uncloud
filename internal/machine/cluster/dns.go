@@ -44,7 +44,7 @@ func (c *Cluster) ReserveDomain(ctx context.Context, req *pb.ReserveDomainReques
 	dnsClient := dns.NewClient()
 	name, token, err := dnsClient.ReserveDomain(req.Endpoint)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	domain := uncloudDNSDomain{

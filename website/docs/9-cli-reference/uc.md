@@ -1,14 +1,14 @@
 # uc
 
-A CLI tool for managing Uncloud resources such as clusters, machines, and services.
+A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 
 ## Options
 
 ```
-      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file.
+      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port] or tcp://host:port
   -h, --help                    help for uc
-      --uncloud-config string   Path to the Uncloud configuration file. (default "~/.config/uncloud/config.yaml")
+      --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 
 ## See also

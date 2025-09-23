@@ -20,12 +20,13 @@ import (
 )
 
 type addOptions struct {
-	name     string
-	noCaddy  bool
-	publicIP string
-	sshKey   string
-	context  string
-	version  string
+	name      string
+	noCaddy   bool
+	noInstall bool
+	publicIP  string
+	sshKey    string
+	context   string
+	version   string
 }
 
 func NewAddCommand() *cobra.Command {
@@ -55,6 +56,11 @@ func NewAddCommand() *cobra.Command {
 	cmd.Flags().BoolVar(
 		&opts.noCaddy, "no-caddy", false,
 		"Don't deploy Caddy reverse proxy service to the machine.",
+	)
+	cmd.Flags().BoolVar(
+		&opts.noInstall, "no-install", false,
+		"Skip installation of Docker, Uncloud daemon, and dependencies on the machine. "+
+			"Assumes they're already installed and running.",
 	)
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "auto",
@@ -98,6 +104,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		MachineName:   opts.name,
 		PublicIP:      publicIP,
 		RemoteMachine: remoteMachine,
+		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
 	})
 	if err != nil {

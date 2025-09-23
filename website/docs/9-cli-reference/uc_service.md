@@ -11,14 +11,14 @@ Manage services in an Uncloud cluster.
 ## Options inherited from parent commands
 
 ```
-      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file.
+      --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port] or tcp://host:port
-      --uncloud-config string   Path to the Uncloud configuration file. (default "~/.config/uncloud/config.yaml")
+      --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 
 ## See also
 
-* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as clusters, machines, and services.
+* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc service inspect](uc_service_inspect.md)	 - Display detailed information on a service.
 * [uc service ls](uc_service_ls.md)	 - List services.
 * [uc service rm](uc_service_rm.md)	 - Remove one or more services.

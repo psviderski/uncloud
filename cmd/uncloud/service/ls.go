@@ -12,26 +12,25 @@ import (
 )
 
 func NewListCommand() *cobra.Command {
-	// TODO(lhf): rename to context
-	var cluster string
+	var contextName string
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List services.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return list(cmd.Context(), uncli, cluster)
+			return list(cmd.Context(), uncli, contextName)
 		},
 	}
 	cmd.Flags().StringVarP(
-		&cluster, "context", "c", "",
+		&contextName, "context", "c", "",
 		"Name of the cluster context. (default is the current context)",
 	)
 	return cmd
 }
 
-func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
-	client, err := uncli.ConnectCluster(ctx, clusterName)
+func list(ctx context.Context, uncli *cli.CLI, contextName string) error {
+	client, err := uncli.ConnectCluster(ctx, contextName)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
@@ -61,19 +60,20 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 			return fmt.Errorf("write header: %w", err)
 		}
 	}
-	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tIMAGE\tENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	for _, s := range services {
-		endpointsSlice := s.Endpoints()
-		endpoints := strings.Join(endpointsSlice, ", ")
+		images := strings.Join(s.Images(), ", ")
+		endpoints := strings.Join(s.Endpoints(), ", ")
 
 		if haveDuplicateNames {
 			if _, err = fmt.Fprintf(tw, "%s\t", s.ID); err != nil {
 				return fmt.Errorf("write row: %w", err)
 			}
 		}
-		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\n", s.Name, s.Mode, len(s.Containers), endpoints); err != nil {
+		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\n",
+			s.Name, s.Mode, len(s.Containers), images, endpoints); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}

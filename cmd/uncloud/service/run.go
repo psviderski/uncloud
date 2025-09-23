@@ -35,7 +35,7 @@ type runOptions struct {
 	user              string
 	volumes           []string
 
-	cluster string
+	context string
 }
 
 func NewRunCommand() *cobra.Command {
@@ -113,7 +113,7 @@ func NewRunCommand() *cobra.Command {
 			"  -v /host/path:/container/path:ro 		 Bind mount a host directory or file as read-only")
 
 	cmd.Flags().StringVarP(
-		&opts.cluster, "context", "c", "",
+		&opts.context, "context", "c", "",
 		"Name of the cluster context to run the service in. (default is the current context)",
 	)
 
@@ -126,7 +126,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return err
 	}
 
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.cluster)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

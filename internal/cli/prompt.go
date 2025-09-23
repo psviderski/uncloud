@@ -1,6 +1,11 @@
 package cli
 
-import "github.com/charmbracelet/huh"
+import (
+	"os"
+
+	"github.com/charmbracelet/huh"
+	"golang.org/x/term"
+)
 
 func Confirm() (bool, error) {
 	var confirmed bool
@@ -20,4 +25,14 @@ func Confirm() (bool, error) {
 	}
 
 	return confirmed, nil
+}
+
+// IsStdinTerminal checks if the standard input is a terminal (TTY).
+func IsStdinTerminal() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// IsStdoutTerminal checks if the standard output is a terminal (TTY).
+func IsStdoutTerminal() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
 }
