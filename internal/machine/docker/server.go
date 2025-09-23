@@ -690,6 +690,10 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 		return nil
 	}
 
+	if err := api.ValidateConfigsAndMounts(configs, mounts); err != nil {
+		return fmt.Errorf("validate configs and mounts: %w", err)
+	}
+
 	// Create a map of config name to config spec for quick lookup
 	configMap := make(map[string]api.ConfigSpec)
 	for _, config := range configs {
@@ -707,7 +711,7 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 		targetPath := mount.ContainerPath
 		if targetPath == "" {
 			// This is the default from the Compose spec
-			targetPath = "/" + mount.ConfigName
+			targetPath = filepath.Join("/", mount.ConfigName)
 		}
 
 		// Determine file mode
@@ -716,8 +720,18 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 			fileMode = *mount.Mode
 		}
 
+		uid, err := mount.GetNumericUid()
+		if err != nil {
+			return fmt.Errorf("invalid Uid: %w", err)
+		}
+
+		gid, err := mount.GetNumericGid()
+		if err != nil {
+			return fmt.Errorf("invalid Gid: %w", err)
+		}
+
 		// Copy the config content directly into the container
-		if err := s.copyContentToContainer(ctx, containerID, config.Content, targetPath, mount.Uid, mount.Gid, fileMode); err != nil {
+		if err := s.copyContentToContainer(ctx, containerID, config.Content, targetPath, uid, gid, fileMode); err != nil {
 			return fmt.Errorf("copy config file '%s' to container: %w", config.Name, err)
 		}
 
@@ -731,7 +745,7 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 }
 
 // copyContentToContainer copies content directly to a file in the container using Docker's CopyToContainer API.
-func (s *Server) copyContentToContainer(ctx context.Context, containerID string, content []byte, targetPath string, uid string, gid string, fileMode os.FileMode) error {
+func (s *Server) copyContentToContainer(ctx context.Context, containerID string, content []byte, targetPath string, uid *uint64, gid *uint64, fileMode os.FileMode) error {
 	// Create a tar archive containing the file
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
@@ -746,15 +760,11 @@ func (s *Server) copyContentToContainer(ctx context.Context, containerID string,
 	}
 
 	// Set ownership if specified
-	if uid != "" {
-		if uidInt, err := strconv.Atoi(uid); err == nil {
-			header.Uid = uidInt
-		}
+	if uid != nil {
+		header.Uid = int(*uid)
 	}
-	if gid != "" {
-		if gidInt, err := strconv.Atoi(gid); err == nil {
-			header.Gid = gidInt
-		}
+	if gid != nil {
+		header.Gid = int(*gid)
 	}
 
 	// Write header and content to tar archive
@@ -774,7 +784,13 @@ func (s *Server) copyContentToContainer(ctx context.Context, containerID string,
 		targetDir = "/"
 	}
 
-	if err := s.client.CopyToContainer(ctx, containerID, targetDir, &buf, container.CopyToContainerOptions{}); err != nil {
+	if err := s.client.CopyToContainer(
+		ctx,
+		containerID,
+		targetDir,
+		&buf,
+		container.CopyToContainerOptions{CopyUIDGID: true},
+	); err != nil {
 		return fmt.Errorf("copy to container: %w", err)
 	}
 

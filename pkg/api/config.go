@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 )
 
 // ConfigSpec defines a configuration object that can be mounted into containers
@@ -52,9 +54,40 @@ type ConfigMount struct {
 	Mode *os.FileMode `json:",omitempty"`
 }
 
+func (c *ConfigMount) GetNumericUid() (*uint64, error) {
+	if c.Uid == "" {
+		return nil, nil
+	}
+	uid, err := strconv.ParseUint(c.Uid, 10, 64)
+	if err != nil || int(uid) < 0 {
+		return nil, fmt.Errorf("invalid Uid '%s': %w", c.Uid, err)
+	}
+	return &uid, nil
+}
+
+func (c *ConfigMount) GetNumericGid() (*uint64, error) {
+	if c.Gid == "" {
+		return nil, nil
+	}
+	gid, err := strconv.ParseUint(c.Gid, 10, 64)
+	if err != nil || int(gid) < 0 {
+		return nil, fmt.Errorf("invalid Gid '%s': %w", c.Gid, err)
+	}
+	return &gid, nil
+}
+
 func (c *ConfigMount) Validate() error {
 	if c.ConfigName == "" {
 		return fmt.Errorf("config mount source is required")
+	}
+	if _, err := c.GetNumericUid(); err != nil {
+		return err
+	}
+	if _, err := c.GetNumericGid(); err != nil {
+		return err
+	}
+	if c.ContainerPath != "" && !filepath.IsAbs(c.ContainerPath) {
+		return fmt.Errorf("container path must be absolute")
 	}
 	return nil
 }
