@@ -48,9 +48,9 @@ func TestConfigMount_GetNumericUid(t *testing.T) {
 			wantErr: "invalid Uid",
 		},
 		{
-			name:     "very large uid",
-			uid:      "18446744073709551615", // max uint64
-			expected: uint64Ptr(18446744073709551615),
+			name:    "very large uid",
+			uid:     "18446744073709551615", // max uint64
+			wantErr: "invalid Uid '18446744073709551615': value too high",
 		},
 	}
 

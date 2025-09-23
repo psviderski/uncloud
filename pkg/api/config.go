@@ -59,8 +59,11 @@ func (c *ConfigMount) GetNumericUid() (*uint64, error) {
 		return nil, nil
 	}
 	uid, err := strconv.ParseUint(c.Uid, 10, 64)
-	if err != nil || int(uid) < 0 {
+	if err != nil {
 		return nil, fmt.Errorf("invalid Uid '%s': %w", c.Uid, err)
+	}
+	if int(uid) < 0 {
+		return nil, fmt.Errorf("invalid Uid '%s': value too high", c.Uid)
 	}
 	return &uid, nil
 }
@@ -70,8 +73,11 @@ func (c *ConfigMount) GetNumericGid() (*uint64, error) {
 		return nil, nil
 	}
 	gid, err := strconv.ParseUint(c.Gid, 10, 64)
-	if err != nil || int(gid) < 0 {
+	if err != nil {
 		return nil, fmt.Errorf("invalid Gid '%s': %w", c.Gid, err)
+	}
+	if int(gid) < 0 {
+		return nil, fmt.Errorf("invalid Gid '%s': value too high", c.Gid)
 	}
 	return &gid, nil
 }
