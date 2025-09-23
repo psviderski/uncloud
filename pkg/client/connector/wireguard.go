@@ -12,6 +12,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/network/tunnel"
 	"github.com/psviderski/uncloud/pkg/client"
+	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -73,6 +74,10 @@ func (c *WireGuardConnector) Connect(ctx context.Context) (*grpc.ClientConn, err
 		return nil, fmt.Errorf("connect to machine API through WireGuard tunnel: %w", err)
 	}
 	return conn, nil
+}
+
+func (c *WireGuardConnector) Dialer() (proxy.ContextDialer, error) {
+	return nil, fmt.Errorf("proxy connections not implemented for WireGuard connector")
 }
 
 func (c *WireGuardConnector) Close() error {
