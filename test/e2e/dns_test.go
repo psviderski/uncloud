@@ -77,7 +77,7 @@ func TestInternalDNS(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
-				Image: "wbitt/network-multitool",
+				Image:   "wbitt/network-multitool",
 				Command: []string{"sh", "-c", fmt.Sprintf("nslookup %s > %s 2>&1 && echo 'DNS query completed' && sleep infinity", dnsQuery, outputFile)},
 				VolumeMounts: []api.VolumeMount{
 					{
