@@ -10,6 +10,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
+	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -31,9 +32,12 @@ type Client struct {
 
 var _ api.Client = (*Client)(nil)
 
-// Connector is an interface for establishing a connection to the machine API.
+// Connector is an interface for establishing a connection to the cluster.
 type Connector interface {
+	// Connect establishes a gRPC client connection to the machine API.
 	Connect(ctx context.Context) (*grpc.ClientConn, error)
+	// Dialer returns a proxy dialer for establishing connections within the cluster if supported by the connector.
+	Dialer() (proxy.ContextDialer, error)
 	Close() error
 }
 

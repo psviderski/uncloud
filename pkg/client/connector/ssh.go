@@ -9,6 +9,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -77,6 +78,10 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 		return nil, fmt.Errorf("create machine API client: %w", err)
 	}
 	return conn, nil
+}
+
+func (c *SSHConnector) Dialer() (proxy.ContextDialer, error) {
+	return nil, fmt.Errorf("dialer not implemented for SSHConnector yet")
 }
 
 func (c *SSHConnector) Close() error {
