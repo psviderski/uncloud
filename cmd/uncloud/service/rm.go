@@ -50,5 +50,5 @@ func rm(ctx context.Context, uncli *cli.CLI, opts rmOptions) error {
 		}, uncli.ProgressOut(), "Removing service "+s)
 	}
 
-	return nil
+	return err
 }
