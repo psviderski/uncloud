@@ -46,7 +46,7 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 	// Print the list of machines in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	// Print header.
-	if _, err = fmt.Fprintln(tw, "NAME\tSTATE\tADDRESS\tPUBLIC IP\tWIREGUARD ENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tSTATE\tADDRESS\tPUBLIC IP\tWIREGUARD ENDPOINTS\tMACHINE ID"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	// Print rows.
@@ -68,8 +68,8 @@ func list(ctx context.Context, uncli *cli.CLI, clusterName string) error {
 		}
 
 		if _, err = fmt.Fprintf(
-			tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicIP,
-			strings.Join(endpoints, ", "),
+			tw, "%s\t%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicIP,
+			strings.Join(endpoints, ", "), member.Machine.Id,
 		); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
