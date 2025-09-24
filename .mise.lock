@@ -40,6 +40,20 @@ checksum = "sha256:cd4dd53fa09b6646baff5fd22b8c64d91db02c21c7496df27992d75d34fee
 size = 13542526
 url = "https://github.com/golangci/golangci-lint/releases/download/v2.4.0/golangci-lint-2.4.0-darwin-arm64.tar.gz"
 
+[[tools.node]]
+version = "22.20.0"
+backend = "core:node"
+
+[tools.node.platforms.linux-x64]
+checksum = "sha256:eeaccb0378b79406f2208e8b37a62479c70595e20be6b659125eb77dd1ab2a29"
+size = 56645685
+url = "https://nodejs.org/dist/v22.20.0/node-v22.20.0-linux-x64.tar.gz"
+
+[tools.node.platforms.macos-arm64]
+checksum = "sha256:cc04a76a09f79290194c0646f48fec40354d88969bec467789a5d55dd097f949"
+size = 49838299
+url = "https://nodejs.org/dist/v22.20.0/node-v22.20.0-darwin-arm64.tar.gz"
+
 [[tools.protoc]]
 version = "27.3"
 backend = "aqua:protocolbuffers/protobuf/protoc"
