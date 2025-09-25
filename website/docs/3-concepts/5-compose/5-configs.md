@@ -47,8 +47,11 @@ configs:
     content: |
       database_url=postgres://localhost:5432/myapp
       redis_url=redis://localhost:6379
-      log_level=info
+      # Variable interpolation is supported
+      log_level=${LOG_LEVEL:-info}
 ```
+
+When using inline configs, [environment variable interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/) is supported so that you can customize configuration based on your deployment environment. Variables are resolved from the environment where `uc deploy` is executed.
 
 ## Service-level Config Mounts
 
@@ -148,7 +151,7 @@ configs:
         }
       }
   database_config:
-    file: ./secrets/database.json
+    file: ./configs/database.json
 ```
 
 ## Implementation details
