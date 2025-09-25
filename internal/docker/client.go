@@ -11,6 +11,10 @@ import (
 	"github.com/docker/docker/client"
 )
 
+type Client struct {
+	*client.Client
+}
+
 // WaitDaemonReady waits for the Docker daemon to start and be ready to serve requests.
 func WaitDaemonReady(ctx context.Context, cli *client.Client) error {
 	// Retry to ping the Docker daemon until it's ready or the context is canceled.

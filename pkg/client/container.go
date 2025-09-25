@@ -4,17 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
-	dockercommand "github.com/docker/cli/cli/command"
-	dockerconfig "github.com/docker/cli/cli/config"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/registry"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/docker"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/status"
@@ -94,9 +91,9 @@ func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName
 		StatusText: "Pulling",
 	})
 
-	opts := docker.PullOptions{}
+	opts := machinedocker.PullOptions{}
 	// Try to retrieve the authentication token for the image from the default local Docker config file.
-	if encodedAuth, err := retrieveRegistryAuthFromDocker(image); err == nil && encodedAuth != "" {
+	if encodedAuth, err := docker.RetrieveLocalDockerRegistryAuth(image); err == nil {
 		// If RegistryAuth is empty, Uncloud daemon will try to retrieve the credentials from its own Docker config.
 		opts.RegistryAuth = encodedAuth
 	}
@@ -153,34 +150,6 @@ func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName
 	})
 
 	return nil
-}
-
-// retrieveRegistryAuthFromDocker retrieves the authentication token for the specified image from the local Docker
-// config file. It returns the encoded authentication token if it contains any credentials, or an empty string if
-// no credentials are found.
-func retrieveRegistryAuthFromDocker(image string) (string, error) {
-	// Try to retrieve the authentication token for the image from the default local Docker config file.
-	dockerConfig := dockerconfig.LoadDefaultConfigFile(os.Stderr)
-	encodedAuth, err := dockercommand.RetrieveAuthTokenFromImage(dockerConfig, image)
-	if err != nil {
-		return "", err
-	}
-	// The encodedAuth can be a base64-encoded "{}" (empty JSON object) or include a server address but no credentials.
-	// Return encodedAuth only if it contains any credentials.
-	auth, err := registry.DecodeAuthConfig(encodedAuth)
-	if err != nil {
-		return "", fmt.Errorf("decode auth config: %w", err)
-	}
-
-	if auth.Username == "" &&
-		auth.Password == "" &&
-		auth.Auth == "" &&
-		auth.IdentityToken == "" &&
-		auth.RegistryToken == "" {
-		return "", nil
-	}
-
-	return encodedAuth, nil
 }
 
 // toPullProgressEvent converts a JSON progress message from the Docker API to a progress event.
