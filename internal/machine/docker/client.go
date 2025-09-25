@@ -16,6 +16,7 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 	regtypes "github.com/google/go-containerregistry/pkg/v1/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc"
@@ -205,12 +206,7 @@ type PullOptions struct {
 	Platform     string
 }
 
-type PullImageMessage struct {
-	Message jsonmessage.JSONMessage
-	Err     error
-}
-
-func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) (<-chan PullImageMessage, error) {
+func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) (<-chan docker.PullImageMessage, error) {
 	optsBytes, err := json.Marshal(opts)
 	if err != nil {
 		return nil, fmt.Errorf("marshal options: %w", err)
@@ -221,7 +217,7 @@ func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) 
 		return nil, err
 	}
 
-	ch := make(chan PullImageMessage)
+	ch := make(chan docker.PullImageMessage)
 
 	go func() {
 		defer close(ch)
@@ -232,16 +228,16 @@ func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) 
 				return
 			}
 			if err != nil {
-				ch <- PullImageMessage{Err: err}
+				ch <- docker.PullImageMessage{Err: err}
 				return
 			}
 
 			var jm jsonmessage.JSONMessage
 			if err = json.Unmarshal(msg.Message, &jm); err != nil {
-				ch <- PullImageMessage{Err: fmt.Errorf("unmarshal JSON message: %w", err)}
+				ch <- docker.PullImageMessage{Err: fmt.Errorf("unmarshal JSON message: %w", err)}
 				return
 			}
-			ch <- PullImageMessage{Message: jm}
+			ch <- docker.PullImageMessage{Message: jm}
 		}
 	}()
 
