@@ -35,12 +35,12 @@ func (cli *Client) PullImage(
 	if err != nil {
 		return nil, err
 	}
-	defer respBody.Close()
 
 	decoder := json.NewDecoder(respBody)
 	ch := make(chan PullImageMessage)
 
 	go func() {
+		defer respBody.Close()
 		defer close(ch)
 		var jm jsonmessage.JSONMessage
 
@@ -59,7 +59,7 @@ func (cli *Client) PullImage(
 			}
 
 			select {
-			case err = <-ctx.Done():
+			case <-ctx.Done():
 				ch <- PullImageMessage{Err: ctx.Err()}
 				return
 			default:
