@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -80,8 +81,13 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
+// Dialer returns a proxy dialer for establishing connections within the cluster through the SSH tunnel.
+// The connector must be created with an existing SSH client or Connect must be called first.
 func (c *SSHConnector) Dialer() (proxy.ContextDialer, error) {
-	return nil, fmt.Errorf("dialer not implemented for SSHConnector yet")
+	if c.client == nil {
+		return nil, errors.New("SSH connection must be established first")
+	}
+	return c.client, nil
 }
 
 func (c *SSHConnector) Close() error {
