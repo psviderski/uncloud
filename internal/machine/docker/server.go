@@ -1,6 +1,8 @@
 package docker
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,10 +11,12 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/distribution/reference"
 	dockercommand "github.com/docker/cli/cli/command"
@@ -596,6 +600,13 @@ func (s *Server) CreateServiceContainer(
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	// Inject configs into the created container
+	if err = s.injectConfigs(ctx, resp.ID, spec.Configs, spec.Container.ConfigMounts); err != nil {
+		// Remove the container if config injection fails
+		_ = s.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{RemoveVolumes: true})
+		return nil, status.Errorf(codes.Internal, "inject configs: %v", err)
+	}
+
 	respBytes, err := json.Marshal(resp)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
@@ -670,6 +681,120 @@ func ToDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount
 	}
 
 	return dockerMounts, nil
+}
+
+// injectConfigs writes config content directly into the container.
+// It processes ConfigSpecs and ConfigMounts to mount configuration content into the container filesystem.
+func (s *Server) injectConfigs(ctx context.Context, containerID string, configs []api.ConfigSpec, mounts []api.ConfigMount) error {
+	if len(configs) == 0 || len(mounts) == 0 {
+		return nil
+	}
+
+	if err := api.ValidateConfigsAndMounts(configs, mounts); err != nil {
+		return fmt.Errorf("validate configs and mounts: %w", err)
+	}
+
+	// Create a map of config name to config spec for quick lookup
+	configMap := make(map[string]api.ConfigSpec)
+	for _, config := range configs {
+		configMap[config.Name] = config
+	}
+
+	// Process each config mount
+	for _, mount := range mounts {
+		config, exists := configMap[mount.ConfigName]
+		if !exists {
+			return fmt.Errorf("config mount references a config that doesn't exist: '%s'", mount.ConfigName)
+		}
+
+		// Determine target path in container
+		targetPath := mount.ContainerPath
+		if targetPath == "" {
+			// This is the default from the Compose spec
+			targetPath = filepath.Join("/", mount.ConfigName)
+		}
+
+		// Determine file mode
+		fileMode := os.FileMode(0o444) // Default permissions
+		if mount.Mode != nil {
+			fileMode = *mount.Mode
+		}
+
+		uid, err := mount.GetNumericUid()
+		if err != nil {
+			return fmt.Errorf("invalid Uid: %w", err)
+		}
+
+		gid, err := mount.GetNumericGid()
+		if err != nil {
+			return fmt.Errorf("invalid Gid: %w", err)
+		}
+
+		// Copy the config content directly into the container
+		if err := s.copyContentToContainer(ctx, containerID, config.Content, targetPath, uid, gid, fileMode); err != nil {
+			return fmt.Errorf("copy config file '%s' to container: %w", config.Name, err)
+		}
+
+		slog.Debug("Injected config into container",
+			"config", config.Name,
+			"container", containerID[:12],
+			"target", targetPath)
+	}
+
+	return nil
+}
+
+// copyContentToContainer copies content directly to a file in the container using Docker's CopyToContainer API.
+func (s *Server) copyContentToContainer(ctx context.Context, containerID string, content []byte, targetPath string, uid *uint64, gid *uint64, fileMode os.FileMode) error {
+	// Create a tar archive containing the file
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	// Create tar header
+	header := &tar.Header{
+		Name:     filepath.Base(targetPath),
+		Size:     int64(len(content)),
+		Mode:     int64(fileMode),
+		ModTime:  time.Now(),
+		Typeflag: tar.TypeReg,
+	}
+
+	// Set ownership if specified
+	if uid != nil {
+		header.Uid = int(*uid)
+	}
+	if gid != nil {
+		header.Gid = int(*gid)
+	}
+
+	// Write header and content to tar archive
+	if err := tw.WriteHeader(header); err != nil {
+		return fmt.Errorf("write tar header: %w", err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		return fmt.Errorf("write content to tar: %w", err)
+	}
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("close tar writer: %w", err)
+	}
+
+	// Copy the tar archive to the container
+	targetDir := filepath.Dir(targetPath)
+	if targetDir == "." {
+		targetDir = "/"
+	}
+
+	if err := s.client.CopyToContainer(
+		ctx,
+		containerID,
+		targetDir,
+		&buf,
+		container.CopyToContainerOptions{CopyUIDGID: true},
+	); err != nil {
+		return fmt.Errorf("copy to container: %w", err)
+	}
+
+	return nil
 }
 
 func toDockerBindOptions(opts *api.BindOptions) *mount.BindOptions {

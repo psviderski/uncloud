@@ -1,0 +1,21 @@
+services:
+  web:
+    image: busybox:1.37.0-uclibc
+    command: ["true"]
+    configs:
+      - source: from-file
+        target: /etc/config-from-file.conf
+        mode: 0644
+      - source: from-inline
+        target: /etc/config-inline.conf
+        uid: "1000"
+        gid: "1000"
+        mode: 0600
+    deploy:
+      replicas: 1
+configs:
+  from-file:
+    file: ./configs/test-config.conf
+  from-inline:
+    content: |
+      this is inline config
