@@ -535,6 +535,9 @@ func (s *Server) CreateServiceContainer(
 	if err = s.verifyDockerVolumesExist(ctx, mounts); err != nil {
 		return nil, err
 	}
+	if err = ensureHostPaths(spec.Volumes); err != nil {
+		return nil, status.Errorf(codes.Internal, "ensure host directories: %v", err)
+	}
 
 	portBindings := make(nat.PortMap)
 	for _, p := range spec.Ports {
@@ -804,7 +807,7 @@ func toDockerBindOptions(opts *api.BindOptions) *mount.BindOptions {
 
 	dockerOpts := &mount.BindOptions{
 		Propagation:      opts.Propagation,
-		CreateMountpoint: opts.CreateHostPath,
+		CreateMountpoint: true, // Always create container mountpoint
 	}
 
 	switch opts.Recursive {
@@ -817,6 +820,23 @@ func toDockerBindOptions(opts *api.BindOptions) *mount.BindOptions {
 	}
 
 	return dockerOpts
+}
+
+// ensureHostPaths creates host directories for bind mounts that have CreateHostPath=true.
+func ensureHostPaths(volumes []api.VolumeSpec) error {
+	for _, vol := range volumes {
+		bindOptions := vol.BindOptions
+		if vol.Type != api.VolumeTypeBind || bindOptions == nil {
+			continue
+		}
+
+		if bindOptions.CreateHostPath && bindOptions.HostPath != "" {
+			if err := os.MkdirAll(bindOptions.HostPath, os.ModePerm); err != nil {
+				return fmt.Errorf("create host path for bind mount '%s': %w", bindOptions.HostPath, err)
+			}
+		}
+	}
+	return nil
 }
 
 // verifyDockerVolumesExist checks if the Docker named volumes referenced in the mounts exist on the machine.
