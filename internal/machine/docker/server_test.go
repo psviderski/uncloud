@@ -10,9 +10,7 @@ import (
 )
 
 func TestEnsureHostPaths(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir := t.TempDir()
-	defer os.RemoveAll(tempDir)
 
 	tests := []struct {
 		name     string
