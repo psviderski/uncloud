@@ -88,6 +88,10 @@ This document provides comprehensive information about the Uncloud project for A
 - **`scripts/`**: Installation and utility scripts
 - **`test/`**: Test suites and test infrastructure
 - **`website/`**: Documentation website (Docusaurus)
+
+  - `landing/`: Landing page
+  - `docs/`: User documentation
+
 - **`misc/`**: Design documents and guides
 
 ## Key Technologies
@@ -184,9 +188,11 @@ uc context use <name>           # Switch context
 
 ### Testing
 
-- Unit tests alongside source files (`*_test.go`)
-- Integration tests in `test/e2e/`
-- Test fixtures in `test/fixtures/`
+- Test files and locations
+  - Unit tests alongside source files (`*_test.go`)
+  - Integration tests in `test/e2e/`
+  - Test fixtures in `test/fixtures/`
+- Use table driven tests whenever possible
 
 ### Dependencies
 
@@ -233,7 +239,7 @@ uc context use <name>           # Switch context
 - `internal/machine/machine.go`: Core machine management
 - `pkg/api/`: Public API definitions
 - `misc/design.md`: Architecture and design philosophy
-- `README.md`: User-facing documentation
+- `README.md`: Repository README
 
 ### Configuration Files
 
@@ -242,3 +248,11 @@ uc context use <name>           # Switch context
 - `Dockerfile`: Container build instructions forUncloud-in-Docker (used for testing)
 
 This document should help AI assistants understand the project structure, make informed suggestions, and contribute effectively to the Uncloud codebase.
+
+## Documentation
+
+Instructions when generating documentation:
+
+- Use conversational language – write as if you were speaking to a friend.
+- Keep sentences simple, optimize for clarity and understanding.
+- Place the subject before the action whenever possible. Example: prefer “The function loads data” over “Data is loaded by the function.”
