@@ -831,6 +831,16 @@ func ensureHostPaths(volumes []api.VolumeSpec) error {
 		}
 
 		if bindOptions.CreateHostPath && bindOptions.HostPath != "" {
+			// Check if the path already exists
+			if _, err := os.Stat(bindOptions.HostPath); err == nil {
+				// Path exists - we don't need to create anything
+				continue
+			} else if !os.IsNotExist(err) {
+				// Some other error occurred (permission denied, etc.)
+				return fmt.Errorf("check host path for bind mount '%s': %w", bindOptions.HostPath, err)
+			}
+
+			// Path doesn't exist, create the directory
 			if err := os.MkdirAll(bindOptions.HostPath, os.ModePerm); err != nil {
 				return fmt.Errorf("create host path for bind mount '%s': %w", bindOptions.HostPath, err)
 			}

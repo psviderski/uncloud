@@ -12,6 +12,20 @@ import (
 func TestEnsureHostPaths(t *testing.T) {
 	tempDir := t.TempDir()
 
+	// Create a test file to simulate existing file scenario
+	testFile := filepath.Join(tempDir, "existing-file.txt")
+	err := os.WriteFile(testFile, []byte("test content"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Create a test directory to simulate existing directory scenario
+	existingDir := filepath.Join(tempDir, "existing-directory")
+	err = os.MkdirAll(existingDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+
 	tests := []struct {
 		name     string
 		volumes  []api.VolumeSpec
@@ -105,6 +119,36 @@ func TestEnsureHostPaths(t *testing.T) {
 				},
 			},
 			wantDirs: []string{filepath.Join(tempDir, "level1", "level2", "level3")},
+			wantErr:  false,
+		},
+		{
+			name: "existing directory is not modified",
+			volumes: []api.VolumeSpec{
+				{
+					Name: "existing-dir",
+					Type: api.VolumeTypeBind,
+					BindOptions: &api.BindOptions{
+						HostPath:       existingDir,
+						CreateHostPath: true,
+					},
+				},
+			},
+			wantDirs: []string{}, // Directory already exists, no action needed
+			wantErr:  false,
+		},
+		{
+			name: "existing temp file is not modified",
+			volumes: []api.VolumeSpec{
+				{
+					Name: "temp-existing-file",
+					Type: api.VolumeTypeBind,
+					BindOptions: &api.BindOptions{
+						HostPath:       testFile,
+						CreateHostPath: true,
+					},
+				},
+			},
+			wantDirs: []string{}, // No directories should be created
 			wantErr:  false,
 		},
 		{
