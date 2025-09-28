@@ -14,14 +14,14 @@ func TestEnsureHostPaths(t *testing.T) {
 
 	// Create a test file to simulate existing file scenario
 	testFile := filepath.Join(tempDir, "existing-file.txt")
-	err := os.WriteFile(testFile, []byte("test content"), 0644)
+	err := os.WriteFile(testFile, []byte("test content"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
 	// Create a test directory to simulate existing directory scenario
 	existingDir := filepath.Join(tempDir, "existing-directory")
-	err = os.MkdirAll(existingDir, 0755)
+	err = os.MkdirAll(existingDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
