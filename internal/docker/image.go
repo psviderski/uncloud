@@ -15,15 +15,15 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 )
 
-type PullImageMessage struct {
+type PullPushImageMessage struct {
 	Message jsonmessage.JSONMessage
 	Err     error
 }
 
-// PullImage pulls a Docker image and returns a channel to receive progress messages.
+// PullImage pulls an image and returns a channel to receive progress messages.
 func (cli *Client) PullImage(
 	ctx context.Context, image string, opts image.PullOptions,
-) (<-chan PullImageMessage, error) {
+) (<-chan PullPushImageMessage, error) {
 	if opts.RegistryAuth == "" {
 		// Try to retrieve the authentication token for the image from the default local Docker config file.
 		if encodedAuth, err := RetrieveLocalDockerRegistryAuth(image); err == nil {
@@ -37,30 +37,81 @@ func (cli *Client) PullImage(
 	}
 
 	decoder := json.NewDecoder(respBody)
-	ch := make(chan PullImageMessage)
+	ch := make(chan PullPushImageMessage)
 
 	go func() {
 		defer respBody.Close()
 		defer close(ch)
-		var jm jsonmessage.JSONMessage
 
 		for {
+			var jm jsonmessage.JSONMessage
 			if err = decoder.Decode(&jm); err != nil {
 				if errors.Is(err, io.EOF) {
 					break
 				}
-				ch <- PullImageMessage{Err: fmt.Errorf("decode image pull message: %w", err)}
+				ch <- PullPushImageMessage{Err: fmt.Errorf("decode image pull message: %w", err)}
 				break
 			}
 
-			msg := PullImageMessage{Message: jm}
+			msg := PullPushImageMessage{Message: jm}
 			if jm.Error != nil {
 				msg.Err = errors.New(jm.Error.Message)
 			}
 
 			select {
 			case <-ctx.Done():
-				ch <- PullImageMessage{Err: ctx.Err()}
+				ch <- PullPushImageMessage{Err: ctx.Err()}
+				return
+			default:
+				ch <- msg
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
+// PushImage pushes an image and returns a channel to receive progress messages.
+func (cli *Client) PushImage(
+	ctx context.Context, image string, opts image.PushOptions,
+) (<-chan PullPushImageMessage, error) {
+	if opts.RegistryAuth == "" {
+		// Try to retrieve the authentication token for the image from the default local Docker config file.
+		if encodedAuth, err := RetrieveLocalDockerRegistryAuth(image); err == nil {
+			opts.RegistryAuth = encodedAuth
+		}
+	}
+
+	respBody, err := cli.ImagePush(ctx, image, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(respBody)
+	ch := make(chan PullPushImageMessage)
+
+	go func() {
+		defer respBody.Close()
+		defer close(ch)
+
+		for {
+			var jm jsonmessage.JSONMessage
+			if err = decoder.Decode(&jm); err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				ch <- PullPushImageMessage{Err: fmt.Errorf("decode image push message: %w", err)}
+				break
+			}
+
+			msg := PullPushImageMessage{Message: jm}
+			if jm.Error != nil {
+				msg.Err = errors.New(jm.Error.Message)
+			}
+
+			select {
+			case <-ctx.Done():
+				ch <- PullPushImageMessage{Err: ctx.Err()}
 				return
 			default:
 				ch <- msg

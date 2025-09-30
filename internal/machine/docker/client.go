@@ -206,7 +206,7 @@ type PullOptions struct {
 	Platform     string
 }
 
-func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) (<-chan docker.PullImageMessage, error) {
+func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) (<-chan docker.PullPushImageMessage, error) {
 	optsBytes, err := json.Marshal(opts)
 	if err != nil {
 		return nil, fmt.Errorf("marshal options: %w", err)
@@ -217,7 +217,7 @@ func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) 
 		return nil, err
 	}
 
-	ch := make(chan docker.PullImageMessage)
+	ch := make(chan docker.PullPushImageMessage)
 
 	go func() {
 		defer close(ch)
@@ -228,16 +228,16 @@ func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) 
 				return
 			}
 			if err != nil {
-				ch <- docker.PullImageMessage{Err: err}
+				ch <- docker.PullPushImageMessage{Err: err}
 				return
 			}
 
 			var jm jsonmessage.JSONMessage
 			if err = json.Unmarshal(msg.Message, &jm); err != nil {
-				ch <- docker.PullImageMessage{Err: fmt.Errorf("unmarshal JSON message: %w", err)}
+				ch <- docker.PullPushImageMessage{Err: fmt.Errorf("unmarshal JSON message: %w", err)}
 				return
 			}
-			ch <- docker.PullImageMessage{Message: jm}
+			ch <- docker.PullPushImageMessage{Message: jm}
 		}
 	}()
 
