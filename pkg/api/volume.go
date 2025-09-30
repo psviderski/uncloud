@@ -248,7 +248,7 @@ type VolumeFilter struct {
 	Driver string
 	// Labels filters volumes by label key-value pairs. Volumes must match all labels.
 	Labels map[string]string
-	// MachineIDs filters volumes to those on the specified machines (names or IDs).
+	// Machines filters volumes to those on the specified machines (names or IDs).
 	Machines []string
 	// Names filters volumes by name. Volumes must match one of the names.
 	Names []string

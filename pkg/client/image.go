@@ -17,6 +17,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/constants"
@@ -40,9 +41,18 @@ func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.Mac
 	return cli.Docker.InspectRemoteImage(ctx, id)
 }
 
+type PushImageOptions struct {
+	// Machines is a list of machine names or IDs to push the image to. If empty, pushes to the machine
+	// the client is connected to.
+	Machines []string
+	// Platform to push for a multi-platform image. Local Docker must use containerd image store
+	// to support multi-platform images.
+	Platform *ocispec.Platform
+}
+
 // PushImage pushes a local Docker image to the specified machines. If no machines are specified,
 // it pushes to the machine the client is connected to.
-func (cli *Client) PushImage(ctx context.Context, image string, machineNamesOrIDs []string) error {
+func (cli *Client) PushImage(ctx context.Context, image string, opts PushImageOptions) error {
 	dockerCliWrapped, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv,
 		dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
@@ -61,18 +71,18 @@ func (cli *Client) PushImage(ctx context.Context, image string, machineNamesOrID
 
 	// Get the machine info for the specified machines or the connected machine if none are specified.
 	var machines []*pb.MachineInfo
-	if len(machineNamesOrIDs) > 0 {
+	if len(opts.Machines) > 0 {
 		machineMembers, err := cli.ListMachines(ctx, &api.MachineFilter{
-			NamesOrIDs: machineNamesOrIDs,
+			NamesOrIDs: opts.Machines,
 		})
 		if err != nil {
 			return fmt.Errorf("list machines: %w", err)
 		}
 
 		// Check if all specified machines were found.
-		if len(machineMembers) != len(machineNamesOrIDs) {
+		if len(machineMembers) != len(opts.Machines) {
 			var notFound []string
-			for _, nameOrID := range machineNamesOrIDs {
+			for _, nameOrID := range opts.Machines {
 				if machineMembers.FindByNameOrID(nameOrID) == nil {
 					notFound = append(notFound, nameOrID)
 				}
@@ -109,7 +119,7 @@ func (cli *Client) PushImage(ctx context.Context, image string, machineNamesOrID
 	//  platforms differ.
 	for _, m := range machines {
 		wg.Go(func() {
-			if err := cli.pushImageToMachine(ctx, dockerCli, image, m); err != nil {
+			if err := cli.pushImageToMachine(ctx, dockerCli, image, m, opts.Platform); err != nil {
 				errCh <- fmt.Errorf("push image to machine '%s': %w", m.Name, err)
 			}
 		})
@@ -128,7 +138,11 @@ func (cli *Client) PushImage(ctx context.Context, image string, machineNamesOrID
 
 // pushImageToMachine pushes a local Docker image to a specific machine using local port forwarding to its unregistry.
 func (cli *Client) pushImageToMachine(
-	ctx context.Context, dockerCli *docker.Client, imageName string, machine *pb.MachineInfo,
+	ctx context.Context,
+	dockerCli *docker.Client,
+	imageName string,
+	machine *pb.MachineInfo,
+	platform *ocispec.Platform,
 ) error {
 	pw := progress.ContextWriter(ctx)
 
@@ -216,7 +230,9 @@ func (cli *Client) pushImageToMachine(
 	pushEventID := fmt.Sprintf("Pushing %s to %s", boldStyle.Render(imageName), boldStyle.Render(machine.Name))
 	pw.Event(progress.NewEvent(pushEventID, progress.Working, "Pushing"))
 
-	pushCh, err := dockerCli.PushImage(ctx, pushImageTag, image.PushOptions{})
+	pushCh, err := dockerCli.PushImage(ctx, pushImageTag, image.PushOptions{
+		Platform: platform,
+	})
 	if err != nil {
 		pw.Event(progress.NewEvent(pushEventID, progress.Error, err.Error()))
 		return fmt.Errorf("push image: %w", err)

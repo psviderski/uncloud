@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/containerd/platforms"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +15,7 @@ type pushOptions struct {
 	image    string
 	machines []string
 	context  string
+	platform string
 }
 
 func NewPushCommand() *cobra.Command {
@@ -30,7 +33,10 @@ The image is uploaded to the machine which CLI is connected to (default) or the 
   uc image push myapp:latest -m machine1
 
   # Push image to multiple machines.
-  uc image push myapp:latest -m machine1,machine2,machine3`,
+  uc image push myapp:latest -m machine1,machine2,machine3
+
+  # Push a specific platform of a multi-platform image.
+  uc image push myapp:latest --platform linux/amd64`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
@@ -43,6 +49,11 @@ The image is uploaded to the machine which CLI is connected to (default) or the 
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Machine names to push the image to. Can be specified multiple times or as a comma-separated "+
 			"list of machine names. (default is connected machine)")
+	cmd.Flags().StringVar(
+		&opts.platform, "platform", "",
+		"Push a specific platform of a multi-platform image (e.g., linux/amd64, linux/arm64).\n"+
+			"Local Docker must be configured to use containerd image store to support multi-platform images.",
+	)
 	cmd.Flags().StringVarP(
 		&opts.context, "context", "c", "",
 		"Name of the cluster context. (default is the current context)",
@@ -52,16 +63,27 @@ The image is uploaded to the machine which CLI is connected to (default) or the 
 }
 
 func push(ctx context.Context, uncli *cli.CLI, opts pushOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer client.Close()
+	defer clusterClient.Close()
 
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
+	pushOpts := client.PushImageOptions{
+		Machines: machines,
+	}
+
+	if opts.platform != "" {
+		p, err := platforms.Parse(opts.platform)
+		if err != nil {
+			return fmt.Errorf("invalid platform '%s': %w", opts.platform, err)
+		}
+		pushOpts.Platform = &p
+	}
 
 	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		if err = client.PushImage(ctx, opts.image, machines); err != nil {
+		if err = clusterClient.PushImage(ctx, opts.image, pushOpts); err != nil {
 			return fmt.Errorf("push image to cluster: %w", err)
 		}
 		return nil
