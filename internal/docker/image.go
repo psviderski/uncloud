@@ -36,37 +36,8 @@ func (cli *Client) PullImage(
 		return nil, err
 	}
 
-	decoder := json.NewDecoder(respBody)
 	ch := make(chan PullPushImageMessage)
-
-	go func() {
-		defer respBody.Close()
-		defer close(ch)
-
-		for {
-			var jm jsonmessage.JSONMessage
-			if err = decoder.Decode(&jm); err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				ch <- PullPushImageMessage{Err: fmt.Errorf("decode image pull message: %w", err)}
-				break
-			}
-
-			msg := PullPushImageMessage{Message: jm}
-			if jm.Error != nil {
-				msg.Err = errors.New(jm.Error.Message)
-			}
-
-			select {
-			case <-ctx.Done():
-				ch <- PullPushImageMessage{Err: ctx.Err()}
-				return
-			default:
-				ch <- msg
-			}
-		}
-	}()
+	go processPullPushImageResp(ctx, respBody, ch)
 
 	return ch, nil
 }
@@ -87,39 +58,42 @@ func (cli *Client) PushImage(
 		return nil, err
 	}
 
-	decoder := json.NewDecoder(respBody)
 	ch := make(chan PullPushImageMessage)
-
-	go func() {
-		defer respBody.Close()
-		defer close(ch)
-
-		for {
-			var jm jsonmessage.JSONMessage
-			if err = decoder.Decode(&jm); err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				ch <- PullPushImageMessage{Err: fmt.Errorf("decode image push message: %w", err)}
-				break
-			}
-
-			msg := PullPushImageMessage{Message: jm}
-			if jm.Error != nil {
-				msg.Err = errors.New(jm.Error.Message)
-			}
-
-			select {
-			case <-ctx.Done():
-				ch <- PullPushImageMessage{Err: ctx.Err()}
-				return
-			default:
-				ch <- msg
-			}
-		}
-	}()
+	go processPullPushImageResp(ctx, respBody, ch)
 
 	return ch, nil
+}
+
+// processPullPushImageResp decodes JSON messages from the image pull/push response body and
+// sends them to the provided channel.
+func processPullPushImageResp(ctx context.Context, respBody io.ReadCloser, ch chan<- PullPushImageMessage) {
+	defer respBody.Close()
+	defer close(ch)
+
+	decoder := json.NewDecoder(respBody)
+	for {
+		var jm jsonmessage.JSONMessage
+		if err := decoder.Decode(&jm); err != nil {
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			ch <- PullPushImageMessage{Err: fmt.Errorf("decode image pull/push message: %w", err)}
+			return
+		}
+
+		msg := PullPushImageMessage{Message: jm}
+		if jm.Error != nil {
+			msg.Err = errors.New(jm.Error.Message)
+		}
+
+		select {
+		case <-ctx.Done():
+			ch <- PullPushImageMessage{Err: ctx.Err()}
+			return
+		default:
+			ch <- msg
+		}
+	}
 }
 
 // RetrieveLocalDockerRegistryAuth retrieves the authentication token for the specified image from the local Docker
