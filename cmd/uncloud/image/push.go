@@ -35,6 +35,9 @@ The image is uploaded to the machine which CLI is connected to (default) or the 
   # Push image to multiple machines.
   uc image push myapp:latest -m machine1,machine2,machine3
 
+  # Push image to all machines in the cluster.
+  uc image push myapp:latest -m all
+
   # Push a specific platform of a multi-platform image.
   uc image push myapp:latest --platform linux/amd64`,
 		Args: cobra.ExactArgs(1),
@@ -48,7 +51,8 @@ The image is uploaded to the machine which CLI is connected to (default) or the 
 
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Machine names to push the image to. Can be specified multiple times or as a comma-separated "+
-			"list of machine names. (default is connected machine)")
+			"list of machine names.\n"+
+			"Use 'all' to push to all machines. (default is connected machine)")
 	cmd.Flags().StringVar(
 		&opts.platform, "platform", "",
 		"Push a specific platform of a multi-platform image (e.g., linux/amd64, linux/arm64).\n"+
@@ -70,8 +74,13 @@ func push(ctx context.Context, uncli *cli.CLI, opts pushOptions) error {
 	defer clusterClient.Close()
 
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
-	pushOpts := client.PushImageOptions{
-		Machines: machines,
+	pushOpts := client.PushImageOptions{}
+
+	// Special handling for "all" keyword to push to all machines.
+	if len(machines) == 1 && machines[0] == "all" {
+		pushOpts.AllMachines = true
+	} else {
+		pushOpts.Machines = machines
 	}
 
 	if opts.platform != "" {

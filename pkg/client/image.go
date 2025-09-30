@@ -42,9 +42,11 @@ func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.Mac
 }
 
 type PushImageOptions struct {
-	// Machines is a list of machine names or IDs to push the image to. If empty, pushes to the machine
-	// the client is connected to.
+	// Machines is a list of machine names or IDs to push the image to. If empty and AllMachines is false,
+	// pushes to the machine the client is connected to.
 	Machines []string
+	// AllMachines pushes the image to all machines in the cluster. Takes precedence over Machines field.
+	AllMachines bool
 	// Platform to push for a multi-platform image. Local Docker must use containerd image store
 	// to support multi-platform images.
 	Platform *ocispec.Platform
@@ -71,7 +73,15 @@ func (cli *Client) PushImage(ctx context.Context, image string, opts PushImageOp
 
 	// Get the machine info for the specified machines or the connected machine if none are specified.
 	var machines []*pb.MachineInfo
-	if len(opts.Machines) > 0 {
+	if opts.AllMachines {
+		machineMembers, err := cli.ListMachines(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("list machines: %w", err)
+		}
+		for _, mm := range machineMembers {
+			machines = append(machines, mm.Machine)
+		}
+	} else if len(opts.Machines) > 0 {
 		machineMembers, err := cli.ListMachines(ctx, &api.MachineFilter{
 			NamesOrIDs: opts.Machines,
 		})
