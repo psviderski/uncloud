@@ -213,7 +213,7 @@ func (cli *Client) pushImageToMachine(
 			ID:         proxyEventID,
 			Status:     progress.Working,
 			StatusText: "Starting",
-			Text:       "(detected virtualised Docker locally, starting socat container to proxy to Docker VM)",
+			Text:       "(detected Docker in VM locally, starting socat proxy container)",
 		})
 
 		proxyCtrID, proxyPort, err = runDockerVMProxyContainer(ctx, dockerCli, proxyPort)
