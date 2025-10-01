@@ -92,7 +92,7 @@ func newClusterController(
 func (cc *clusterController) Run(ctx context.Context) error {
 	defer close(cc.stopped)
 
-	if err := firewall.ConfigureIptablesChains(); err != nil {
+	if err := firewall.ConfigureIptablesChains(network.MachineIP(cc.state.Network.Subnet)); err != nil {
 		return fmt.Errorf("configure iptables chains: %w", err)
 	}
 

@@ -3,6 +3,7 @@ package firewall
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -18,7 +19,7 @@ const (
 )
 
 // ConfigureIptablesChains sets up custom iptables chains and initial firewall rules for Uncloud networking.
-func ConfigureIptablesChains() error {
+func ConfigureIptablesChains(machineIP netip.Addr) error {
 	if err := createIptablesChains(); err != nil {
 		return err
 	}
@@ -27,10 +28,24 @@ func ConfigureIptablesChains() error {
 	ipt6 := iptables.GetIptable(iptables.IPv6)
 
 	// Allow WireGuard traffic to the machine.
-	acceptWireGuardRule := []string{"-p", "udp", "--dport", strconv.Itoa(network.WireGuardPort), "-j", "ACCEPT"}
-	err := ipt4.ProgramRule(iptables.Filter, UncloudInputChain, iptables.Insert, acceptWireGuardRule)
-	if err != nil {
-		return fmt.Errorf("insert iptables rule '%s': %w", strings.Join(acceptWireGuardRule, " "), err)
+	acceptWireGuardRule := []string{
+		"-p", "udp",
+		"--dport", strconv.Itoa(network.WireGuardPort),
+		"-j", "ACCEPT",
+	}
+	// Allow cluster machines to access the unregistry (embedded image registry) on the machine to push/pull images.
+	// TODO: allow access only from the machine IPs (10.210.N.1) but not the containers running on them. Use ipset?
+	acceptUnregistryRule := []string{
+		"-i", network.WireGuardInterfaceName,
+		"-d", machineIP.String(),
+		"-p", "tcp",
+		"--dport", strconv.Itoa(constants.UnregistryPort),
+		"-j", "ACCEPT",
+	}
+	for _, rule := range [][]string{acceptUnregistryRule, acceptWireGuardRule} {
+		if err := ipt4.ProgramRule(iptables.Filter, UncloudInputChain, iptables.Insert, rule); err != nil {
+			return fmt.Errorf("insert iptables rule '%s': %w", strings.Join(rule, " "), err)
+		}
 	}
 
 	// Allow cluster machines to access Machine API via the management IPv6 WireGuard network.
@@ -50,7 +65,7 @@ func ConfigureIptablesChains() error {
 		"-j", "ACCEPT",
 	}
 	for _, rule := range [][]string{acceptMachineAPIRule, acceptCorrosionGossipRule} {
-		if err = ipt6.ProgramRule(iptables.Filter, UncloudInputChain, iptables.Insert, rule); err != nil {
+		if err := ipt6.ProgramRule(iptables.Filter, UncloudInputChain, iptables.Insert, rule); err != nil {
 			return fmt.Errorf("insert ip6tables rule '%s': %w", strings.Join(rule, " "), err)
 		}
 	}
