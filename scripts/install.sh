@@ -17,8 +17,23 @@ UNCLOUD_DATA_DIR=${UNCLOUD_DATA_DIR:-/var/lib/uncloud}
 CORROSION_GITHUB_URL="https://github.com/psviderski/corrosion"
 CORROSION_VERSION=${CORROSION_VERSION:-latest}
 
+DOCKER_ALREADY_INSTALLED=false
+CONTAINERD_IMAGE_STORE_ENABLED=false
+DOCKER_DAEMON_CONFIG_FILE=${DOCKER_DAEMON_CONFIG_FILE:-/etc/docker/daemon.json}
+# Docker daemon configuration optimised for Uncloud.
+DOCKER_DAEMON_CONFIG='{
+  "features": {
+    "containerd-snapshotter": true
+  },
+  "live-restore": true
+}'
+
 log() {
     echo -e "\033[1;32m$1\033[0m"
+}
+
+warning() {
+    echo -e "\033[1;33m$1\033[0m"
 }
 
 error() {
@@ -52,12 +67,35 @@ install_docker() {
     if command_exists dockerd; then
         log "✓ Docker is already installed."
         docker version
+
+        DOCKER_ALREADY_INSTALLED=true
+        # Check if the installed Docker configured to use the containerd image store.
+        local driver_status
+        driver_status=$(docker info -f '{{ .DriverStatus }}' 2>/dev/null)
+        if [[ "$driver_status" == *"io.containerd.snapshotter"* ]]; then
+            CONTAINERD_IMAGE_STORE_ENABLED="true"
+        fi
+
         return
     fi
 
     log "⏳ Installing Docker..."
     curl -fsSL https://get.docker.com | sh
-    log "✓ Docker installed successfully."
+
+    # Configure Docker daemon for new installation.
+    # Create Docker daemon config directory if it doesn't exist.
+    local docker_config_dir
+    docker_config_dir=$(dirname "${DOCKER_DAEMON_CONFIG_FILE}")
+    if [ ! -d "${docker_config_dir}" ]; then
+        mkdir -p "${docker_config_dir}"
+    fi
+
+    log "⏳ Configuring Docker daemon (${DOCKER_DAEMON_CONFIG_FILE}) to optimise it for Uncloud..."
+    echo "${DOCKER_DAEMON_CONFIG}" > "${DOCKER_DAEMON_CONFIG_FILE}"
+
+    systemctl restart docker
+
+    log "✓ Docker installed and configured successfully."
 }
 
 create_uncloud_user_and_group() {
@@ -270,5 +308,35 @@ install_uncloud_systemd
 install_corrosion
 install_corrosion_systemd
 start_uncloud
+
+# Show warning if Docker was already installed without containerd image store enabled.
+if [ "$DOCKER_ALREADY_INSTALLED" = "true" ] && [ "$CONTAINERD_IMAGE_STORE_ENABLED" = "false" ]; then
+    echo ""
+    warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    warning "⚠️  IMPORTANT: Containerd image store configuration"
+    warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    warning "Docker was already installed on the machine but it doesn't use the containerd"
+    warning "image store. Uncloud works best with the containerd image store enabled in Docker."
+    warning "It allows Docker to directly use the images stores in containerd (pushed with"
+    warning "'uc image push') without duplicating them in Docker. This saves disk space and"
+    warning "makes image management more efficient."
+    echo ""
+    warning "See https://docs.docker.com/engine/storage/containerd/ for more details."
+    echo ""
+    warning "To enable it, run the following commands on the machine:"
+    echo ""
+    echo "sudo bash -c 'cat > ${DOCKER_DAEMON_CONFIG_FILE} << EOF"
+    echo "${DOCKER_DAEMON_CONFIG}"
+    echo "EOF'"
+    echo "sudo systemctl restart docker"
+    echo ""
+    warning "WARNING: Switching to containerd image store causes you to temporarily lose images"
+    warning "and containers created using the classic storage driver. Those resources still"
+    warning "exist on your filesystem, and you can retrieve them by turning off the containerd"
+    warning "image store feature."
+    warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+fi
 
 log "✓ Uncloud installed on the machine successfully! 🎉"
