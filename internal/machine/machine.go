@@ -17,6 +17,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
+	"github.com/psviderski/uncloud/internal/containerd"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -255,7 +256,14 @@ func NewMachine(config *Config) (*Machine, error) {
 		return nil, fmt.Errorf("init machine database: %w", err)
 	}
 
-	dockerService := machinedocker.NewService(config.DockerClient, db)
+	if config.ContainerdSockPath == "" {
+		return nil, errors.New("containerd socket path must be configured")
+	}
+	containerdClient, err := containerd.NewClient(config.ContainerdSockPath)
+	if err != nil {
+		return nil, fmt.Errorf("create containerd client: %w", err)
+	}
+	dockerService := machinedocker.NewService(config.DockerClient, containerdClient, db)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)
@@ -283,9 +291,10 @@ func NewMachine(config *Config) (*Machine, error) {
 	internalDNSIP := func() netip.Addr {
 		return m.IP()
 	}
-	m.dockerServer = machinedocker.NewServer(dockerService, db, internalDNSIP,
-		machinedocker.WithNetworkReady(m.IsNetworkReady),
-		machinedocker.WithWaitForNetworkReady(m.WaitForNetworkReady))
+	m.dockerServer = machinedocker.NewServer(dockerService, db, internalDNSIP, machinedocker.ServerOptions{
+		NetworkReady:        m.IsNetworkReady,
+		WaitForNetworkReady: m.WaitForNetworkReady,
+	})
 	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir))
 	m.localMachineServer = newGRPCServer(m, c, m.dockerServer, caddyServer)
 

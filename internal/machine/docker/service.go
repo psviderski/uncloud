@@ -12,21 +12,27 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/jmoiron/sqlx"
+	"github.com/psviderski/uncloud/internal/containerd"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
 // Service provides higher-level Docker operations that extends Docker API with Uncloud-specific data
 // from the machine database.
 type Service struct {
+	// Client is a Docker client for managing Docker resources.
 	Client *client.Client
-	db     *sqlx.DB
+	// containerd is a containerd client for accessing containerd images.
+	containerd *containerd.Client
+	// db is a connection to the machine database.
+	db *sqlx.DB
 }
 
 // NewService creates a new Docker service instance.
-func NewService(client *client.Client, db *sqlx.DB) *Service {
+func NewService(client *client.Client, containerdClient *containerd.Client, db *sqlx.DB) *Service {
 	return &Service{
-		Client: client,
-		db:     db,
+		Client:     client,
+		containerd: containerdClient,
+		db:         db,
 	}
 }
 

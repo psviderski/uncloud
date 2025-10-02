@@ -63,25 +63,16 @@ type Server struct {
 	waitForNetworkReady func(ctx context.Context) error
 }
 
-// ServerOption configures the Docker server.
-type ServerOption func(*Server)
-
-// WithNetworkReady sets the network readiness check function.
-func WithNetworkReady(networkReady func() bool) ServerOption {
-	return func(s *Server) {
-		s.networkReady = networkReady
-	}
-}
-
-// WithWaitForNetworkReady sets the network readiness wait function.
-func WithWaitForNetworkReady(waitForNetworkReady func(ctx context.Context) error) ServerOption {
-	return func(s *Server) {
-		s.waitForNetworkReady = waitForNetworkReady
-	}
+type ServerOptions struct {
+	// TODO: verify if we still need the network readiness checks as the cluster controller ensures the network
+	//  is ready before starting the network API server. It may still be needed when communicating with the local
+	//  API server but in this case we should probably fail until the cluster is initialised.
+	NetworkReady        func() bool
+	WaitForNetworkReady func(ctx context.Context) error
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker service.
-func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, opts ...ServerOption) *Server {
+func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, opts ServerOptions) *Server {
 	s := &Server{
 		client:        service.Client,
 		service:       service,
@@ -89,9 +80,8 @@ func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, o
 		internalDNSIP: internalDNSIP,
 	}
 
-	for _, opt := range opts {
-		opt(s)
-	}
+	s.networkReady = opts.NetworkReady
+	s.waitForNetworkReady = opts.WaitForNetworkReady
 
 	return s
 }
@@ -731,7 +721,9 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 		}
 
 		// Copy the config content directly into the container
-		if err := s.copyContentToContainer(ctx, containerID, config.Content, targetPath, uid, gid, fileMode); err != nil {
+		if err := s.copyContentToContainer(
+			ctx, containerID, config.Content, targetPath, uid, gid, fileMode,
+		); err != nil {
 			return fmt.Errorf("copy config file '%s' to container: %w", config.Name, err)
 		}
 
