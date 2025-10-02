@@ -133,7 +133,7 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 
 		machineID := ""
 		if mc.Metadata == nil {
-			// ListContainers was proxied to only one machine.
+			// ListServiceContainers was proxied to only one machine.
 			for _, v := range machineIDByManagementIP {
 				machineID = v
 				break

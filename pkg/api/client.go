@@ -63,6 +63,7 @@ type VolumeClient interface {
 func ProxyMachinesContext(
 	ctx context.Context, cli MachineClient, namesOrIDs []string,
 ) (context.Context, MachineMembersList, error) {
+	// TODO: move the machine IP resolution to the proxy router to allow setting machine names and IDs in the metadata.
 	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list machines: %w", err)
