@@ -20,6 +20,7 @@ service Docker {
   // InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
   // Docker auth credentials if necessary.
   rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
+  rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
 
   rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
   rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
@@ -132,6 +133,25 @@ message RemoteImage {
   string reference = 2;
   // Raw JSON manifest from the registry.
   bytes manifest = 3;
+}
+
+message ListImagesRequest {
+  // JSON serialised image.ListOptions.
+  bytes options = 1;
+}
+
+message ListImagesResponse {
+  // Must contain only one repeated messages field to allow broadcasting ListImages requests to multiple machines.
+  repeated MachineImages messages = 1;
+}
+
+message MachineImages {
+  Metadata metadata = 1;
+  // JSON serialised []image.Summary for images from Docker internal image store.
+  // Empty if Docker uses the containerd image store.
+  bytes docker_images = 2;
+  // JSON serialised []image.Summary for images from containerd image store.
+  bytes containerd_images = 3;
 }
 
 message CreateVolumeRequest {

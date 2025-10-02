@@ -29,6 +29,7 @@ const (
 	Docker_PullImage_FullMethodName               = "/api.Docker/PullImage"
 	Docker_InspectImage_FullMethodName            = "/api.Docker/InspectImage"
 	Docker_InspectRemoteImage_FullMethodName      = "/api.Docker/InspectRemoteImage"
+	Docker_ListImages_FullMethodName              = "/api.Docker/ListImages"
 	Docker_CreateVolume_FullMethodName            = "/api.Docker/CreateVolume"
 	Docker_ListVolumes_FullMethodName             = "/api.Docker/ListVolumes"
 	Docker_RemoveVolume_FullMethodName            = "/api.Docker/RemoveVolume"
@@ -53,6 +54,7 @@ type DockerClient interface {
 	// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(ctx context.Context, in *InspectRemoteImageRequest, opts ...grpc.CallOption) (*InspectRemoteImageResponse, error)
+	ListImages(ctx context.Context, in *ListImagesRequest, opts ...grpc.CallOption) (*ListImagesResponse, error)
 	CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*CreateVolumeResponse, error)
 	ListVolumes(ctx context.Context, in *ListVolumesRequest, opts ...grpc.CallOption) (*ListVolumesResponse, error)
 	RemoveVolume(ctx context.Context, in *RemoveVolumeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -169,6 +171,16 @@ func (c *dockerClient) InspectRemoteImage(ctx context.Context, in *InspectRemote
 	return out, nil
 }
 
+func (c *dockerClient) ListImages(ctx context.Context, in *ListImagesRequest, opts ...grpc.CallOption) (*ListImagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListImagesResponse)
+	err := c.cc.Invoke(ctx, Docker_ListImages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dockerClient) CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*CreateVolumeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateVolumeResponse)
@@ -254,6 +266,7 @@ type DockerServer interface {
 	// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(context.Context, *InspectRemoteImageRequest) (*InspectRemoteImageResponse, error)
+	ListImages(context.Context, *ListImagesRequest) (*ListImagesResponse, error)
 	CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error)
 	ListVolumes(context.Context, *ListVolumesRequest) (*ListVolumesResponse, error)
 	RemoveVolume(context.Context, *RemoveVolumeRequest) (*emptypb.Empty, error)
@@ -297,6 +310,9 @@ func (UnimplementedDockerServer) InspectImage(context.Context, *InspectImageRequ
 }
 func (UnimplementedDockerServer) InspectRemoteImage(context.Context, *InspectRemoteImageRequest) (*InspectRemoteImageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectRemoteImage not implemented")
+}
+func (UnimplementedDockerServer) ListImages(context.Context, *ListImagesRequest) (*ListImagesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListImages not implemented")
 }
 func (UnimplementedDockerServer) CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateVolume not implemented")
@@ -495,6 +511,24 @@ func _Docker_InspectRemoteImage_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_ListImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListImagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).ListImages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_ListImages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).ListImages(ctx, req.(*ListImagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Docker_CreateVolume_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateVolumeRequest)
 	if err := dec(in); err != nil {
@@ -659,6 +693,10 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InspectRemoteImage",
 			Handler:    _Docker_InspectRemoteImage_Handler,
+		},
+		{
+			MethodName: "ListImages",
+			Handler:    _Docker_ListImages_Handler,
 		},
 		{
 			MethodName: "CreateVolume",
