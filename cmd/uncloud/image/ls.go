@@ -107,7 +107,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 	// Print the images in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "MACHINE\tNAME\tIMAGE ID\tCREATED\tSIZE\tSTORE"); err != nil {
+	if _, err = fmt.Fprintln(tw, "MACHINE\tIMAGE\tIMAGE ID\tCREATED\tSIZE\tSTORE"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 
