@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
-	"slices"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
@@ -70,14 +70,27 @@ func ProxyMachinesContext(
 	}
 
 	var proxiedMachines MachineMembersList
-	md := metadata.New(nil)
-	for _, m := range machines {
-		if len(namesOrIDs) == 0 ||
-			slices.Contains(namesOrIDs, m.Machine.Name) || slices.Contains(namesOrIDs, m.Machine.Id) {
+	var notFound []string
+	for _, nameOrID := range namesOrIDs {
+		if m := machines.FindByNameOrID(nameOrID); m != nil {
 			proxiedMachines = append(proxiedMachines, m)
-			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
-			md.Append("machines", machineIP.String())
+		} else {
+			notFound = append(notFound, nameOrID)
 		}
+	}
+
+	if len(notFound) > 0 {
+		return nil, nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
+	}
+
+	if len(namesOrIDs) == 0 {
+		proxiedMachines = machines
+	}
+
+	md := metadata.New(nil)
+	for _, m := range proxiedMachines {
+		machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
+		md.Append("machines", machineIP.String())
 	}
 
 	return metadata.NewOutgoingContext(ctx, md), proxiedMachines, nil

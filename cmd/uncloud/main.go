@@ -80,6 +80,7 @@ func main() {
 		NewDeployCommand(),
 		NewDocsCommand(),
 		NewBuildCommand(),
+		NewImagesCommand(),
 		caddy.NewRootCommand(),
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),

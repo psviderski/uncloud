@@ -65,7 +65,13 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	machineImages := make([]api.MachineImages, len(resp.Messages))
 	for i, msg := range resp.Messages {
 		machineImages[i].Metadata = msg.Metadata
-		if msg.Metadata != nil {
+		// TODO: handle this in the grpc-proxy router and always provide Metadata if possible.
+		if msg.Metadata == nil {
+			// Metadata can be nil if the request was broadcasted to only one machine.
+			machineImages[i].Metadata = &pb.Metadata{
+				Machine: machines[0].Machine.Id,
+			}
+		} else {
 			// Replace management IP with machine ID for friendlier error messages.
 			// TODO: migrate Metadata.Machine to use machine ID instead of IP in the grpc-proxy router.
 			if m := machines.FindByManagementIP(msg.Metadata.Machine); m != nil {
@@ -81,6 +87,7 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 				return nil, fmt.Errorf("unmarshal images: %w", err)
 			}
 		}
+		machineImages[i].ContainerdStore = msg.ContainerdStore
 	}
 
 	return machineImages, nil

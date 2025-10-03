@@ -7,10 +7,11 @@ import (
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "image",
-		Short: "Manage Docker images in a cluster.",
+		Short: "Manage images on machines in the cluster.",
 	}
 
 	cmd.AddCommand(
+		NewListCommand(),
 		NewPushCommand(),
 	)
 
