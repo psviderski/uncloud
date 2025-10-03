@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1187,6 +1188,75 @@ myapp.example.com {
 		machines := serviceMachines(svc)
 		assert.ElementsMatch(t, machines.ToSlice(), []string{c.Machines[0].ID, c.Machines[2].ID},
 			"Containers should be on machines where the volume exists")
+	})
+
+	t.Run("list images for replicated service", func(t *testing.T) {
+		t.Parallel()
+
+		serviceName := "test-list-images-replicated"
+		uniqueImage := "portainer/pause:3.9" // Unique image not used by other tests.
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, serviceName)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		spec := api.ServiceSpec{
+			Name: serviceName,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image: uniqueImage,
+			},
+			Replicas: 2,
+		}
+
+		deployment := cli.NewDeployment(spec, nil)
+		_, err = deployment.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, serviceName)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
+
+		// Get the machine IDs where containers are running.
+		machinesWithContainers := serviceMachines(svc)
+		assert.Len(t, machinesWithContainers.ToSlice(), 2, "Containers should be on 2 different machines")
+
+		var machineWithoutContainer string
+		for _, m := range c.Machines {
+			if !machinesWithContainers.Contains(m.ID) {
+				machineWithoutContainer = m.ID
+				break
+			}
+		}
+		assert.NotEmpty(t, machineWithoutContainer, "Should have found a machine without container")
+
+		machineImages, err := cli.ListImages(ctx, api.ImageFilter{})
+		require.NoError(t, err)
+		assert.Len(t, machineImages, 3, "Should get images from all 3 machines")
+
+		for _, mi := range machineImages {
+			// Checking only DockerImages because the machines in ucind cluster don't use the containerd image store.
+			if !machinesWithContainers.Contains(mi.Metadata.Machine) {
+				// This is the machine without service containers, it should not have the unique image.
+				for _, img := range mi.DockerImages {
+					assert.NotContains(t, img.RepoTags, uniqueImage)
+				}
+				continue
+			}
+
+			// Check if the unique image is present on the machine where a service container is running.
+			hasImage := false
+			for _, img := range mi.DockerImages {
+				if slices.Contains(img.RepoTags, uniqueImage) {
+					hasImage = true
+					break
+				}
+			}
+			assert.True(t, hasImage, "Machine %s with container should have image %s",
+				mi.Metadata.Machine, uniqueImage)
+		}
 	})
 
 	// TODO: test deployments with unreachable machines. See https://github.com/psviderski/uncloud/issues/29.
