@@ -405,7 +405,7 @@ func (s *Server) ListImages(ctx context.Context, req *pb.ListImagesRequest) (*pb
 
 	images, err := s.service.ListImages(ctx, opts)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	machineImages := pb.MachineImages{
