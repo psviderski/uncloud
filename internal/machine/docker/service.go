@@ -15,7 +15,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/jmoiron/sqlx"
 	"github.com/psviderski/uncloud/internal/containerd"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
