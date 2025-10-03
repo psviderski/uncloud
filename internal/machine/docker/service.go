@@ -7,13 +7,18 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/jmoiron/sqlx"
 	"github.com/psviderski/uncloud/internal/containerd"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Service provides higher-level Docker operations that extends Docker API with Uncloud-specific data
@@ -106,4 +111,61 @@ func (s *Service) ListServiceContainers(
 	}
 
 	return containers, nil
+}
+
+// IsContainerdImageStoreEnabled checks if Docker is configured to use the containerd image store:
+// https://docs.docker.com/engine/storage/containerd/
+func (s *Service) IsContainerdImageStoreEnabled(ctx context.Context) (bool, error) {
+	info, err := s.Client.Info(ctx)
+	if err != nil {
+		return false, fmt.Errorf("get Docker info: %w", err)
+	}
+
+	return strings.Contains(fmt.Sprintf("%s", info.DriverStatus), "containerd.snapshotter"), nil
+}
+
+type Images struct {
+	// DockerImages lists images from the Docker internal image store.
+	// It may be empty if Docker uses the containerd image store.
+	DockerImages []image.Summary
+	// ContainerdImages lists images from the containerd image store.
+	ContainerdImages []image.Summary
+	// DockerContainerdStore indicates whether Docker is using the containerd image store.
+	DockerContainerdStore bool
+}
+
+// ListImages lists images present in the Docker and containerd image stores.
+// If Docker uses the containerd image store, only images from containerd are listed, as the internal Docker image
+// store is not accessible in this case. Otherwise, images from both stores are listed.
+func (s *Service) ListImages(ctx context.Context, opts image.ListOptions) (Images, error) {
+	var images Images
+
+	// Always include the image manifests in the response.
+	opts.Manifests = true
+	// List images from Docker.
+	dockerImages, err := s.Client.ImageList(ctx, opts)
+	if err != nil {
+		return images, status.Errorf(codes.Internal, "list Docker images: %v", err)
+	}
+
+	isContainerdStore, err := s.IsContainerdImageStoreEnabled(ctx)
+	if err != nil {
+		return images, status.Errorf(codes.Internal, "check if Docker uses containerd image store: %v", err)
+	}
+
+	if isContainerdStore {
+		// Docker uses the containerd image store, hence the images listed from Docker are just references to images
+		// in containerd. The internal Docker image store is not accessible in this case.
+		images = Images{
+			ContainerdImages:      dockerImages,
+			DockerContainerdStore: true,
+		}
+	} else {
+		images = Images{
+			DockerImages: dockerImages,
+			// TODO: List images from containerd directly. ContainerdImages: containerdImages,
+		}
+	}
+
+	return images, nil
 }

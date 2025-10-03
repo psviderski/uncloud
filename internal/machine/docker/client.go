@@ -25,16 +25,18 @@ import (
 )
 
 // Client is a gRPC client for the Docker service that provides a similar interface to the Docker HTTP client.
+// TODO: it doesn't seem there is much value in having this intermediate Docker client.
+// Consider merging it into the main pkg/client.
 type Client struct {
 	conn       *grpc.ClientConn
-	grpcClient pb.DockerClient
+	GRPCClient pb.DockerClient
 }
 
 // NewClient creates a new Docker gRPC client with the provided gRPC connection.
 func NewClient(conn *grpc.ClientConn) *Client {
 	return &Client{
 		conn:       conn,
-		grpcClient: pb.NewDockerClient(conn),
+		GRPCClient: pb.NewDockerClient(conn),
 	}
 }
 
@@ -71,7 +73,7 @@ func (c *Client) CreateContainer(
 		return resp, fmt.Errorf("marshal platform: %w", err)
 	}
 
-	grpcResp, err := c.grpcClient.CreateContainer(ctx, &pb.CreateContainerRequest{
+	grpcResp, err := c.GRPCClient.CreateContainer(ctx, &pb.CreateContainerRequest{
 		Config:        configBytes,
 		HostConfig:    hostConfigBytes,
 		NetworkConfig: networkingConfigBytes,
@@ -95,7 +97,7 @@ func (c *Client) CreateContainer(
 func (c *Client) InspectContainer(ctx context.Context, id string) (types.ContainerJSON, error) {
 	var resp types.ContainerJSON
 
-	grpcResp, err := c.grpcClient.InspectContainer(ctx, &pb.InspectContainerRequest{Id: id})
+	grpcResp, err := c.GRPCClient.InspectContainer(ctx, &pb.InspectContainerRequest{Id: id})
 	if err != nil {
 		if status.Convert(err).Code() == codes.NotFound {
 			return resp, errdefs.NotFound(err)
@@ -116,7 +118,7 @@ func (c *Client) StartContainer(ctx context.Context, id string, opts container.S
 		return fmt.Errorf("marshal options: %w", err)
 	}
 
-	_, err = c.grpcClient.StartContainer(ctx, &pb.StartContainerRequest{
+	_, err = c.GRPCClient.StartContainer(ctx, &pb.StartContainerRequest{
 		Id:      id,
 		Options: optsBytes,
 	})
@@ -135,7 +137,7 @@ func (c *Client) StopContainer(ctx context.Context, id string, opts container.St
 		return fmt.Errorf("marshal options: %w", err)
 	}
 
-	_, err = c.grpcClient.StopContainer(ctx, &pb.StopContainerRequest{
+	_, err = c.GRPCClient.StopContainer(ctx, &pb.StopContainerRequest{
 		Id:      id,
 		Options: optsBytes,
 	})
@@ -158,7 +160,7 @@ func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions)
 		return nil, fmt.Errorf("marshal options: %w", err)
 	}
 
-	resp, err := c.grpcClient.ListContainers(ctx, &pb.ListContainersRequest{Options: optsBytes})
+	resp, err := c.GRPCClient.ListContainers(ctx, &pb.ListContainersRequest{Options: optsBytes})
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +187,7 @@ func (c *Client) RemoveContainer(ctx context.Context, id string, opts container.
 		return fmt.Errorf("marshal options: %w", err)
 	}
 
-	_, err = c.grpcClient.RemoveContainer(ctx, &pb.RemoveContainerRequest{
+	_, err = c.GRPCClient.RemoveContainer(ctx, &pb.RemoveContainerRequest{
 		Id:      id,
 		Options: optsBytes,
 	})
@@ -212,7 +214,7 @@ func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) 
 		return nil, fmt.Errorf("marshal options: %w", err)
 	}
 
-	stream, err := c.grpcClient.PullImage(ctx, &pb.PullImageRequest{Image: image, Options: optsBytes})
+	stream, err := c.GRPCClient.PullImage(ctx, &pb.PullImageRequest{Image: image, Options: optsBytes})
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +248,7 @@ func (c *Client) PullImage(ctx context.Context, image string, opts PullOptions) 
 
 // InspectImage returns the image information for the given image ID. The request may be sent to multiple machines.
 func (c *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImage, error) {
-	resp, err := c.grpcClient.InspectImage(ctx, &pb.InspectImageRequest{Id: id})
+	resp, err := c.GRPCClient.InspectImage(ctx, &pb.InspectImageRequest{Id: id})
 	if err != nil {
 		// If the request was sent to only one machine, err is an actual error from the machine.
 		if status.Convert(err).Code() == codes.NotFound {
@@ -284,7 +286,7 @@ func (c *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImag
 // credentials if necessary. If the response from a machine doesn't contain an error, the api.RemoteImage will either
 // contain an IndexManifest or an ImageManifest.
 func (c *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.MachineRemoteImage, error) {
-	resp, err := c.grpcClient.InspectRemoteImage(ctx, &pb.InspectRemoteImageRequest{Id: id})
+	resp, err := c.GRPCClient.InspectRemoteImage(ctx, &pb.InspectRemoteImageRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +363,7 @@ func (c *Client) CreateVolume(ctx context.Context, opts volume.CreateOptions) (v
 		return vol, fmt.Errorf("marshal options: %w", err)
 	}
 
-	resp, err := c.grpcClient.CreateVolume(ctx, &pb.CreateVolumeRequest{Options: optsBytes})
+	resp, err := c.GRPCClient.CreateVolume(ctx, &pb.CreateVolumeRequest{Options: optsBytes})
 	if err != nil {
 		return vol, err
 	}
@@ -373,20 +375,18 @@ func (c *Client) CreateVolume(ctx context.Context, opts volume.CreateOptions) (v
 	return vol, nil
 }
 
-// MachineVolumes represents a volume list response from a machine.
 type MachineVolumes struct {
 	Metadata *pb.Metadata
 	Response volume.ListResponse
 }
 
-// ListVolumes returns a list of all volumes matching the filter.
 func (c *Client) ListVolumes(ctx context.Context, opts volume.ListOptions) ([]MachineVolumes, error) {
 	optsBytes, err := json.Marshal(opts)
 	if err != nil {
 		return nil, fmt.Errorf("marshal options: %w", err)
 	}
 
-	resp, err := c.grpcClient.ListVolumes(ctx, &pb.ListVolumesRequest{Options: optsBytes})
+	resp, err := c.GRPCClient.ListVolumes(ctx, &pb.ListVolumesRequest{Options: optsBytes})
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +408,7 @@ func (c *Client) ListVolumes(ctx context.Context, opts volume.ListOptions) ([]Ma
 
 // RemoveVolume removes a volume with the given ID.
 func (c *Client) RemoveVolume(ctx context.Context, id string, force bool) error {
-	_, err := c.grpcClient.RemoveVolume(ctx, &pb.RemoveVolumeRequest{
+	_, err := c.GRPCClient.RemoveVolume(ctx, &pb.RemoveVolumeRequest{
 		Id:    id,
 		Force: force,
 	})
@@ -431,7 +431,7 @@ func (c *Client) CreateServiceContainer(
 	if err != nil {
 		return resp, fmt.Errorf("marshal service spec: %w", err)
 	}
-	grpcResp, err := c.grpcClient.CreateServiceContainer(ctx, &pb.CreateServiceContainerRequest{
+	grpcResp, err := c.GRPCClient.CreateServiceContainer(ctx, &pb.CreateServiceContainerRequest{
 		ServiceId:     serviceID,
 		ServiceSpec:   specBytes,
 		ContainerName: containerName,
@@ -454,7 +454,7 @@ func (c *Client) CreateServiceContainer(
 func (c *Client) InspectServiceContainer(ctx context.Context, id string) (api.ServiceContainer, error) {
 	var resp api.ServiceContainer
 
-	grpcResp, err := c.grpcClient.InspectServiceContainer(ctx, &pb.InspectContainerRequest{Id: id})
+	grpcResp, err := c.GRPCClient.InspectServiceContainer(ctx, &pb.InspectContainerRequest{Id: id})
 	if err != nil {
 		if status.Convert(err).Code() == codes.NotFound {
 			return resp, errdefs.NotFound(err)
@@ -487,7 +487,7 @@ func (c *Client) ListServiceContainers(
 		return nil, fmt.Errorf("marshal options: %w", err)
 	}
 
-	resp, err := c.grpcClient.ListServiceContainers(ctx, &pb.ListServiceContainersRequest{
+	resp, err := c.GRPCClient.ListServiceContainers(ctx, &pb.ListServiceContainersRequest{
 		ServiceId: serviceNameOrID,
 		Options:   optsBytes,
 	})
@@ -526,7 +526,7 @@ func (c *Client) RemoveServiceContainer(ctx context.Context, id string, opts con
 		return fmt.Errorf("marshal options: %w", err)
 	}
 
-	_, err = c.grpcClient.RemoveServiceContainer(ctx, &pb.RemoveContainerRequest{
+	_, err = c.GRPCClient.RemoveServiceContainer(ctx, &pb.RemoveContainerRequest{
 		Id:      id,
 		Options: optsBytes,
 	})

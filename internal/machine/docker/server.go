@@ -36,10 +36,12 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/psviderski/uncloud/internal/containerd"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -444,6 +446,53 @@ func (s *Server) ListVolumes(ctx context.Context, req *pb.ListVolumesRequest) (*
 				Response: respBytes,
 			},
 		},
+	}, nil
+}
+
+// ListImages lists images present in the Docker and containerd image stores.
+func (s *Server) ListImages(ctx context.Context, req *pb.ListImagesRequest) (*pb.ListImagesResponse, error) {
+	var opts image.ListOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+
+		// Handle filters separately because they implement custom JSON unmarshalling.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(req.Options, &raw); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options to raw map: %v", err)
+		}
+
+		if filtersBytes, ok := raw["Filters"]; ok {
+			args, err := filters.FromJSON(string(filtersBytes))
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
+			}
+			opts.Filters = args
+		}
+	}
+
+	images, err := s.service.ListImages(ctx, opts)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+
+	machineImages := pb.MachineImages{
+		DockerContainerdStore: images.DockerContainerdStore,
+	}
+	if len(images.DockerImages) > 0 {
+		if machineImages.DockerImages, err = json.Marshal(images.DockerImages); err != nil {
+			return nil, status.Errorf(codes.Internal, "marshal Docker images: %v", err)
+		}
+	}
+	if len(images.ContainerdImages) > 0 {
+		if machineImages.ContainerdImages, err = json.Marshal(images.ContainerdImages); err != nil {
+			return nil, status.Errorf(codes.Internal, "marshal containerd images: %v", err)
+		}
+	}
+
+	return &pb.ListImagesResponse{
+		Messages: []*pb.MachineImages{&machineImages},
 	}, nil
 }
 

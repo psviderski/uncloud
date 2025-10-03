@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -39,6 +40,55 @@ func (cli *Client) InspectImage(ctx context.Context, id string) ([]api.MachineIm
 
 func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.MachineRemoteImage, error) {
 	return cli.Docker.InspectRemoteImage(ctx, id)
+}
+
+// ListImages returns a list of images in Docker and containerd on specified machines in the cluster.
+func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]api.MachineImages, error) {
+	// Broadcast the image list request to the specified machines or all machines if none specified.
+	listCtx, machines, err := api.ProxyMachinesContext(ctx, cli, filter.Machines)
+	if err != nil {
+		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
+	}
+
+	opts := image.ListOptions{Manifests: true}
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	resp, err := cli.Docker.GRPCClient.ListImages(listCtx, &pb.ListImagesRequest{Options: optsBytes})
+	if err != nil {
+		return nil, err
+	}
+
+	machineImages := make([]api.MachineImages, len(resp.Messages))
+	for i, msg := range resp.Messages {
+		machineImages[i].Metadata = msg.Metadata
+		if msg.Metadata != nil {
+			// Replace management IP with machine ID for friendlier error messages.
+			// TODO: migrate Metadata.Machine to use machine ID instead of IP in the grpc-proxy router.
+			if m := machines.FindByManagementIP(msg.Metadata.Machine); m != nil {
+				machineImages[i].Metadata.Machine = m.Machine.Id
+			}
+			if msg.Metadata.Error != "" {
+				continue
+			}
+		}
+
+		if len(msg.DockerImages) > 0 {
+			if err = json.Unmarshal(msg.DockerImages, &machineImages[i].DockerImages); err != nil {
+				return nil, fmt.Errorf("unmarshal Docker images: %w", err)
+			}
+		}
+
+		if len(msg.ContainerdImages) > 0 {
+			if err = json.Unmarshal(msg.ContainerdImages, &machineImages[i].ContainerdImages); err != nil {
+				return nil, fmt.Errorf("unmarshal containerd images: %w", err)
+			}
+		}
+	}
+
+	return machineImages, nil
 }
 
 type PushImageOptions struct {
