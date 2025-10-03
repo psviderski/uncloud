@@ -16,11 +16,11 @@ type MachineImage struct {
 // MachineImages represents images present on a particular machine.
 type MachineImages struct {
 	Metadata *pb.Metadata
-	// DockerImages is a list of images present in the Docker internal image store.
-	// It may be empty if Docker uses the containerd image store directly (containerd-snapshotter feature).
-	DockerImages []image.Summary
-	// ContainerdImages is a list of images present in the containerd image store.
-	ContainerdImages []image.Summary
+	// Images is a list of images present on the machine.
+	Images []image.Summary
+	// ContainerdStore indicates whether Docker on the machine uses the containerd image store
+	// (containerd-snapshotter feature).
+	ContainerdStore bool
 }
 
 // ImageFilter defines criteria to filter images in ListImages.

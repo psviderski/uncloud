@@ -1240,7 +1240,7 @@ myapp.example.com {
 			// Checking only DockerImages because the machines in ucind cluster don't use the containerd image store.
 			if !machinesWithContainers.Contains(mi.Metadata.Machine) {
 				// This is the machine without service containers, it should not have the unique image.
-				for _, img := range mi.DockerImages {
+				for _, img := range mi.Images {
 					assert.NotContains(t, img.RepoTags, uniqueImage)
 				}
 				continue
@@ -1248,7 +1248,7 @@ myapp.example.com {
 
 			// Check if the unique image is present on the machine where a service container is running.
 			hasImage := false
-			for _, img := range mi.DockerImages {
+			for _, img := range mi.Images {
 				if slices.Contains(img.RepoTags, uniqueImage) {
 					hasImage = true
 					break

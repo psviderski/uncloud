@@ -42,7 +42,8 @@ func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.Mac
 	return cli.Docker.InspectRemoteImage(ctx, id)
 }
 
-// ListImages returns a list of images in Docker and containerd on specified machines in the cluster.
+// ListImages returns a list of images on specified machines in the cluster. If no machines are specified in the filter,
+// it lists images on all machines.
 func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]api.MachineImages, error) {
 	// Broadcast the image list request to the specified machines or all machines if none specified.
 	listCtx, machines, err := api.ProxyMachinesContext(ctx, cli, filter.Machines)
@@ -75,15 +76,9 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 			}
 		}
 
-		if len(msg.DockerImages) > 0 {
-			if err = json.Unmarshal(msg.DockerImages, &machineImages[i].DockerImages); err != nil {
-				return nil, fmt.Errorf("unmarshal Docker images: %w", err)
-			}
-		}
-
-		if len(msg.ContainerdImages) > 0 {
-			if err = json.Unmarshal(msg.ContainerdImages, &machineImages[i].ContainerdImages); err != nil {
-				return nil, fmt.Errorf("unmarshal containerd images: %w", err)
+		if len(msg.Images) > 0 {
+			if err = json.Unmarshal(msg.Images, &machineImages[i].Images); err != nil {
+				return nil, fmt.Errorf("unmarshal images: %w", err)
 			}
 		}
 	}

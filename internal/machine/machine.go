@@ -17,7 +17,6 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
-	"github.com/psviderski/uncloud/internal/containerd"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -255,15 +254,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init machine database: %w", err)
 	}
-
-	if config.ContainerdSockPath == "" {
-		return nil, errors.New("containerd socket path must be configured")
-	}
-	containerdClient, err := containerd.NewClient(config.ContainerdSockPath)
-	if err != nil {
-		return nil, fmt.Errorf("create containerd client: %w", err)
-	}
-	dockerService := machinedocker.NewService(config.DockerClient, containerdClient, db)
+	dockerService := machinedocker.NewService(config.DockerClient, db)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)

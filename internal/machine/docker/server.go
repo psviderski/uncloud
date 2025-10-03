@@ -379,6 +379,49 @@ func (s *Server) InspectRemoteImage(
 	}, nil
 }
 
+// ListImages returns a list of all images matching the filter and indicates whether Docker is using the containerd
+// image store.
+func (s *Server) ListImages(ctx context.Context, req *pb.ListImagesRequest) (*pb.ListImagesResponse, error) {
+	var opts image.ListOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+
+		// Handle filters separately because they implement custom JSON unmarshalling.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(req.Options, &raw); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options to raw map: %v", err)
+		}
+
+		if filtersBytes, ok := raw["Filters"]; ok {
+			args, err := filters.FromJSON(string(filtersBytes))
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
+			}
+			opts.Filters = args
+		}
+	}
+
+	images, err := s.service.ListImages(ctx, opts)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+
+	machineImages := pb.MachineImages{
+		ContainerdStore: images.ContainerdStore,
+	}
+	if len(images.Images) > 0 {
+		if machineImages.Images, err = json.Marshal(images.Images); err != nil {
+			return nil, status.Errorf(codes.Internal, "marshal Docker images: %v", err)
+		}
+	}
+
+	return &pb.ListImagesResponse{
+		Messages: []*pb.MachineImages{&machineImages},
+	}, nil
+}
+
 // CreateVolume creates a new volume with the given options.
 func (s *Server) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
 	var opts volume.CreateOptions
@@ -444,53 +487,6 @@ func (s *Server) ListVolumes(ctx context.Context, req *pb.ListVolumesRequest) (*
 				Response: respBytes,
 			},
 		},
-	}, nil
-}
-
-// ListImages lists images present in the Docker and containerd image stores.
-func (s *Server) ListImages(ctx context.Context, req *pb.ListImagesRequest) (*pb.ListImagesResponse, error) {
-	var opts image.ListOptions
-	if len(req.Options) > 0 {
-		if err := json.Unmarshal(req.Options, &opts); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
-		}
-
-		// Handle filters separately because they implement custom JSON unmarshalling.
-		var raw map[string]json.RawMessage
-		if err := json.Unmarshal(req.Options, &raw); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options to raw map: %v", err)
-		}
-
-		if filtersBytes, ok := raw["Filters"]; ok {
-			args, err := filters.FromJSON(string(filtersBytes))
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
-			}
-			opts.Filters = args
-		}
-	}
-
-	images, err := s.service.ListImages(ctx, opts)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
-	}
-
-	machineImages := pb.MachineImages{
-		DockerContainerdStore: images.DockerContainerdStore,
-	}
-	if len(images.DockerImages) > 0 {
-		if machineImages.DockerImages, err = json.Marshal(images.DockerImages); err != nil {
-			return nil, status.Errorf(codes.Internal, "marshal Docker images: %v", err)
-		}
-	}
-	if len(images.ContainerdImages) > 0 {
-		if machineImages.ContainerdImages, err = json.Marshal(images.ContainerdImages); err != nil {
-			return nil, status.Errorf(codes.Internal, "marshal containerd images: %v", err)
-		}
-	}
-
-	return &pb.ListImagesResponse{
-		Messages: []*pb.MachineImages{&machineImages},
 	}, nil
 }
 

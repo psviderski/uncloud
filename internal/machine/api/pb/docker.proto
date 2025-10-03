@@ -147,13 +147,10 @@ message ListImagesResponse {
 
 message MachineImages {
   Metadata metadata = 1;
-  // JSON serialised []image.Summary for images from Docker internal image store.
-  // Empty if Docker uses the containerd image store.
-  bytes docker_images = 2;
-  // JSON serialised []image.Summary for images from containerd image store.
-  bytes containerd_images = 3;
+  // JSON serialised []image.Summary.
+  bytes images = 2;
   // True if Docker uses the containerd image store, false if it uses its internal image store.
-  bool docker_containerd_store = 4;
+  bool containerd_store = 3;
 }
 
 message CreateVolumeRequest {
