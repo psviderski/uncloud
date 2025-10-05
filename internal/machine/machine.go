@@ -282,7 +282,11 @@ func NewMachine(config *Config) (*Machine, error) {
 	internalDNSIP := func() netip.Addr {
 		return m.IP()
 	}
-	m.dockerServer = machinedocker.NewServer(dockerService, db, internalDNSIP, machinedocker.ServerOptions{
+	// Machine ID will only be available after the machine is initialised as a cluster member so wrap it in a function.
+	machineID := func() string {
+		return m.state.ID
+	}
+	m.dockerServer = machinedocker.NewServer(dockerService, db, internalDNSIP, machineID, machinedocker.ServerOptions{
 		NetworkReady:        m.IsNetworkReady,
 		WaitForNetworkReady: m.WaitForNetworkReady,
 	})
