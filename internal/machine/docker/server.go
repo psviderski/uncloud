@@ -535,6 +535,9 @@ func (s *Server) CreateServiceContainer(
 	}
 
 	envVars := maps.Clone(spec.Container.Env)
+	if envVars == nil {
+		envVars = make(api.EnvVars)
+	}
 
 	// Inject the machine ID if available
 	if s.machineID != nil {
