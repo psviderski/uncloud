@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -57,6 +58,9 @@ type Server struct {
 	// internalDNSIP is a function that returns the IP address of the internal DNS server. It may return an empty
 	// address if the address is unknown (e.g. when the machine is not initialised yet).
 	internalDNSIP func() netip.Addr
+	// machineID is a function that returns the machine ID. It may return an empty string if the machine
+	// is not initialised yet.
+	machineID func() string
 	// networkReady is a function that returns true if the Docker network is ready for containers.
 	networkReady func() bool
 	// waitForNetworkReady is a function that waits for the Docker network to be ready for containers.
@@ -72,12 +76,13 @@ type ServerOptions struct {
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker service.
-func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, opts ServerOptions) *Server {
+func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, machineID func() string, opts ServerOptions) *Server {
 	s := &Server{
 		client:        service.Client,
 		service:       service,
 		db:            db,
 		internalDNSIP: internalDNSIP,
+		machineID:     machineID,
 	}
 
 	s.networkReady = opts.NetworkReady
@@ -529,9 +534,21 @@ func (s *Server) CreateServiceContainer(
 		containerName = fmt.Sprintf("%s-%s", spec.Name, suffix)
 	}
 
+	envVars := maps.Clone(spec.Container.Env)
+	if envVars == nil {
+		envVars = make(api.EnvVars)
+	}
+
+	// Inject the machine ID if available
+	if s.machineID != nil {
+		if machineID := s.machineID(); machineID != "" {
+			envVars["UNCLOUD_MACHINE_ID"] = machineID
+		}
+	}
+
 	config := &container.Config{
 		Cmd:        spec.Container.Command,
-		Env:        spec.Container.Env.ToSlice(),
+		Env:        envVars.ToSlice(),
 		Entrypoint: spec.Container.Entrypoint,
 		Hostname:   containerName,
 		Image:      spec.Container.Image,
