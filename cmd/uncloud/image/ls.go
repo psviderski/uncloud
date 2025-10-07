@@ -20,27 +20,38 @@ import (
 )
 
 type listOptions struct {
-	machines []string
-	context  string
+	machines   []string
+	nameFilter string
+	context    string
 }
 
 func NewListCommand() *cobra.Command {
 	opts := listOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "ls",
+		Use:     "ls [IMAGE]",
 		Aliases: []string{"list"},
 		Short:   "List images on machines in the cluster.",
-		Long:    "List images on machines in the cluster. By default, on all machines.",
-		Example: `  # List images on all machines.
+		Long:    "List images on machines in the cluster. By default, on all machines. Optionally filter by image name.",
+		Example: `  # List all images on all machines.
   uc image ls
 
   # List images on specific machine.
   uc image ls -m machine1
 
   # List images on multiple machines.
-  uc image ls -m machine1,machine2`,
+  uc image ls -m machine1,machine2
+
+  # List images filtered by name (with any tag) on all machines.
+  uc image ls myapp
+
+  # List images filtered by name and tag on specific machine.
+  uc image ls myapp:1.2.3 -m machine1`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				opts.nameFilter = args[0]
+			}
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return list(cmd.Context(), uncli, opts)
 		},
@@ -145,8 +156,14 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		}
 	}
 
+	rows = filterImagesByName(rows, opts.nameFilter)
+
 	if len(rows) == 0 {
-		fmt.Println("No images found.")
+		if opts.nameFilter != "" {
+			fmt.Printf("No images matching '%s' found.\n", opts.nameFilter)
+		} else {
+			fmt.Println("No images found.")
+		}
 		return nil
 	}
 
@@ -162,6 +179,37 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	fmt.Println(formatImageTable(rows))
 
 	return nil
+}
+
+// filterImagesByName filters the image rows by image name. It matches any tag of the image if only the name
+// is provided. For example, if filter is "nginx", it matches "nginx", "nginx:latest", "nginx:1.25", etc.
+// If filter is "nginx:latest", it matches only "nginx:latest".
+func filterImagesByName(rows []imageRow, nameFilter string) []imageRow {
+	if nameFilter == "" {
+		return rows
+	}
+
+	var filteredRows []imageRow
+	for _, row := range rows {
+		if row.name == "<none>" {
+			continue
+		}
+
+		if strings.Contains(nameFilter, ":") {
+			// Exact match if filter contains a tag.
+			if row.name == nameFilter {
+				filteredRows = append(filteredRows, row)
+			}
+			continue
+		}
+
+		// Match by name prefix if filter does not contain a tag.
+		if strings.HasPrefix(row.name, nameFilter) &&
+			len(row.name) > len(nameFilter) && row.name[len(nameFilter)] == ':' {
+			filteredRows = append(filteredRows, row)
+		}
+	}
+	return filteredRows
 }
 
 // imagePlatforms returns a list of platforms supported by the image and a boolean indicating if it's multi-platform.
