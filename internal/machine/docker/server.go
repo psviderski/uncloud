@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -533,19 +534,18 @@ func (s *Server) CreateServiceContainer(
 		containerName = fmt.Sprintf("%s-%s", spec.Name, suffix)
 	}
 
-	// Start with the environment from the service spec
-	envVars := spec.Container.Env.ToSlice()
+	envVars := maps.Clone(spec.Container.Env)
 
 	// Inject the machine ID if available
 	if s.machineID != nil {
 		if machineID := s.machineID(); machineID != "" {
-			envVars = append(envVars, "UNCLOUD_MACHINE_ID="+machineID)
+			envVars["UNCLOUD_MACHINE_ID"] = machineID
 		}
 	}
 
 	config := &container.Config{
 		Cmd:        spec.Container.Command,
-		Env:        envVars,
+		Env:        envVars.ToSlice(),
 		Entrypoint: spec.Container.Entrypoint,
 		Hostname:   containerName,
 		Image:      spec.Container.Image,
