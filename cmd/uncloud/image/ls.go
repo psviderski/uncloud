@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/containerd/platforms"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -53,6 +56,18 @@ func NewListCommand() *cobra.Command {
 	return cmd
 }
 
+// imageRow represents a single image with its metadata for display.
+type imageRow struct {
+	id           string
+	name         string
+	platforms    string
+	createdHuman string
+	createdUnix  int64
+	size         string
+	store        string
+	machine      string
+}
+
 func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
 	if err != nil {
@@ -80,53 +95,33 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		return fmt.Errorf("list images: %w", err)
 	}
 
-	// Check if there are any images across all machines.
-	hasImages := false
+	// Collect all images from all machines.
+	var rows []imageRow
+
 	for _, machineImages := range clusterImages {
-		if len(machineImages.Images) > 0 {
-			hasImages = true
-			break
+		// Get machine name for better readability.
+		machineName := machineImages.Metadata.Machine
+		if m := allMachines.FindByNameOrID(machineName); m != nil {
+			machineName = m.Machine.Name
 		}
-	}
 
-	if !hasImages {
-		fmt.Println("No images found.")
-		return nil
-	}
-
-	// Replace machine IDs with names in metadata for better readability.
-	for _, machineImages := range clusterImages {
-		if m := allMachines.FindByNameOrID(machineImages.Metadata.Machine); m != nil {
-			machineImages.Metadata.Machine = m.Machine.Name
-		}
-	}
-	// Sort machines alphabetically by name.
-	sort.Slice(clusterImages, func(i, j int) bool {
-		return clusterImages[i].Metadata.Machine < clusterImages[j].Metadata.Machine
-	})
-
-	// Print the images in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "MACHINE\tIMAGE\tIMAGE ID\tCREATED\tSIZE\tSTORE"); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
-
-	// Print rows for each machine's images.
-	for _, machineImages := range clusterImages {
 		store := "docker"
 		if machineImages.ContainerdStore {
 			store = "containerd"
 		}
 
-		// Print each image for this machine.
+		// Process each image for this machine.
 		for _, img := range machineImages.Images {
-			imageName := "<none>"
+			// Show the first 12 chars without 'sha256:' as the image ID like Docker does.
+			id := strings.TrimPrefix(img.ID, "sha256:")[:12]
+
+			name := "<none>"
 			if len(img.RepoTags) > 0 && img.RepoTags[0] != "<none>:<none>" {
-				imageName = img.RepoTags[0]
+				name = img.RepoTags[0]
 			}
 
-			// Show the first 12 chars without 'sha256:' as the image ID like Docker does.
-			imageID := strings.TrimPrefix(img.ID, "sha256:")[:12]
+			imgPlatforms := imagePlatforms(img)
+			formattedPlatforms := strings.Join(imgPlatforms, ",")
 
 			created := ""
 			createdAt := time.Unix(img.Created, 0)
@@ -136,12 +131,58 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 			size := units.HumanSizeWithPrecision(float64(img.Size), 3)
 
-			if _, err = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				machineImages.Metadata.Machine, imageName, imageID, created, size, store); err != nil {
-				return fmt.Errorf("write row: %w", err)
-			}
+			rows = append(rows, imageRow{
+				id:           id,
+				name:         name,
+				platforms:    formattedPlatforms,
+				createdHuman: created,
+				createdUnix:  img.Created,
+				size:         size,
+				store:        store,
+				machine:      machineName,
+			})
+		}
+	}
+
+	if len(rows) == 0 {
+		fmt.Println("No images found.")
+		return nil
+	}
+
+	// Sort images by created time (newest first), then by machine name.
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].createdUnix != rows[j].createdUnix {
+			return rows[i].createdUnix > rows[j].createdUnix
+		}
+		return rows[i].machine < rows[j].machine
+	})
+
+	// Print the images in a table format.
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	if _, err = fmt.Fprintln(tw, "IMAGE ID\tNAME\tPLATFORMS\tCREATED\tSIZE\tSTORE\tMACHINE"); err != nil {
+		return fmt.Errorf("write header: %w", err)
+	}
+
+	for _, img := range rows {
+		if _, err = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			img.id, img.name, img.platforms, img.createdHuman, img.size, img.store, img.machine); err != nil {
+			return fmt.Errorf("write row: %w", err)
 		}
 	}
 
 	return tw.Flush()
+}
+
+func imagePlatforms(img image.Summary) []string {
+	var formattedPlatforms []string
+
+	for _, m := range img.Manifests {
+		if m.Kind != image.ManifestKindImage || !m.Available {
+			continue
+		}
+		formattedPlatforms = append(formattedPlatforms, platforms.Format(m.ImageData.Platform))
+	}
+
+	slices.Sort(formattedPlatforms)
+	return formattedPlatforms
 }
