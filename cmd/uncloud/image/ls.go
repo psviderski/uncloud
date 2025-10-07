@@ -3,16 +3,17 @@ package image
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"sort"
 	"strings"
-	"text/tabwriter"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/containerd/platforms"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/go-units"
+	"github.com/muesli/termenv"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -120,8 +121,8 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 				name = img.RepoTags[0]
 			}
 
-			imgPlatforms := imagePlatforms(img)
-			formattedPlatforms := strings.Join(imgPlatforms, ",")
+			imgPlatforms, _ := imagePlatforms(img)
+			formattedPlatforms := formatPlatforms(imgPlatforms)
 
 			created := ""
 			createdAt := time.Unix(img.Created, 0)
@@ -149,40 +150,87 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		return nil
 	}
 
-	// Sort images by created time (newest first), then by machine name.
+	// Sort images by name, then by machine name.
 	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].createdUnix != rows[j].createdUnix {
-			return rows[i].createdUnix > rows[j].createdUnix
+		if rows[i].name != rows[j].name {
+			return rows[i].name < rows[j].name
 		}
 		return rows[i].machine < rows[j].machine
 	})
 
 	// Print the images in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "IMAGE ID\tNAME\tPLATFORMS\tCREATED\tSIZE\tSTORE\tMACHINE"); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
+	fmt.Println(formatImageTable(rows))
 
-	for _, img := range rows {
-		if _, err = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			img.id, img.name, img.platforms, img.createdHuman, img.size, img.store, img.machine); err != nil {
-			return fmt.Errorf("write row: %w", err)
-		}
-	}
-
-	return tw.Flush()
+	return nil
 }
 
-func imagePlatforms(img image.Summary) []string {
+// imagePlatforms returns a list of platforms supported by the image and a boolean indicating if it's multi-platform.
+func imagePlatforms(img image.Summary) ([]string, bool) {
 	var formattedPlatforms []string
+	multiPlatform := false
 
 	for _, m := range img.Manifests {
 		if m.Kind != image.ManifestKindImage || !m.Available {
 			continue
 		}
+
+		if m.ID != img.ID {
+			// There is an image manifest that has digest different from the main image digest.
+			// This means the image manifest is an index or a manifest list (multi-platform image).
+			multiPlatform = true
+		}
 		formattedPlatforms = append(formattedPlatforms, platforms.Format(m.ImageData.Platform))
 	}
 
 	slices.Sort(formattedPlatforms)
-	return formattedPlatforms
+
+	return formattedPlatforms, multiPlatform
+}
+
+func formatPlatforms(platforms []string) string {
+	if len(platforms) == 0 {
+		return "-"
+	}
+
+	platformStyle := lipgloss.NewStyle().
+		BorderForeground(lipgloss.Color("152")).
+		Foreground(lipgloss.Color("0")).
+		Background(lipgloss.Color("152"))
+	// Use fancy pill borders only if the output is a terminal with color support.
+	if lipgloss.ColorProfile() != termenv.Ascii {
+		platformStyle = platformStyle.Border(lipgloss.Border{Left: "", Right: ""}, false, true, false, true)
+	}
+
+	styledPlatforms := make([]string, len(platforms))
+	for i, p := range platforms {
+		styledPlatforms[i] = platformStyle.Render(p)
+	}
+
+	return strings.Join(styledPlatforms, " ")
+}
+
+func formatImageTable(rows []imageRow) string {
+	t := table.New().
+		// Remove the default border.
+		Border(lipgloss.Border{}).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderLeft(false).
+		BorderRight(false).
+		BorderHeader(false).
+		BorderColumn(false).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == table.HeaderRow {
+				return lipgloss.NewStyle().Bold(true).PaddingRight(3)
+			}
+			// Regular style for data rows with padding.
+			return lipgloss.NewStyle().PaddingRight(3)
+		}).
+		Headers("IMAGE ID", "NAME", "PLATFORMS", "CREATED", "SIZE", "STORE", "MACHINE")
+
+	for _, row := range rows {
+		t.Row(row.id, row.name, row.platforms, row.createdHuman, row.size, row.store, row.machine)
+	}
+
+	return t.String()
 }
