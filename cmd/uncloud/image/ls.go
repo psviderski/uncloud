@@ -154,7 +154,6 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("●")
 				} else {
 					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("○")
-					//inUse = "○"
 				}
 			}
 
