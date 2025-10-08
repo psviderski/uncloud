@@ -29,7 +29,7 @@ func NewListCommand() *cobra.Command {
 	opts := listOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "ls [IMAGE]",
+		Use:     "ls [REPO:[TAG]]",
 		Aliases: []string{"list"},
 		Short:   "List images on machines in the cluster.",
 		Long:    "List images on machines in the cluster. By default, on all machines. Optionally filter by image name.",
@@ -45,8 +45,8 @@ func NewListCommand() *cobra.Command {
   # List images filtered by name (with any tag) on all machines.
   uc image ls myapp
 
-  # List images filtered by name and tag on specific machine.
-  uc image ls myapp:1.2.3 -m machine1`,
+  # List images filtered by name pattern on specific machine.
+  uc image ls "myapp:1.*" -m machine1`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -102,7 +102,10 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
 
-	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{Machines: machines})
+	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{
+		Machines: machines,
+		Name:     opts.nameFilter,
+	})
 	if err != nil {
 		return fmt.Errorf("list images: %w", err)
 	}
@@ -156,8 +159,6 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		}
 	}
 
-	rows = filterImagesByName(rows, opts.nameFilter)
-
 	if len(rows) == 0 {
 		if opts.nameFilter != "" {
 			fmt.Printf("No images matching '%s' found.\n", opts.nameFilter)
@@ -179,37 +180,6 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	fmt.Println(formatImageTable(rows))
 
 	return nil
-}
-
-// filterImagesByName filters the image rows by image name. It matches any tag of the image if only the name
-// is provided. For example, if filter is "nginx", it matches "nginx", "nginx:latest", "nginx:1.25", etc.
-// If filter is "nginx:latest", it matches only "nginx:latest".
-func filterImagesByName(rows []imageRow, nameFilter string) []imageRow {
-	if nameFilter == "" {
-		return rows
-	}
-
-	var filteredRows []imageRow
-	for _, row := range rows {
-		if row.name == "<none>" {
-			continue
-		}
-
-		if strings.Contains(nameFilter, ":") {
-			// Exact match if filter contains a tag.
-			if row.name == nameFilter {
-				filteredRows = append(filteredRows, row)
-			}
-			continue
-		}
-
-		// Match by name prefix if filter does not contain a tag.
-		if strings.HasPrefix(row.name, nameFilter) &&
-			len(row.name) > len(nameFilter) && row.name[len(nameFilter)] == ':' {
-			filteredRows = append(filteredRows, row)
-		}
-	}
-	return filteredRows
 }
 
 // imagePlatforms returns a list of platforms supported by the image and a boolean indicating if it's multi-platform.

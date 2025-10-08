@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -52,6 +53,12 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	}
 
 	opts := image.ListOptions{Manifests: true}
+	if filter.Name != "" {
+		opts.Filters = filters.NewArgs(
+			filters.Arg("reference", filter.Name),
+		)
+	}
+
 	optsBytes, err := json.Marshal(opts)
 	if err != nil {
 		return nil, fmt.Errorf("marshal options: %w", err)
