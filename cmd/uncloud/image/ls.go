@@ -76,6 +76,7 @@ type imageRow struct {
 	createdHuman string
 	createdUnix  int64
 	size         string
+	inUse        string
 	store        string
 	machine      string
 }
@@ -146,6 +147,17 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 			size := units.HumanSizeWithPrecision(float64(img.Size), 3)
 
+			// Check if the image is in use by any containers. Only supported by Docker API >=1.51
+			inUse := "-"
+			if img.Containers != -1 { // -1 means the info is not available.
+				if img.Containers > 0 {
+					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("●")
+				} else {
+					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("○")
+					//inUse = "○"
+				}
+			}
+
 			rows = append(rows, imageRow{
 				id:           id,
 				name:         name,
@@ -153,6 +165,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 				createdHuman: created,
 				createdUnix:  img.Created,
 				size:         size,
+				inUse:        inUse,
 				store:        store,
 				machine:      machineName,
 			})
@@ -228,6 +241,29 @@ func formatPlatforms(platforms []string) string {
 }
 
 func formatImageTable(rows []imageRow) string {
+	columns := []struct {
+		name string
+		hide bool
+	}{
+		{name: "IMAGE ID"},
+		{name: "NAME"},
+		{name: "PLATFORMS"},
+		{name: "CREATED"},
+		{name: "SIZE"},
+		{name: "IN USE"},
+		{name: "STORE"},
+		{name: "MACHINE"},
+	}
+
+	// Hide the "IN USE" column if none of the images have that info available.
+	inUseInfoAvailable := slices.ContainsFunc(rows, func(r imageRow) bool {
+		return r.inUse != "-"
+	})
+	if !inUseInfoAvailable {
+		// Hide "IN USE" column.
+		columns[5].hide = true
+	}
+
 	t := table.New().
 		// Remove the default border.
 		Border(lipgloss.Border{}).
@@ -243,11 +279,34 @@ func formatImageTable(rows []imageRow) string {
 			}
 			// Regular style for data rows with padding.
 			return lipgloss.NewStyle().PaddingRight(3)
-		}).
-		Headers("IMAGE ID", "NAME", "PLATFORMS", "CREATED", "SIZE", "STORE", "MACHINE")
+		})
+
+	var headers []string
+	for _, col := range columns {
+		if !col.hide {
+			headers = append(headers, col.name)
+		}
+	}
+	t.Headers(headers...)
 
 	for _, row := range rows {
-		t.Row(row.id, row.name, row.platforms, row.createdHuman, row.size, row.store, row.machine)
+		values := []string{
+			row.id,
+			row.name,
+			row.platforms,
+			row.createdHuman,
+			row.size,
+			row.inUse,
+			row.store,
+			row.machine,
+		}
+		var filteredValues []string
+		for i, v := range values {
+			if !columns[i].hide {
+				filteredValues = append(filteredValues, v)
+			}
+		}
+		t.Row(filteredValues...)
 	}
 
 	return t.String()
