@@ -19,10 +19,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/distribution/reference"
 	dockercommand "github.com/docker/cli/cli/command"
 	dockerconfig "github.com/docker/cli/cli/config"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -114,7 +114,7 @@ func (s *Server) CreateContainer(ctx context.Context, req *pb.CreateContainerReq
 
 	resp, err := s.client.ContainerCreate(ctx, &config, &hostConfig, &networkConfig, &platform, req.Name)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -132,7 +132,7 @@ func (s *Server) CreateContainer(ctx context.Context, req *pb.CreateContainerReq
 func (s *Server) InspectContainer(ctx context.Context, req *pb.InspectContainerRequest) (*pb.InspectContainerResponse, error) {
 	resp, err := s.client.ContainerInspect(ctx, req.Id)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -165,7 +165,7 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 	}
 
 	if err := s.client.ContainerStart(ctx, req.Id, opts); err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -184,7 +184,7 @@ func (s *Server) StopContainer(ctx context.Context, req *pb.StopContainerRequest
 	}
 
 	if err := s.client.ContainerStop(ctx, req.Id, opts); err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -219,11 +219,11 @@ func (s *Server) ListContainers(ctx context.Context, req *pb.ListContainersReque
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	containers := make([]types.ContainerJSON, 0, len(containerSummaries))
+	containers := make([]container.InspectResponse, 0, len(containerSummaries))
 	for _, cs := range containerSummaries {
 		c, err := s.client.ContainerInspect(ctx, cs.ID)
 		if err != nil {
-			if client.IsErrNotFound(err) {
+			if errdefs.IsNotFound(err) {
 				// The listed container may have been removed while we were inspecting other containers.
 				continue
 			}
@@ -256,7 +256,7 @@ func (s *Server) RemoveContainer(ctx context.Context, req *pb.RemoveContainerReq
 	}
 
 	if err := s.client.ContainerRemove(ctx, req.Id, opts); err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -323,9 +323,9 @@ func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreaming
 
 // InspectImage returns the image information for the given image ID.
 func (s *Server) InspectImage(ctx context.Context, req *pb.InspectImageRequest) (*pb.InspectImageResponse, error) {
-	resp, _, err := s.client.ImageInspectWithRaw(ctx, req.Id)
+	resp, err := s.client.ImageInspect(ctx, req.Id)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -498,7 +498,7 @@ func (s *Server) ListVolumes(ctx context.Context, req *pb.ListVolumesRequest) (*
 // RemoveVolume removes a volume with the given ID.
 func (s *Server) RemoveVolume(ctx context.Context, req *pb.RemoveVolumeRequest) (*emptypb.Empty, error) {
 	if err := s.client.VolumeRemove(ctx, req.Id, req.Force); err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -644,7 +644,7 @@ func (s *Server) CreateServiceContainer(
 
 	resp, err := s.client.ContainerCreate(ctx, config, hostConfig, networkConfig, nil, containerName)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -751,31 +751,31 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 	}
 
 	// Process each config mount
-	for _, mount := range mounts {
-		config, exists := configMap[mount.ConfigName]
+	for _, m := range mounts {
+		config, exists := configMap[m.ConfigName]
 		if !exists {
-			return fmt.Errorf("config mount references a config that doesn't exist: '%s'", mount.ConfigName)
+			return fmt.Errorf("config mount references a config that doesn't exist: '%s'", m.ConfigName)
 		}
 
 		// Determine target path in container
-		targetPath := mount.ContainerPath
+		targetPath := m.ContainerPath
 		if targetPath == "" {
 			// This is the default from the Compose spec
-			targetPath = filepath.Join("/", mount.ConfigName)
+			targetPath = filepath.Join("/", m.ConfigName)
 		}
 
 		// Determine file mode
 		fileMode := os.FileMode(0o444) // Default permissions
-		if mount.Mode != nil {
-			fileMode = *mount.Mode
+		if m.Mode != nil {
+			fileMode = *m.Mode
 		}
 
-		uid, err := mount.GetNumericUid()
+		uid, err := m.GetNumericUid()
 		if err != nil {
 			return fmt.Errorf("invalid Uid: %w", err)
 		}
 
-		gid, err := mount.GetNumericGid()
+		gid, err := m.GetNumericGid()
 		if err != nil {
 			return fmt.Errorf("invalid Gid: %w", err)
 		}
@@ -880,7 +880,7 @@ func (s *Server) verifyDockerVolumesExist(ctx context.Context, mounts []mount.Mo
 
 		// TODO: non-local volume drivers should likely be handled differently (needs proper investigation).
 		if _, err := s.client.VolumeInspect(ctx, m.Source); err != nil {
-			if client.IsErrNotFound(err) {
+			if errdefs.IsNotFound(err) {
 				return status.Errorf(codes.NotFound, "volume '%s' not found", m.Source)
 			}
 			return status.Errorf(codes.Internal, "inspect volume '%s': %v", m.Source, err.Error())
@@ -900,7 +900,7 @@ func (s *Server) InspectServiceContainer(
 ) (*pb.ServiceContainer, error) {
 	serviceCtr, err := s.service.InspectServiceContainer(ctx, req.Id)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -990,7 +990,7 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	if !fullDockerIDRegex.MatchString(req.Id) {
 		ctr, err := s.client.ContainerInspect(ctx, req.Id)
 		if err != nil {
-			if client.IsErrNotFound(err) {
+			if errdefs.IsNotFound(err) {
 				return nil, status.Error(codes.NotFound, err.Error())
 			}
 			return nil, status.Error(codes.Internal, err.Error())

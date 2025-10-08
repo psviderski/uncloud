@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/volume"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -123,7 +123,7 @@ func (cli *Client) RemoveVolume(ctx context.Context, machineNameOrID, volumeName
 	pw.Event(progress.RemovingEvent(eventID))
 
 	if err = cli.Docker.RemoveVolume(ctx, volumeName, force); err != nil {
-		if dockerclient.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return api.ErrNotFound
 		}
 		return err

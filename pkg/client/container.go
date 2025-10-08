@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/psviderski/uncloud/internal/docker"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
@@ -64,7 +64,7 @@ func (cli *Client) CreateContainer(
 		}
 
 		// NotFound (No such image) error is expected if the image is missing.
-		if !dockerclient.IsErrNotFound(err) || !strings.Contains(err.Error(), "No such image") {
+		if !errdefs.IsNotFound(err) || !strings.Contains(err.Error(), "No such image") {
 			return resp, err
 		}
 

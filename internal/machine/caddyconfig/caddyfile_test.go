@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/psviderski/uncloud/internal/machine/docker"
@@ -848,15 +847,15 @@ func newContainerRecordWithCaddyConfig(serviceName, ip, caddyConfig, machineID s
 	return store.ContainerRecord{
 		Container: api.ServiceContainer{
 			Container: api.Container{
-				ContainerJSON: types.ContainerJSON{
-					ContainerJSONBase: &types.ContainerJSONBase{
+				InspectResponse: container.InspectResponse{
+					ContainerJSONBase: &container.ContainerJSONBase{
 						ID: serviceName + "-" + ip, // Add ID for stable sorting
-						State: &types.ContainerState{
+						State: &container.State{
 							Running: true,
 						},
 						Created: created.UTC().Format(time.RFC3339Nano),
 					},
-					NetworkSettings: &types.NetworkSettings{
+					NetworkSettings: &container.NetworkSettings{
 						Networks: map[string]*network.EndpointSettings{
 							docker.NetworkName: {
 								IPAddress: ip,
@@ -975,15 +974,15 @@ func newContainerRecordWithPorts(serviceName, ip string, ports []string, machine
 	return store.ContainerRecord{
 		Container: api.ServiceContainer{
 			Container: api.Container{
-				ContainerJSON: types.ContainerJSON{
-					ContainerJSONBase: &types.ContainerJSONBase{
+				InspectResponse: container.InspectResponse{
+					ContainerJSONBase: &container.ContainerJSONBase{
 						ID: serviceName + "-" + ip, // Add ID for stable sorting
-						State: &types.ContainerState{
+						State: &container.State{
 							Running: true,
 						},
 						Created: time.Now().UTC().Format(time.RFC3339Nano),
 					},
-					NetworkSettings: &types.NetworkSettings{
+					NetworkSettings: &container.NetworkSettings{
 						Networks: map[string]*network.EndpointSettings{
 							docker.NetworkName: {
 								IPAddress: ip,

@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/distribution/reference"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -10,7 +9,7 @@ import (
 
 type MachineImage struct {
 	Metadata *pb.Metadata
-	Image    types.ImageInspect
+	Image    image.InspectResponse
 }
 
 // MachineImages represents images present on a particular machine.

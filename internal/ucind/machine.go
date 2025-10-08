@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -137,7 +137,7 @@ func (p *Provisioner) createContainerWithImagePull(
 		return resp, nil
 	}
 
-	if !dockerclient.IsErrNotFound(err) {
+	if !errdefs.IsNotFound(err) {
 		return resp, fmt.Errorf("create Docker container: %w", err)
 	}
 

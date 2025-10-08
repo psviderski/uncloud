@@ -114,7 +114,7 @@ message InspectImageResponse {
 
 message Image {
   Metadata metadata = 1;
-  // JSON serialised types.ImageInspect.
+  // JSON serialised image.InspectResponse.
   bytes image = 2;
 }
 

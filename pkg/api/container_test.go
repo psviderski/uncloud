@@ -4,7 +4,6 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,9 +14,9 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("exited", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Running:  false,
 					Dead:     false,
 					ExitCode: 0,
@@ -29,9 +28,9 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("running with no health check", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Running: true,
 				},
 			},
@@ -41,12 +40,12 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("running and healthy", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Running: true,
-					Health: &types.Health{
-						Status: types.Healthy,
+					Health: &container.Health{
+						Status: container.Healthy,
 					},
 				},
 			},
@@ -56,12 +55,12 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("running but unhealthy", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Running: true,
-					Health: &types.Health{
-						Status: types.Unhealthy,
+					Health: &container.Health{
+						Status: container.Unhealthy,
 					},
 				},
 			},
@@ -71,11 +70,11 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("running with health starting", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Running: true,
-					Health: &types.Health{
+					Health: &container.Health{
 						Status: "starting",
 					},
 				},
@@ -86,9 +85,9 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("dead", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Dead:    true,
 					Running: false,
 				},
@@ -99,9 +98,9 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("restarting", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Restarting: true,
 					Running:    true,
 					ExitCode:   1,
@@ -113,9 +112,9 @@ func TestContainer_Healthy(t *testing.T) {
 
 	t.Run("paused", func(t *testing.T) {
 		t.Parallel()
-		c := &Container{ContainerJSON: types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				State: &types.ContainerState{
+		c := &Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				State: &container.State{
 					Paused:  true,
 					Running: true,
 				},
@@ -280,7 +279,7 @@ func TestContainer_ConflictingServicePorts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctr := &ServiceContainer{Container: Container{ContainerJSON: types.ContainerJSON{
+			ctr := &ServiceContainer{Container: Container{InspectResponse: container.InspectResponse{
 				Config: &container.Config{
 					Labels: map[string]string{
 						LabelServicePorts: tt.containerPorts,

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
@@ -30,7 +31,7 @@ type DockerService struct {
 func (s *DockerService) Start(ctx context.Context) error {
 	_, err := s.Client.ContainerInspect(ctx, s.Name)
 	if err != nil {
-		if !client.IsErrNotFound(err) {
+		if !errdefs.IsNotFound(err) {
 			return fmt.Errorf("inspect container %q: %w", s.Name, err)
 		}
 		if err = s.startNewContainer(ctx); err != nil {
@@ -114,7 +115,7 @@ func (s *DockerService) hostConfig() *container.HostConfig {
 func (s *DockerService) startNewContainer(ctx context.Context) error {
 	_, err := s.Client.ContainerCreate(ctx, s.containerConfig(), s.hostConfig(), nil, nil, s.Name)
 	if err != nil {
-		if !client.IsErrNotFound(err) {
+		if !errdefs.IsNotFound(err) {
 			return fmt.Errorf("create container: %w", err)
 		}
 

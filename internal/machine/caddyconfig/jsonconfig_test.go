@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/psviderski/uncloud/internal/machine/docker"
@@ -334,13 +333,13 @@ func TestGenerateJSONConfig(t *testing.T) {
 
 func newContainer(ip string, ports ...string) api.ServiceContainer {
 	portsLabel := strings.Join(ports, ",")
-	return api.ServiceContainer{Container: api.Container{ContainerJSON: types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{
-			State: &types.ContainerState{
+	return api.ServiceContainer{Container: api.Container{InspectResponse: container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{
+			State: &container.State{
 				Running: true,
 			},
 		},
-		NetworkSettings: &types.NetworkSettings{
+		NetworkSettings: &container.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				docker.NetworkName: {
 					IPAddress: ip,
@@ -357,13 +356,13 @@ func newContainer(ip string, ports ...string) api.ServiceContainer {
 
 func newContainerWithoutNetwork(ports ...string) api.ServiceContainer {
 	portsLabel := strings.Join(ports, ",")
-	return api.ServiceContainer{Container: api.Container{ContainerJSON: types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{
-			State: &types.ContainerState{
+	return api.ServiceContainer{Container: api.Container{InspectResponse: container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{
+			State: &container.State{
 				Running: true,
 			},
 		},
-		NetworkSettings: &types.NetworkSettings{
+		NetworkSettings: &container.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				"other-network": {
 					IPAddress: "172.17.0.2",

@@ -60,7 +60,7 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 				{
 					Source: "nginx-config",
 					Target: "/etc/nginx/nginx.conf",
-					Mode:   func() *uint32 { m := uint32(0o644); return &m }(),
+					Mode:   func() *types.FileMode { m := types.FileMode(0o644); return &m }(),
 				},
 			},
 			expectedSpecs: []api.ConfigSpec{

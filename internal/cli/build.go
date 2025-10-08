@@ -10,7 +10,7 @@ import (
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 	"github.com/distribution/reference"
 	"github.com/docker/cli/cli/config"
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
@@ -76,7 +76,8 @@ func buildSingleService(ctx context.Context, dockerCli *dockerclient.Client, ser
 		return "", fmt.Errorf("service %s has no build configuration", service.Name)
 	}
 	if service.Image == "" {
-		return "", fmt.Errorf("service %s has no image specified; building services without image is not supported yet", service.Name)
+		return "", fmt.Errorf("service %s has no image specified; building services without image is not supported yet",
+			service.Name)
 	}
 
 	buildContextPath := service.Build.Context
@@ -88,7 +89,7 @@ func buildSingleService(ctx context.Context, dockerCli *dockerclient.Client, ser
 		return "", fmt.Errorf("failed to create build context for service %s: %w", service.Name, err)
 	}
 
-	buildOptions := types.ImageBuildOptions{
+	buildOptions := build.ImageBuildOptions{
 		// TODO: Support Dockerfiles outside the build context
 		// See https://github.com/docker/compose/blob/cf89fd1aa1328d5af77658ccc5a1e1b29981ae80/pkg/compose/build_classic.go#L92
 		Dockerfile: service.Build.Dockerfile,

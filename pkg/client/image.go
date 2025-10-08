@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -32,7 +33,7 @@ import (
 
 func (cli *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImage, error) {
 	images, err := cli.Docker.InspectImage(ctx, id)
-	if dockerclient.IsErrNotFound(err) {
+	if errdefs.IsNotFound(err) {
 		err = api.ErrNotFound
 	}
 
@@ -123,8 +124,8 @@ func (cli *Client) PushImage(ctx context.Context, image string, opts PushImageOp
 	defer dockerCli.Close()
 
 	// Check if Docker image exists locally.
-	if _, _, err = dockerCli.ImageInspectWithRaw(ctx, image); err != nil {
-		if dockerclient.IsErrNotFound(err) {
+	if _, err = dockerCli.ImageInspect(ctx, image); err != nil {
+		if errdefs.IsNotFound(err) {
 			return fmt.Errorf("image '%s' not found locally", image)
 		}
 		return fmt.Errorf("inspect image '%s' locally: %w", image, err)
