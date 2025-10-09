@@ -215,6 +215,26 @@ func (cli *Client) pushImageToMachine(
 	platform *ocispec.Platform,
 ) error {
 	pw := progress.ContextWriter(ctx)
+	boldStyle := lipgloss.NewStyle().Bold(true)
+	pushEventID := fmt.Sprintf("Pushing %s to %s", boldStyle.Render(imageName), boldStyle.Render(machine.Name))
+
+	// Check the Docker image store type on the target machine.
+	images, err := cli.ListImages(ctx, api.ImageFilter{
+		Machines: []string{machine.Id},
+		Name:     "%invalid-name-to-only-check-store-type%",
+	})
+	if err != nil {
+		return fmt.Errorf("check Docker image store type on machine '%s': %w", machine.Name, err)
+	}
+
+	// Only support Docker with containerd image store enabled to avoid the confusion of pushing images to containerd
+	// and then not being able to see and use them in Docker.
+	if !images[0].ContainerdStore {
+		pw.Event(progress.NewEvent(pushEventID, progress.Error, "containerd image store required"))
+		return fmt.Errorf("docker on machine '%s' is not using containerd image store, "+
+			"which is required for pushing images. Follow the instructions to enable it: "+
+			"https://docs.docker.com/engine/storage/containerd/", machine.Name)
+	}
 
 	machineSubnet, _ := machine.Network.Subnet.ToPrefix()
 	machineIP := network.MachineIP(machineSubnet)
@@ -225,7 +245,6 @@ func (cli *Client) pushImageToMachine(
 		return fmt.Errorf("get proxy dialer: %w", err)
 	}
 
-	boldStyle := lipgloss.NewStyle().Bold(true)
 	proxyEventID := fmt.Sprintf("Proxy to unregistry on %s", boldStyle.Render(machine.Name))
 	pw.Event(progress.StartingEvent(proxyEventID))
 
@@ -297,7 +316,6 @@ func (cli *Client) pushImageToMachine(
 	}
 
 	// Push the image through the proxy.
-	pushEventID := fmt.Sprintf("Pushing %s to %s", boldStyle.Render(imageName), boldStyle.Render(machine.Name))
 	pw.Event(progress.NewEvent(pushEventID, progress.Working, "Pushing"))
 
 	pushCh, err := dockerCli.PushImage(ctx, pushImageTag, image.PushOptions{
