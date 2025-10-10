@@ -87,6 +87,7 @@ func main() {
 		image.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
+		service.NewExecCommand(),
 		service.NewInspectCommand(),
 		service.NewListCommand(),
 		service.NewRmCommand(),
