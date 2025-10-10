@@ -1091,7 +1091,7 @@ func (s *Server) ContainerExec(stream pb.Docker_ContainerExecServer) error {
 		return nil
 	}
 
-	// For attached mode, attach to the exec instance (this implicitly starts it)
+	// For attached mode, attach to the exec instance
 	attachOpts := container.ExecAttachOptions{
 		Tty: config.Tty,
 	}
@@ -1103,11 +1103,9 @@ func (s *Server) ContainerExec(stream pb.Docker_ContainerExecServer) error {
 
 	// Create error channel for goroutines
 	errCh := make(chan error, 2)
-	numGoroutines := 1 // At least the output reader goroutine
 
 	// Goroutine to read from gRPC stream and write to Docker stdin
 	if config.AttachStdin {
-		numGoroutines++
 		go func() {
 			defer attachResp.CloseWrite()
 			for {
