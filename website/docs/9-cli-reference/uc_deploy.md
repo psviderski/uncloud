@@ -15,8 +15,8 @@ uc deploy [FLAGS] [SERVICE...] [flags]
   -n, --no-build          Do not build images before deploying services. (default false)
   -p, --profile strings   One or more Compose profiles to enable.
       --recreate          Recreate containers even if their configuration and image haven't changed.
-  -y, --yes               Auto-confirm deployment plan. Enabled by default when running non-interactively,
-                          e.g., in CI/CD pipelines.
+  -y, --yes               Auto-confirm deployment plan. Should be explicitly set when running non-interactively,
+                          e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
 
 ## Options inherited from parent commands
