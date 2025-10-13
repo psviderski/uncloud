@@ -81,10 +81,11 @@ func (p *Proxy) handleConnection(ctx context.Context, localConn net.Conn) {
 	defer p.activeConns.Done()
 	defer localConn.Close()
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// Use a separate context with timeout for dialing the remote address.
+	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	remoteConn, err := p.DialContext(ctx, "tcp", p.RemoteAddr)
+	remoteConn, err := p.DialContext(dialCtx, "tcp", p.RemoteAddr)
 	if err != nil {
 		if p.OnError != nil {
 			p.OnError(fmt.Errorf("connect remote address '%s': %w", p.RemoteAddr, err))
