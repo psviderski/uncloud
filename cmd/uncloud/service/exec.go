@@ -22,19 +22,18 @@ func NewExecCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "exec [OPTIONS] SERVICE COMMAND [ARGS...]",
-		Short: "Execute a command in a running container",
+		Short: "Execute a command in a running service container",
 		Long: `Execute a command in a running container within a service.
-
-If the service has multiple replicas, the command will be executed in the first container.
-
-Examples:
+(FIXME) If the service has multiple replicas, the command will be executed in the first container.
+	`,
+		Example: `
   # List files in a container
   uc exec web-service ls -la
 
   # Start an interactive shell
   uc exec -it web-service bash
 
-  # Run a background task
+  # Run a task in the background (detached mode)
   uc exec -d web-service /scripts/cleanup.sh`,
 		Args: cobra.MinimumNArgs(2),
 		// DisableFlagParsing would disable all flag parsing, but we want to parse our own flags.
