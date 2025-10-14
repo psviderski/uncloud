@@ -49,7 +49,7 @@ func (s *Service) InspectServiceContainer(ctx context.Context, nameOrID string) 
 		return serviceCtr, fmt.Errorf("container '%s' is not managed by Uncloud", nameOrID)
 	}
 
-	serviceCtr.Container = api.Container{ContainerJSON: ctr}
+	serviceCtr.Container = api.Container{InspectResponse: ctr}
 
 	// Retrieve ServiceSpec from the machine database.
 	var specBytes []byte

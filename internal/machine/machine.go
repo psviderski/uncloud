@@ -437,17 +437,26 @@ func (m *Machine) Run(ctx context.Context) error {
 
 			var unreg *unregistry.Registry
 			if m.config.ContainerdSockPath != "" {
-				// Create an embedded container registry listening on the machine IP address and
-				// using the local Docker (containerd) image store as its backend.
-				unreg, err = unregistry.NewRegistry(unregistry.Config{
-					Addr:                net.JoinHostPort(m.IP().String(), strconv.Itoa(constants.UnregistryPort)),
-					ContainerdNamespace: "moby",
-					ContainerdSock:      m.config.ContainerdSockPath,
-					LogFormatter:        "text",
-					LogLevel:            "info",
-				})
+				isContainerdStore, err := m.dockerService.IsContainerdImageStoreEnabled(ctx)
 				if err != nil {
-					return fmt.Errorf("create embedded registry: %w", err)
+					return fmt.Errorf("check if Docker uses containerd image store: %w", err)
+				}
+
+				if isContainerdStore {
+					// Create an embedded container registry listening on the machine IP address and
+					// using the local Docker (containerd) image store as its backend.
+					unreg, err = unregistry.NewRegistry(unregistry.Config{
+						Addr:                net.JoinHostPort(m.IP().String(), strconv.Itoa(constants.UnregistryPort)),
+						ContainerdNamespace: "moby",
+						ContainerdSock:      m.config.ContainerdSockPath,
+						LogFormatter:        "text",
+						LogLevel:            "info",
+					})
+					if err != nil {
+						return fmt.Errorf("create embedded registry: %w", err)
+					}
+				} else {
+					slog.Warn("Skipping embedded unregistry setup as Docker is not using the containerd image store.")
 				}
 			} else {
 				slog.Warn("Skipping embedded unregistry setup as the containerd socket path is not configured.")

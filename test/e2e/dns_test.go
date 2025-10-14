@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -77,8 +77,9 @@ func TestInternalDNS(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
-				Image:   "wbitt/network-multitool",
-				Command: []string{"sh", "-c", fmt.Sprintf("nslookup %s > %s 2>&1 && echo 'DNS query completed' && sleep infinity", dnsQuery, outputFile)},
+				Image: "wbitt/network-multitool",
+				Command: []string{"sh", "-c", fmt.Sprintf("nslookup %s > %s 2>&1 && echo 'DNS query completed' && sleep infinity",
+					dnsQuery, outputFile)},
 				VolumeMounts: []api.VolumeMount{
 					{
 						VolumeName:    "host-tmp",
@@ -125,8 +126,8 @@ func TestInternalDNS(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		// Find which ucind machine the DNS query container is running on
-		container := querySvc.Containers[0]
-		machineID := container.MachineID
+		ctr := querySvc.Containers[0]
+		machineID := ctr.MachineID
 
 		// Get the ucind machine container name for this machine
 		var ucindMachineName string
@@ -139,14 +140,14 @@ func TestInternalDNS(t *testing.T) {
 		require.NotEmpty(t, ucindMachineName, "Should find ucind machine container name")
 
 		// Read the DNS results from the ucind machine's filesystem
-		exec, err := dockerCli.ContainerExecCreate(ctx, ucindMachineName, types.ExecConfig{
+		exec, err := dockerCli.ContainerExecCreate(ctx, ucindMachineName, container.ExecOptions{
 			Cmd:          []string{"cat", outputFile},
 			AttachStdout: true,
 			AttachStderr: true,
 		})
 		require.NoError(t, err)
 
-		resp2, err := dockerCli.ContainerExecAttach(ctx, exec.ID, types.ExecStartCheck{})
+		resp2, err := dockerCli.ContainerExecAttach(ctx, exec.ID, container.ExecAttachOptions{})
 		require.NoError(t, err)
 		defer resp2.Close()
 
@@ -159,7 +160,8 @@ func TestInternalDNS(t *testing.T) {
 	// Helper function to verify DNS output doesn't contain errors
 	assertNoDNSErrors := func(t *testing.T, dnsOutput string) {
 		assert.NotContains(t, dnsOutput, "can't resolve", "DNS query should not contain resolution errors")
-		assert.NotContains(t, dnsOutput, "Name or service not known", "DNS query should not contain unknown service errors")
+		assert.NotContains(t, dnsOutput, "Name or service not known",
+			"DNS query should not contain unknown service errors")
 	}
 
 	t.Run("service name resolves to all container IPs", func(t *testing.T) {

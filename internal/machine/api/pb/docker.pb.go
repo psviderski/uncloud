@@ -772,7 +772,7 @@ type Image struct {
 	unknownFields protoimpl.UnknownFields
 
 	Metadata *Metadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// JSON serialised types.ImageInspect.
+	// JSON serialised image.InspectResponse.
 	Image []byte `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"`
 }
 

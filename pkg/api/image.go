@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/distribution/reference"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -10,7 +9,7 @@ import (
 
 type MachineImage struct {
 	Metadata *pb.Metadata
-	Image    types.ImageInspect
+	Image    image.InspectResponse
 }
 
 // MachineImages represents images present on a particular machine.
@@ -28,6 +27,9 @@ type ImageFilter struct {
 	// Machines filters images to those present on the specified machines (names or IDs).
 	// If empty, it matches images on all machines.
 	Machines []string
+	// Name filters images by name (with or without tag). Accepts a wildcard pattern.
+	// If empty, it matches all image names.
+	Name string
 }
 
 // MachineRemoteImage represents an image in a remote registry fetched by a particular machine.

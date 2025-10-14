@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -200,7 +200,7 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 	// Docker network name is the same as the cluster name.
 	net, err := p.dockerCli.NetworkInspect(ctx, name, network.InspectOptions{})
 	if err != nil {
-		if dockerclient.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return c, ErrNotFound
 		}
 		return c, fmt.Errorf("inspect Docker network '%s': %w", name, err)

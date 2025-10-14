@@ -31,7 +31,7 @@ uc machine init [USER@HOST:PORT] [flags]
 ## Options
 
 ```
-  -c, --context string        Name of the new context to be created for the initialised cluster in the Uncloud config. (default "default")
+  -c, --context string        Name of the new context to be created in the Uncloud config to manage the cluster. (default "default")
       --dns-endpoint string   API endpoint for the Uncloud DNS service. (default "https://dns.uncloud.run/v1")
   -h, --help                  help for init
   -n, --name string           Assign a name to the machine.

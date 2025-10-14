@@ -48,9 +48,16 @@ func (cli *Client) PushImage(
 ) (<-chan PullPushImageMessage, error) {
 	if opts.RegistryAuth == "" {
 		// Try to retrieve the authentication token for the image from the default local Docker config file.
-		if encodedAuth, err := RetrieveLocalDockerRegistryAuth(image); err == nil {
-			opts.RegistryAuth = encodedAuth
+		encodedAuth, _ := RetrieveLocalDockerRegistryAuth(image)
+		if encodedAuth == "" {
+			// If no credentials are found, provide an encoded empty auth config to work around the bug in Docker:
+			// https://github.com/moby/moby/issues/50729
+			var err error
+			if encodedAuth, err = registry.EncodeAuthConfig(registry.AuthConfig{}); err != nil {
+				return nil, fmt.Errorf("encode empty auth config: %w", err)
+			}
 		}
+		opts.RegistryAuth = encodedAuth
 	}
 
 	respBody, err := cli.ImagePush(ctx, image, opts)

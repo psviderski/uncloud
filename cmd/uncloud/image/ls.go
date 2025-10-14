@@ -29,7 +29,7 @@ func NewListCommand() *cobra.Command {
 	opts := listOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "ls [IMAGE]",
+		Use:     "ls [REPO:[TAG]]",
 		Aliases: []string{"list"},
 		Short:   "List images on machines in the cluster.",
 		Long:    "List images on machines in the cluster. By default, on all machines. Optionally filter by image name.",
@@ -45,8 +45,8 @@ func NewListCommand() *cobra.Command {
   # List images filtered by name (with any tag) on all machines.
   uc image ls myapp
 
-  # List images filtered by name and tag on specific machine.
-  uc image ls myapp:1.2.3 -m machine1`,
+  # List images filtered by name pattern on specific machine.
+  uc image ls "myapp:1.*" -m machine1`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -76,6 +76,7 @@ type imageRow struct {
 	createdHuman string
 	createdUnix  int64
 	size         string
+	inUse        string
 	store        string
 	machine      string
 }
@@ -102,7 +103,10 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
 
-	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{Machines: machines})
+	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{
+		Machines: machines,
+		Name:     opts.nameFilter,
+	})
 	if err != nil {
 		return fmt.Errorf("list images: %w", err)
 	}
@@ -143,6 +147,16 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 			size := units.HumanSizeWithPrecision(float64(img.Size), 3)
 
+			// Check if the image is in use by any containers. Only supported by Docker API >=1.51
+			inUse := "-"
+			if img.Containers != -1 { // -1 means the info is not available.
+				if img.Containers > 0 {
+					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("●")
+				} else {
+					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("○")
+				}
+			}
+
 			rows = append(rows, imageRow{
 				id:           id,
 				name:         name,
@@ -150,13 +164,12 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 				createdHuman: created,
 				createdUnix:  img.Created,
 				size:         size,
+				inUse:        inUse,
 				store:        store,
 				machine:      machineName,
 			})
 		}
 	}
-
-	rows = filterImagesByName(rows, opts.nameFilter)
 
 	if len(rows) == 0 {
 		if opts.nameFilter != "" {
@@ -179,37 +192,6 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	fmt.Println(formatImageTable(rows))
 
 	return nil
-}
-
-// filterImagesByName filters the image rows by image name. It matches any tag of the image if only the name
-// is provided. For example, if filter is "nginx", it matches "nginx", "nginx:latest", "nginx:1.25", etc.
-// If filter is "nginx:latest", it matches only "nginx:latest".
-func filterImagesByName(rows []imageRow, nameFilter string) []imageRow {
-	if nameFilter == "" {
-		return rows
-	}
-
-	var filteredRows []imageRow
-	for _, row := range rows {
-		if row.name == "<none>" {
-			continue
-		}
-
-		if strings.Contains(nameFilter, ":") {
-			// Exact match if filter contains a tag.
-			if row.name == nameFilter {
-				filteredRows = append(filteredRows, row)
-			}
-			continue
-		}
-
-		// Match by name prefix if filter does not contain a tag.
-		if strings.HasPrefix(row.name, nameFilter) &&
-			len(row.name) > len(nameFilter) && row.name[len(nameFilter)] == ':' {
-			filteredRows = append(filteredRows, row)
-		}
-	}
-	return filteredRows
 }
 
 // imagePlatforms returns a list of platforms supported by the image and a boolean indicating if it's multi-platform.
@@ -258,6 +240,29 @@ func formatPlatforms(platforms []string) string {
 }
 
 func formatImageTable(rows []imageRow) string {
+	columns := []struct {
+		name string
+		hide bool
+	}{
+		{name: "IMAGE ID"},
+		{name: "NAME"},
+		{name: "PLATFORMS"},
+		{name: "CREATED"},
+		{name: "SIZE"},
+		{name: "IN USE"},
+		{name: "STORE"},
+		{name: "MACHINE"},
+	}
+
+	// Hide the "IN USE" column if none of the images have that info available.
+	inUseInfoAvailable := slices.ContainsFunc(rows, func(r imageRow) bool {
+		return r.inUse != "-"
+	})
+	if !inUseInfoAvailable {
+		// Hide "IN USE" column.
+		columns[5].hide = true
+	}
+
 	t := table.New().
 		// Remove the default border.
 		Border(lipgloss.Border{}).
@@ -273,11 +278,34 @@ func formatImageTable(rows []imageRow) string {
 			}
 			// Regular style for data rows with padding.
 			return lipgloss.NewStyle().PaddingRight(3)
-		}).
-		Headers("IMAGE ID", "NAME", "PLATFORMS", "CREATED", "SIZE", "STORE", "MACHINE")
+		})
+
+	var headers []string
+	for _, col := range columns {
+		if !col.hide {
+			headers = append(headers, col.name)
+		}
+	}
+	t.Headers(headers...)
 
 	for _, row := range rows {
-		t.Row(row.id, row.name, row.platforms, row.createdHuman, row.size, row.store, row.machine)
+		values := []string{
+			row.id,
+			row.name,
+			row.platforms,
+			row.createdHuman,
+			row.size,
+			row.inUse,
+			row.store,
+			row.machine,
+		}
+		var filteredValues []string
+		for i, v := range values {
+			if !columns[i].hide {
+				filteredValues = append(filteredValues, v)
+			}
+		}
+		t.Row(filteredValues...)
 	}
 
 	return t.String()

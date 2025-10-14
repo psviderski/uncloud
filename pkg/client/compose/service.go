@@ -68,7 +68,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	}
 
 	if machines, ok := service.Extensions[MachinesExtensionKey].(MachinesSource); ok {
-		spec.Placement.Machines = []string(machines)
+		spec.Placement.Machines = machines
 	}
 
 	// Map LogDriver if specified

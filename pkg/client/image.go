@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -31,7 +33,7 @@ import (
 
 func (cli *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImage, error) {
 	images, err := cli.Docker.InspectImage(ctx, id)
-	if dockerclient.IsErrNotFound(err) {
+	if errdefs.IsNotFound(err) {
 		err = api.ErrNotFound
 	}
 
@@ -52,6 +54,12 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	}
 
 	opts := image.ListOptions{Manifests: true}
+	if filter.Name != "" {
+		opts.Filters = filters.NewArgs(
+			filters.Arg("reference", filter.Name),
+		)
+	}
+
 	optsBytes, err := json.Marshal(opts)
 	if err != nil {
 		return nil, fmt.Errorf("marshal options: %w", err)
@@ -116,8 +124,8 @@ func (cli *Client) PushImage(ctx context.Context, image string, opts PushImageOp
 	defer dockerCli.Close()
 
 	// Check if Docker image exists locally.
-	if _, _, err = dockerCli.ImageInspectWithRaw(ctx, image); err != nil {
-		if dockerclient.IsErrNotFound(err) {
+	if _, err = dockerCli.ImageInspect(ctx, image); err != nil {
+		if errdefs.IsNotFound(err) {
 			return fmt.Errorf("image '%s' not found locally", image)
 		}
 		return fmt.Errorf("inspect image '%s' locally: %w", image, err)
@@ -207,6 +215,26 @@ func (cli *Client) pushImageToMachine(
 	platform *ocispec.Platform,
 ) error {
 	pw := progress.ContextWriter(ctx)
+	boldStyle := lipgloss.NewStyle().Bold(true)
+	pushEventID := fmt.Sprintf("Pushing %s to %s", boldStyle.Render(imageName), boldStyle.Render(machine.Name))
+
+	// Check the Docker image store type on the target machine.
+	images, err := cli.ListImages(ctx, api.ImageFilter{
+		Machines: []string{machine.Id},
+		Name:     "%invalid-name-to-only-check-store-type%",
+	})
+	if err != nil {
+		return fmt.Errorf("check Docker image store type on machine '%s': %w", machine.Name, err)
+	}
+
+	// Only support Docker with containerd image store enabled to avoid the confusion of pushing images to containerd
+	// and then not being able to see and use them in Docker.
+	if !images[0].ContainerdStore {
+		pw.Event(progress.NewEvent(pushEventID, progress.Error, "containerd image store required"))
+		return fmt.Errorf("docker on machine '%s' is not using containerd image store, "+
+			"which is required for pushing images. Follow the instructions to enable it: "+
+			"https://docs.docker.com/engine/storage/containerd/", machine.Name)
+	}
 
 	machineSubnet, _ := machine.Network.Subnet.ToPrefix()
 	machineIP := network.MachineIP(machineSubnet)
@@ -217,7 +245,6 @@ func (cli *Client) pushImageToMachine(
 		return fmt.Errorf("get proxy dialer: %w", err)
 	}
 
-	boldStyle := lipgloss.NewStyle().Bold(true)
 	proxyEventID := fmt.Sprintf("Proxy to unregistry on %s", boldStyle.Render(machine.Name))
 	pw.Event(progress.StartingEvent(proxyEventID))
 
@@ -289,7 +316,6 @@ func (cli *Client) pushImageToMachine(
 	}
 
 	// Push the image through the proxy.
-	pushEventID := fmt.Sprintf("Pushing %s to %s", boldStyle.Render(imageName), boldStyle.Render(machine.Name))
 	pw.Event(progress.NewEvent(pushEventID, progress.Working, "Pushing"))
 
 	pushCh, err := dockerCli.PushImage(ctx, pushImageTag, image.PushOptions{

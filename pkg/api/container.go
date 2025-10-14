@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-units"
 )
 
@@ -23,7 +23,7 @@ const (
 )
 
 type Container struct {
-	types.ContainerJSON
+	container.InspectResponse
 	// created caches the parsed creation time by CreatedTime.
 	created time.Time
 }
@@ -52,7 +52,7 @@ func (c *Container) Healthy() bool {
 		return true
 	}
 
-	return c.State.Health.Status == types.Healthy
+	return c.State.Health.Status == container.Healthy
 }
 
 // HumanState returns a human-readable description of the container's state. Based on the Docker implementation:
@@ -78,7 +78,7 @@ func (c *Container) HumanState() (string, error) {
 
 		if c.State.Health != nil {
 			status := c.State.Health.Status
-			if status == types.Starting {
+			if status == container.Starting {
 				status = "health: " + status
 			}
 

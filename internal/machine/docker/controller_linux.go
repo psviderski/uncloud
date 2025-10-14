@@ -8,10 +8,10 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/containerd/errdefs"
 	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dnetwork "github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
 	"github.com/docker/docker/libnetwork/iptables"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/firewall"
@@ -27,7 +27,7 @@ func (c *Controller) EnsureUncloudNetwork(ctx context.Context, subnet netip.Pref
 	needsCreation := false
 	nw, err := c.client.NetworkInspect(ctx, NetworkName, dnetwork.InspectOptions{})
 	if err != nil {
-		if !client.IsErrNotFound(err) {
+		if !errdefs.IsNotFound(err) {
 			return fmt.Errorf("inspect Docker network '%s': %w", NetworkName, err)
 		}
 		needsCreation = true
@@ -187,7 +187,7 @@ func (c *Controller) Cleanup() error {
 
 		for _, ctr := range containers {
 			err = c.client.ContainerStop(ctx, ctr.ID, dockercontainer.StopOptions{})
-			if err != nil && !client.IsErrNotFound(err) {
+			if err != nil && !errdefs.IsNotFound(err) {
 				errs = append(errs, fmt.Errorf("stop container '%s': %w", ctr.ID, err))
 			}
 
@@ -197,7 +197,7 @@ func (c *Controller) Cleanup() error {
 			})
 			if err == nil {
 				removed++
-			} else if !client.IsErrNotFound(err) {
+			} else if !errdefs.IsNotFound(err) {
 				errs = append(errs, fmt.Errorf("remove container '%s': %w", ctr.ID, err))
 			}
 		}
@@ -223,10 +223,10 @@ func (c *Controller) Cleanup() error {
 
 		if err = c.client.NetworkRemove(ctx, NetworkName); err == nil {
 			slog.Info("Docker network removed.", "name", NetworkName)
-		} else if !client.IsErrNotFound(err) {
+		} else if !errdefs.IsNotFound(err) {
 			errs = append(errs, fmt.Errorf("remove Docker network '%s': %w", NetworkName, err))
 		}
-	} else if !client.IsErrNotFound(err) {
+	} else if !errdefs.IsNotFound(err) {
 		errs = append(errs, fmt.Errorf("inspect Docker network '%s': %w", NetworkName, err))
 	}
 

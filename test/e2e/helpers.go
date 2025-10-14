@@ -31,7 +31,7 @@ func readFileInfoInContainer(t *testing.T, machine *ucind.Machine, containerName
 	t.Helper()
 	ctx := context.Background()
 
-	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv)
+	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return fileInfo{}, err
 	}

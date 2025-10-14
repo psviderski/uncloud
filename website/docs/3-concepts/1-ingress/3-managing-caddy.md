@@ -1,7 +1,7 @@
 # Managing Caddy
 
-Caddy is automatically deployed as a global service `caddy` when you initialise a cluster with `uc machine init`. It
-runs on every machine to handle incoming HTTP/HTTPS traffic and route it to your services.
+Caddy is automatically deployed as a global service `caddy` when you initialise a cluster with `uc machine init`. By
+default, it runs on every machine to handle incoming HTTP/HTTPS traffic and route it to your services.
 
 ## Checking status
 
@@ -35,6 +35,13 @@ Deploy a specific version or custom image:
 
 ```shell
 uc caddy deploy --image caddybuilds/caddy-cloudflare:2.10.2
+```
+
+Deploy only to a specific machine or a subset of machines (comma-separated list):
+
+```shell
+uc caddy deploy --machine machine1
+uc caddy deploy --machine machine2,machine3,machine4
 ```
 
 Deploy with custom global configuration:
@@ -90,6 +97,10 @@ services:
     x-caddy: Caddyfile
     deploy:
       mode: global
+    # Optional: deploy only to specific machines.
+    # x-machines:
+    #   - machine1
+    #   - machine2
 ```
 
 </TabItem>
@@ -98,26 +109,26 @@ services:
 ```caddyfile
 # Global options.
 {
-    debug
+	debug
 }
 
 # A snippet that can be reused in custom Caddy configs for services (x-caddy).
 (my_snippet) {
-    ...
+	...
 }
 
 # Obtain a wildcard TLS certificate for all subdomains of example.name using DNS challenge with Cloudflare.
 # It will be used for services that publish ports with hostnames under example.name.
 *.example.com {
-    tls {
-            dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    respond "No host matched" 404
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	respond "No host matched" 404
 }
 
 # Expose an internal service that is not managed by Uncloud.
 internal.example.com {
-    reverse_proxy 192.168.1.100
+	reverse_proxy 192.168.1.100
 }
 ```
 
@@ -139,8 +150,8 @@ uc deploy
 
 ## Verifying config
 
-View the complete generated Caddyfile served by the `caddy` service. This is useful for debugging and verifying
-custom global and service-specific Caddy configs.
+View the complete generated Caddyfile served by the `caddy` service. This is useful for debugging and verifying custom
+global and service-specific Caddy configs.
 
 ```shell
 uc caddy config
@@ -155,26 +166,26 @@ Example output:
 # User-defined global config from service 'caddy'.
 # Global options.
 {
-    debug
+	debug
 }
 
 # A snippet that can be reused in custom Caddy configs for services (x-caddy).
 (my_snippet) {
-    ...
+	...
 }
 
 # Obtain a wildcard TLS certificate for all subdomains of example.name using DNS challenge with Cloudflare.
 # It will be used for services that publish ports with hostnames under example.name.
 *.example.com {
-    tls {
-            dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    respond "No host matched" 404
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	respond "No host matched" 404
 }
 
 # Expose an internal service that is not managed by Uncloud.
 internal.example.com {
-    reverse_proxy 192.168.1.100
+	reverse_proxy 192.168.1.100
 }
 
 # Health check endpoint to verify Caddy reachability on this machine.
@@ -210,14 +221,14 @@ https://api.example.com {
 
 # User-defined config for service 'web'.
 www.example.com {
-    redir https://example.com{uri} permanent
+	redir https://example.com{uri} permanent
 }
 
 example.com {
-    reverse_proxy 10.210.0.3:8000 {
-        import common_proxy
-    }
-    log
+	reverse_proxy 10.210.0.3:8000 {
+		import common_proxy
+	}
+	log
 }
 
 # Skipped invalid user-defined configs:

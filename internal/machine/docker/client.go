@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"github.com/distribution/reference"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
@@ -94,8 +93,8 @@ func (c *Client) CreateContainer(
 }
 
 // InspectContainer returns the container information for the given container ID.
-func (c *Client) InspectContainer(ctx context.Context, id string) (types.ContainerJSON, error) {
-	var resp types.ContainerJSON
+func (c *Client) InspectContainer(ctx context.Context, id string) (container.InspectResponse, error) {
+	var resp container.InspectResponse
 
 	grpcResp, err := c.GRPCClient.InspectContainer(ctx, &pb.InspectContainerRequest{Id: id})
 	if err != nil {
@@ -151,7 +150,7 @@ func (c *Client) StopContainer(ctx context.Context, id string, opts container.St
 
 type MachineContainers struct {
 	Metadata   *pb.Metadata
-	Containers []types.ContainerJSON
+	Containers []container.InspectResponse
 }
 
 func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions) ([]MachineContainers, error) {

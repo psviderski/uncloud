@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 )
 
@@ -17,7 +17,7 @@ func (cli *Client) CreateContainerWithImagePull(
 	ctx context.Context, name string, config *container.Config, hostConfig *container.HostConfig,
 ) (container.CreateResponse, error) {
 	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, name)
-	if err == nil || !client.IsErrNotFound(err) {
+	if err == nil || !errdefs.IsNotFound(err) {
 		return resp, err
 	}
 
