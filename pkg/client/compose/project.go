@@ -16,7 +16,10 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		composecli.WithName(FakeProjectName),
 		// First apply os.Environment, always wins.
 		composecli.WithOsEnv,
-		// Read dot env file to populate project environment.
+		// Set the local .env file to be loaded by WithDotEnv. COMPOSE_DISABLE_ENV_FILE can disable it.
+		composecli.WithEnvFiles(),
+		// Read environment variables from .env files set by WithEnvFiles (.env by default) to make available
+		// for interpolation.
 		composecli.WithDotEnv,
 		// Get compose file path set by COMPOSE_FILE.
 		composecli.WithConfigFileEnv,
