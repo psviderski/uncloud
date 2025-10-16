@@ -233,7 +233,8 @@ func (cli *Client) pushImageToMachine(
 		pw.Event(progress.NewEvent(pushEventID, progress.Error, "containerd image store required"))
 		return fmt.Errorf("docker on machine '%s' is not using containerd image store, "+
 			"which is required for pushing images. Follow the instructions to enable it: "+
-			"https://docs.docker.com/engine/storage/containerd/", machine.Name)
+			"https://docs.docker.com/engine/storage/containerd/, and then restart the uncloud daemon "+
+			"via 'systemctl restart uncloud'", machine.Name)
 	}
 
 	machineSubnet, _ := machine.Network.Subnet.ToPrefix()
