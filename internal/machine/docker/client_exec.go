@@ -47,14 +47,14 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 	}
 
 	// Create the bidirectional stream
-	stream, err := c.GRPCClient.ContainerExec(ctx)
+	stream, err := c.GRPCClient.ExecContainer(ctx)
 	if err != nil {
 		return -1, fmt.Errorf("create exec stream: %w", err)
 	}
 
 	// Send the initial configuration
-	if err := stream.Send(&pb.ContainerExecRequest{
-		Payload: &pb.ContainerExecRequest_Config{
+	if err := stream.Send(&pb.ExecContainerRequest{
+		Payload: &pb.ExecContainerRequest_Config{
 			Config: &pb.ExecConfig{
 				ContainerId: opts.ContainerID,
 				Config:      configBytes,
@@ -109,8 +109,8 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 						if err != nil {
 							continue
 						}
-						_ = stream.Send(&pb.ContainerExecRequest{
-							Payload: &pb.ContainerExecRequest_Resize{
+						_ = stream.Send(&pb.ExecContainerRequest{
+							Payload: &pb.ExecContainerRequest_Resize{
 								Resize: &pb.ResizeEvent{
 									Height: uint32(size.Height),
 									Width:  uint32(size.Width),
@@ -123,8 +123,8 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 
 			// Send initial window size
 			if size, err := term.GetWinsize(inFd); err == nil {
-				_ = stream.Send(&pb.ContainerExecRequest{
-					Payload: &pb.ContainerExecRequest_Resize{
+				_ = stream.Send(&pb.ExecContainerRequest{
+					Payload: &pb.ExecContainerRequest_Resize{
 						Resize: &pb.ResizeEvent{
 							Height: uint32(size.Height),
 							Width:  uint32(size.Width),
@@ -177,8 +177,8 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 				case <-ctx.Done():
 					return
 				case data := <-stdinCh:
-					if err := stream.Send(&pb.ContainerExecRequest{
-						Payload: &pb.ContainerExecRequest_Stdin{Stdin: data},
+					if err := stream.Send(&pb.ExecContainerRequest{
+						Payload: &pb.ExecContainerRequest_Stdin{Stdin: data},
 					}); err != nil {
 						return
 					}
@@ -211,26 +211,26 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 			}
 
 			switch payload := resp.Payload.(type) {
-			case *pb.ContainerExecResponse_ExecId:
+			case *pb.ExecContainerResponse_ExecId:
 				// This is sent first, we already processed it earlier
 				// Just ignore duplicates
-			case *pb.ContainerExecResponse_Stdout:
+			case *pb.ExecContainerResponse_Stdout:
 				if _, err := opts.Stdout.Write(payload.Stdout); err != nil {
 					errCh <- fmt.Errorf("write stdout: %w", err)
 					return
 				}
-			case *pb.ContainerExecResponse_Stderr:
+			case *pb.ExecContainerResponse_Stderr:
 				if _, err := opts.Stderr.Write(payload.Stderr); err != nil {
 					errCh <- fmt.Errorf("write stderr: %w", err)
 					return
 				}
-			case *pb.ContainerExecResponse_ExitCode:
+			case *pb.ExecContainerResponse_ExitCode:
 				exitCode = int(payload.ExitCode)
 				// Cancel context to stop stdin reader if it's still running
 				cancel()
 				// Return immediately after getting exit code to avoid waiting
 				return
-			case *pb.ContainerExecResponse_Error:
+			case *pb.ExecContainerResponse_Error:
 				errCh <- fmt.Errorf("exec error: %s", payload.Error)
 				return
 			}

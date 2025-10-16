@@ -1727,21 +1727,21 @@ func (x *MachineServiceContainers) GetContainers() []*ServiceContainer {
 	return nil
 }
 
-type ContainerExecRequest struct {
+type ExecContainerRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Payload:
 	//
-	//	*ContainerExecRequest_Config
-	//	*ContainerExecRequest_Stdin
-	//	*ContainerExecRequest_Resize
-	Payload isContainerExecRequest_Payload `protobuf_oneof:"payload"`
+	//	*ExecContainerRequest_Config
+	//	*ExecContainerRequest_Stdin
+	//	*ExecContainerRequest_Resize
+	Payload isExecContainerRequest_Payload `protobuf_oneof:"payload"`
 }
 
-func (x *ContainerExecRequest) Reset() {
-	*x = ContainerExecRequest{}
+func (x *ExecContainerRequest) Reset() {
+	*x = ExecContainerRequest{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_internal_machine_api_pb_docker_proto_msgTypes[32]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1749,13 +1749,13 @@ func (x *ContainerExecRequest) Reset() {
 	}
 }
 
-func (x *ContainerExecRequest) String() string {
+func (x *ExecContainerRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ContainerExecRequest) ProtoMessage() {}
+func (*ExecContainerRequest) ProtoMessage() {}
 
-func (x *ContainerExecRequest) ProtoReflect() protoreflect.Message {
+func (x *ExecContainerRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_machine_api_pb_docker_proto_msgTypes[32]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1767,63 +1767,63 @@ func (x *ContainerExecRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ContainerExecRequest.ProtoReflect.Descriptor instead.
-func (*ContainerExecRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExecContainerRequest.ProtoReflect.Descriptor instead.
+func (*ExecContainerRequest) Descriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_docker_proto_rawDescGZIP(), []int{32}
 }
 
-func (m *ContainerExecRequest) GetPayload() isContainerExecRequest_Payload {
+func (m *ExecContainerRequest) GetPayload() isExecContainerRequest_Payload {
 	if m != nil {
 		return m.Payload
 	}
 	return nil
 }
 
-func (x *ContainerExecRequest) GetConfig() *ExecConfig {
-	if x, ok := x.GetPayload().(*ContainerExecRequest_Config); ok {
+func (x *ExecContainerRequest) GetConfig() *ExecConfig {
+	if x, ok := x.GetPayload().(*ExecContainerRequest_Config); ok {
 		return x.Config
 	}
 	return nil
 }
 
-func (x *ContainerExecRequest) GetStdin() []byte {
-	if x, ok := x.GetPayload().(*ContainerExecRequest_Stdin); ok {
+func (x *ExecContainerRequest) GetStdin() []byte {
+	if x, ok := x.GetPayload().(*ExecContainerRequest_Stdin); ok {
 		return x.Stdin
 	}
 	return nil
 }
 
-func (x *ContainerExecRequest) GetResize() *ResizeEvent {
-	if x, ok := x.GetPayload().(*ContainerExecRequest_Resize); ok {
+func (x *ExecContainerRequest) GetResize() *ResizeEvent {
+	if x, ok := x.GetPayload().(*ExecContainerRequest_Resize); ok {
 		return x.Resize
 	}
 	return nil
 }
 
-type isContainerExecRequest_Payload interface {
-	isContainerExecRequest_Payload()
+type isExecContainerRequest_Payload interface {
+	isExecContainerRequest_Payload()
 }
 
-type ContainerExecRequest_Config struct {
+type ExecContainerRequest_Config struct {
 	// Initial configuration for the exec session. Must be sent as the first message.
 	Config *ExecConfig `protobuf:"bytes,1,opt,name=config,proto3,oneof"`
 }
 
-type ContainerExecRequest_Stdin struct {
+type ExecContainerRequest_Stdin struct {
 	// Raw stdin data to be written to the exec process.
 	Stdin []byte `protobuf:"bytes,2,opt,name=stdin,proto3,oneof"`
 }
 
-type ContainerExecRequest_Resize struct {
+type ExecContainerRequest_Resize struct {
 	// TTY resize event (only used when TTY is enabled).
 	Resize *ResizeEvent `protobuf:"bytes,3,opt,name=resize,proto3,oneof"`
 }
 
-func (*ContainerExecRequest_Config) isContainerExecRequest_Payload() {}
+func (*ExecContainerRequest_Config) isExecContainerRequest_Payload() {}
 
-func (*ContainerExecRequest_Stdin) isContainerExecRequest_Payload() {}
+func (*ExecContainerRequest_Stdin) isExecContainerRequest_Payload() {}
 
-func (*ContainerExecRequest_Resize) isContainerExecRequest_Payload() {}
+func (*ExecContainerRequest_Resize) isExecContainerRequest_Payload() {}
 
 type ExecConfig struct {
 	state         protoimpl.MessageState
@@ -1937,23 +1937,23 @@ func (x *ResizeEvent) GetWidth() uint32 {
 	return 0
 }
 
-type ContainerExecResponse struct {
+type ExecContainerResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Payload:
 	//
-	//	*ContainerExecResponse_ExecId
-	//	*ContainerExecResponse_Stdout
-	//	*ContainerExecResponse_Stderr
-	//	*ContainerExecResponse_ExitCode
-	//	*ContainerExecResponse_Error
-	Payload isContainerExecResponse_Payload `protobuf_oneof:"payload"`
+	//	*ExecContainerResponse_ExecId
+	//	*ExecContainerResponse_Stdout
+	//	*ExecContainerResponse_Stderr
+	//	*ExecContainerResponse_ExitCode
+	//	*ExecContainerResponse_Error
+	Payload isExecContainerResponse_Payload `protobuf_oneof:"payload"`
 }
 
-func (x *ContainerExecResponse) Reset() {
-	*x = ContainerExecResponse{}
+func (x *ExecContainerResponse) Reset() {
+	*x = ExecContainerResponse{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_internal_machine_api_pb_docker_proto_msgTypes[35]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1961,13 +1961,13 @@ func (x *ContainerExecResponse) Reset() {
 	}
 }
 
-func (x *ContainerExecResponse) String() string {
+func (x *ExecContainerResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ContainerExecResponse) ProtoMessage() {}
+func (*ExecContainerResponse) ProtoMessage() {}
 
-func (x *ContainerExecResponse) ProtoReflect() protoreflect.Message {
+func (x *ExecContainerResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_machine_api_pb_docker_proto_msgTypes[35]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1979,91 +1979,91 @@ func (x *ContainerExecResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ContainerExecResponse.ProtoReflect.Descriptor instead.
-func (*ContainerExecResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExecContainerResponse.ProtoReflect.Descriptor instead.
+func (*ExecContainerResponse) Descriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_docker_proto_rawDescGZIP(), []int{35}
 }
 
-func (m *ContainerExecResponse) GetPayload() isContainerExecResponse_Payload {
+func (m *ExecContainerResponse) GetPayload() isExecContainerResponse_Payload {
 	if m != nil {
 		return m.Payload
 	}
 	return nil
 }
 
-func (x *ContainerExecResponse) GetExecId() string {
-	if x, ok := x.GetPayload().(*ContainerExecResponse_ExecId); ok {
+func (x *ExecContainerResponse) GetExecId() string {
+	if x, ok := x.GetPayload().(*ExecContainerResponse_ExecId); ok {
 		return x.ExecId
 	}
 	return ""
 }
 
-func (x *ContainerExecResponse) GetStdout() []byte {
-	if x, ok := x.GetPayload().(*ContainerExecResponse_Stdout); ok {
+func (x *ExecContainerResponse) GetStdout() []byte {
+	if x, ok := x.GetPayload().(*ExecContainerResponse_Stdout); ok {
 		return x.Stdout
 	}
 	return nil
 }
 
-func (x *ContainerExecResponse) GetStderr() []byte {
-	if x, ok := x.GetPayload().(*ContainerExecResponse_Stderr); ok {
+func (x *ExecContainerResponse) GetStderr() []byte {
+	if x, ok := x.GetPayload().(*ExecContainerResponse_Stderr); ok {
 		return x.Stderr
 	}
 	return nil
 }
 
-func (x *ContainerExecResponse) GetExitCode() int32 {
-	if x, ok := x.GetPayload().(*ContainerExecResponse_ExitCode); ok {
+func (x *ExecContainerResponse) GetExitCode() int32 {
+	if x, ok := x.GetPayload().(*ExecContainerResponse_ExitCode); ok {
 		return x.ExitCode
 	}
 	return 0
 }
 
-func (x *ContainerExecResponse) GetError() string {
-	if x, ok := x.GetPayload().(*ContainerExecResponse_Error); ok {
+func (x *ExecContainerResponse) GetError() string {
+	if x, ok := x.GetPayload().(*ExecContainerResponse_Error); ok {
 		return x.Error
 	}
 	return ""
 }
 
-type isContainerExecResponse_Payload interface {
-	isContainerExecResponse_Payload()
+type isExecContainerResponse_Payload interface {
+	isExecContainerResponse_Payload()
 }
 
-type ContainerExecResponse_ExecId struct {
+type ExecContainerResponse_ExecId struct {
 	// Exec instance ID returned after creating the exec.
 	ExecId string `protobuf:"bytes,1,opt,name=exec_id,json=execId,proto3,oneof"`
 }
 
-type ContainerExecResponse_Stdout struct {
+type ExecContainerResponse_Stdout struct {
 	// Raw stdout data from the exec process.
 	Stdout []byte `protobuf:"bytes,2,opt,name=stdout,proto3,oneof"`
 }
 
-type ContainerExecResponse_Stderr struct {
+type ExecContainerResponse_Stderr struct {
 	// Raw stderr data from the exec process (only when TTY is disabled).
 	Stderr []byte `protobuf:"bytes,3,opt,name=stderr,proto3,oneof"`
 }
 
-type ContainerExecResponse_ExitCode struct {
+type ExecContainerResponse_ExitCode struct {
 	// Exit code of the exec process. Sent as the final message.
 	ExitCode int32 `protobuf:"varint,4,opt,name=exit_code,json=exitCode,proto3,oneof"`
 }
 
-type ContainerExecResponse_Error struct {
+type ExecContainerResponse_Error struct {
 	// Error message if something went wrong.
 	Error string `protobuf:"bytes,5,opt,name=error,proto3,oneof"`
 }
 
-func (*ContainerExecResponse_ExecId) isContainerExecResponse_Payload() {}
+func (*ExecContainerResponse_ExecId) isExecContainerResponse_Payload() {}
 
-func (*ContainerExecResponse_Stdout) isContainerExecResponse_Payload() {}
+func (*ExecContainerResponse_Stdout) isExecContainerResponse_Payload() {}
 
-func (*ContainerExecResponse_Stderr) isContainerExecResponse_Payload() {}
+func (*ExecContainerResponse_Stderr) isExecContainerResponse_Payload() {}
 
-func (*ContainerExecResponse_ExitCode) isContainerExecResponse_Payload() {}
+func (*ExecContainerResponse_ExitCode) isExecContainerResponse_Payload() {}
 
-func (*ContainerExecResponse_Error) isContainerExecResponse_Payload() {}
+func (*ExecContainerResponse_Error) isExecContainerResponse_Payload() {}
 
 var File_internal_machine_api_pb_docker_proto protoreflect.FileDescriptor
 
@@ -2226,7 +2226,7 @@ var file_internal_machine_api_pb_docker_proto_rawDesc = []byte{
 	0x69, 0x6e, 0x65, 0x72, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x61, 0x70,
 	0x69, 0x2e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
 	0x65, 0x72, 0x52, 0x0a, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x73, 0x22, 0x90,
-	0x01, 0x0a, 0x14, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63,
+	0x01, 0x0a, 0x14, 0x45, 0x78, 0x65, 0x63, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72,
 	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x29, 0x0a, 0x06, 0x63, 0x6f, 0x6e, 0x66, 0x69,
 	0x67, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x45, 0x78,
 	0x65, 0x63, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x48, 0x00, 0x52, 0x06, 0x63, 0x6f, 0x6e, 0x66,
@@ -2243,8 +2243,8 @@ var file_internal_machine_api_pb_docker_proto_rawDesc = []byte{
 	0x73, 0x69, 0x7a, 0x65, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x68, 0x65, 0x69,
 	0x67, 0x68, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x06, 0x68, 0x65, 0x69, 0x67, 0x68,
 	0x74, 0x12, 0x14, 0x0a, 0x05, 0x77, 0x69, 0x64, 0x74, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d,
-	0x52, 0x05, 0x77, 0x69, 0x64, 0x74, 0x68, 0x22, 0xa8, 0x01, 0x0a, 0x15, 0x43, 0x6f, 0x6e, 0x74,
-	0x61, 0x69, 0x6e, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x52, 0x05, 0x77, 0x69, 0x64, 0x74, 0x68, 0x22, 0xa8, 0x01, 0x0a, 0x15, 0x45, 0x78, 0x65, 0x63,
+	0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
 	0x65, 0x12, 0x19, 0x0a, 0x07, 0x65, 0x78, 0x65, 0x63, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
 	0x28, 0x09, 0x48, 0x00, 0x52, 0x06, 0x65, 0x78, 0x65, 0x63, 0x49, 0x64, 0x12, 0x18, 0x0a, 0x06,
 	0x73, 0x74, 0x64, 0x6f, 0x75, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x48, 0x00, 0x52, 0x06,
@@ -2334,10 +2334,10 @@ var file_internal_machine_api_pb_docker_proto_rawDesc = []byte{
 	0x69, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
 	0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c,
 	0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79,
-	0x12, 0x4a, 0x0a, 0x0d, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x45, 0x78, 0x65,
-	0x63, 0x12, 0x19, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
-	0x72, 0x45, 0x78, 0x65, 0x63, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63,
+	0x12, 0x4a, 0x0a, 0x0d, 0x45, 0x78, 0x65, 0x63, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
+	0x72, 0x12, 0x19, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x45, 0x78, 0x65, 0x63, 0x43, 0x6f, 0x6e, 0x74,
+	0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x45, 0x78, 0x65, 0x63, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72,
 	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x28, 0x01, 0x30, 0x01, 0x42, 0x37, 0x5a, 0x35,
 	0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x73, 0x76, 0x69, 0x64,
 	0x65, 0x72, 0x73, 0x6b, 0x69, 0x2f, 0x75, 0x6e, 0x63, 0x6c, 0x6f, 0x75, 0x64, 0x2f, 0x69, 0x6e,
@@ -2391,10 +2391,10 @@ var file_internal_machine_api_pb_docker_proto_goTypes = []any{
 	(*ListServiceContainersRequest)(nil),  // 29: api.ListServiceContainersRequest
 	(*ListServiceContainersResponse)(nil), // 30: api.ListServiceContainersResponse
 	(*MachineServiceContainers)(nil),      // 31: api.MachineServiceContainers
-	(*ContainerExecRequest)(nil),          // 32: api.ContainerExecRequest
+	(*ExecContainerRequest)(nil),          // 32: api.ExecContainerRequest
 	(*ExecConfig)(nil),                    // 33: api.ExecConfig
 	(*ResizeEvent)(nil),                   // 34: api.ResizeEvent
-	(*ContainerExecResponse)(nil),         // 35: api.ContainerExecResponse
+	(*ExecContainerResponse)(nil),         // 35: api.ExecContainerResponse
 	(*Metadata)(nil),                      // 36: api.Metadata
 	(*emptypb.Empty)(nil),                 // 37: google.protobuf.Empty
 }
@@ -2412,8 +2412,8 @@ var file_internal_machine_api_pb_docker_proto_depIdxs = []int32{
 	31, // 10: api.ListServiceContainersResponse.messages:type_name -> api.MachineServiceContainers
 	36, // 11: api.MachineServiceContainers.metadata:type_name -> api.Metadata
 	28, // 12: api.MachineServiceContainers.containers:type_name -> api.ServiceContainer
-	33, // 13: api.ContainerExecRequest.config:type_name -> api.ExecConfig
-	34, // 14: api.ContainerExecRequest.resize:type_name -> api.ResizeEvent
+	33, // 13: api.ExecContainerRequest.config:type_name -> api.ExecConfig
+	34, // 14: api.ExecContainerRequest.resize:type_name -> api.ResizeEvent
 	0,  // 15: api.Docker.CreateContainer:input_type -> api.CreateContainerRequest
 	2,  // 16: api.Docker.InspectContainer:input_type -> api.InspectContainerRequest
 	4,  // 17: api.Docker.StartContainer:input_type -> api.StartContainerRequest
@@ -2431,7 +2431,7 @@ var file_internal_machine_api_pb_docker_proto_depIdxs = []int32{
 	2,  // 29: api.Docker.InspectServiceContainer:input_type -> api.InspectContainerRequest
 	29, // 30: api.Docker.ListServiceContainers:input_type -> api.ListServiceContainersRequest
 	9,  // 31: api.Docker.RemoveServiceContainer:input_type -> api.RemoveContainerRequest
-	32, // 32: api.Docker.ContainerExec:input_type -> api.ContainerExecRequest
+	32, // 32: api.Docker.ExecContainer:input_type -> api.ExecContainerRequest
 	1,  // 33: api.Docker.CreateContainer:output_type -> api.CreateContainerResponse
 	3,  // 34: api.Docker.InspectContainer:output_type -> api.InspectContainerResponse
 	37, // 35: api.Docker.StartContainer:output_type -> google.protobuf.Empty
@@ -2449,7 +2449,7 @@ var file_internal_machine_api_pb_docker_proto_depIdxs = []int32{
 	28, // 47: api.Docker.InspectServiceContainer:output_type -> api.ServiceContainer
 	30, // 48: api.Docker.ListServiceContainers:output_type -> api.ListServiceContainersResponse
 	37, // 49: api.Docker.RemoveServiceContainer:output_type -> google.protobuf.Empty
-	35, // 50: api.Docker.ContainerExec:output_type -> api.ContainerExecResponse
+	35, // 50: api.Docker.ExecContainer:output_type -> api.ExecContainerResponse
 	33, // [33:51] is the sub-list for method output_type
 	15, // [15:33] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
@@ -2849,7 +2849,7 @@ func file_internal_machine_api_pb_docker_proto_init() {
 			}
 		}
 		file_internal_machine_api_pb_docker_proto_msgTypes[32].Exporter = func(v any, i int) any {
-			switch v := v.(*ContainerExecRequest); i {
+			switch v := v.(*ExecContainerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2885,7 +2885,7 @@ func file_internal_machine_api_pb_docker_proto_init() {
 			}
 		}
 		file_internal_machine_api_pb_docker_proto_msgTypes[35].Exporter = func(v any, i int) any {
-			switch v := v.(*ContainerExecResponse); i {
+			switch v := v.(*ExecContainerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2898,16 +2898,16 @@ func file_internal_machine_api_pb_docker_proto_init() {
 		}
 	}
 	file_internal_machine_api_pb_docker_proto_msgTypes[32].OneofWrappers = []any{
-		(*ContainerExecRequest_Config)(nil),
-		(*ContainerExecRequest_Stdin)(nil),
-		(*ContainerExecRequest_Resize)(nil),
+		(*ExecContainerRequest_Config)(nil),
+		(*ExecContainerRequest_Stdin)(nil),
+		(*ExecContainerRequest_Resize)(nil),
 	}
 	file_internal_machine_api_pb_docker_proto_msgTypes[35].OneofWrappers = []any{
-		(*ContainerExecResponse_ExecId)(nil),
-		(*ContainerExecResponse_Stdout)(nil),
-		(*ContainerExecResponse_Stderr)(nil),
-		(*ContainerExecResponse_ExitCode)(nil),
-		(*ContainerExecResponse_Error)(nil),
+		(*ExecContainerResponse_ExecId)(nil),
+		(*ExecContainerResponse_Stdout)(nil),
+		(*ExecContainerResponse_Stderr)(nil),
+		(*ExecContainerResponse_ExitCode)(nil),
+		(*ExecContainerResponse_Error)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

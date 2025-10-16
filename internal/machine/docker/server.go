@@ -52,7 +52,7 @@ var fullDockerIDRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 // grpcStreamWriter is a writer that sends data to a gRPC stream as stdout or stderr.
 type grpcStreamWriter struct {
-	stream   pb.Docker_ContainerExecServer
+	stream   pb.Docker_ExecContainerServer
 	isStderr bool
 }
 
@@ -60,14 +60,14 @@ func (w *grpcStreamWriter) Write(p []byte) (n int, err error) {
 	data := make([]byte, len(p))
 	copy(data, p)
 
-	var resp *pb.ContainerExecResponse
+	var resp *pb.ExecContainerResponse
 	if w.isStderr {
-		resp = &pb.ContainerExecResponse{
-			Payload: &pb.ContainerExecResponse_Stderr{Stderr: data},
+		resp = &pb.ExecContainerResponse{
+			Payload: &pb.ExecContainerResponse_Stderr{Stderr: data},
 		}
 	} else {
-		resp = &pb.ContainerExecResponse{
-			Payload: &pb.ContainerExecResponse_Stdout{Stdout: data},
+		resp = &pb.ExecContainerResponse{
+			Payload: &pb.ExecContainerResponse_Stdout{Stdout: data},
 		}
 	}
 
@@ -1041,7 +1041,7 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 }
 
 // ContainerExec executes a command in a running container with bidirectional streaming for stdin/stdout/stderr.
-func (s *Server) ContainerExec(stream pb.Docker_ContainerExecServer) error {
+func (s *Server) ContainerExec(stream pb.Docker_ExecContainerServer) error {
 	ctx := stream.Context()
 
 	// Receive the initial configuration message
@@ -1071,12 +1071,12 @@ func (s *Server) ContainerExec(stream pb.Docker_ContainerExecServer) error {
 	}
 
 	// Send the exec ID back to the client
-	if err := stream.Send(&pb.ContainerExecResponse{
-		Payload: &pb.ContainerExecResponse_ExecId{ExecId: execResp.ID},
+	if err := stream.Send(&pb.ExecContainerResponse{
+		Payload: &pb.ExecContainerResponse_ExecId{ExecId: execResp.ID},
 	}); err != nil {
 		return status.Errorf(codes.Internal, "send exec ID: %v", err)
 	}
-	slog.Info("Sent exec ID", "exec_id", execResp.ID)
+	slog.Debug("Sent exec ID to the client", "exec_id", execResp.ID)
 
 	// For detached mode, start without attaching
 	if config.Detach {
@@ -1120,12 +1120,12 @@ func (s *Server) ContainerExec(stream pb.Docker_ContainerExecServer) error {
 				}
 
 				switch payload := req.Payload.(type) {
-				case *pb.ContainerExecRequest_Stdin:
+				case *pb.ExecContainerRequest_Stdin:
 					if _, err := attachResp.Conn.Write(payload.Stdin); err != nil {
 						errCh <- fmt.Errorf("write to stdin: %w", err)
 						return
 					}
-				case *pb.ContainerExecRequest_Resize:
+				case *pb.ExecContainerRequest_Resize:
 					if config.Tty {
 						resizeOpts := container.ResizeOptions{
 							Height: uint(payload.Resize.Height),
@@ -1154,8 +1154,8 @@ func (s *Server) ContainerExec(stream pb.Docker_ContainerExecServer) error {
 				if n > 0 {
 					data := make([]byte, n)
 					copy(data, buf[:n])
-					if err := stream.Send(&pb.ContainerExecResponse{
-						Payload: &pb.ContainerExecResponse_Stdout{Stdout: data},
+					if err := stream.Send(&pb.ExecContainerResponse{
+						Payload: &pb.ExecContainerResponse_Stdout{Stdout: data},
 					}); err != nil {
 						errCh <- fmt.Errorf("send stdout: %w", err)
 						return
@@ -1204,8 +1204,8 @@ func (s *Server) ContainerExec(stream pb.Docker_ContainerExecServer) error {
 	}
 
 	// Send the exit code
-	if err := stream.Send(&pb.ContainerExecResponse{
-		Payload: &pb.ContainerExecResponse_ExitCode{ExitCode: int32(inspectResp.ExitCode)},
+	if err := stream.Send(&pb.ExecContainerResponse{
+		Payload: &pb.ExecContainerResponse_ExitCode{ExitCode: int32(inspectResp.ExitCode)},
 	}); err != nil {
 		return status.Errorf(codes.Internal, "send exit code: %v", err)
 	}

@@ -31,7 +31,7 @@ service Docker {
   rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
 
-  rpc ContainerExec(stream ContainerExecRequest) returns (stream ContainerExecResponse);
+  rpc ExecContainer(stream ExecContainerRequest) returns (stream ExecContainerResponse);
 }
 
 message CreateContainerRequest {
@@ -217,7 +217,7 @@ message MachineServiceContainers {
   repeated ServiceContainer containers = 2;
 }
 
-message ContainerExecRequest {
+message ExecContainerRequest {
   oneof payload {
     // Initial configuration for the exec session. Must be sent as the first message.
     ExecConfig config = 1;
@@ -240,7 +240,7 @@ message ResizeEvent {
   uint32 width = 2;
 }
 
-message ContainerExecResponse {
+message ExecContainerResponse {
   oneof payload {
     // Exec instance ID returned after creating the exec.
     string exec_id = 1;
