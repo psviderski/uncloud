@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
 COPY . .
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o uncloudd cmd/uncloudd/main.go
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o uncloudd ./cmd/uncloudd
 
 
 FROM alpine:${ALPINE_VERSION} AS corrosion-download
