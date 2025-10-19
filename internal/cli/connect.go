@@ -64,13 +64,13 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 
 		keyPath := fs.ExpandHomeDir(conn.SSHKeyFile)
 
-		sshConfig := &connector.SSHConnectorConfig{
+		sshCliConfig := &connector.SSHCLIConnectorConfig{
 			User:    user,
 			Host:    host,
 			Port:    port,
 			KeyPath: keyPath,
 		}
-		return client.New(ctx, connector.NewSSHConnector(sshConfig))
+		return client.New(ctx, connector.NewSSHCLIConnector(sshCliConfig))
 	} else if conn.TCP != nil && conn.TCP.IsValid() {
 		return client.New(ctx, connector.NewTCPConnector(*conn.TCP))
 	}
