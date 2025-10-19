@@ -19,7 +19,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				User: "core",
 				Host: "example.com",
 			},
-			expected: []string{"core@example.com", "uncloudd", "dial-stdio"},
+			expected: []string{"-o", "ConnectTimeout=5", "core@example.com", "uncloudd", "dial-stdio"},
 		},
 		{
 			name: "with custom port",
@@ -28,7 +28,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				Host: "example.com",
 				Port: 2222,
 			},
-			expected: []string{"-p", "2222", "core@example.com", "uncloudd", "dial-stdio"},
+			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "core@example.com", "uncloudd", "dial-stdio"},
 		},
 		{
 			name: "with identity file",
@@ -37,7 +37,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				Host:    "example.com",
 				KeyPath: "/path/to/key",
 			},
-			expected: []string{"-i", "/path/to/key", "core@example.com", "uncloudd", "dial-stdio"},
+			expected: []string{"-o", "ConnectTimeout=5", "-i", "/path/to/key", "core@example.com", "uncloudd", "dial-stdio"},
 		},
 		{
 			name: "with custom socket path",
@@ -46,7 +46,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				Host:     "example.com",
 				SockPath: "/custom/path/uncloud.sock",
 			},
-			expected: []string{"core@example.com", "uncloudd", "dial-stdio", "--socket", "/custom/path/uncloud.sock"},
+			expected: []string{"-o", "ConnectTimeout=5", "core@example.com", "uncloudd", "dial-stdio", "--socket", "/custom/path/uncloud.sock"},
 		},
 		{
 			name: "with default socket path (not included)",
@@ -55,7 +55,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				Host:     "example.com",
 				SockPath: machine.DefaultUncloudSockPath,
 			},
-			expected: []string{"core@example.com", "uncloudd", "dial-stdio"},
+			expected: []string{"-o", "ConnectTimeout=5", "core@example.com", "uncloudd", "dial-stdio"},
 		},
 		{
 			name: "all options combined",
@@ -66,7 +66,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				KeyPath:  "/path/to/key",
 				SockPath: "/custom/path/uncloud.sock",
 			},
-			expected: []string{"-p", "2222", "-i", "/path/to/key", "core@example.com", "uncloudd", "dial-stdio", "--socket", "/custom/path/uncloud.sock"},
+			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "-i", "/path/to/key", "core@example.com", "uncloudd", "dial-stdio", "--socket", "/custom/path/uncloud.sock"},
 		},
 		{
 			name: "port 22 not included (default)",
@@ -75,7 +75,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				Host: "example.com",
 				Port: 22,
 			},
-			expected: []string{"core@example.com", "uncloudd", "dial-stdio"},
+			expected: []string{"-o", "ConnectTimeout=5", "core@example.com", "uncloudd", "dial-stdio"},
 		},
 		{
 			name: "port 0 not included (unset)",
@@ -84,7 +84,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 				Host: "example.com",
 				Port: 0,
 			},
-			expected: []string{"core@example.com", "uncloudd", "dial-stdio"},
+			expected: []string{"-o", "ConnectTimeout=5", "core@example.com", "uncloudd", "dial-stdio"},
 		},
 	}
 
