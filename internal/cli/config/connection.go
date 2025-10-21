@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -35,6 +36,28 @@ func (c MachineConnection) String() string {
 		return fmt.Sprintf("tcp://%s", c.TCP)
 	}
 	return "unknown connection"
+}
+
+func (c *MachineConnection) Validate() error {
+	setCount := 0
+	if c.SSH != "" {
+		setCount++
+	}
+	if c.SSHCLI != "" {
+		setCount++
+	}
+	if c.TCP != nil && c.TCP.IsValid() {
+		setCount++
+	}
+
+	if setCount == 0 {
+		return errors.New("no connection method specified (ssh, ssh_cli, or tcp required)")
+	}
+	if setCount > 1 {
+		return errors.New("only one connection method allowed per connection (ssh, ssh_cli, or tcp)")
+	}
+
+	return nil
 }
 
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".
