@@ -449,7 +449,7 @@ func provisionOrConnectRemoteMachine(
 	sshClient.Close()
 
 	// Create a machine API client using the SSH CLI connector.
-	sshCliConfig := &connector.SSHCLIConnectorConfig{
+	sshCliConfig := &connector.SSHConnectorConfig{
 		User:    remoteMachine.User,
 		Host:    remoteMachine.Host,
 		Port:    remoteMachine.Port,

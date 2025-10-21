@@ -56,26 +56,42 @@ func connectClusterWithProgress(ctx context.Context, conn config.MachineConnecti
 }
 
 func connectCluster(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
+	// Determine which SSH type is configured
+	var sshDest config.SSHDestination
+	var useSSHCLI bool
+
 	if conn.SSH != "" {
-		user, host, port, err := conn.SSH.Parse()
-		if err != nil {
-			return nil, fmt.Errorf("parse SSH connection %q: %w", conn.SSH, err)
-		}
-
-		keyPath := fs.ExpandHomeDir(conn.SSHKeyFile)
-
-		sshCliConfig := &connector.SSHCLIConnectorConfig{
-			User:    user,
-			Host:    host,
-			Port:    port,
-			KeyPath: keyPath,
-		}
-		return client.New(ctx, connector.NewSSHCLIConnector(sshCliConfig))
+		sshDest = conn.SSH
+		useSSHCLI = false
+	} else if conn.SSHCLI != "" {
+		sshDest = conn.SSHCLI
+		useSSHCLI = true
 	} else if conn.TCP != nil && conn.TCP.IsValid() {
 		return client.New(ctx, connector.NewTCPConnector(*conn.TCP))
+	} else {
+		return nil, errors.New("connection configuration is invalid")
 	}
 
-	return nil, errors.New("connection configuration is invalid")
+	// Parse SSH destination and create config (shared for both types)
+	user, host, port, err := sshDest.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("parse SSH connection %q: %w", sshDest, err)
+	}
+
+	keyPath := fs.ExpandHomeDir(conn.SSHKeyFile)
+
+	sshConfig := &connector.SSHConnectorConfig{
+		User:    user,
+		Host:    host,
+		Port:    port,
+		KeyPath: keyPath,
+	}
+
+	// Create appropriate connector based on type
+	if useSSHCLI {
+		return client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
+	}
+	return client.New(ctx, connector.NewSSHConnector(sshConfig))
 }
 
 // connectModel is a TUI model for connecting to a cluster with a progress spinner.
