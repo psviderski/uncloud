@@ -17,6 +17,7 @@ const (
 
 type MachineConnection struct {
 	SSH        SSHDestination `yaml:"ssh,omitempty"`
+	SSHCLI     SSHDestination `yaml:"ssh_cli,omitempty"`
 	SSHKeyFile string         `yaml:"ssh_key_file,omitempty"`
 	// TCP is the address and port of the machine's API server.
 	// The pointer is used to omit the field when not set. Otherwise, yaml marshalling includes an empty object.
@@ -27,7 +28,9 @@ type MachineConnection struct {
 
 func (c MachineConnection) String() string {
 	if c.SSH != "" {
-		return string(c.SSH)
+		return "ssh://" + string(c.SSH)
+	} else if c.SSHCLI != "" {
+		return "ssh+cli://" + string(c.SSHCLI)
 	} else if c.TCP != nil && c.TCP.IsValid() {
 		return fmt.Sprintf("tcp://%s", c.TCP)
 	}
