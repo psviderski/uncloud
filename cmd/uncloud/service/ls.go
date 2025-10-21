@@ -67,6 +67,15 @@ func list(ctx context.Context, uncli *cli.CLI, contextName string) error {
 		images := strings.Join(s.Images(), ", ")
 		endpoints := strings.Join(s.Endpoints(), ", ")
 
+		// If no endpoints from ports, check if the service uses custom Caddy config.
+		if endpoints == "" {
+			for _, ctr := range s.Containers {
+				if ctr.Container.ServiceSpec.CaddyConfig() != "" {
+					endpoints = "(custom Caddy config)"
+				}
+			}
+		}
+
 		if haveDuplicateNames {
 			if _, err = fmt.Fprintf(tw, "%s\t", s.ID); err != nil {
 				return fmt.Errorf("write row: %w", err)
