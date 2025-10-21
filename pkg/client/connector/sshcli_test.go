@@ -10,12 +10,12 @@ import (
 func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   SSHCLIConnectorConfig
+		config   SSHConnectorConfig
 		expected []string
 	}{
 		{
 			name: "basic connection",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User: "core",
 				Host: "example.com",
 			},
@@ -23,7 +23,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 		},
 		{
 			name: "with custom port",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User: "core",
 				Host: "example.com",
 				Port: 2222,
@@ -32,7 +32,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 		},
 		{
 			name: "with identity file",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User:    "core",
 				Host:    "example.com",
 				KeyPath: "/path/to/key",
@@ -41,7 +41,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 		},
 		{
 			name: "with custom socket path",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User:     "core",
 				Host:     "example.com",
 				SockPath: "/custom/path/uncloud.sock",
@@ -50,7 +50,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 		},
 		{
 			name: "with default socket path (not included)",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User:     "core",
 				Host:     "example.com",
 				SockPath: machine.DefaultUncloudSockPath,
@@ -59,7 +59,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 		},
 		{
 			name: "all options combined",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User:     "core",
 				Host:     "example.com",
 				Port:     2222,
@@ -70,7 +70,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 		},
 		{
 			name: "port 22 not included (default)",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User: "core",
 				Host: "example.com",
 				Port: 22,
@@ -79,7 +79,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 		},
 		{
 			name: "port 0 not included (unset)",
-			config: SSHCLIConnectorConfig{
+			config: SSHConnectorConfig{
 				User: "core",
 				Host: "example.com",
 				Port: 0,

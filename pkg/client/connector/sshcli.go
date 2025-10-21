@@ -13,22 +13,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type SSHCLIConnectorConfig struct {
-	User     string
-	Host     string
-	Port     int    // Optional, use if non-standard (default: 22)
-	KeyPath  string // Optional, maps to -i flag for backward compatibility
-	SockPath string // Optional, pass --socket if non-default
-}
-
 // SSHCLIConnector establishes a connection to the machine API by executing SSH CLI
 // and running `uncloudd dial-stdio` on the remote machine.
 type SSHCLIConnector struct {
-	config SSHCLIConnectorConfig
+	config SSHConnectorConfig
 	conn   net.Conn
 }
 
-func NewSSHCLIConnector(cfg *SSHCLIConnectorConfig) *SSHCLIConnector {
+func NewSSHCLIConnector(cfg *SSHConnectorConfig) *SSHCLIConnector {
 	return &SSHCLIConnector{config: *cfg}
 }
 
