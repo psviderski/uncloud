@@ -472,6 +472,11 @@ func toPushProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
 
 	if jm.Progress.Total > 0 {
 		percent = int(jm.Progress.Current * 100 / jm.Progress.Total)
+		// Cap percent at 100 to prevent index out of bounds in progress display.
+		// Docker can report Current > Total in some cases (e.g., compression).
+		if percent > 100 {
+			percent = 100
+		}
 	}
 
 	switch jm.Status {
