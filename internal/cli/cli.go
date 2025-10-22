@@ -443,19 +443,21 @@ func provisionOrConnectRemoteMachine(
 		}
 	}
 
-	// Close the SSH connection used for provisioning since we'll establish a new one using the CLI approach.
-	// The CLI approach uses `ssh` command with `uncloudd dial-stdio`, which is more compatible with
-	// various SSH configurations (e.g., Tailscale SSH, SSH configs with IdentitiesOnly, etc.).
-	sshClient.Close()
-
-	// Create a machine API client using the SSH CLI connector.
-	sshCliConfig := &connector.SSHConnectorConfig{
-		User:    remoteMachine.User,
-		Host:    remoteMachine.Host,
-		Port:    remoteMachine.Port,
-		KeyPath: remoteMachine.KeyPath,
+	var machineClient *client.Client
+	if remoteMachine.User == "root" || skipInstall {
+		// Create a machine API client over the established SSH connection to the remote machine.
+		machineClient, err = client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
+	} else {
+		// Since the user is not root, we need to establish a new SSH connection to make the user's addition
+		// to the uncloud group effective, thus allowing access to the Uncloud daemon Unix socket.
+		sshConfig := &connector.SSHConnectorConfig{
+			User:    remoteMachine.User,
+			Host:    remoteMachine.Host,
+			Port:    remoteMachine.Port,
+			KeyPath: remoteMachine.KeyPath,
+		}
+		machineClient, err = client.New(ctx, connector.NewSSHConnector(sshConfig))
 	}
-	machineClient, err := client.New(ctx, connector.NewSSHCLIConnector(sshCliConfig))
 	if err != nil {
 		return nil, fmt.Errorf("connect to remote machine: %w", err)
 	}
