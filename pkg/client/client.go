@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Client is a client for the machine API.
@@ -57,6 +58,14 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 	c.ClusterClient = pb.NewClusterClient(c.conn)
 	c.Caddy = pb.NewCaddyClient(c.conn)
 	c.Docker = docker.NewClient(c.conn)
+
+	// Validate the connection by making a simple RPC call.
+	// This ensures we fail fast if the connection is broken, allowing failover to work.
+	if _, err = c.MachineClient.Inspect(ctx, &emptypb.Empty{}); err != nil {
+		c.Close()
+		return nil, fmt.Errorf("validate connection: %w", err)
+	}
+
 	return c, nil
 }
 
