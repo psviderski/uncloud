@@ -24,6 +24,56 @@ func NewSSHCLIConnector(cfg *SSHConnectorConfig) *SSHCLIConnector {
 	return &SSHCLIConnector{config: *cfg}
 }
 
+// sshCLIDialer implements proxy.ContextDialer by spawning SSH processes with -W flag.
+type sshCLIDialer struct {
+	config SSHConnectorConfig
+}
+
+// buildDialArgs constructs SSH command arguments for -W flag dialing.
+func (d *sshCLIDialer) buildDialArgs(address string) []string {
+	args := []string{}
+
+	// Add connection timeout to fail fast when node is down.
+	args = append(args, "-o", "ConnectTimeout=5")
+
+	// Add port if non-standard.
+	if d.config.Port != 0 && d.config.Port != 22 {
+		args = append(args, "-p", strconv.Itoa(d.config.Port))
+	}
+
+	// Add identity file if specified.
+	if d.config.KeyPath != "" {
+		args = append(args, "-i", d.config.KeyPath)
+	}
+
+	// Add -W flag for stdin/stdout forwarding to target address.
+	args = append(args, "-W", address)
+
+	// Add user@host.
+	args = append(args, d.config.User+"@"+d.config.Host)
+
+	return args
+}
+
+// DialContext establishes a connection to the target address through an SSH tunnel using -W flag.
+func (d *sshCLIDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	// Only support TCP connections.
+	if network != "tcp" {
+		return nil, fmt.Errorf("unsupported network type: %s", network)
+	}
+
+	// Build SSH command arguments.
+	args := d.buildDialArgs(address)
+
+	// Create connection using commandconn.
+	conn, err := commandconn.New(ctx, "ssh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("SSH connection to %s@%s for dialing %s: %w", d.config.User, d.config.Host, address, err)
+	}
+
+	return conn, nil
+}
+
 func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 	// Build SSH command arguments.
 	args := c.buildSSHArgs()

@@ -1,6 +1,8 @@
 package connector
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/psviderski/uncloud/internal/machine"
@@ -94,5 +96,112 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 			args := connector.buildSSHArgs()
 			assert.Equal(t, tt.expected, args)
 		})
+	}
+}
+
+func TestSSHCLIDialer_buildDialArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		dialer   *sshCLIDialer
+		address  string
+		expected []string
+	}{
+		{
+			name: "standard port with key",
+			dialer: &sshCLIDialer{
+				config: SSHConnectorConfig{
+					User:    "testuser",
+					Host:    "testhost",
+					Port:    22,
+					KeyPath: "/path/to/key",
+				},
+			},
+			address: "10.210.1.1:5000",
+			expected: []string{
+				"-o", "ConnectTimeout=5",
+				"-i", "/path/to/key",
+				"-W", "10.210.1.1:5000",
+				"testuser@testhost",
+			},
+		},
+		{
+			name: "custom port without key",
+			dialer: &sshCLIDialer{
+				config: SSHConnectorConfig{
+					User: "testuser",
+					Host: "testhost",
+					Port: 2222,
+				},
+			},
+			address: "10.210.1.1:5000",
+			expected: []string{
+				"-o", "ConnectTimeout=5",
+				"-p", "2222",
+				"-W", "10.210.1.1:5000",
+				"testuser@testhost",
+			},
+		},
+		{
+			name: "port 0 not included",
+			dialer: &sshCLIDialer{
+				config: SSHConnectorConfig{
+					User: "testuser",
+					Host: "testhost",
+					Port: 0,
+				},
+			},
+			address: "10.210.1.1:5000",
+			expected: []string{
+				"-o", "ConnectTimeout=5",
+				"-W", "10.210.1.1:5000",
+				"testuser@testhost",
+			},
+		},
+		{
+			name: "all options combined",
+			dialer: &sshCLIDialer{
+				config: SSHConnectorConfig{
+					User:    "testuser",
+					Host:    "testhost",
+					Port:    2222,
+					KeyPath: "/path/to/key",
+				},
+			},
+			address: "10.210.1.1:5000",
+			expected: []string{
+				"-o", "ConnectTimeout=5",
+				"-p", "2222",
+				"-i", "/path/to/key",
+				"-W", "10.210.1.1:5000",
+				"testuser@testhost",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := tt.dialer.buildDialArgs(tt.address)
+			assert.Equal(t, tt.expected, args)
+		})
+	}
+}
+
+func TestSSHCLIDialer_DialContext(t *testing.T) {
+	dialer := &sshCLIDialer{
+		config: SSHConnectorConfig{
+			User:    "testuser",
+			Host:    "testhost",
+			Port:    2222,
+			KeyPath: "/path/to/key",
+		},
+	}
+
+	// Test unsupported network type
+	_, err := dialer.DialContext(context.Background(), "unix", "/var/run/test.sock")
+	if err == nil {
+		t.Fatal("expected error for unsupported network type, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported network type") {
+		t.Errorf("expected 'unsupported network type' error, got: %v", err)
 	}
 }
