@@ -133,15 +133,15 @@ func (c *SSHCLIConnector) buildSSHArgs() []string {
 	return args
 }
 
-// Dialer returns a proxy dialer for establishing connections within the cluster through the SSH tunnel.
+// Dialer returns a proxy dialer for establishing connections within the cluster through SSH tunnels.
 func (c *SSHCLIConnector) Dialer() (proxy.ContextDialer, error) {
-	if c.conn == nil {
-		return nil, fmt.Errorf("SSH connection must be established first")
+	if c.config == (SSHConnectorConfig{}) {
+		return nil, fmt.Errorf("SSH connector not configured")
 	}
-	// For SSH CLI connector, we can't provide a generic dialer since we only have
-	// a single connection to the dial-stdio process.
-	// This matches the limitation of the old SSH connector.
-	return nil, fmt.Errorf("proxy connections are not supported over SSH CLI connector")
+
+	return &sshCLIDialer{
+		config: c.config,
+	}, nil
 }
 
 func (c *SSHCLIConnector) Close() error {

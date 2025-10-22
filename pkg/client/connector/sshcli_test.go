@@ -205,3 +205,36 @@ func TestSSHCLIDialer_DialContext(t *testing.T) {
 		t.Errorf("expected 'unsupported network type' error, got: %v", err)
 	}
 }
+
+func TestSSHCLIConnector_Dialer(t *testing.T) {
+	t.Run("returns error when not configured", func(t *testing.T) {
+		connector := &SSHCLIConnector{}
+		_, err := connector.Dialer()
+		if err == nil {
+			t.Fatal("expected error for unconfigured connector, got nil")
+		}
+		if !strings.Contains(err.Error(), "not configured") {
+			t.Errorf("expected 'not configured' error, got: %v", err)
+		}
+	})
+
+	t.Run("returns sshCLIDialer when configured", func(t *testing.T) {
+		config := &SSHConnectorConfig{
+			User: "testuser",
+			Host: "testhost",
+		}
+		connector := NewSSHCLIConnector(config)
+		dialer, err := connector.Dialer()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if dialer == nil {
+			t.Fatal("expected dialer, got nil")
+		}
+		// Verify it's the right type
+		_, ok := dialer.(*sshCLIDialer)
+		if !ok {
+			t.Errorf("expected *sshCLIDialer, got %T", dialer)
+		}
+	})
+}
