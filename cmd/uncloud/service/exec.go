@@ -36,9 +36,6 @@ func NewExecCommand() *cobra.Command {
   # Run a task in the background (detached mode)
   uc exec -d web-service /scripts/cleanup.sh`,
 		Args: cobra.MinimumNArgs(2),
-		// DisableFlagParsing would disable all flag parsing, but we want to parse our own flags.
-		// Instead, we'll use FParseErrWhitelist to ignore unknown flags which will be passed to the command.
-		FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return runExec(cmd.Context(), uncli, args[0], args[1:], opts)
@@ -54,7 +51,8 @@ func NewExecCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context. (default is the current context)")
 
-	// This tells Cobra that all flags must come before positional arguments
+	// This tells Cobra that all flags must come before positional arguments, so that
+	// commands with their own flags can be handled correctly.
 	cmd.Flags().SetInterspersed(false)
 
 	return cmd

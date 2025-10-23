@@ -1040,8 +1040,8 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	return resp, nil
 }
 
-// ContainerExec executes a command in a running container with bidirectional streaming for stdin/stdout/stderr.
-func (s *Server) ContainerExec(stream pb.Docker_ExecContainerServer) error {
+// ExecContainer executes a command in a running container with bidirectional streaming for stdin/stdout/stderr.
+func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	ctx := stream.Context()
 
 	// Receive the initial configuration message
