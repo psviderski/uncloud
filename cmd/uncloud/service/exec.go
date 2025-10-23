@@ -17,11 +17,13 @@ type execOptions struct {
 	context     string
 }
 
+var DEFAULT_COMMAND = []string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"}
+
 func NewExecCommand() *cobra.Command {
 	opts := execOptions{}
 
 	execCmd := &cobra.Command{
-		Use:   "exec [OPTIONS] SERVICE COMMAND [ARGS...]",
+		Use:   "exec [OPTIONS] SERVICE [COMMAND ARGS...]",
 		Short: "Execute a command in a running service container",
 		Long: `Execute a command in a running container within a service.
 (FIXME) If the service has multiple replicas, the command will be executed in the first container.
@@ -35,21 +37,25 @@ func NewExecCommand() *cobra.Command {
 
   # Run a task in the background (detached mode)
   uc exec -d web-service /scripts/cleanup.sh`,
-		Args: cobra.MinimumNArgs(2),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return runExec(cmd.Context(), uncli, args[0], args[1:], opts)
+			serviceName := args[0]
+			command := args[1:]
+			if len(command) == 0 {
+				command = DEFAULT_COMMAND
+			}
+			return runExec(cmd.Context(), uncli, serviceName, command, opts)
 		},
 	}
 
-	execCmd.Flags().BoolVarP(&opts.detach, "detach", "d", false,
-		"Detached mode: run command in the background")
+	execCmd.Flags().BoolVarP(&opts.detach, "detach", "d", false, "Detached mode: run command in the background")
 
 	execCmd.Flags().BoolVarP(&opts.noTty, "no-tty", "T", !cli.IsStdoutTerminal(),
-		"Disable pseudo-TTY allocation. By default 'uc exec' allocates a TTY.")
+		"Disable pseudo-TTY allocation. By default 'uc exec' allocates a TTY when connected to a terminal.")
 
 	// Keep "-i" and "-t" flags hidden for compatibility with docker exec
-	execCmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "Keep STDIN open even if not attached")
+	execCmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", true, "Keep STDIN open even if not attached")
 	execCmd.Flags().MarkHidden("interactive")
 
 	execCmd.Flags().BoolP("tty", "t", false, "Allocate a pseudo-TTY")
@@ -66,26 +72,30 @@ func NewExecCommand() *cobra.Command {
 }
 
 func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execOptions) error {
-	c, err := uncli.ConnectCluster(ctx, opts.context)
+	c, err := uncli.ConnectClusterWithOptions(ctx, opts.context, cli.ConnectOptions{
+		ShowProgress: false,
+	})
+
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer c.Close()
 
-	// Build the exec configuration
-	execConfig := container.ExecOptions{
-		Cmd:          command,
-		AttachStdin:  opts.interactive,
-		AttachStdout: true,
-		AttachStderr: true,
-		Tty:          !opts.noTty,
-		Detach:       opts.detach,
+	execOpts := container.ExecOptions{
+		Cmd:         command,
+		AttachStdin: opts.interactive,
+		Tty:         !opts.noTty,
+	}
+
+	if !opts.detach {
+		execOpts.AttachStdout = true
+		execOpts.AttachStderr = true
 	}
 
 	// Execute the command in the first container of the service
-	exitCode, err := c.ExecContainer(ctx, serviceName, "", execConfig)
+	exitCode, err := c.ExecContainer(ctx, serviceName, "", execOpts)
 	if err != nil {
-		return err
+		return fmt.Errorf("exec container: %w", err)
 	}
 
 	// For non-detached mode, exit with the same code as the executed command
