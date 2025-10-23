@@ -26,6 +26,7 @@ type fileInfo struct {
 // Uncloud API does not currently expose exec functionality to run commands inside containers.
 // Instead this helper function uses "docker cp" inside the ucind container to copy the file from the target container
 // to a temporary location (also inside the ucind container), and then inspect its content and permissions.
+// TODO: update when exec functionality is implemented
 func readFileInfoInContainer(t *testing.T, machine *ucind.Machine, containerName, filePath string) (fileInfo, error) {
 	t.Helper()
 	ctx := context.Background()
