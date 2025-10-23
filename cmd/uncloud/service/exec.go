@@ -13,14 +13,14 @@ import (
 type execOptions struct {
 	detach      bool
 	interactive bool
-	tty         bool
+	noTty       bool
 	context     string
 }
 
 func NewExecCommand() *cobra.Command {
 	opts := execOptions{}
 
-	cmd := &cobra.Command{
+	execCmd := &cobra.Command{
 		Use:   "exec [OPTIONS] SERVICE COMMAND [ARGS...]",
 		Short: "Execute a command in a running service container",
 		Long: `Execute a command in a running container within a service.
@@ -42,20 +42,27 @@ func NewExecCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&opts.detach, "detach", "d", false,
+	execCmd.Flags().BoolVarP(&opts.detach, "detach", "d", false,
 		"Detached mode: run command in the background")
-	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false,
-		"Keep STDIN open even if not attached")
-	cmd.Flags().BoolVarP(&opts.tty, "tty", "t", false,
-		"Allocate a pseudo-TTY")
-	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
+
+	execCmd.Flags().BoolVarP(&opts.noTty, "no-tty", "T", !cli.IsStdoutTerminal(),
+		"Disable pseudo-TTY allocation. By default 'uc exec' allocates a TTY.")
+
+	// Keep "-i" and "-t" flags hidden for compatibility with docker exec
+	execCmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "Keep STDIN open even if not attached")
+	execCmd.Flags().MarkHidden("interactive")
+
+	execCmd.Flags().BoolP("tty", "t", false, "Allocate a pseudo-TTY")
+	execCmd.Flags().MarkHidden("tty")
+
+	execCmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context. (default is the current context)")
 
 	// This tells Cobra that all flags must come before positional arguments, so that
 	// commands with their own flags can be handled correctly.
-	cmd.Flags().SetInterspersed(false)
+	execCmd.Flags().SetInterspersed(false)
 
-	return cmd
+	return execCmd
 }
 
 func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execOptions) error {
@@ -71,7 +78,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		AttachStdin:  opts.interactive,
 		AttachStdout: true,
 		AttachStderr: true,
-		Tty:          opts.tty,
+		Tty:          !opts.noTty,
 		Detach:       opts.detach,
 	}
 
