@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/docker/cli/cli/streams"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
@@ -75,6 +76,15 @@ func NewExecCommand() *cobra.Command {
 }
 
 func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execOptions) error {
+	if !opts.detach {
+		// Check if we're trying to attach to a TTY from a non-TTY client, e.g.
+		// when doing an 'cmd | uc exec ...'
+		stdin := streams.NewIn(os.Stdin)
+		if err := stdin.CheckTty(opts.interactive, !opts.noTty); err != nil {
+			return fmt.Errorf("check TTY: %w; use -T option to disable TTY allocation", err)
+		}
+	}
+
 	c, err := uncli.ConnectClusterWithOptions(ctx, opts.context, cli.ConnectOptions{
 		ShowProgress: false,
 	})
