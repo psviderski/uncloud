@@ -25,15 +25,18 @@ func NewExecCommand() *cobra.Command {
 	execCmd := &cobra.Command{
 		Use:   "exec [OPTIONS] SERVICE [COMMAND ARGS...]",
 		Short: "Execute a command in a running service container",
-		Long: `Execute a command in a running container within a service.
+		Long: `Execute a command (interactive shell by default) in a running container within a service.
 (FIXME) If the service has multiple replicas, the command will be executed in the first container.
 	`,
 		Example: `
+  # Start an interactive shell ("bash" or "sh" will be tried by default)
+  uc exec web-service
+
+  # Start an interactive shell with explicit command
+  uc exec web-service /bin/zsh
+
   # List files in a container
   uc exec web-service ls -la
-
-  # Start an interactive shell
-  uc exec -it web-service bash
 
   # Run a task in the background (detached mode)
   uc exec -d web-service /scripts/cleanup.sh`,
@@ -75,7 +78,6 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 	c, err := uncli.ConnectClusterWithOptions(ctx, opts.context, cli.ConnectOptions{
 		ShowProgress: false,
 	})
-
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
