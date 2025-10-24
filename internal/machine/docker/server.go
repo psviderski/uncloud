@@ -1064,7 +1064,7 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	// Create the exec instance
 	execResp, err := s.client.ContainerExecCreate(ctx, execConfig.ContainerId, config)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return status.Error(codes.NotFound, err.Error())
 		}
 		return status.Errorf(codes.Internal, "create exec: %v", err)

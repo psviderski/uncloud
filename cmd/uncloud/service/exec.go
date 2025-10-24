@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type execOptions struct {
+type execCliOptions struct {
 	detach      bool
 	interactive bool
 	noTty       bool
@@ -21,7 +21,7 @@ type execOptions struct {
 var DEFAULT_COMMAND = []string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"}
 
 func NewExecCommand() *cobra.Command {
-	opts := execOptions{}
+	opts := execCliOptions{}
 
 	execCmd := &cobra.Command{
 		Use:   "exec [OPTIONS] SERVICE [COMMAND ARGS...]",
@@ -75,7 +75,7 @@ func NewExecCommand() *cobra.Command {
 	return execCmd
 }
 
-func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execOptions) error {
+func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execCliOptions) error {
 	if !opts.detach {
 		// Check if we're trying to attach to a TTY from a non-TTY client, e.g.
 		// when doing an 'cmd | uc exec ...'
@@ -85,13 +85,13 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		}
 	}
 
-	c, err := uncli.ConnectClusterWithOptions(ctx, opts.context, cli.ConnectOptions{
+	client, err := uncli.ConnectClusterWithOptions(ctx, opts.context, cli.ConnectOptions{
 		ShowProgress: false,
 	})
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer c.Close()
+	defer client.Close()
 
 	execOpts := container.ExecOptions{
 		Cmd:         command,
@@ -105,7 +105,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 	}
 
 	// Execute the command in the first container of the service
-	exitCode, err := c.ExecContainer(ctx, serviceName, "", execOpts)
+	exitCode, err := client.ExecContainer(ctx, serviceName, "", execOpts)
 	if err != nil {
 		return fmt.Errorf("exec container: %w", err)
 	}
