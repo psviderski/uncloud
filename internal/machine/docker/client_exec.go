@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"sync"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/moby/term"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/api"
 	"golang.org/x/sys/unix"
 )
 
@@ -20,7 +20,7 @@ type ExecOptions struct {
 	// Container ID to execute the command in.
 	ContainerID string
 	// Exec configuration.
-	Config container.ExecOptions
+	Config api.ExecConfig
 	// Stdin, Stdout, Stderr streams. If nil, os.Stdin/Stdout/Stderr will be used.
 	Stdin  io.Reader
 	Stdout io.Writer

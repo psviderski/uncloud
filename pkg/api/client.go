@@ -28,7 +28,7 @@ type ContainerClient interface {
 	RemoveContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions) error
 	StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error
 	StopContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions) error
-	ExecContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.ExecOptions) (int, error)
+	ExecContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, config ExecConfig) (int, error)
 }
 
 type DNSClient interface {

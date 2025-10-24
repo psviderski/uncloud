@@ -298,7 +298,7 @@ func (cli *Client) RemoveContainer(
 // ExecContainer executes a command in a container within the service.
 // If containerNameOrID is empty, the first container in the service will be used.
 func (cli *Client) ExecContainer(
-	ctx context.Context, serviceNameOrID, containerNameOrID string, config container.ExecOptions,
+	ctx context.Context, serviceNameOrID, containerNameOrID string, config api.ExecConfig,
 ) (int, error) {
 	var ctr api.MachineServiceContainer
 

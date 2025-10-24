@@ -1056,13 +1056,27 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	}
 
 	// Unmarshal the Docker exec config
-	var config container.ExecOptions
+	var config api.ExecConfig
 	if err := json.Unmarshal(execConfig.Config, &config); err != nil {
 		return status.Errorf(codes.InvalidArgument, "unmarshal exec config: %v", err)
 	}
 
+	// Convert to Docker's ExecOptions
+	dockerExecOpts := container.ExecOptions{
+		Cmd:          config.Cmd,
+		AttachStdin:  config.AttachStdin,
+		AttachStdout: config.AttachStdout,
+		AttachStderr: config.AttachStderr,
+		Tty:          config.Tty,
+		Detach:       config.Detach,
+		User:         config.User,
+		Privileged:   config.Privileged,
+		WorkingDir:   config.WorkingDir,
+		Env:          config.Env,
+	}
+
 	// Create the exec instance
-	execResp, err := s.client.ContainerExecCreate(ctx, execConfig.ContainerId, config)
+	execResp, err := s.client.ContainerExecCreate(ctx, execConfig.ContainerId, dockerExecOpts)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return status.Error(codes.NotFound, err.Error())
@@ -1079,9 +1093,9 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	slog.Debug("Sent exec ID to the client", "exec_id", execResp.ID)
 
 	// For detached mode, start without attaching
-	if config.Detach {
+	if dockerExecOpts.Detach {
 		startOpts := container.ExecStartOptions{
-			Tty:    config.Tty,
+			Tty:    dockerExecOpts.Tty,
 			Detach: true,
 		}
 		if err := s.client.ContainerExecStart(ctx, execResp.ID, startOpts); err != nil {
@@ -1093,7 +1107,7 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 
 	// For attached mode, attach to the exec instance
 	attachOpts := container.ExecAttachOptions{
-		Tty: config.Tty,
+		Tty: dockerExecOpts.Tty,
 	}
 	attachResp, err := s.client.ContainerExecAttach(ctx, execResp.ID, attachOpts)
 	if err != nil {
@@ -1105,7 +1119,7 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	errCh := make(chan error, 2)
 
 	// Goroutine to read from gRPC stream and write to Docker stdin
-	if config.AttachStdin {
+	if dockerExecOpts.AttachStdin {
 		go func() {
 			defer attachResp.CloseWrite()
 			for {
@@ -1126,7 +1140,7 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 						return
 					}
 				case *pb.ExecContainerRequest_Resize:
-					if config.Tty {
+					if dockerExecOpts.Tty {
 						resizeOpts := container.ResizeOptions{
 							Height: uint(payload.Resize.Height),
 							Width:  uint(payload.Resize.Width),
@@ -1145,8 +1159,8 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 
 	// Goroutine to read from Docker stdout/stderr and write to gRPC stream
 	go func() {
-		slog.Info("Output goroutine started", "exec_id", execResp.ID, "tty", config.Tty)
-		if config.Tty {
+		slog.Info("Output goroutine started", "exec_id", execResp.ID, "tty", dockerExecOpts.Tty)
+		if dockerExecOpts.Tty {
 			// In TTY mode, all output is stdout - just copy directly
 			buf := make([]byte, 32*1024)
 			for {

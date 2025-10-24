@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/docker/cli/cli/streams"
-	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -93,19 +93,19 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 	}
 	defer client.Close()
 
-	execOpts := container.ExecOptions{
+	execConfig := api.ExecConfig{
 		Cmd:         command,
 		AttachStdin: opts.interactive,
 		Tty:         !opts.noTty,
 	}
 
 	if !opts.detach {
-		execOpts.AttachStdout = true
-		execOpts.AttachStderr = true
+		execConfig.AttachStdout = true
+		execConfig.AttachStderr = true
 	}
 
 	// Execute the command in the first container of the service
-	exitCode, err := client.ExecContainer(ctx, serviceName, "", execOpts)
+	exitCode, err := client.ExecContainer(ctx, serviceName, "", execConfig)
 	if err != nil {
 		return fmt.Errorf("exec container: %w", err)
 	}
