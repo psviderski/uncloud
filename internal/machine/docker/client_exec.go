@@ -15,12 +15,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ExecOptions contains options for executing a command in a container.
-type ExecOptions struct {
+// ExecConfig contains options for executing a command in a container.
+type ExecConfig struct {
 	// Container ID to execute the command in.
 	ContainerID string
 	// Exec configuration.
-	Config api.ExecConfig
+	Options api.ExecOptions
 	// Stdin, Stdout, Stderr streams. If nil, os.Stdin/Stdout/Stderr will be used.
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -28,7 +28,7 @@ type ExecOptions struct {
 }
 
 // ExecContainer executes a command in a running container with bidirectional streaming.
-func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, error) {
+func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error) {
 	// Use os.Std* if streams are not provided
 	if opts.Stdin == nil {
 		opts.Stdin = os.Stdin
@@ -41,7 +41,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 	}
 
 	// Marshal the exec config
-	configBytes, err := json.Marshal(opts.Config)
+	configBytes, err := json.Marshal(opts.Options)
 	if err != nil {
 		return -1, fmt.Errorf("marshal exec config: %w", err)
 	}
@@ -57,7 +57,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 		Payload: &pb.ExecContainerRequest_Config{
 			Config: &pb.ExecConfig{
 				ContainerId: opts.ContainerID,
-				Config:      configBytes,
+				Options:     configBytes,
 			},
 		},
 	}); err != nil {
@@ -83,7 +83,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 
 	// Handle terminal setup for interactive sessions
 	var oldState *term.State
-	if opts.Config.AttachStdin && opts.Config.Tty {
+	if opts.Options.AttachStdin && opts.Options.Tty {
 		// Check if stdin is a terminal
 		if inFd, isTerminal := term.GetFdInfo(opts.Stdin); isTerminal {
 			oldState, err = term.SetRawTerminal(inFd)
@@ -138,7 +138,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecOptions) (int, erro
 	var wg sync.WaitGroup
 
 	// Goroutine to read from stdin and send to stream
-	if opts.Config.AttachStdin {
+	if opts.Options.AttachStdin {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

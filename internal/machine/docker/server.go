@@ -1055,24 +1055,23 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 		return status.Error(codes.InvalidArgument, "first message must contain exec config")
 	}
 
-	// Unmarshal the Docker exec config
-	var config api.ExecConfig
-	if err := json.Unmarshal(execConfig.Config, &config); err != nil {
+	// Unmarshal the Uncloud's execOpts
+	var execOpts api.ExecOptions
+	if err := json.Unmarshal(execConfig.Options, &execOpts); err != nil {
 		return status.Errorf(codes.InvalidArgument, "unmarshal exec config: %v", err)
 	}
 
 	// Convert to Docker's ExecOptions
 	dockerExecOpts := container.ExecOptions{
-		Cmd:          config.Cmd,
-		AttachStdin:  config.AttachStdin,
-		AttachStdout: config.AttachStdout,
-		AttachStderr: config.AttachStderr,
-		Tty:          config.Tty,
-		Detach:       config.Detach,
-		User:         config.User,
-		Privileged:   config.Privileged,
-		WorkingDir:   config.WorkingDir,
-		Env:          config.Env,
+		Cmd:          execOpts.Command,
+		AttachStdin:  execOpts.AttachStdin,
+		AttachStdout: execOpts.AttachStdout,
+		AttachStderr: execOpts.AttachStderr,
+		Tty:          execOpts.Tty,
+		User:         execOpts.User,
+		Privileged:   execOpts.Privileged,
+		WorkingDir:   execOpts.WorkingDir,
+		Env:          execOpts.Env,
 	}
 
 	// Create the exec instance
@@ -1093,12 +1092,12 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	slog.Debug("Sent exec ID to the client", "exec_id", execResp.ID)
 
 	// For detached mode, start without attaching
-	if dockerExecOpts.Detach {
-		startOpts := container.ExecStartOptions{
+	if execOpts.Detach {
+		dockerStartOpts := container.ExecStartOptions{
 			Tty:    dockerExecOpts.Tty,
 			Detach: true,
 		}
-		if err := s.client.ContainerExecStart(ctx, execResp.ID, startOpts); err != nil {
+		if err := s.client.ContainerExecStart(ctx, execResp.ID, dockerStartOpts); err != nil {
 			return status.Errorf(codes.Internal, "start exec: %v", err)
 		}
 		// For detached mode, just return success - no output to stream

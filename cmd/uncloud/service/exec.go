@@ -93,8 +93,8 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 	}
 	defer client.Close()
 
-	execConfig := api.ExecConfig{
-		Cmd:         command,
+	execConfig := api.ExecOptions{
+		Command:     command,
 		AttachStdin: opts.interactive,
 		Tty:         !opts.noTty,
 	}

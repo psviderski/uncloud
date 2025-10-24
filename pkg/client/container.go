@@ -298,7 +298,7 @@ func (cli *Client) RemoveContainer(
 // ExecContainer executes a command in a container within the service.
 // If containerNameOrID is empty, the first container in the service will be used.
 func (cli *Client) ExecContainer(
-	ctx context.Context, serviceNameOrID, containerNameOrID string, config api.ExecConfig,
+	ctx context.Context, serviceNameOrID, containerNameOrID string, execOpts api.ExecOptions,
 ) (int, error) {
 	var ctr api.MachineServiceContainer
 
@@ -330,9 +330,9 @@ func (cli *Client) ExecContainer(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	// Execute the command in the container
-	exitCode, err := cli.Docker.ExecContainer(ctx, machinedocker.ExecOptions{
+	exitCode, err := cli.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
 		ContainerID: ctr.Container.ID,
-		Config:      config,
+		Options:     execOpts,
 	})
 	if err != nil {
 		return exitCode, fmt.Errorf("exec in container %s: %w", ctr.Container.Name, err)

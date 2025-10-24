@@ -231,8 +231,8 @@ message ExecContainerRequest {
 message ExecConfig {
   // Container ID to execute the command in.
   string container_id = 1;
-  // JSON serialised types.ExecConfig (includes Cmd, AttachStdin, AttachStdout, AttachStderr, Tty, etc).
-  bytes config = 2;
+  // JSON serialised ExecOptions
+  bytes options = 2;
 }
 
 message ResizeEvent {
