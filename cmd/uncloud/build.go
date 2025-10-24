@@ -33,7 +33,7 @@ func NewBuildCommand() *cobra.Command {
 		"One or more Compose profiles to enable.")
 	cmd.Flags().BoolVarP(&opts.Push, "push", "P", false,
 		"Push built images to the registry after building. (default false)")
-	cmd.Flags().BoolVarP(&opts.NoCache, "no-cache", "n", false,
+	cmd.Flags().BoolVar(&opts.NoCache, "no-cache", false,
 		"Do not use cache when building images. (default false)")
 
 	return cmd
