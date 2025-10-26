@@ -437,9 +437,9 @@ services:
 
 func TestServiceSpecFromCompose_GPUs(t *testing.T) {
 	tests := []struct {
-		name                string
-		composeYAML         string
-		expectedDeviceReqs  []container.DeviceRequest
+		name               string
+		composeYAML        string
+		expectedDeviceReqs []container.DeviceRequest
 	}{
 		{
 			name: "gpus_all_shorthand",
