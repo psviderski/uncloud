@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/opencontainers/go-digest"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -124,6 +125,9 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 		MemoryReservation: int64(service.MemReservation),
 	}
 
+	// Convert GPU device requests from compose format, appending "gpu" capability.
+	resources.DeviceRequests = append(resources.DeviceRequests, deviceRequestsFromCompose(service.Gpus, "gpu")...)
+
 	// Map resources from deploy section if specified.
 	if service.Deploy != nil {
 		if service.Deploy.Resources.Limits != nil {
@@ -139,10 +143,37 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 			if service.Deploy.Resources.Reservations.MemoryBytes > 0 {
 				resources.MemoryReservation = int64(service.Deploy.Resources.Reservations.MemoryBytes)
 			}
+			// Handle arbitrary device reservations (same structure as Gpus above).
+			resources.DeviceRequests = append(resources.DeviceRequests, deviceRequestsFromCompose(service.Deploy.Resources.Reservations.Devices)...)
 		}
 	}
 
 	return resources
+}
+
+// deviceRequestsFromCompose converts compose-go DeviceRequest format to Docker API DeviceRequest format.
+// Additional capabilities can be appended via extraCapabilities (e.g., "gpu" for service.Gpus).
+func deviceRequestsFromCompose(devices []types.DeviceRequest, extraCapabilities ...string) []container.DeviceRequest {
+	if devices == nil {
+		return nil
+	}
+
+	requests := make([]container.DeviceRequest, 0, len(devices))
+	for _, deviceRequest := range devices {
+		// Docker expects an OR'd list of AND'd capabilities (e.g. [][]string),
+		// but compose-go provides a single AND'd list (e.g. []string).
+		capabilities := [][]string{append(deviceRequest.Capabilities, extraCapabilities...)}
+
+		spec := container.DeviceRequest{
+			Driver:       deviceRequest.Driver,
+			Count:        int(deviceRequest.Count),
+			DeviceIDs:    deviceRequest.IDs,
+			Capabilities: capabilities,
+			Options:      deviceRequest.Options,
+		}
+		requests = append(requests, spec)
+	}
+	return requests
 }
 
 func volumeSpecsFromCompose(

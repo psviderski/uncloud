@@ -10,6 +10,7 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/go-units"
 	"github.com/google/go-cmp/cmp"
@@ -430,6 +431,191 @@ services:
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, spec.Caddy)
+		})
+	}
+}
+
+func TestServiceSpecFromCompose_GPUs(t *testing.T) {
+	tests := []struct {
+		name                string
+		composeYAML         string
+		expectedDeviceReqs  []container.DeviceRequest
+	}{
+		{
+			name: "gpus_all_shorthand",
+			composeYAML: `
+services:
+  ai:
+    image: nvidia/cuda
+    gpus: all
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					Count:        -1,
+					Capabilities: [][]string{{"gpu"}},
+				},
+			},
+		},
+		{
+			name: "gpus_device_ids",
+			composeYAML: `
+services:
+  ai:
+    image: nvidia/cuda
+    gpus:
+      - device_ids: ['0', '1']
+        capabilities: [compute]
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					DeviceIDs:    []string{"0", "1"},
+					Capabilities: [][]string{{"compute", "gpu"}},
+				},
+			},
+		},
+		{
+			name: "gpus_count",
+			composeYAML: `
+services:
+  ai:
+    image: nvidia/cuda
+    gpus:
+      - count: 2
+        capabilities: [utility]
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					Count:        2,
+					Capabilities: [][]string{{"utility", "gpu"}},
+				},
+			},
+		},
+		{
+			name: "gpus_driver_and_options",
+			composeYAML: `
+services:
+  ai:
+    image: nvidia/cuda
+    gpus:
+      - driver: nvidia
+        count: 1
+        capabilities: [compute, utility]
+        options:
+          key1: value1
+          key2: value2
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					Driver:       "nvidia",
+					Count:        1,
+					Capabilities: [][]string{{"compute", "utility", "gpu"}},
+					Options: map[string]string{
+						"key1": "value1",
+						"key2": "value2",
+					},
+				},
+			},
+		},
+		{
+			name: "deploy_resources_reservations_devices",
+			composeYAML: `
+services:
+  ai:
+    image: nvidia/cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					Driver:       "nvidia",
+					Count:        1,
+					Capabilities: [][]string{{"gpu"}},
+				},
+			},
+		},
+		{
+			name: "gpus_with_existing_gpu_capability",
+			composeYAML: `
+services:
+  ai:
+    image: nvidia/cuda
+    gpus:
+      - capabilities: [gpu, compute]
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					Count:        -1, // defaults to "all" when count not specified
+					Capabilities: [][]string{{"gpu", "compute", "gpu"}}, // gpu appended even if already present (matching Docker Compose behavior)
+				},
+			},
+		},
+		{
+			name: "multiple_device_reservations",
+			composeYAML: `
+services:
+  ai:
+    image: nvidia/cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 2
+              capabilities: [gpu, compute]
+            - capabilities: [tpu]
+              count: 1
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					Driver:       "nvidia",
+					Count:        2,
+					Capabilities: [][]string{{"gpu", "compute"}},
+				},
+				{
+					Count:        1,
+					Capabilities: [][]string{{"tpu"}},
+				},
+			},
+		},
+		{
+			name: "tpu_reservation",
+			composeYAML: `
+services:
+  ai:
+    image: tensorflow/tensorflow:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [tpu]
+              count: 4
+              driver: google
+`,
+			expectedDeviceReqs: []container.DeviceRequest{
+				{
+					Driver:       "google",
+					Count:        4,
+					Capabilities: [][]string{{"tpu"}},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := loadProjectFromContent(t, tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "ai")
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedDeviceReqs, spec.Container.Resources.DeviceRequests,
+				"DeviceRequests should match expected")
 		})
 	}
 }
