@@ -549,8 +549,10 @@ services:
 `,
 			expectedDeviceReqs: []container.DeviceRequest{
 				{
-					Count:        -1, // defaults to "all" when count not specified
-					Capabilities: [][]string{{"gpu", "compute", "gpu"}}, // gpu appended even if already present (matching Docker Compose behavior)
+					// defaults to "all" when count not specified
+					Count: -1,
+					// gpu appended even if already present (matching Docker Compose behavior)
+					Capabilities: [][]string{{"gpu", "compute", "gpu"}},
 				},
 			},
 		},
