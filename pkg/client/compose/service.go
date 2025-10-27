@@ -126,7 +126,7 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 	}
 
 	// Convert GPU device requests from compose format, appending "gpu" capability.
-	resources.DeviceRequests = append(resources.DeviceRequests, deviceRequestsFromCompose(service.Gpus, "gpu")...)
+	resources.DeviceReservations = append(resources.DeviceReservations, deviceReservationsFromCompose(service.Gpus, "gpu")...)
 
 	// Map resources from deploy section if specified.
 	if service.Deploy != nil {
@@ -144,16 +144,16 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 				resources.MemoryReservation = int64(service.Deploy.Resources.Reservations.MemoryBytes)
 			}
 			// Handle arbitrary device reservations (same structure as Gpus above).
-			resources.DeviceRequests = append(resources.DeviceRequests, deviceRequestsFromCompose(service.Deploy.Resources.Reservations.Devices)...)
+			resources.DeviceReservations = append(resources.DeviceReservations, deviceReservationsFromCompose(service.Deploy.Resources.Reservations.Devices)...)
 		}
 	}
 
 	return resources
 }
 
-// deviceRequestsFromCompose converts compose-go DeviceRequest format to Docker API DeviceRequest format.
+// Converts compose-go DeviceRequest format to Docker API DeviceRequest format.
 // Additional capabilities can be appended via extraCapabilities (e.g., "gpu" for service.Gpus).
-func deviceRequestsFromCompose(devices []types.DeviceRequest, extraCapabilities ...string) []container.DeviceRequest {
+func deviceReservationsFromCompose(devices []types.DeviceRequest, extraCapabilities ...string) []container.DeviceRequest {
 	if devices == nil {
 		return nil
 	}

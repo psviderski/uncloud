@@ -611,7 +611,7 @@ func (s *Server) CreateServiceContainer(
 			NanoCPUs:          spec.Container.Resources.CPU,
 			Memory:            spec.Container.Resources.Memory,
 			MemoryReservation: spec.Container.Resources.MemoryReservation,
-			DeviceRequests:    spec.Container.Resources.DeviceRequests,
+			DeviceRequests:    spec.Container.Resources.DeviceReservations,
 		},
 		// Restart service containers if they exit or a machine restarts unless they are explicitly stopped.
 		// For one-off containers and batch jobs we plan to use a different service type/mode.

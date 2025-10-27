@@ -616,8 +616,8 @@ services:
 			spec, err := ServiceSpecFromCompose(project, "ai")
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expectedDeviceReqs, spec.Container.Resources.DeviceRequests,
-				"DeviceRequests should match expected")
+			assert.Equal(t, tt.expectedDeviceReqs, spec.Container.Resources.DeviceReservations,
+				"DeviceReservations should match expected")
 		})
 	}
 }

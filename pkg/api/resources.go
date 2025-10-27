@@ -17,6 +17,6 @@ type ContainerResources struct {
 	// MemoryReservation is the minimum amount of memory (in bytes) the container needs to run efficiently.
 	// TODO: implement a placement constraint that checks available memory on machines.
 	MemoryReservation int64
-	// DeviceRequests for access to things like GPUs
-	DeviceRequests []container.DeviceRequest
+	// Device reservations/requests for access to things like GPUs
+	DeviceReservations []container.DeviceRequest
 }
