@@ -8,12 +8,14 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 const (
@@ -40,7 +42,9 @@ type Resolver interface {
 // to upstream DNS servers.
 type Server struct {
 	listenAddr      netip.Addr
+	localSubnet     netip.Prefix
 	resolver        Resolver
+	resolvedCount   int
 	upstreamServers []netip.AddrPort
 
 	udpServer        *dns.Server
@@ -53,7 +57,8 @@ type Server struct {
 // NewServer creates a new DNS server with the given configuration.
 // If upstreams is nil, nameservers from /etc/resolv.conf will be used. An empty upstreams list means to only resolve
 // internal DNS queries and not forward any external queries.
-func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrPort) (*Server, error) {
+func NewServer(localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort) (*Server, error) {
+	var listenAddr = network.MachineIP(localSubnet)
 	if !listenAddr.IsValid() {
 		return nil, fmt.Errorf("invalid listen address: %s", listenAddr)
 	}
@@ -87,6 +92,8 @@ func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrP
 
 	return &Server{
 		listenAddr:       listenAddr,
+		localSubnet:      localSubnet,
+		resolvedCount:    0,
 		resolver:         resolver,
 		upstreamServers:  upstreams,
 		forwardSemaphore: make(chan struct{}, maxConcurrentForwards),
@@ -287,7 +294,7 @@ func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
 // handleAQuery processes an A query for the internal domain and returns A records for the requested name.
 // The internal domain suffix is already stripped from the name. An empty list is returned if no records are found.
 func (s *Server) handleAQuery(name string) []dns.RR {
-	serviceName := trimInternalDomain(name)
+	serviceName, mode := extractModeFromDomain(trimInternalDomain(name))
 	ips := s.resolver.Resolve(serviceName)
 	if len(ips) == 0 {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
@@ -296,10 +303,24 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
 
 	if len(ips) > 1 {
-		// TODO: sort by proximity to the requesting container/machine. For now, just shuffle the IPs.
+		// Shuffle the IPs to approximate a round-robin distribution.
 		rand.Shuffle(len(ips), func(i, j int) {
 			ips[i], ips[j] = ips[j], ips[i]
 		})
+		// if name was "nearest.{service}", move any machine-local IPs to the top
+		// TODO: sort by proximity/latency to the requesting container/machine.
+		if mode == "nearest" {
+			slices.SortFunc(ips, func(a, b netip.Addr) int {
+				aIsLocal := s.localSubnet.Contains(a)
+				bIsLocal := s.localSubnet.Contains(b)
+				if aIsLocal && !bIsLocal {
+					return -1
+				} else if bIsLocal && !aIsLocal {
+					return 1
+				}
+				return 0
+			})
+		}
 	}
 
 	// Create A records for each IP.
@@ -344,4 +365,14 @@ func trimInternalDomain(name string) string {
 	}
 
 	return strings.TrimSuffix(name, "."+InternalDomain)
+}
+
+func extractModeFromDomain(name string) (string, string) {
+	modes := []string {"nearest"}
+	for _, mode := range modes {
+		if cut, found := strings.CutPrefix(name, mode + "."); found {
+			return cut, mode
+		}
+	}
+	return name, ""
 }
