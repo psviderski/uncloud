@@ -16,6 +16,7 @@ The following table shows the support status for main Compose features:
 | `entrypoint`       | ✅ Supported        | Override container entrypoint                                                         |
 | `env_file`         | ✅ Supported        | Environment file                                                                      |
 | `environment`      | ✅ Supported        | Environment variables                                                                 |
+| `gpus`             | ✅ Supported        | GPU device access                                                                     |
 | `image`            | ✅ Supported        | Container image specification                                                         |
 | `init`             | ✅ Supported        | Run init process in container                                                         |
 | `labels`           | ❌ Not supported    |                                                                                       |
@@ -39,7 +40,7 @@ The following table shows the support status for main Compose features:
 | `mode`             | ✅ Supported        | Either `global` or `replicated`                                                       |
 | `placement`        | ❌ Not supported    | Use `x-machines` extension                                                            |
 | `replicas`         | ✅ Supported        | Number of container replicas                                                          |
-| `resources`        | ⚠️ Limited         | CPU and memory limits only                                                            |
+| `resources`        | ⚠️ Limited         | CPU, memory limits and device reservations                                            |
 | `restart_policy`   | ❌ Not supported    | Defaults to `unless-stopped`                                                          |
 | **Volumes**        |                    |                                                                                       |
 | Named volumes      | ✅ Supported        | Docker volumes                                                                        |
