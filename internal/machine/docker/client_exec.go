@@ -21,25 +21,11 @@ type ExecConfig struct {
 	ContainerID string
 	// Exec configuration.
 	Options api.ExecOptions
-	// Stdin, Stdout, Stderr streams. If nil, os.Stdin/Stdout/Stderr will be used.
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
 }
 
 // ExecContainer executes a command in a running container with bidirectional streaming.
+// TODO: This can be merged with pkg/client as it's an unneccessary logic split.
 func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error) {
-	// Use os.Std* if streams are not provided
-	if opts.Stdin == nil {
-		opts.Stdin = os.Stdin
-	}
-	if opts.Stdout == nil {
-		opts.Stdout = os.Stdout
-	}
-	if opts.Stderr == nil {
-		opts.Stderr = os.Stderr
-	}
-
 	// Marshal the exec config
 	configBytes, err := json.Marshal(opts.Options)
 	if err != nil {
@@ -85,7 +71,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error
 	var oldState *term.State
 	if opts.Options.AttachStdin && opts.Options.Tty {
 		// Check if stdin is a terminal
-		if inFd, isTerminal := term.GetFdInfo(opts.Stdin); isTerminal {
+		if inFd, isTerminal := term.GetFdInfo(os.Stdin); isTerminal {
 			oldState, err = term.SetRawTerminal(inFd)
 			if err != nil {
 				return -1, fmt.Errorf("set raw terminal: %w", err)
@@ -154,7 +140,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error
 			go func() {
 				buf := make([]byte, 32*1024) // 32KB buffer
 				for {
-					n, err := opts.Stdin.Read(buf)
+					n, err := os.Stdin.Read(buf)
 					if n > 0 {
 						data := make([]byte, n)
 						copy(data, buf[:n])
@@ -215,12 +201,12 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error
 				// This is sent first, we already processed it earlier
 				// Just ignore duplicates
 			case *pb.ExecContainerResponse_Stdout:
-				if _, err := opts.Stdout.Write(payload.Stdout); err != nil {
+				if _, err := os.Stdout.Write(payload.Stdout); err != nil {
 					errCh <- fmt.Errorf("write stdout: %w", err)
 					return
 				}
 			case *pb.ExecContainerResponse_Stderr:
-				if _, err := opts.Stderr.Write(payload.Stderr); err != nil {
+				if _, err := os.Stderr.Write(payload.Stderr); err != nil {
 					errCh <- fmt.Errorf("write stderr: %w", err)
 					return
 				}
