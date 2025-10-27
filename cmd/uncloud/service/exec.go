@@ -16,6 +16,7 @@ type execCliOptions struct {
 	interactive bool
 	noTty       bool
 	context     string
+	containerId string
 }
 
 var DEFAULT_COMMAND = []string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"}
@@ -68,6 +69,10 @@ func NewExecCommand() *cobra.Command {
 	execCmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context. (default is the current context)")
 
+	// Common flags
+	execCmd.Flags().StringVar(&opts.containerId, "container", "",
+		"ID of the container to exec into (default is the random container of the service)")
+
 	// This tells Cobra that all flags must come before positional arguments, so that
 	// commands with their own flags can be handled correctly.
 	execCmd.Flags().SetInterspersed(false)
@@ -104,8 +109,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		execConfig.AttachStderr = true
 	}
 
-	// Execute the command in the first container of the service
-	exitCode, err := client.ExecContainer(ctx, serviceName, "", execConfig)
+	exitCode, err := client.ExecContainer(ctx, serviceName, opts.containerId, execConfig)
 	if err != nil {
 		return fmt.Errorf("exec container: %w", err)
 	}

@@ -303,7 +303,7 @@ func (cli *Client) ExecContainer(
 	var ctr api.MachineServiceContainer
 
 	if containerNameOrID == "" {
-		// Find the first container in the service
+		// Find the first (random) container in the service
 		service, err := cli.InspectService(ctx, serviceNameOrID)
 		if err != nil {
 			return -1, fmt.Errorf("inspect service: %w", err)
@@ -317,7 +317,7 @@ func (cli *Client) ExecContainer(
 		var err error
 		ctr, err = cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("inspect container: %w", err)
 		}
 	}
 
