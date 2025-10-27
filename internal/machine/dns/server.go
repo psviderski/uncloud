@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/psviderski/uncloud/internal/machine/network"
 )
 
 const (
@@ -57,8 +56,7 @@ type Server struct {
 // NewServer creates a new DNS server with the given configuration.
 // If upstreams is nil, nameservers from /etc/resolv.conf will be used. An empty upstreams list means to only resolve
 // internal DNS queries and not forward any external queries.
-func NewServer(localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort) (*Server, error) {
-	var listenAddr = network.MachineIP(localSubnet)
+func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort) (*Server, error) {
 	if !listenAddr.IsValid() {
 		return nil, fmt.Errorf("invalid listen address: %s", listenAddr)
 	}
@@ -300,26 +298,33 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
 		return nil
 	}
-	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
+	s.resolvedCount += 1
+	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips, "resolved", s.resolvedCount)
 
 	if len(ips) > 1 {
-		// Shuffle the IPs to approximate a round-robin distribution.
-		rand.Shuffle(len(ips), func(i, j int) {
-			ips[i], ips[j] = ips[j], ips[i]
-		})
-		// if name was "nearest.{service}", move any machine-local IPs to the top
-		// TODO: sort by proximity/latency to the requesting container/machine.
-		if mode == "nearest" {
-			slices.SortFunc(ips, func(a, b netip.Addr) int {
-				aIsLocal := s.localSubnet.Contains(a)
-				bIsLocal := s.localSubnet.Contains(b)
-				if aIsLocal && !bIsLocal {
-					return -1
-				} else if bIsLocal && !aIsLocal {
-					return 1
-				}
-				return 0
+		if mode == "rr" {
+			// Round-robin order of IPs.
+			pivot := s.resolvedCount % len(ips)
+			ips = append(ips[pivot:], ips[:pivot]...)
+		} else {
+			// Shuffle the IPs to avoid always returning the order. TODO: should we just use round-robin as above here?
+			rand.Shuffle(len(ips), func(i, j int) {
+				ips[i], ips[j] = ips[j], ips[i]
 			})
+			// If name was "nearest.{service}", move any machine-local IPs to the top
+			// TODO: sort by proximity/latency to the requesting container/machine.
+			if mode == "nearest" {
+				slices.SortFunc(ips, func(a, b netip.Addr) int {
+					aIsLocal := s.localSubnet.Contains(a)
+					bIsLocal := s.localSubnet.Contains(b)
+					if aIsLocal && !bIsLocal {
+						return -1
+					} else if bIsLocal && !aIsLocal {
+						return 1
+					}
+					return 0
+				})
+			}
 		}
 	}
 
@@ -368,9 +373,9 @@ func trimInternalDomain(name string) string {
 }
 
 func extractModeFromDomain(name string) (string, string) {
-	modes := []string {"nearest"}
+	modes := []string{"nearest", "rr"}
 	for _, mode := range modes {
-		if cut, found := strings.CutPrefix(name, mode + "."); found {
+		if cut, found := strings.CutPrefix(name, mode+"."); found {
 			return cut, mode
 		}
 	}

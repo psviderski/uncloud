@@ -431,6 +431,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 			dnsResolver := dns.NewClusterResolver(m.store)
 			dnsServer, err := dns.NewServer(
+				m.IP(),
 				m.state.Network.Subnet,
 				dnsResolver,
 				m.config.DNSUpstreams,
