@@ -83,11 +83,17 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		}
 	}
 
+	// Device reservations are immutable, so we'll need to recreate if any have changed
+	if !reflect.DeepEqual(current.Container.Resources.DeviceReservations, newResources.DeviceReservations) {
+		return ContainerNeedsRecreate
+	}
+
 	// Check if any mutable properties changed.
 	if !current.Caddy.Equals(new.Caddy) {
 		return ContainerNeedsRecreate
 	}
 
+	// Remaining resources are mutable.
 	if !reflect.DeepEqual(current.Container.Resources, newResources) {
 		return ContainerNeedsUpdate
 	}
