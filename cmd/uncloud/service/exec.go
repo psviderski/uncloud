@@ -85,6 +85,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		// Check if we're trying to attach to a TTY from a non-TTY client, e.g.
 		// when doing an 'cmd | uc exec ...'
 		stdin := streams.NewIn(os.Stdin)
+		// TODO: this logic/behavior mirrors docker-compose, but we can be smarter about it and detect TTY dynamically
 		if err := stdin.CheckTty(opts.interactive, !opts.noTty); err != nil {
 			return fmt.Errorf("check TTY: %w; use -T option to disable TTY allocation", err)
 		}

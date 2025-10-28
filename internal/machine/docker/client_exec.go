@@ -24,7 +24,7 @@ type ExecConfig struct {
 }
 
 // ExecContainer executes a command in a running container with bidirectional streaming.
-// TODO: This can be merged with pkg/client as it's an unneccessary logic split.
+// TODO: This can be merged with pkg/client as it's an unnecessary logic split.
 func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error) {
 	// Marshal the exec config
 	configBytes, err := json.Marshal(opts.Options)
