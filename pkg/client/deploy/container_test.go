@@ -3,6 +3,7 @@ package deploy
 import (
 	"testing"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
@@ -1350,6 +1351,398 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 	}
 }
 
+func TestEvalContainerSpecChange_DeviceReservations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current api.ContainerResources
+		new     api.ContainerResources
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "empty",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "both nil",
+			current: api.ContainerResources{DeviceReservations: nil},
+			new:     api.ContainerResources{DeviceReservations: nil},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "both empty",
+			current: api.ContainerResources{DeviceReservations: []container.DeviceRequest{}},
+			new:     api.ContainerResources{DeviceReservations: []container.DeviceRequest{}},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "set GPU request",
+			current: api.ContainerResources{},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        -1, // all
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "unset GPU request",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        -1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			new:  api.ContainerResources{},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "identical GPU request",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						Capabilities: [][]string{{"gpu", "compute"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						Capabilities: [][]string{{"gpu", "compute"}},
+					},
+				},
+			},
+			want: ContainerUpToDate,
+		},
+		{
+			name: "change GPU count",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        2,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "change GPU driver",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "amd",
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "change device IDs",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						DeviceIDs:    []string{"0"},
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						DeviceIDs:    []string{"0", "1"},
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "change capabilities",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu", "compute"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "set options",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+						Options: map[string]string{
+							"key": "value",
+						},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "change options",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+						Options: map[string]string{
+							"key": "value1",
+						},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+						Options: map[string]string{
+							"key": "value2",
+						},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "unset options",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+						Options: map[string]string{
+							"key": "value",
+						},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "add device request",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+					{
+						Count:        1,
+						Capabilities: [][]string{{"tpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "remove device request",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+					{
+						Count:        1,
+						Capabilities: [][]string{{"tpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "multiple identical device requests",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						Capabilities: [][]string{{"gpu", "compute"}},
+					},
+					{
+						Count:        1,
+						Capabilities: [][]string{{"tpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						Capabilities: [][]string{{"gpu", "compute"}},
+					},
+					{
+						Count:        1,
+						Capabilities: [][]string{{"tpu"}},
+					},
+				},
+			},
+			want: ContainerUpToDate,
+		},
+		{
+			name: "reordered device requests",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						Capabilities: [][]string{{"gpu"}},
+					},
+					{
+						Count:        1,
+						Capabilities: [][]string{{"tpu"}},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Count:        1,
+						Capabilities: [][]string{{"tpu"}},
+					},
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						Capabilities: [][]string{{"gpu"}},
+					},
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "complex GPU configuration identical",
+			current: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						DeviceIDs:    []string{"0", "1"},
+						Capabilities: [][]string{{"gpu", "compute", "utility"}},
+						Options: map[string]string{
+							"runtime": "nvidia",
+							"compute": "exclusive",
+						},
+					},
+				},
+			},
+			new: api.ContainerResources{
+				DeviceReservations: []container.DeviceRequest{
+					{
+						Driver:       "nvidia",
+						Count:        2,
+						DeviceIDs:    []string{"0", "1"},
+						Capabilities: [][]string{{"gpu", "compute", "utility"}},
+						Options: map[string]string{
+							"runtime": "nvidia",
+							"compute": "exclusive",
+						},
+					},
+				},
+			},
+			want: ContainerUpToDate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nvidia/cuda:latest",
+					Resources: tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nvidia/cuda:latest",
+					Resources: tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 	t.Parallel()
 
@@ -1395,6 +1788,32 @@ func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 						CPU: 1000000000,
 					},
 					User: "root",
+				},
+			},
+			want: ContainerNeedsRecreate,
+		},
+		{
+			name: "mutable memory change with immutable device reservation change",
+			current: api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nvidia/cuda:latest",
+					Resources: api.ContainerResources{
+						Memory: 100 * 1024 * 1024,
+					},
+				},
+			},
+			new: api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nvidia/cuda:latest",
+					Resources: api.ContainerResources{
+						Memory: 200 * 1024 * 1024,
+						DeviceReservations: []container.DeviceRequest{
+							{
+								Count:        1,
+								Capabilities: [][]string{{"gpu"}},
+							},
+						},
+					},
 				},
 			},
 			want: ContainerNeedsRecreate,

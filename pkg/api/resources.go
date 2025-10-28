@@ -1,5 +1,9 @@
 package api
 
+import (
+	"github.com/docker/docker/api/types/container"
+)
+
 const (
 	MilliCore = 1_000_000
 	Core      = 1000 * MilliCore
@@ -13,4 +17,6 @@ type ContainerResources struct {
 	// MemoryReservation is the minimum amount of memory (in bytes) the container needs to run efficiently.
 	// TODO: implement a placement constraint that checks available memory on machines.
 	MemoryReservation int64
+	// Device reservations/requests for access to things like GPUs
+	DeviceReservations []container.DeviceRequest
 }
