@@ -209,6 +209,7 @@ func (cli *Client) InspectContainer(
 		return api.MachineServiceContainer{}, fmt.Errorf("inspect service: %w", err)
 	}
 
+	// TODO: support matching by any prefix of the container ID
 	for _, c := range svc.Containers {
 		if c.Container.ID == containerNameOrID ||
 			c.Container.Name == containerNameOrID ||
