@@ -8,11 +8,12 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"sync"
 
 	"github.com/moby/term"
+	"github.com/psviderski/uncloud/internal/log"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 )
 
@@ -98,9 +99,118 @@ func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_Ex
 	return nil
 }
 
+// handleStdinStream reads from stdin and sends data to the exec stream.
+// It manages the stdin reading goroutine and handles context cancellation.
+func handleStdinStream(ctx context.Context, stream pb.Docker_ExecContainerClient) error {
+	slog.Debug("starting stdin stream handler")
+
+	defer stream.CloseSend()
+
+	// Channel to receive stdin data
+	stdinCh := make(chan []byte)
+
+	stdinErrCh := make(chan error, 1)
+
+	// Read from stdin in a separate goroutine
+	// Note: this goroutine may continue blocking on Read even after we exit,
+	// but that's OK - it will eventually unblock when data arrives or stdin closes
+	go func() {
+		buf := make([]byte, 32*1024) // 32KB buffer
+		for {
+			n, err := os.Stdin.Read(buf)
+			if n > 0 {
+				slog.Debug("read from stdin", "bytes", n)
+				data := make([]byte, n)
+				copy(data, buf[:n])
+				select {
+				case stdinCh <- data:
+				case <-ctx.Done():
+					slog.Debug("stdin reader exiting due to context done")
+					return
+				}
+			}
+			if err != nil {
+				if err == io.EOF {
+					slog.Debug("stdin: EOF received")
+				} else {
+					slog.Debug("stdin read error", "error", err)
+				}
+				stdinErrCh <- err
+				return
+			}
+		}
+	}()
+
+	// Send stdin data or exit when context is cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case data := <-stdinCh:
+			if err := stream.Send(&pb.ExecContainerRequest{
+				Payload: &pb.ExecContainerRequest_Stdin{Stdin: data},
+			}); err != nil {
+				return fmt.Errorf("send stdin: %w", err)
+			}
+		case err := <-stdinErrCh:
+			if err != io.EOF {
+				return fmt.Errorf("read stdin: %w", err)
+			}
+			return nil
+		}
+	}
+}
+
+// handleOutputStream receives output from the exec stream and writes to stdout/stderr.
+// It also captures the exit code and signals completion via context cancellation.
+func handleOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, exitCode *int) error {
+	slog.Debug("starting output stream handler")
+
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			slog.Debug("output stream: EOF received")
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("receive from stream: %w", err)
+		}
+
+		switch payload := resp.Payload.(type) {
+		case *pb.ExecContainerResponse_ExecId:
+			// This is sent first; we already processed it earlier, so just ignore duplicates.
+		case *pb.ExecContainerResponse_Stdout:
+			if _, err := os.Stdout.Write(payload.Stdout); err != nil {
+				return fmt.Errorf("write stdout: %w", err)
+			}
+		case *pb.ExecContainerResponse_Stderr:
+			if _, err := os.Stderr.Write(payload.Stderr); err != nil {
+				return fmt.Errorf("write stderr: %w", err)
+			}
+		case *pb.ExecContainerResponse_ExitCode:
+			slog.Debug("received exit code", "code", payload.ExitCode)
+			*exitCode = int(payload.ExitCode)
+			return nil
+		case *pb.ExecContainerResponse_Error:
+			return fmt.Errorf("exec error: %s", payload.Error)
+		}
+	}
+}
+
 // ExecContainer executes a command in a running container with bidirectional streaming.
 // TODO: This can be merged with pkg/client as it's an unnecessary logic split.
-func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error) {
+func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode int, err error) {
+
+	// TMP
+	logger := slog.New(log.NewSlogTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	slog.SetDefault(logger)
+
+	// TMP
+
+	slog.Debug("starting ExecContainer", "containerID", opts.ContainerID, "options", opts.Options)
+
 	// Marshal the exec config
 	configBytes, err := json.Marshal(opts.Options)
 	if err != nil {
@@ -135,8 +245,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error
 		return -1, fmt.Errorf("expected exec ID in first response")
 	}
 
-	var exitCode int
-	errCh := make(chan error, 2) // Max 2 concurrent goroutines (stdin + output)
+	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Create cancellable context for goroutine coordination
 	ctx, cancel := context.WithCancel(ctx)
@@ -153,118 +262,25 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error
 		}
 	}
 
-	var wg sync.WaitGroup
-
-	// Goroutine to read from stdin and send to stream
+	// Handle stdin stream if needed
 	if opts.Options.AttachStdin {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer stream.CloseSend()
+		errGroup.Go(func() error {
+			return handleStdinStream(ctx, stream)
+		})
+	} else {
+		// Close send direction immediately if not attaching stdin
+		stream.CloseSend()
+	}
 
-			// Channel to receive stdin data
-			stdinCh := make(chan []byte)
-			stdinErrCh := make(chan error, 1)
-
-			// Read from stdin in a separate goroutine
-			// Note: this goroutine may continue blocking on Read even after we exit,
-			// but that's OK - it will eventually unblock when data arrives or stdin closes
-			go func() {
-				buf := make([]byte, 32*1024) // 32KB buffer
-				for {
-					n, err := os.Stdin.Read(buf)
-					if n > 0 {
-						data := make([]byte, n)
-						copy(data, buf[:n])
-						select {
-						case stdinCh <- data:
-						case <-ctx.Done():
-							return
-						}
-					}
-					if err != nil {
-						stdinErrCh <- err
-						return
-					}
-				}
-			}()
-
-			// Send stdin data or exit when context is cancelled
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case data := <-stdinCh:
-					if err := stream.Send(&pb.ExecContainerRequest{
-						Payload: &pb.ExecContainerRequest_Stdin{Stdin: data},
-					}); err != nil {
-						return
-					}
-				case err := <-stdinErrCh:
-					if err != io.EOF {
-						errCh <- fmt.Errorf("read stdin: %w", err)
-					}
-					return
-				}
-			}
+	// Handle output streams (stdout/stderr)
+	errGroup.Go(func() error {
+		defer cancel()
+		defer func() {
+			slog.Debug("output stream handler exiting")
 		}()
-	}
-	// Note: We don't call CloseSend() for non-interactive mode.
-	// The stream will be closed when this function returns.
-	// Calling CloseSend() early can cause the server's context to be canceled prematurely.
+		return handleOutputStream(ctx, stream, &exitCode)
+	})
 
-	// Goroutine to receive from stream and write to stdout/stderr
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				errCh <- fmt.Errorf("receive from stream: %w", err)
-				return
-			}
-
-			switch payload := resp.Payload.(type) {
-			case *pb.ExecContainerResponse_ExecId:
-				// This is sent first, we already processed it earlier
-				// Just ignore duplicates
-			case *pb.ExecContainerResponse_Stdout:
-				if _, err := os.Stdout.Write(payload.Stdout); err != nil {
-					errCh <- fmt.Errorf("write stdout: %w", err)
-					return
-				}
-			case *pb.ExecContainerResponse_Stderr:
-				if _, err := os.Stderr.Write(payload.Stderr); err != nil {
-					errCh <- fmt.Errorf("write stderr: %w", err)
-					return
-				}
-			case *pb.ExecContainerResponse_ExitCode:
-				exitCode = int(payload.ExitCode)
-				// Cancel context to stop stdin reader if it's still running
-				cancel()
-				// Return immediately after getting exit code to avoid waiting
-				return
-			case *pb.ExecContainerResponse_Error:
-				errCh <- fmt.Errorf("exec error: %s", payload.Error)
-				return
-			}
-		}
-	}()
-
-	// Wait for all goroutines to complete
-	// The output goroutine will complete when it receives the exit code from the server
-	// The stdin goroutine (if running) may be blocked on Read(), but cancel() signals it to stop
-	wg.Wait()
-
-	// Check if any goroutine reported an error
-	select {
-	case err := <-errCh:
-		return exitCode, err
-	default:
-		return exitCode, nil
-	}
+	err = errGroup.Wait()
+	return exitCode, err
 }
