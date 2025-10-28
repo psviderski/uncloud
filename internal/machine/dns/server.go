@@ -43,7 +43,6 @@ type Server struct {
 	listenAddr      netip.Addr
 	localSubnet     netip.Prefix
 	resolver        Resolver
-	resolvedCount   int
 	upstreamServers []netip.AddrPort
 
 	udpServer        *dns.Server
@@ -91,7 +90,6 @@ func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolve
 	return &Server{
 		listenAddr:       listenAddr,
 		localSubnet:      localSubnet,
-		resolvedCount:    0,
 		resolver:         resolver,
 		upstreamServers:  upstreams,
 		forwardSemaphore: make(chan struct{}, maxConcurrentForwards),
@@ -298,33 +296,30 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
 		return nil
 	}
-	s.resolvedCount += 1
-	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips, "resolved", s.resolvedCount)
+	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
 
 	if len(ips) > 1 {
-		if mode == "rr" {
-			// Round-robin order of IPs.
-			pivot := s.resolvedCount % len(ips)
-			ips = append(ips[pivot:], ips[:pivot]...)
-		} else {
-			// Shuffle the IPs to avoid always returning the order. TODO: should we just use round-robin as above here?
-			rand.Shuffle(len(ips), func(i, j int) {
-				ips[i], ips[j] = ips[j], ips[i]
+		// Shuffle the IPs to approximate round-robin.
+		// We want to do this as a baseline for "nearest" mode, as well.
+		rand.Shuffle(len(ips), func(i, j int) {
+			ips[i], ips[j] = ips[j], ips[i]
+		})
+
+		// Default (mode == "") currently behaves the same as round-robin,
+		// and nothing additional to do for round-robin (mode == "rr").
+
+		if mode == "nearest" {
+			// Sort IPs on local subnet to the top.
+			slices.SortFunc(ips, func(a, b netip.Addr) int {
+				aIsLocal := s.localSubnet.Contains(a)
+				bIsLocal := s.localSubnet.Contains(b)
+				if aIsLocal && !bIsLocal {
+					return -1
+				} else if bIsLocal && !aIsLocal {
+					return 1
+				}
+				return 0
 			})
-			// If name was "nearest.{service}", move any machine-local IPs to the top
-			// TODO: sort by proximity/latency to the requesting container/machine.
-			if mode == "nearest" {
-				slices.SortFunc(ips, func(a, b netip.Addr) int {
-					aIsLocal := s.localSubnet.Contains(a)
-					bIsLocal := s.localSubnet.Contains(b)
-					if aIsLocal && !bIsLocal {
-						return -1
-					} else if bIsLocal && !aIsLocal {
-						return 1
-					}
-					return 0
-				})
-			}
 		}
 	}
 
