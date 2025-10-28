@@ -58,9 +58,9 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 		machinesNamesByID[m.Machine.Id] = m.Machine.Name
 	}
 
-	fmt.Printf("ID:    %s\n", svc.ID)
-	fmt.Printf("Name:  %s\n", svc.Name)
-	fmt.Printf("Mode:  %s\n", svc.Mode)
+	fmt.Printf("Service ID: %s\n", svc.ID)
+	fmt.Printf("Name:       %s\n", svc.Name)
+	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 
 	// Print the list of containers in a table format.
