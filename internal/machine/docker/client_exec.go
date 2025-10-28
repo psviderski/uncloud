@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -21,6 +22,80 @@ type ExecConfig struct {
 	ContainerID string
 	// Exec configuration.
 	Options api.ExecOptions
+}
+
+// sendResizeRequest sends a terminal resize request to the exec stream.
+func sendResizeRequest(stream pb.Docker_ExecContainerClient, size *term.Winsize) error {
+	slog.Debug("sending resize request", "width", size.Width, "height", size.Height)
+	return stream.Send(
+		&pb.ExecContainerRequest{
+			Payload: &pb.ExecContainerRequest_Resize{
+				Resize: &pb.ResizeEvent{
+					Height: uint32(size.Height),
+					Width:  uint32(size.Width),
+				},
+			},
+		})
+}
+
+// setupTerminal configures the terminal for interactive TTY sessions.
+// It checks if stdin is a terminal, sets it to raw mode, and sets up resize handling.
+// Returns a cleanup function to restore terminal state, or an error.
+func setupTerminal(ctx context.Context, stream pb.Docker_ExecContainerClient) (func(), error) {
+	inFd, isTerminal := term.GetFdInfo(os.Stdin)
+	if !isTerminal {
+		return nil, fmt.Errorf("stdin is not a terminal")
+	}
+
+	// Set terminal to raw mode
+	oldState, err := term.SetRawTerminal(inFd)
+	if err != nil {
+		return nil, fmt.Errorf("set raw terminal: %w", err)
+	}
+
+	// Cleanup function
+	restoreFunc := func() {
+		_ = term.RestoreTerminal(inFd, oldState)
+	}
+
+	// Set up resize handling
+	if err := handleTerminalResize(ctx, inFd, stream); err != nil {
+		restoreFunc()
+		return nil, err
+	}
+
+	return restoreFunc, nil
+}
+
+// handleTerminalResize sends initial window size and handles window resize signals for TTY sessions.
+func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_ExecContainerClient) error {
+	// Handle window resize signals
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, unix.SIGWINCH)
+
+	// Send initial window size
+	if size, err := term.GetWinsize(inFd); err == nil {
+		_ = sendResizeRequest(stream, size)
+	}
+
+	go func() {
+		defer signal.Stop(sigCh)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sigCh:
+				size, err := term.GetWinsize(inFd)
+				if err != nil {
+					slog.Debug("get window size", "error", err)
+					continue
+				}
+				_ = sendResizeRequest(stream, size)
+			}
+		}
+	}()
+
+	return nil
 }
 
 // ExecContainer executes a command in a running container with bidirectional streaming.
@@ -68,56 +143,13 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (int, error
 	defer cancel()
 
 	// Handle terminal setup for interactive sessions
-	var oldState *term.State
 	if opts.Options.AttachStdin && opts.Options.Tty {
-		// Check if stdin is a terminal
-		if inFd, isTerminal := term.GetFdInfo(os.Stdin); isTerminal {
-			oldState, err = term.SetRawTerminal(inFd)
-			if err != nil {
-				return -1, fmt.Errorf("set raw terminal: %w", err)
-			}
-			defer func() {
-				_ = term.RestoreTerminal(inFd, oldState)
-			}()
-
-			// Handle window resize signals
-			sigCh := make(chan os.Signal, 1)
-			signal.Notify(sigCh, unix.SIGWINCH)
-			defer signal.Stop(sigCh)
-
-			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-sigCh:
-						size, err := term.GetWinsize(inFd)
-						if err != nil {
-							continue
-						}
-						_ = stream.Send(&pb.ExecContainerRequest{
-							Payload: &pb.ExecContainerRequest_Resize{
-								Resize: &pb.ResizeEvent{
-									Height: uint32(size.Height),
-									Width:  uint32(size.Width),
-								},
-							},
-						})
-					}
-				}
-			}()
-
-			// Send initial window size
-			if size, err := term.GetWinsize(inFd); err == nil {
-				_ = stream.Send(&pb.ExecContainerRequest{
-					Payload: &pb.ExecContainerRequest_Resize{
-						Resize: &pb.ResizeEvent{
-							Height: uint32(size.Height),
-							Width:  uint32(size.Width),
-						},
-					},
-				})
-			}
+		restoreTerminal, err := setupTerminal(ctx, stream)
+		if err != nil {
+			return -1, fmt.Errorf("setup terminal: %w", err)
+		}
+		if restoreTerminal != nil {
+			defer restoreTerminal()
 		}
 	}
 
