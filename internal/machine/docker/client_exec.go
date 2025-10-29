@@ -99,9 +99,9 @@ func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_Ex
 	return nil
 }
 
-// handleStdinStream reads from stdin and sends data to the exec stream.
+// handleClientInputStream reads from stdin and sends data to the exec stream.
 // It manages the stdin reading goroutine and handles context cancellation.
-func handleStdinStream(ctx context.Context, stream pb.Docker_ExecContainerClient) error {
+func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainerClient) error {
 	slog.Debug("starting stdin stream handler")
 
 	defer stream.CloseSend()
@@ -161,9 +161,9 @@ func handleStdinStream(ctx context.Context, stream pb.Docker_ExecContainerClient
 	}
 }
 
-// handleOutputStream receives output from the exec stream and writes to stdout/stderr.
+// handleClientOutputStream receives output from the exec stream and writes to stdout/stderr.
 // It also captures the exit code and signals completion via context cancellation.
-func handleOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, exitCode *int) error {
+func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, exitCode *int) error {
 	slog.Debug("starting output stream handler")
 
 	for {
@@ -201,13 +201,18 @@ func handleOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClien
 // TODO: This can be merged with pkg/client as it's an unnecessary logic split.
 func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode int, err error) {
 
-	// TMP
+	// TMP; TODO: remove
 	logger := slog.New(log.NewSlogTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
 	slog.SetDefault(logger)
 
 	// TMP
+
+	// TODO: We need to handle Ctrl-C and other signals here to forward them to the container process.
+	// Right now, Ctrl-C will just terminate the client process, which is not ideal.
+	// We should catch the signal, send it to the container process, and only exit
+	// when the container process exits.
 
 	slog.Debug("starting ExecContainer", "containerID", opts.ContainerID, "options", opts.Options)
 
@@ -265,7 +270,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 	// Handle stdin stream if needed
 	if opts.Options.AttachStdin {
 		errGroup.Go(func() error {
-			return handleStdinStream(ctx, stream)
+			return handleClientInputStream(ctx, stream)
 		})
 	} else {
 		// Close send direction immediately if not attaching stdin
@@ -278,7 +283,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 		defer func() {
 			slog.Debug("output stream handler exiting")
 		}()
-		return handleOutputStream(ctx, stream, &exitCode)
+		return handleClientOutputStream(ctx, stream, &exitCode)
 	})
 
 	err = errGroup.Wait()
