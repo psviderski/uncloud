@@ -430,7 +430,12 @@ func (m *Machine) Run(ctx context.Context) error {
 			}
 
 			dnsResolver := dns.NewClusterResolver(m.store)
-			dnsServer, err := dns.NewServer(m.IP(), dnsResolver, m.config.DNSUpstreams)
+			dnsServer, err := dns.NewServer(
+				m.IP(),
+				m.state.Network.Subnet,
+				dnsResolver,
+				m.config.DNSUpstreams,
+			)
 			if err != nil {
 				return fmt.Errorf("create embedded DNS server: %w", err)
 			}
