@@ -17,6 +17,8 @@ import (
 
 type buildOptions struct {
 	buildArgs []string
+	check     bool
+	deps      bool
 	files     []string
 	noCache   bool
 	profiles  []string
@@ -44,10 +46,14 @@ func NewCBuildCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringArrayVar(&opts.buildArgs, "build-arg", nil,
-		"Set a build-time variable to pass to service Dockerfiles. Only used if declared with ARG.\n"+
+		"Set a build-time variable for services. Used in Dockerfiles that declare the variable with ARG.\n"+
 			"Can be specified multiple times. Format: --build-arg VAR=VALUE")
+	cmd.Flags().BoolVar(&opts.check, "check", false,
+		"Check the build configuration for services without building them.")
+	cmd.Flags().BoolVar(&opts.deps, "deps", false,
+		"Also build services declared as dependencies of the selected services.")
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
-		"One or more Compose files to build (default compose.yaml)")
+		"One or more Compose files to build. (default compose.yaml)")
 	cmd.Flags().BoolVar(&opts.noCache, "no-cache", false,
 		"Do not use cache when building images.")
 	cmd.Flags().StringSliceVarP(&opts.profiles, "profile", "p", nil,
@@ -60,32 +66,27 @@ func NewCBuildCommand() *cobra.Command {
 
 // projectOptsFromCBuildOpts returns the project options for the Compose file(s).
 func projectOptsFromCBuildOpts(opts buildOptions) []composecli.ProjectOptionsFn {
-	var projectOpts []composecli.ProjectOptionsFn
+	var projOpts []composecli.ProjectOptionsFn
 
 	if len(opts.profiles) > 0 {
-		projectOpts = append(projectOpts, composecli.WithDefaultProfiles(opts.profiles...))
+		projOpts = append(projOpts, composecli.WithDefaultProfiles(opts.profiles...))
 	}
 
-	return projectOpts
+	return projOpts
 }
 
 // runCBuild parses the Compose file(s) and builds the images for selected services.
 func runCBuild(ctx context.Context, _ *cli.CLI, opts buildOptions) error {
-	projectOpts := projectOptsFromCBuildOpts(opts)
-	project, err := compose.LoadProject(ctx, opts.files, projectOpts...)
+	projOpts := projectOptsFromCBuildOpts(opts)
+	project, err := compose.LoadProject(ctx, opts.files, projOpts...)
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
 
-	if len(opts.services) > 0 {
-		project, err = project.WithSelectedServices(opts.services)
-		if err != nil {
-			return fmt.Errorf("select services: %w", err)
-		}
+	servicesToBuild, err := cli.ServicesThatNeedBuild(project, opts.services, opts.deps)
+	if err != nil {
+		return fmt.Errorf("determine services to build: %w", err)
 	}
-
-	servicesToBuild := cli.GetServicesThatNeedBuild(project)
-
 	if len(servicesToBuild) == 0 {
 		fmt.Println("No services to build.")
 		return nil
@@ -105,6 +106,8 @@ func runCBuild(ctx context.Context, _ *cli.CLI, opts buildOptions) error {
 	composeService := composev2.NewComposeService(dockerCli)
 	buildOpts := composeapi.BuildOptions{
 		Args:     composetypes.NewMappingWithEquals(opts.buildArgs),
+		Check:    opts.check,
+		Deps:     opts.deps,
 		NoCache:  opts.noCache,
 		Pull:     opts.pull,
 		Services: opts.services,
@@ -113,8 +116,6 @@ func runCBuild(ctx context.Context, _ *cli.CLI, opts buildOptions) error {
 	if err = composeService.Build(ctx, project, buildOpts); err != nil {
 		return fmt.Errorf("build services: %w", err)
 	}
-
-	fmt.Println("Build completed successfully.")
 
 	return nil
 }

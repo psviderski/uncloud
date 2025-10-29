@@ -68,20 +68,20 @@ func NewDeployCommand() *cobra.Command {
 
 // projectOpts returns the project options for the Compose file(s).
 func projectOpts(opts deployOptions) []composecli.ProjectOptionsFn {
-	projectOpts := []composecli.ProjectOptionsFn{}
+	var projOpts []composecli.ProjectOptionsFn
 
 	if len(opts.profiles) > 0 {
-		projectOpts = append(projectOpts, composecli.WithDefaultProfiles(opts.profiles...))
+		projOpts = append(projOpts, composecli.WithDefaultProfiles(opts.profiles...))
 	}
 
-	return projectOpts
+	return projOpts
 }
 
 // runDeploy parses the Compose file(s) and deploys the services.
 func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
-	projectOpts := projectOpts(opts)
+	projOpts := projectOpts(opts)
 
-	project, err := compose.LoadProject(ctx, opts.files, projectOpts...)
+	project, err := compose.LoadProject(ctx, opts.files, projOpts...)
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
@@ -94,7 +94,10 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 	}
 
-	servicesToBuild := cli.GetServicesThatNeedBuild(project)
+	servicesToBuild, err := cli.ServicesThatNeedBuild(project, opts.services, false)
+	if err != nil {
+		return fmt.Errorf("determine services to build: %w", err)
+	}
 
 	if len(servicesToBuild) > 0 {
 		if opts.noBuild {

@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	composetypes "github.com/compose-spec/compose-go/v2/types"
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/distribution/reference"
 	"github.com/docker/cli/cli/config"
 	"github.com/docker/docker/api/types/build"
@@ -27,16 +29,71 @@ type BuildOptions struct {
 	NoCache  bool
 }
 
-// GetServicesThatNeedBuild returns a map of services that require building
-func GetServicesThatNeedBuild(project *composetypes.Project) map[string]composetypes.ServiceConfig {
+// ServicesThatNeedBuild returns a map of services that require building.
+// deps indicates whether to include services that are dependencies of the selected services.
+// Implementation is based on the logic from docker/compose/v2/pkg/compose/build.go.
+func ServicesThatNeedBuild(
+	project *composetypes.Project, selectedServices []string, deps bool,
+) (map[string]composetypes.ServiceConfig, error) {
 	servicesToBuild := make(map[string]composetypes.ServiceConfig, len(project.Services))
-	for serviceName, service := range project.Services {
-		if service.Build == nil {
-			continue
-		}
-		servicesToBuild[serviceName] = service
+
+	var policy composetypes.DependencyOption = composetypes.IgnoreDependencies
+	if deps {
+		policy = composetypes.IncludeDependencies
 	}
-	return servicesToBuild
+
+	// Also include services used as build.additional_contexts with service: prefix.
+	selectedServices = includeAdditionalContextsServices(project, selectedServices)
+	// Some build dependencies we just introduced may not be enabled, enable them.
+	var err error
+	project, err = project.WithServicesEnabled(selectedServices...)
+	if err != nil {
+		return nil, err
+	}
+
+	project, err = project.WithSelectedServices(selectedServices)
+	if err != nil {
+		return nil, err
+	}
+
+	err = project.ForEachService(selectedServices, func(serviceName string, service *composetypes.ServiceConfig) error {
+		if service.Build != nil {
+			servicesToBuild[serviceName] = *service
+		}
+		return nil
+	}, policy)
+
+	for serviceName, service := range project.Services {
+		if service.Build != nil {
+			servicesToBuild[serviceName] = service
+		}
+	}
+
+	return servicesToBuild, nil
+}
+
+// includeAdditionalContextsServices adds services referenced in build.additional_contexts to the list
+// of selected services.
+func includeAdditionalContextsServices(project *composetypes.Project, selectedServices []string) []string {
+	servicesWithDependencies := mapset.NewSet(selectedServices...)
+	for _, service := range selectedServices {
+		s, ok := project.Services[service]
+		if !ok {
+			s = project.DisabledServices[service]
+		}
+		if s.Build != nil {
+			for _, target := range s.Build.AdditionalContexts {
+				if name, found := strings.CutPrefix(target, composetypes.ServicePrefix); found {
+					servicesWithDependencies.Add(name)
+				}
+			}
+		}
+	}
+	if servicesWithDependencies.Cardinality() > len(selectedServices) {
+		return includeAdditionalContextsServices(project, servicesWithDependencies.ToSlice())
+	}
+
+	return servicesWithDependencies.ToSlice()
 }
 
 // BuildServices builds the services defined in the provided map.

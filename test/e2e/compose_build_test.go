@@ -97,7 +97,8 @@ func TestComposeBuild(t *testing.T) {
 			}),
 		)
 		require.NoError(t, err)
-		servicesToBuild := cliInternal.GetServicesThatNeedBuild(project)
+		servicesToBuild, err := cliInternal.ServicesThatNeedBuild(project, nil, false)
+		require.NoError(t, err)
 		serviceImage1 := fmt.Sprintf("127.0.0.1:%d/service-first", registryHostPort)
 		serviceImage2 := fmt.Sprintf("127.0.0.1:%d/service-second:version2", registryHostPort)
 		t.Cleanup(func() {

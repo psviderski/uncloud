@@ -66,7 +66,10 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts cli.BuildOptions) error 
 		}
 	}
 
-	servicesToBuild := cli.GetServicesThatNeedBuild(project)
+	servicesToBuild, err := cli.ServicesThatNeedBuild(project, opts.Services, false)
+	if err != nil {
+		return fmt.Errorf("determine services to build: %w", err)
+	}
 
 	if len(servicesToBuild) == 0 {
 		fmt.Println("No services to build.")
