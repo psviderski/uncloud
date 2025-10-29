@@ -23,6 +23,7 @@ import (
 	"github.com/distribution/reference"
 	dockercommand "github.com/docker/cli/cli/command"
 	dockerconfig "github.com/docker/cli/cli/config"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -49,33 +50,6 @@ import (
 )
 
 var fullDockerIDRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
-
-// grpcStreamWriter is a writer that sends data to a gRPC stream as stdout or stderr.
-type grpcStreamWriter struct {
-	stream   pb.Docker_ExecContainerServer
-	isStderr bool
-}
-
-func (w *grpcStreamWriter) Write(p []byte) (n int, err error) {
-	data := make([]byte, len(p))
-	copy(data, p)
-
-	var resp *pb.ExecContainerResponse
-	if w.isStderr {
-		resp = &pb.ExecContainerResponse{
-			Payload: &pb.ExecContainerResponse_Stderr{Stderr: data},
-		}
-	} else {
-		resp = &pb.ExecContainerResponse{
-			Payload: &pb.ExecContainerResponse_Stdout{Stdout: data},
-		}
-	}
-
-	if err := w.stream.Send(resp); err != nil {
-		return 0, err
-	}
-	return len(p), nil
-}
 
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.
 type Server struct {
@@ -1041,25 +1015,149 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	return resp, nil
 }
 
-// ExecContainer executes a command in a running container with bidirectional streaming for stdin/stdout/stderr.
-func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
-	ctx := stream.Context()
-
-	// Receive the initial configuration message
+// receiveExecConfig receives and validates the initial exec configuration from the stream.
+func (s *Server) receiveExecConfig(stream pb.Docker_ExecContainerServer) (*pb.ExecConfig, api.ExecOptions, error) {
 	req, err := stream.Recv()
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "receive config: %v", err)
+		return nil, api.ExecOptions{}, status.Errorf(codes.InvalidArgument, "receive config: %v", err)
 	}
 
 	execConfig := req.GetConfig()
 	if execConfig == nil {
-		return status.Error(codes.InvalidArgument, "first message must contain exec config")
+		return nil, api.ExecOptions{}, status.Error(codes.InvalidArgument, "first message must contain exec config")
 	}
 
 	// Unmarshal the Uncloud's execOpts
 	var execOpts api.ExecOptions
 	if err := json.Unmarshal(execConfig.Options, &execOpts); err != nil {
-		return status.Errorf(codes.InvalidArgument, "unmarshal exec config: %v", err)
+		return nil, api.ExecOptions{}, status.Errorf(codes.InvalidArgument, "unmarshal exec config: %v", err)
+	}
+
+	return execConfig, execOpts, nil
+}
+
+// handleServerExecInput reads from the gRPC stream and writes to Docker stdin, handling resize requests.
+func (s *Server) handleServerExecInput(
+	ctx context.Context,
+	stream pb.Docker_ExecContainerServer,
+	attachConn types.HijackedResponse,
+	execID string,
+	tty bool,
+) error {
+	slog.Debug("Input goroutine started", "exec_id", execID, "tty", tty)
+	defer slog.Debug("Input goroutine ended", "exec_id", execID)
+
+	defer attachConn.CloseWrite()
+	for {
+		slog.Debug("Receiving from gRPC stream...", "exec_id", execID)
+		req, err := stream.Recv()
+		switch {
+		case errors.Is(err, io.EOF):
+			slog.Debug("Input goroutine received EOF", "exec_id", execID)
+			return nil
+		case status.Code(err) == codes.Canceled:
+			// Can be the case when the output goroutine ends and the stream context is canceled.
+			slog.Debug("Input goroutine context canceled", "exec_id", execID)
+			return nil
+		case err == nil:
+			// continue processing
+		default:
+			return fmt.Errorf("receive from stream: %w", err)
+		}
+
+		slog.Debug("Received data from stream", req, "exec_id", execID)
+
+		switch payload := req.Payload.(type) {
+		case *pb.ExecContainerRequest_Stdin:
+			if _, err := attachConn.Conn.Write(payload.Stdin); err != nil {
+				return fmt.Errorf("write to stdin: %w", err)
+			}
+		case *pb.ExecContainerRequest_Resize:
+			if tty {
+				resizeOpts := container.ResizeOptions{
+					Height: uint(payload.Resize.Height),
+					Width:  uint(payload.Resize.Width),
+				}
+				if err := s.client.ContainerExecResize(ctx, execID, resizeOpts); err != nil {
+					slog.Warn("Failed to resize TTY", "err", err, "exec_id", execID)
+				}
+			}
+		}
+	}
+}
+
+// handleServerExecOutput reads from Docker stdout/stderr and writes to the gRPC stream.
+func (s *Server) handleServerExecOutput(
+	stream pb.Docker_ExecContainerServer,
+	attachResp types.HijackedResponse,
+	execID string,
+	tty bool,
+) error {
+	slog.Debug("Output goroutine started", "exec_id", execID, "tty", tty)
+	defer slog.Debug("Output goroutine ended", "exec_id", execID)
+
+	if tty {
+		// In TTY mode, all output is stdout - copy directly to stream
+		stdoutWriter := &grpcStreamWriter{stream: stream, isStderr: false}
+		_, err := io.Copy(stdoutWriter, attachResp.Reader)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("copy tty output: %w", err)
+		}
+		return nil
+	} else {
+		// In non-TTY mode, Docker multiplexes stdout/stderr with headers
+		// Use stdcopy to demultiplex
+		slog.Debug("Starting StdCopy for non-TTY", "exec_id", execID)
+		stdoutWriter := &grpcStreamWriter{stream: stream, isStderr: false}
+		stderrWriter := &grpcStreamWriter{stream: stream, isStderr: true}
+
+		written, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, attachResp.Reader)
+		slog.Debug("StdCopy completed", "exec_id", execID, "bytes", written, "err", err)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("demultiplex docker output: %w", err)
+		}
+		return nil
+	}
+}
+
+// grpcStreamWriter is a writer that sends data to a gRPC stream as stdout or stderr.
+type grpcStreamWriter struct {
+	stream   pb.Docker_ExecContainerServer
+	isStderr bool
+}
+
+func (w *grpcStreamWriter) Write(p []byte) (n int, err error) {
+	data := make([]byte, len(p))
+	copy(data, p)
+
+	var resp *pb.ExecContainerResponse
+	if w.isStderr {
+		resp = &pb.ExecContainerResponse{
+			Payload: &pb.ExecContainerResponse_Stderr{Stderr: data},
+		}
+	} else {
+		resp = &pb.ExecContainerResponse{
+			Payload: &pb.ExecContainerResponse_Stdout{Stdout: data},
+		}
+	}
+
+	if err := w.stream.Send(resp); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// ExecContainer executes a command in a running container with bidirectional streaming for stdin/stdout/stderr.
+func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
+	slog.Debug("ExecContainer server-side called")
+	defer slog.Debug("ExecContainer server-side ended")
+
+	ctx := stream.Context()
+
+	// Receive and validate configuration
+	execConfig, execOpts, err := s.receiveExecConfig(stream)
+	if err != nil {
+		return err
 	}
 
 	// Convert to Docker's ExecOptions
@@ -1101,7 +1199,6 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 		if err := s.client.ContainerExecStart(ctx, execResp.ID, dockerStartOpts); err != nil {
 			return status.Errorf(codes.Internal, "start exec: %v", err)
 		}
-		// For detached mode, just return success - no output to stream
 		return nil
 	}
 
@@ -1109,118 +1206,59 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	attachOpts := container.ExecAttachOptions{
 		Tty: dockerExecOpts.Tty,
 	}
-	attachResp, err := s.client.ContainerExecAttach(ctx, execResp.ID, attachOpts)
+	attachConn, err := s.client.ContainerExecAttach(ctx, execResp.ID, attachOpts)
 	if err != nil {
 		return status.Errorf(codes.Internal, "attach to exec: %v", err)
 	}
-	defer attachResp.Close()
+	defer attachConn.Close()
 
-	// Create error channel for goroutines
-	errCh := make(chan error, 2)
+	// Create a cancelable context for the handlers
+	handlerCtx, cancel := context.WithCancel(ctx)
+	defer cancel() // Ensure handlers are canceled when we return
 
-	// Goroutine to read from gRPC stream and write to Docker stdin
+	// Create a channel to wait for output completion
+	outputDone := make(chan error, 1)
+
+	// Start stdin handler if stdin is attached
 	if dockerExecOpts.AttachStdin {
 		go func() {
-			defer attachResp.CloseWrite()
-			for {
-				req, err := stream.Recv()
-				if err == io.EOF {
-					errCh <- nil
-					return
-				}
-				if err != nil {
-					errCh <- fmt.Errorf("receive from stream: %w", err)
-					return
-				}
-
-				switch payload := req.Payload.(type) {
-				case *pb.ExecContainerRequest_Stdin:
-					if _, err := attachResp.Conn.Write(payload.Stdin); err != nil {
-						errCh <- fmt.Errorf("write to stdin: %w", err)
-						return
-					}
-				case *pb.ExecContainerRequest_Resize:
-					if dockerExecOpts.Tty {
-						resizeOpts := container.ResizeOptions{
-							Height: uint(payload.Resize.Height),
-							Width:  uint(payload.Resize.Width),
-						}
-						if err := s.client.ContainerExecResize(ctx, execResp.ID, resizeOpts); err != nil {
-							slog.Warn("Failed to resize TTY", "err", err, "exec_id", execResp.ID)
-						}
-					}
-				}
+			err := s.handleServerExecInput(handlerCtx, stream, attachConn, execResp.ID, dockerExecOpts.Tty)
+			if err != nil {
+				slog.Warn("Error in exec input handler", "err", err, "exec_id", execResp.ID)
 			}
 		}()
 	} else {
 		// If not attaching stdin, close the write side immediately
-		attachResp.CloseWrite()
+		attachConn.CloseWrite()
 	}
 
-	// Goroutine to read from Docker stdout/stderr and write to gRPC stream
+	// Start output handler
+	// We only wait for this goroutine to complete - it signals when the exec process finishes
 	go func() {
-		slog.Info("Output goroutine started", "exec_id", execResp.ID, "tty", dockerExecOpts.Tty)
-		if dockerExecOpts.Tty {
-			// In TTY mode, all output is stdout - just copy directly
-			buf := make([]byte, 32*1024)
-			for {
-				n, err := attachResp.Reader.Read(buf)
-				if n > 0 {
-					data := make([]byte, n)
-					copy(data, buf[:n])
-					if err := stream.Send(&pb.ExecContainerResponse{
-						Payload: &pb.ExecContainerResponse_Stdout{Stdout: data},
-					}); err != nil {
-						errCh <- fmt.Errorf("send stdout: %w", err)
-						return
-					}
-				}
-				if err != nil {
-					if err != io.EOF {
-						errCh <- fmt.Errorf("read from docker: %w", err)
-					} else {
-						errCh <- nil
-					}
-					return
-				}
-			}
-		} else {
-			// In non-TTY mode, Docker multiplexes stdout/stderr with headers
-			// Use stdcopy to demultiplex
-			slog.Info("Starting StdCopy for non-TTY", "exec_id", execResp.ID)
-			stdoutWriter := &grpcStreamWriter{stream: stream, isStderr: false}
-			stderrWriter := &grpcStreamWriter{stream: stream, isStderr: true}
-
-			written, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, attachResp.Reader)
-			slog.Info("StdCopy completed", "exec_id", execResp.ID, "bytes", written, "err", err)
-			if err != nil && err != io.EOF {
-				errCh <- fmt.Errorf("demultiplex docker output: %w", err)
-			} else {
-				errCh <- nil
-			}
-			return
-		}
+		outputDone <- s.handleServerExecOutput(stream, attachConn, execResp.ID, dockerExecOpts.Tty)
 	}()
 
-	// Wait for the output goroutine to complete (it signals on errCh when done)
-	// We only wait for 1 error from the output goroutine, not from stdin goroutine.
-	// The stdin goroutine may still be blocked in stream.Recv() waiting for client data,
-	// and that's OK - it will be cleaned up when the RPC returns.
-	if err := <-errCh; err != nil {
-		// Log the error but continue to get exit code
+	// Wait for the output goroutine to complete (it signals when done)
+	// We only wait for output, not for stdin goroutine.
+	if err := <-outputDone; err != nil {
 		slog.Warn("Error in exec output handler", "err", err, "exec_id", execResp.ID)
 	}
+	// The stdin goroutine may still be blocked in stream.Recv() waiting for client data,
+	// so cancel it explicitly.
+	cancel()
 
-	// Get the exit code
 	inspectResp, err := s.client.ContainerExecInspect(ctx, execResp.ID)
 	if err != nil {
+		slog.Error("Failed to inspect exec after completion", "err", err, "exec_id", execResp.ID)
 		return status.Errorf(codes.Internal, "inspect exec: %v", err)
 	}
 
 	// Send the exit code
+	slog.Debug("Sending exec exit code", "exec_id", execResp.ID, "exit_code", inspectResp.ExitCode)
 	if err := stream.Send(&pb.ExecContainerResponse{
 		Payload: &pb.ExecContainerResponse_ExitCode{ExitCode: int32(inspectResp.ExitCode)},
 	}); err != nil {
+		slog.Error("Failed to send exec exit code", "err", err, "exec_id", execResp.ID)
 		return status.Errorf(codes.Internal, "send exit code: %v", err)
 	}
 

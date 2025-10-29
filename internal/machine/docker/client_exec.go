@@ -102,7 +102,8 @@ func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_Ex
 // handleClientInputStream reads from stdin and sends data to the exec stream.
 // It manages the stdin reading goroutine and handles context cancellation.
 func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainerClient) error {
-	slog.Debug("starting stdin stream handler")
+	slog.Debug("input stream handler started")
+	defer slog.Debug("input stream handler exited")
 
 	defer stream.CloseSend()
 
@@ -164,7 +165,8 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 // handleClientOutputStream receives output from the exec stream and writes to stdout/stderr.
 // It also captures the exit code and signals completion via context cancellation.
 func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, exitCode *int) error {
-	slog.Debug("starting output stream handler")
+	slog.Debug("output stream handler started")
+	defer slog.Debug("output stream handler exited")
 
 	for {
 		resp, err := stream.Recv()
@@ -200,7 +202,6 @@ func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContaine
 // ExecContainer executes a command in a running container with bidirectional streaming.
 // TODO: This can be merged with pkg/client as it's an unnecessary logic split.
 func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode int, err error) {
-
 	// TMP; TODO: remove
 	logger := slog.New(log.NewSlogTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -280,9 +281,6 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 	// Handle output streams (stdout/stderr)
 	errGroup.Go(func() error {
 		defer cancel()
-		defer func() {
-			slog.Debug("output stream handler exiting")
-		}()
 		return handleClientOutputStream(ctx, stream, &exitCode)
 	})
 
