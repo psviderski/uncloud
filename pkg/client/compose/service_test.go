@@ -48,6 +48,7 @@ func loadProjectFromContent(t *testing.T, content string) (*types.Project, error
 		return nil, err
 	}
 
+	removeProjectPrefixFromNames(project)
 	// Apply extension transformations since we're not using LoadProject.
 	if project, err = transformServicesCaddyExtension(project); err != nil {
 		return nil, err

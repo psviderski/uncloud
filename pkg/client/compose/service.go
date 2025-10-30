@@ -5,7 +5,6 @@ import (
 	"maps"
 	"os"
 	"slices"
-	"strings"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
@@ -126,7 +125,8 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 	}
 
 	// Convert GPU device requests from compose format, appending "gpu" capability.
-	resources.DeviceReservations = append(resources.DeviceReservations, deviceReservationsFromCompose(service.Gpus, "gpu")...)
+	resources.DeviceReservations = append(resources.DeviceReservations,
+		deviceReservationsFromCompose(service.Gpus, "gpu")...)
 
 	// Map resources from deploy section if specified.
 	if service.Deploy != nil {
@@ -144,7 +144,8 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 				resources.MemoryReservation = int64(service.Deploy.Resources.Reservations.MemoryBytes)
 			}
 			// Handle arbitrary device reservations (same structure as Gpus above).
-			resources.DeviceReservations = append(resources.DeviceReservations, deviceReservationsFromCompose(service.Deploy.Resources.Reservations.Devices)...)
+			resources.DeviceReservations = append(resources.DeviceReservations,
+				deviceReservationsFromCompose(service.Deploy.Resources.Reservations.Devices)...)
 		}
 	}
 
@@ -238,7 +239,7 @@ func dockerVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig, volume
 		Name: serviceVolume.Source,
 		Type: api.VolumeTypeVolume,
 		VolumeOptions: &api.VolumeOptions{
-			Name: strings.TrimPrefix(volume.Name, FakeProjectName+"_"),
+			Name: volume.Name,
 		},
 	}
 
