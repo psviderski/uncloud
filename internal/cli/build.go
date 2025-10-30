@@ -46,13 +46,10 @@ func ServicesThatNeedBuild(
 	selectedServices = includeAdditionalContextsServices(project, selectedServices)
 	// Some build dependencies we just introduced may not be enabled, enable them.
 	var err error
-	project, err = project.WithServicesEnabled(selectedServices...)
-	if err != nil {
+	if project, err = project.WithServicesEnabled(selectedServices...); err != nil {
 		return nil, err
 	}
-
-	project, err = project.WithSelectedServices(selectedServices)
-	if err != nil {
+	if project, err = project.WithSelectedServices(selectedServices); err != nil {
 		return nil, err
 	}
 
@@ -62,6 +59,9 @@ func ServicesThatNeedBuild(
 		}
 		return nil
 	}, policy)
+	if err != nil {
+		return nil, err
+	}
 
 	for serviceName, service := range project.Services {
 		if service.Build != nil {
