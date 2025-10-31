@@ -10,6 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestInspectGitState_GitNotAvailable(t *testing.T) {
+	// Reset the PATH env var to simulate git not being available.
+	t.Setenv("PATH", "")
+
+	tmpDir := t.TempDir()
+
+	state, err := InspectGitState(tmpDir)
+	require.NoError(t, err)
+
+	assert.False(t, state.IsRepo)
+	assert.Empty(t, state.SHA)
+	assert.Empty(t, state.ShortSHA(7))
+	assert.True(t, state.Time.IsZero())
+	assert.False(t, state.IsDirty)
+}
+
 func TestInspectGitState_NotARepo(t *testing.T) {
 	// Create a temporary directory that's not a git repo.
 	tmpDir := t.TempDir()
