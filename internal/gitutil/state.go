@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// GitState contains raw information about the Git repository state.
+// GitState contains information about the Git repository state.
 type GitState struct {
 	// IsDirty indicates whether there are uncommitted changes.
 	IsDirty bool
@@ -21,12 +21,17 @@ type GitState struct {
 }
 
 // InspectGitState inspects the Git repo state from the specified directory.
-// If the directory is not a Git repository, returns GitState with IsRepo=false.
+// If the directory is not a Git repository, or if git utility is not available,
+// returns GitState with IsRepo=false and no error.
 func InspectGitState(dir string) (GitState, error) {
+	// Check if git command is available.
+	if _, err := exec.LookPath("git"); err != nil {
+		return GitState{}, nil
+	}
+
 	state := GitState{
 		IsRepo: isGitRepo(dir),
 	}
-
 	if !state.IsRepo {
 		return state, nil
 	}
