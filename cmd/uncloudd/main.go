@@ -42,6 +42,9 @@ func main() {
 		"Directory for storing persistent machine state")
 	_ = cmd.MarkFlagDirname("data-dir")
 
+	// Add dial-stdio subcommand.
+	cmd.AddCommand(newDialStdioCommand())
+
 	// ctx is canceled when the daemon command is interrupted.
 	ctx, cancel := context.WithCancel(context.Background())
 
