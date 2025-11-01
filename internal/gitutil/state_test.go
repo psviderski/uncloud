@@ -22,7 +22,7 @@ func TestInspectGitState_GitNotAvailable(t *testing.T) {
 	assert.False(t, state.IsRepo)
 	assert.Empty(t, state.SHA)
 	assert.Empty(t, state.ShortSHA(7))
-	assert.True(t, state.Time.IsZero())
+	assert.True(t, state.Date.IsZero())
 	assert.False(t, state.IsDirty)
 }
 
@@ -42,7 +42,7 @@ func TestInspectGitState_NotARepo(t *testing.T) {
 	assert.False(t, state.IsRepo)
 	assert.Empty(t, state.SHA)
 	assert.Empty(t, state.ShortSHA(7))
-	assert.True(t, state.Time.IsZero()) // Should have zero time if not a repo.
+	assert.True(t, state.Date.IsZero()) // Should have zero time if not a repo.
 	assert.False(t, state.IsDirty)
 }
 
@@ -59,7 +59,7 @@ func TestInspectGitState_CleanRepo(t *testing.T) {
 	assert.True(t, state.IsRepo)
 	assert.Len(t, state.SHA, 40)
 	assert.Equal(t, state.ShortSHA(7), state.SHA[:7])
-	assert.False(t, state.Time.IsZero())
+	assert.False(t, state.Date.IsZero())
 	assert.False(t, state.IsDirty)
 }
 

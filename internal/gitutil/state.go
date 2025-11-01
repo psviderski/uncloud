@@ -10,14 +10,14 @@ import (
 
 // GitState contains information about the Git repository state.
 type GitState struct {
+	// Date is the current commit datetime.
+	Date time.Time
 	// IsDirty indicates whether there are uncommitted changes.
 	IsDirty bool
 	// IsRepo indicates whether the directory is a Git repository.
 	IsRepo bool
 	// SHA is the full SHA-1 (40 characters) of the current commit.
 	SHA string
-	// Time is the current commit datetime.
-	Time time.Time
 }
 
 // InspectGitState inspects the Git repo state from the specified directory.
@@ -52,7 +52,7 @@ func InspectGitState(dir string) (GitState, error) {
 	if err != nil {
 		return state, fmt.Errorf("parse current commit timestamp: %w", err)
 	}
-	state.Time = time.Unix(seconds, 0)
+	state.Date = time.Unix(seconds, 0).UTC()
 
 	// Check for uncommitted changes.
 	status, err := gitCommand(dir, "status", "--porcelain")
