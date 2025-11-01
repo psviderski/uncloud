@@ -25,7 +25,7 @@ complexity of Kubernetes.
 
 ## ✨ Features
 
-* **Deploy anywhere**: Combine cloud VMs, dedicated servers, and bare metal into a unified computing environment —
+* **Deploy anywhere**: Combine cloud VMs, dedicated servers, and bare metal into a unified computing environment,
   regardless of location or provider.
 * **Docker Compose**: Familiar [Docker Compose](https://compose-spec.io/) format for defining services and volumes. No
   need to learn a new bespoke DSL.
