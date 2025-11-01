@@ -22,7 +22,7 @@ func TestProcessImageTemplates_Integration(t *testing.T) {
 
 	// Create an initial commit.
 	testFile := filepath.Join(tmpDir, "test.txt")
-	err := os.WriteFile(testFile, []byte("initial content"), 0644)
+	err := os.WriteFile(testFile, []byte("initial content"), 0o644)
 	require.NoError(t, err)
 	runGitCommand(t, tmpDir, "add", "test.txt")
 	runGitCommand(t, tmpDir, "commit", "-m", "Initial commit")
@@ -114,7 +114,7 @@ func TestProcessImageTemplates_Integration(t *testing.T) {
 	t.Run("dirty repository", func(t *testing.T) {
 		// Make the repository dirty by creating an uncommitted file.
 		dirtyFile := filepath.Join(tmpDir, "uncommitted.txt")
-		err := os.WriteFile(dirtyFile, []byte("uncommitted changes"), 0644)
+		err := os.WriteFile(dirtyFile, []byte("uncommitted changes"), 0o644)
 		require.NoError(t, err)
 
 		dirtyGitState, err := gitutil.InspectGitState(tmpDir)
