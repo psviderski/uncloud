@@ -20,7 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// loadProjectFromContent loads a compose project from YAML content
+// loadProjectFromContent loads a compose project from YAML content.
+// Keep the implementation in sync with LoadProject.
 func loadProjectFromContent(t *testing.T, content string) (*types.Project, error) {
 	t.Helper()
 	ctx := context.Background()
@@ -59,6 +60,11 @@ func loadProjectFromContent(t *testing.T, content string) (*types.Project, error
 
 	// Validate extension combinations after all transformations.
 	if err = validateServicesExtensions(project); err != nil {
+		return nil, err
+	}
+
+	// Process image templates in services to expand Go template expressions using git repo state.
+	if project, err = ProcessImageTemplates(project); err != nil {
 		return nil, err
 	}
 

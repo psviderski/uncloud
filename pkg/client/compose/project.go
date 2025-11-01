@@ -53,6 +53,11 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, err
 	}
 
+	// Process image templates in services to expand Go template expressions using git repo state.
+	if project, err = ProcessImageTemplates(project); err != nil {
+		return nil, err
+	}
+
 	return project, nil
 }
 
