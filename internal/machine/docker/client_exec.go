@@ -10,7 +10,6 @@ import (
 	"os/signal"
 
 	"github.com/moby/term"
-	"github.com/psviderski/uncloud/internal/log"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"golang.org/x/sync/errgroup"
@@ -101,8 +100,9 @@ func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_Ex
 	return nil
 }
 
-// handleClientInputStream reads from stdin and sends data to the exec stream.
-// It manages the stdin reading goroutine and handles context cancellation.
+// handleClientInputStream reads from stdin and sends data to the remote server.
+// It also periodically checks for context cancellation to exit gracefully when e.g.
+// the output stream is closed.
 func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainerClient) error {
 	slog.Debug("Input goroutine started")
 	defer slog.Debug("Input goroutine exited")
@@ -115,8 +115,8 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 	stdinErrCh := make(chan error, 1)
 
 	// Read from stdin in a separate goroutine
-	// Note: this goroutine may continue blocking on Read even after we exit,
-	// but that's OK - it will eventually unblock when data arrives or stdin closes
+	// Note: this goroutine may continue blocking on Read even after we exit from the function,
+	// but that's OK - it will eventually unblock when data arrives or stdin closes.
 	go func() {
 		buf := make([]byte, 32*1024) // 32KB buffer
 		for {
@@ -143,7 +143,7 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 		}
 	}()
 
-	// Send stdin data or exit when context is cancelled
+	// Send stdin data to the server or exit when context is cancelled
 	for {
 		select {
 		case <-ctx.Done():
@@ -203,14 +203,6 @@ func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContaine
 // ExecContainer executes a command in a running container with bidirectional streaming.
 // TODO: This can be merged with pkg/client as it's an unnecessary logic split.
 func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode int, err error) {
-	// TMP; TODO: remove
-	logger := slog.New(log.NewSlogTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-	slog.SetDefault(logger)
-
-	// TMP
-
 	// TODO: We need to handle Ctrl-C and other signals here to forward them to the container process.
 	// Right now, Ctrl-C will just terminate the client process, which is not ideal.
 	// We should catch the signal, send it to the container process, and only exit
