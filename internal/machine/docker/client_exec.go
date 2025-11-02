@@ -103,7 +103,7 @@ func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_Ex
 // handleClientInputStream reads from stdin and sends data to the remote server.
 // It also periodically checks for context cancellation to exit gracefully when e.g.
 // the output stream is closed.
-func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainerClient) error {
+func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, stdin io.Reader) error {
 	slog.Debug("Input goroutine started")
 	defer slog.Debug("Input goroutine exited")
 
@@ -120,7 +120,7 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 	go func() {
 		buf := make([]byte, 32*1024) // 32KB buffer
 		for {
-			n, err := os.Stdin.Read(buf)
+			n, err := stdin.Read(buf)
 			if n > 0 {
 				data := make([]byte, n)
 				copy(data, buf[:n])
@@ -165,7 +165,7 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 
 // handleClientOutputStream receives output from the exec stream and writes to stdout/stderr.
 // It also captures the exit code and signals completion via context cancellation.
-func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, exitCode *int) error {
+func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, stdout, stderr io.Writer, exitCode *int) error {
 	slog.Debug("Output goroutine started")
 	defer slog.Debug("Output goroutine exited")
 
@@ -183,11 +183,11 @@ func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContaine
 		case *pb.ExecContainerResponse_ExecId:
 			// This is sent first; we already processed it earlier, so just ignore duplicates.
 		case *pb.ExecContainerResponse_Stdout:
-			if _, err := os.Stdout.Write(payload.Stdout); err != nil {
+			if _, err := stdout.Write(payload.Stdout); err != nil {
 				return fmt.Errorf("write stdout: %w", err)
 			}
 		case *pb.ExecContainerResponse_Stderr:
-			if _, err := os.Stderr.Write(payload.Stderr); err != nil {
+			if _, err := stderr.Write(payload.Stderr); err != nil {
 				return fmt.Errorf("write stderr: %w", err)
 			}
 		case *pb.ExecContainerResponse_ExitCode:
@@ -209,6 +209,21 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 	// when the container process exits.
 
 	slog.Debug("starting ExecContainer", "containerID", opts.ContainerID, "options", opts.Options)
+
+	// Set up I/O streams - use custom streams if provided, otherwise default to os.Stdin/Stdout/Stderr
+	stdin := io.Reader(os.Stdin)
+	stdout := io.Writer(os.Stdout)
+	stderr := io.Writer(os.Stderr)
+
+	if opts.Options.Stdin != nil {
+		stdin = opts.Options.Stdin
+	}
+	if opts.Options.Stdout != nil {
+		stdout = opts.Options.Stdout
+	}
+	if opts.Options.Stderr != nil {
+		stderr = opts.Options.Stderr
+	}
 
 	// Marshal the exec config
 	configBytes, err := json.Marshal(opts.Options)
@@ -264,7 +279,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 	// Handle stdin stream if needed
 	if opts.Options.AttachStdin {
 		errGroup.Go(func() error {
-			return handleClientInputStream(ctx, stream)
+			return handleClientInputStream(ctx, stream, stdin)
 		})
 	} else {
 		// Close send direction immediately if not attaching stdin
@@ -274,7 +289,7 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 	// Handle output streams (stdout/stderr)
 	errGroup.Go(func() error {
 		defer cancel()
-		return handleClientOutputStream(ctx, stream, &exitCode)
+		return handleClientOutputStream(ctx, stream, stdout, stderr, &exitCode)
 	})
 
 	err = errGroup.Wait()

@@ -1,5 +1,7 @@
 package api
 
+import "io"
+
 // ExecOptions contains configuration for executing a command in a container.
 type ExecOptions struct {
 	// Command is the command to run in the container.
@@ -24,4 +26,12 @@ type ExecOptions struct {
 	WorkingDir string
 	// Env sets environment variables for the command.
 	Env []string
+
+	// Client-side only fields (not serialized, not sent to server)
+	// Stdin is the input stream. Defaults to os.Stdin if nil.
+	Stdin io.Reader `json:"-"`
+	// Stdout is the output stream. Defaults to os.Stdout if nil.
+	Stdout io.Writer `json:"-"`
+	// Stderr is the error stream. Defaults to os.Stderr if nil.
+	Stderr io.Writer `json:"-"`
 }
