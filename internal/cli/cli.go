@@ -428,6 +428,35 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 func provisionOrConnectRemoteMachine(
 	ctx context.Context, remoteMachine *RemoteMachine, skipInstall bool, version string,
 ) (*client.Client, error) {
+	// Use SSH CLI
+	if remoteMachine.UseSSHCLI {
+		exec := sshexec.NewSSHCLIRemote(
+			remoteMachine.User,
+			remoteMachine.Host,
+			remoteMachine.Port,
+			remoteMachine.KeyPath,
+		)
+
+		if !skipInstall {
+			if err := provisionMachine(ctx, exec, version); err != nil {
+				return nil, fmt.Errorf("provision machine: %w", err)
+			}
+		}
+
+		sshConfig := &connector.SSHConnectorConfig{
+			User:    remoteMachine.User,
+			Host:    remoteMachine.Host,
+			Port:    remoteMachine.Port,
+			KeyPath: remoteMachine.KeyPath,
+		}
+		machineClient, err := client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
+		if err != nil {
+			return nil, fmt.Errorf("connect to remote machine: %w", err)
+		}
+		return machineClient, nil
+	}
+
+	// Use Go SSH
 	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
 	// If the SSH connection using SSH agent fails and no key path is provided, try to use the default SSH key.
 	if err != nil && remoteMachine.KeyPath == "" {
