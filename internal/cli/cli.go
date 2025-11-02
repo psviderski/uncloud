@@ -228,8 +228,12 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 
 	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
-		SSH:        config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port),
 		SSHKeyFile: opts.RemoteMachine.KeyPath,
+	}
+	if opts.RemoteMachine.UseSSHCLI {
+		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+	} else {
+		connCfg.SSH = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {
@@ -396,8 +400,12 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 
 	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
-		SSH:        config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port),
 		SSHKeyFile: opts.RemoteMachine.KeyPath,
+	}
+	if opts.RemoteMachine.UseSSHCLI {
+		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+	} else {
+		connCfg.SSH = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
 	}
 	if contextName == "" {
 		contextName = cli.Config.CurrentContext

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -38,15 +39,22 @@ func NewAddCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
-			user, host, port, err := config.SSHDestination(args[0]).Parse()
+			// Determine if SSH CLI needs to be used and strip scheme
+			destination := args[0]
+			useSSHCLI := strings.HasPrefix(destination, "ssh+cli://")
+			destination = strings.TrimPrefix(destination, "ssh+cli://")
+			destination = strings.TrimPrefix(destination, "ssh://")
+
+			user, host, port, err := config.SSHDestination(destination).Parse()
 			if err != nil {
 				return fmt.Errorf("parse remote machine: %w", err)
 			}
 			remoteMachine := &cli.RemoteMachine{
-				User:    user,
-				Host:    host,
-				Port:    port,
-				KeyPath: opts.sshKey,
+				User:      user,
+				Host:      host,
+				Port:      port,
+				KeyPath:   opts.sshKey,
+				UseSSHCLI: useSSHCLI,
 			}
 
 			return add(cmd.Context(), uncli, remoteMachine, opts)

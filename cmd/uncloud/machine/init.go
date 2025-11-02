@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strings"
 
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
@@ -55,15 +56,22 @@ func NewInitCommand() *cobra.Command {
 
 			var remoteMachine *cli.RemoteMachine
 			if len(args) > 0 {
-				user, host, port, err := config.SSHDestination(args[0]).Parse()
+				// Determine if SSH CLI is requested and strip scheme
+				destination := args[0]
+				useSSHCLI := strings.HasPrefix(destination, "ssh+cli://")
+				destination = strings.TrimPrefix(destination, "ssh+cli://")
+				destination = strings.TrimPrefix(destination, "ssh://")
+
+				user, host, port, err := config.SSHDestination(destination).Parse()
 				if err != nil {
 					return fmt.Errorf("parse remote machine: %w", err)
 				}
 				remoteMachine = &cli.RemoteMachine{
-					User:    user,
-					Host:    host,
-					Port:    port,
-					KeyPath: opts.sshKey,
+					User:      user,
+					Host:      host,
+					Port:      port,
+					KeyPath:   opts.sshKey,
+					UseSSHCLI: useSSHCLI,
 				}
 			}
 
