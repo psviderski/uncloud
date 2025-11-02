@@ -1045,11 +1045,10 @@ func (s *Server) handleServerExecInput(
 	tty bool,
 ) error {
 	slog.Debug("Input goroutine started", "exec_id", execID, "tty", tty)
-	defer slog.Debug("Input goroutine ended", "exec_id", execID)
+	defer slog.Debug("Input goroutine exited", "exec_id", execID)
 
 	defer attachConn.CloseWrite()
 	for {
-		slog.Debug("Receiving from gRPC stream...", "exec_id", execID)
 		req, err := stream.Recv()
 		switch {
 		case errors.Is(err, io.EOF):
@@ -1064,8 +1063,6 @@ func (s *Server) handleServerExecInput(
 		default:
 			return fmt.Errorf("receive from stream: %w", err)
 		}
-
-		slog.Debug("Received data from stream", req, "exec_id", execID)
 
 		switch payload := req.Payload.(type) {
 		case *pb.ExecContainerRequest_Stdin:
@@ -1094,7 +1091,7 @@ func (s *Server) handleServerExecOutput(
 	tty bool,
 ) error {
 	slog.Debug("Output goroutine started", "exec_id", execID, "tty", tty)
-	defer slog.Debug("Output goroutine ended", "exec_id", execID)
+	defer slog.Debug("Output goroutine exited", "exec_id", execID)
 
 	if tty {
 		// In TTY mode, all output is stdout - copy directly to stream

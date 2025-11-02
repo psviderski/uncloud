@@ -91,7 +91,9 @@ func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_Ex
 					slog.Debug("get window size", "error", err)
 					continue
 				}
-				_ = sendResizeRequest(stream, size)
+				if err = sendResizeRequest(stream, size); err != nil {
+					slog.Debug("send resize request", "error", err)
+				}
 			}
 		}
 	}()
@@ -102,8 +104,8 @@ func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_Ex
 // handleClientInputStream reads from stdin and sends data to the exec stream.
 // It manages the stdin reading goroutine and handles context cancellation.
 func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainerClient) error {
-	slog.Debug("input stream handler started")
-	defer slog.Debug("input stream handler exited")
+	slog.Debug("Input goroutine started")
+	defer slog.Debug("Input goroutine exited")
 
 	defer stream.CloseSend()
 
@@ -120,7 +122,6 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 		for {
 			n, err := os.Stdin.Read(buf)
 			if n > 0 {
-				slog.Debug("read from stdin", "bytes", n)
 				data := make([]byte, n)
 				copy(data, buf[:n])
 				select {
@@ -132,9 +133,9 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 			}
 			if err != nil {
 				if err == io.EOF {
-					slog.Debug("stdin: EOF received")
+					slog.Debug("stdin reader: EOF received")
 				} else {
-					slog.Debug("stdin read error", "error", err)
+					slog.Debug("stdin reader error", "error", err)
 				}
 				stdinErrCh <- err
 				return
@@ -165,8 +166,8 @@ func handleClientInputStream(ctx context.Context, stream pb.Docker_ExecContainer
 // handleClientOutputStream receives output from the exec stream and writes to stdout/stderr.
 // It also captures the exit code and signals completion via context cancellation.
 func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContainerClient, exitCode *int) error {
-	slog.Debug("output stream handler started")
-	defer slog.Debug("output stream handler exited")
+	slog.Debug("Output goroutine started")
+	defer slog.Debug("Output goroutine exited")
 
 	for {
 		resp, err := stream.Recv()
