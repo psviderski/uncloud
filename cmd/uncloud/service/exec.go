@@ -103,6 +103,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		Command:     command,
 		AttachStdin: opts.interactive,
 		Tty:         !opts.noTty,
+		Detach:      opts.detach,
 	}
 
 	if !opts.detach {
