@@ -35,20 +35,11 @@ func NewInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [USER@HOST:PORT]",
 		Short: "Initialise a new cluster with a remote machine as the first member.",
-		Long: "Initialise a new cluster by setting up a remote machine as the first member.\n" +
-			"This command creates a new context in your Uncloud config to manage the cluster.",
-		Example: `  # Initialise a new cluster with default settings.
-  uc machine init root@<your-server-ip>
+		Long: `Initialise a new cluster by setting up a remote machine as the first member.
 
-  # Initialise with a context name 'prod' in the Uncloud config (~/.config/uncloud/config.yaml) and machine name 'vps1'.
-  uc machine init root@<your-server-ip> -c prod -n vps1
-
-  # Initialise with a non-root user and custom SSH port and key.
-  uc machine init ubuntu@<your-server-ip>:2222 -i ~/.ssh/mykey
-
-  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.cluster.uncloud.run).
-  # You can deploy Caddy with 'uc caddy deploy' and reserve a domain with 'uc dns reserve' later.
-  uc machine init root@<your-server-ip> --no-caddy --no-dns`,
+Connection methods:
+  ssh://user@host       - Use built-in SSH library (default, no prefix required)
+  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
 		// TODO: support initialising a cluster on the local machine.
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
