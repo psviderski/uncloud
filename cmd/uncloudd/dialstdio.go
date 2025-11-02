@@ -29,6 +29,36 @@ func newDialStdioCommand() *cobra.Command {
 	return cmd
 }
 
+// halfReadCloser is the read side of a half-duplex connection.
+type halfReadCloser interface {
+	io.Reader
+	CloseRead() error
+}
+
+// halfWriteCloser is the write side of a half-duplex connection.
+type halfWriteCloser interface {
+	io.Writer
+	CloseWrite() error
+}
+
+// halfReadCloserWrapper wraps an io.ReadCloser to implement halfReadCloser.
+type halfReadCloserWrapper struct {
+	io.ReadCloser
+}
+
+func (x *halfReadCloserWrapper) CloseRead() error {
+	return x.Close()
+}
+
+// halfWriteCloserWrapper wraps an io.WriteCloser to implement halfWriteCloser.
+type halfWriteCloserWrapper struct {
+	io.WriteCloser
+}
+
+func (x *halfWriteCloserWrapper) CloseWrite() error {
+	return x.Close()
+}
+
 func runDialStdio(ctx context.Context, socketPath string, stdin io.Reader, stdout io.Writer) error {
 	// Connect to the unix socket.
 	var dialer net.Dialer
@@ -38,31 +68,59 @@ func runDialStdio(ctx context.Context, socketPath string, stdin io.Reader, stdou
 	}
 	defer conn.Close()
 
+	// Wrap stdin/stdout to support half-closing.
+	var stdinCloser halfReadCloser
+	if c, ok := stdin.(halfReadCloser); ok {
+		stdinCloser = c
+	} else if c, ok := stdin.(io.ReadCloser); ok {
+		stdinCloser = &halfReadCloserWrapper{c}
+	}
+
+	var stdoutCloser halfWriteCloser
+	if c, ok := stdout.(halfWriteCloser); ok {
+		stdoutCloser = c
+	} else if c, ok := stdout.(io.WriteCloser); ok {
+		stdoutCloser = &halfWriteCloserWrapper{c}
+	}
+
 	// Copy data bidirectionally between stdin/stdout and the socket.
-	errCh := make(chan error, 2)
+	stdin2socket := make(chan error, 1)
+	socket2stdout := make(chan error, 1)
 
 	// Copy from stdin to socket.
 	go func() {
 		_, err := io.Copy(conn, stdin)
-		errCh <- err
+		stdin2socket <- err
+		// Close write side of connection after stdin is done.
+		if unixConn, ok := conn.(*net.UnixConn); ok {
+			unixConn.CloseWrite()
+		}
+		if stdinCloser != nil {
+			stdinCloser.CloseRead()
+		}
 	}()
 
 	// Copy from socket to stdout.
 	go func() {
 		_, err := io.Copy(stdout, conn)
-		errCh <- err
+		socket2stdout <- err
+		// Close read side of connection after socket is done sending.
+		if unixConn, ok := conn.(*net.UnixConn); ok {
+			unixConn.CloseRead()
+		}
+		if stdoutCloser != nil {
+			stdoutCloser.CloseWrite()
+		}
 	}()
 
-	// Wait for either direction to complete or context to be canceled.
 	select {
-	case err := <-errCh:
-		// One direction finished (possibly with an error).
-		// This is normal when the connection closes.
-		if err != nil && err != io.EOF {
-			return fmt.Errorf("copy error: %w", err)
+	case err = <-stdin2socket:
+		if err != nil {
+			return err
 		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	case err = <-socket2stdout:
+		// return immediately, matching Docker's approach
+		// (stdin is never closed when TTY)
 	}
+	return err
 }
