@@ -60,6 +60,11 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 	var sshDest config.SSHDestination
 	var useSSHCLI bool
 
+	// Validate connection configuration early to provide clear error messages.
+	if err := conn.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid connection configuration: %w", err)
+	}
+
 	if conn.SSH != "" {
 		sshDest = conn.SSH
 		useSSHCLI = false
