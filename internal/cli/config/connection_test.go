@@ -20,14 +20,14 @@ func TestMachineConnection_String(t *testing.T) {
 			conn: MachineConnection{
 				SSH: "user@host.com",
 			},
-			want: "user@host.com",
+			want: "ssh://user@host.com",
 		},
 		{
 			name: "ssh connection with port",
 			conn: MachineConnection{
 				SSH: "user@host.com:2222",
 			},
-			want: "user@host.com:2222",
+			want: "ssh://user@host.com:2222",
 		},
 		{
 			name: "ssh_cli connection",
