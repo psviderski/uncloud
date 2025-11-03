@@ -3,17 +3,14 @@ package compose
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/compose-spec/compose-go/v2/types"
 )
 
-// FakeProjectName is a placeholder name for the project to be able to strip it from the resource names used as prefix.
-const FakeProjectName = "f-a-k-e"
-
 func LoadProject(ctx context.Context, paths []string, opts ...composecli.ProjectOptionsFn) (*types.Project, error) {
 	defaultOpts := []composecli.ProjectOptionsFn{
-		composecli.WithName(FakeProjectName),
 		// First apply os.Environment, always wins.
 		composecli.WithOsEnv,
 		// Set the local .env file to be loaded by WithDotEnv. COMPOSE_DISABLE_ENV_FILE can disable it.
@@ -43,6 +40,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, err
 	}
 
+	removeProjectPrefixFromNames(project)
 	if project, err = transformServicesCaddyExtension(project); err != nil {
 		return nil, err
 	}
@@ -55,5 +53,19 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, err
 	}
 
+	// Process image templates in services to expand Go template expressions using git repo state.
+	if project, err = ProcessImageTemplates(project); err != nil {
+		return nil, err
+	}
+
 	return project, nil
+}
+
+// removeProjectPrefixFromNames removes the project name prefix from volume names.
+func removeProjectPrefixFromNames(project *types.Project) {
+	prefix := project.Name + "_"
+	for name, vol := range project.Volumes {
+		vol.Name = strings.TrimPrefix(vol.Name, prefix)
+		project.Volumes[name] = vol
+	}
 }

@@ -25,12 +25,14 @@ complexity of Kubernetes.
 
 ## ✨ Features
 
-* **Deploy anywhere**: Combine cloud VMs, dedicated servers, and bare metal into a unified computing environment —
+* **Deploy anywhere**: Combine cloud VMs, dedicated servers, and bare metal into a unified computing environment,
   regardless of location or provider.
 * **Docker Compose**: Familiar [Docker Compose](https://compose-spec.io/) format for defining services and volumes. No
   need to learn a new bespoke DSL.
 * **Zero-downtime deployments**: Rolling updates without service interruption. Automatic rollback on failure is coming
   soon.
+* **[Unregistry](https://github.com/psviderski/unregistry) integration**: Build and push your Docker images directly to
+  your machines without an external registry. It will transfer only the missing layers, making it fast and efficient.
 * **Service discovery**: Built-in DNS server resolves service names to container IPs.
 * **Persistent storage**: Run stateful services with Docker volumes managed across machines.
 * **Zero-config private network**: Automatic WireGuard mesh with peer discovery and NAT traversal. Containers get unique
@@ -44,11 +46,6 @@ complexity of Kubernetes.
   Encrypt.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
-
-### 🚀 Coming soon
-
-* **[Unregistry](https://github.com/psviderski/unregistry) integration**: Push your Docker images directly to your
-  machines without an external registry. It will transfer only the missing layers, making it fast and efficient.
 
 ## 🎬 Quick demo
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
 	"testing"
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
@@ -97,8 +98,9 @@ func TestComposeBuild(t *testing.T) {
 			}),
 		)
 		require.NoError(t, err)
-		servicesToBuild := cliInternal.GetServicesThatNeedBuild(project)
-		serviceImage1 := fmt.Sprintf("127.0.0.1:%d/service-first", registryHostPort)
+		servicesToBuild, err := cliInternal.ServicesThatNeedBuild(project, nil, false)
+		require.NoError(t, err)
+		serviceImage1 := project.Services["service-first"].Image // contains auto-generated default tag
 		serviceImage2 := fmt.Sprintf("127.0.0.1:%d/service-second:version2", registryHostPort)
 		t.Cleanup(func() {
 			// Remove the images after the test
@@ -145,12 +147,15 @@ func TestComposeBuild(t *testing.T) {
 		cli.BuildServices(context.Background(), servicesToBuild, buildOpts)
 
 		// Check the image of the first service
-		ref1, err := name.NewRepository(fmt.Sprintf("127.0.0.1:%d/service-first", registryHostPort))
+		tagSeparatorIdx := strings.LastIndex(serviceImage1, ":")
+		serviceRepo1, serviceTag1 := serviceImage1[:tagSeparatorIdx], serviceImage1[tagSeparatorIdx+1:]
+
+		ref1, err := name.NewRepository(serviceRepo1)
 		require.NoError(t, err)
 		tags, err := remote.List(ref1)
 		require.NoError(t, err)
 
-		assert.Equal(t, tags, []string{"latest"}, "Tags for service service-first do not match")
+		assert.Equal(t, tags, []string{serviceTag1}, "Tags for service service-first do not match")
 
 		// Check the image of the second service
 		ref2, err := name.NewRepository(fmt.Sprintf("127.0.0.1:%d/service-second", registryHostPort))

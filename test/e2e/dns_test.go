@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -221,6 +222,40 @@ func TestInternalDNS(t *testing.T) {
 			assert.Contains(t, dnsOutput, containerIP,
 				"Service ID DNS should resolve to container IP %s", containerIP)
 		}
+
+		assertNoDNSErrors(t, dnsOutput)
+	})
+
+	t.Run("nearest mode prioritizes local subnet IPs", func(t *testing.T) {
+		// Test the "nearest" mode which should sort local subnet IPs first
+		dnsOutput := runDNSQuery(t, "dns-test-nearest", "nearest."+serviceName+".internal", "/tmp/dns_result_nearest.txt")
+		t.Logf("Nearest mode DNS query output:\n%s", dnsOutput)
+
+		// Find which machine ran the query
+		querySvc, err := cli.InspectService(ctx, "dns-test-nearest")
+		require.NoError(t, err)
+		require.NotEmpty(t, querySvc.Containers, "Query service should have a container")
+		queryMachineID := querySvc.Containers[0].MachineID
+
+		// Find the local container IP (on the same machine as the query)
+		var localIP string
+		for _, ctr := range svc.Containers {
+			if ctr.MachineID == queryMachineID {
+				localIP = ctr.Container.UncloudNetworkIP().String()
+				break
+			}
+		}
+		require.NotEmpty(t, localIP, "Should find local container IP on query machine %s", queryMachineID)
+
+		// Extract the first IP address from the DNS output using regex
+		// Pattern matches: "Name: nearest.test-dns-service.internal" followed by "Address: X.X.X.X"
+		re := regexp.MustCompile(`(?m)Name:\s+[\w\.\-]+\s+Address:\s+([\d\.]+)`)
+		matches := re.FindStringSubmatch(dnsOutput)
+		require.Len(t, matches, 2, "Should find Name's Address in DNS output")
+		firstIP := matches[1]
+		assert.Equal(t, localIP, firstIP,
+			"Nearest mode should return local subnet IP first (query machine: %s, local IP: %s, first DNS result: %s)",
+			queryMachineID, localIP, firstIP)
 
 		assertNoDNSErrors(t, dnsOutput)
 	})
