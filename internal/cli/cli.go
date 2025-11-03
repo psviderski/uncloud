@@ -398,6 +398,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	connCfg := config.MachineConnection{
 		SSH:        config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port),
 		SSHKeyFile: opts.RemoteMachine.KeyPath,
+		Name:       opts.MachineName,
 	}
 	if contextName == "" {
 		contextName = cli.Config.CurrentContext

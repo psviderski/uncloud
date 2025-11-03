@@ -40,6 +40,7 @@ func main() {
 			cli.BindEnvToFlag(cmd, "connect", "UNCLOUD_CONNECT")
 			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
 
+			configPath := fs.ExpandHomeDir(opts.configPath)
 			var conn *config.MachineConnection
 			if opts.connect != "" {
 				if strings.HasPrefix(opts.connect, "tcp://") {
@@ -55,18 +56,34 @@ func main() {
 					conn = &config.MachineConnection{
 						SSHCLI: config.SSHDestination(dest),
 					}
-				} else {
-					dest := opts.connect
-					if strings.HasPrefix(dest, "ssh://") {
-						dest = dest[len("ssh://"):]
-					}
+				} else if strings.HasPrefix(opts.connect, "ssh://") {
+					dest := opts.connect[len("ssh://"):]
 					conn = &config.MachineConnection{
 						SSH: config.SSHDestination(dest),
+					}
+				} else {
+					// If the connect string doesn't contain "@", it could be a machine name.
+					if !strings.Contains(opts.connect, "@") {
+						cfg, err := config.NewFromFile(configPath)
+						if err == nil {
+							for _, c := range cfg.Contexts[cfg.CurrentContext].Connections {
+								if c.Name == opts.connect {
+									conn = &c
+									break
+								}
+							}
+						}
+					}
+
+					// Default to assuming it is an ssh destination.
+					if conn == nil {
+						conn = &config.MachineConnection{
+							SSH: config.SSHDestination(opts.connect),
+						}
 					}
 				}
 			}
 
-			configPath := fs.ExpandHomeDir(opts.configPath)
 			uncli, err := cli.New(configPath, conn)
 			if err != nil {
 				return fmt.Errorf("initialise CLI: %w", err)
