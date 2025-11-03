@@ -102,11 +102,11 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 }
 
 type PushImageOptions struct {
+	// AllMachines pushes the image to all machines in the cluster. Takes precedence over Machines field.
+	AllMachines bool
 	// Machines is a list of machine names or IDs to push the image to. If empty and AllMachines is false,
 	// pushes to the machine the client is connected to.
 	Machines []string
-	// AllMachines pushes the image to all machines in the cluster. Takes precedence over Machines field.
-	AllMachines bool
 	// Platform to push for a multi-platform image. Local Docker must use containerd image store
 	// to support multi-platform images.
 	Platform *ocispec.Platform

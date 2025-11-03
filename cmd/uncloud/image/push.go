@@ -14,8 +14,8 @@ import (
 type pushOptions struct {
 	image    string
 	machines []string
-	context  string
 	platform string
+	context  string
 }
 
 func NewPushCommand() *cobra.Command {
@@ -50,9 +50,8 @@ The image is uploaded to the machine which CLI is connected to (default) or the 
 	}
 
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
-		"Machine names to push the image to. Can be specified multiple times or as a comma-separated "+
-			"list of machine names.\n"+
-			"Use 'all' to push to all machines. (default is connected machine)")
+		"Machine names or IDs to push the image to. Can be specified multiple times or as a comma-separated list. "+
+			"(default is all machines)")
 	cmd.Flags().StringVar(
 		&opts.platform, "platform", "",
 		"Push a specific platform of a multi-platform image (e.g., linux/amd64, linux/arm64).\n"+
@@ -76,11 +75,14 @@ func push(ctx context.Context, uncli *cli.CLI, opts pushOptions) error {
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
 	pushOpts := client.PushImageOptions{}
 
-	// Special handling for "all" keyword to push to all machines.
+	// Special handling for an explicit "all" keyword to push to all machines.
 	if len(machines) == 1 && machines[0] == "all" {
 		pushOpts.AllMachines = true
-	} else {
+	} else if len(machines) > 0 {
 		pushOpts.Machines = machines
+	} else {
+		// Default is to push to all machines in the cluster.
+		pushOpts.AllMachines = true
 	}
 
 	if opts.platform != "" {
