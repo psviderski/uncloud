@@ -250,7 +250,5 @@ message ExecContainerResponse {
     bytes stderr = 3;
     // Exit code of the exec process. Sent as the final message.
     int32 exit_code = 4;
-    // Error message if something went wrong.
-    string error = 5;
   }
 }

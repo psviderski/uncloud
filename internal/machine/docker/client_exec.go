@@ -194,8 +194,6 @@ func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContaine
 			slog.Debug("received exit code", "code", payload.ExitCode)
 			*exitCode = int(payload.ExitCode)
 			return nil
-		case *pb.ExecContainerResponse_Error:
-			return fmt.Errorf("exec error: %s", payload.Error)
 		}
 	}
 }
