@@ -28,7 +28,7 @@ func NewExecCommand() *cobra.Command {
 		Use:   "exec [OPTIONS] SERVICE [COMMAND ARGS...]",
 		Short: "Execute a command in a running service container",
 		Long: `Execute a command (interactive shell by default) in a running container within a service.
-(FIXME) If the service has multiple replicas, the command will be executed in the first container.
+If the service has multiple replicas, the command will be executed in a random container.
 	`,
 		Example: `
   # Start an interactive shell ("bash" or "sh" will be tried by default)
@@ -39,6 +39,9 @@ func NewExecCommand() *cobra.Command {
 
   # List files in a container
   uc exec web-service ls -la
+
+  # Pipe input to a command in the container
+  cat /var/log/app.log | uc exec -T web-service grep "ERROR"
 
   # Run a task in the background (detached mode)
   uc exec -d web-service /scripts/cleanup.sh`,
