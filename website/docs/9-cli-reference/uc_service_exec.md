@@ -22,10 +22,10 @@ uc service exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
   # Start an interactive shell with explicit command
   uc exec web-service /bin/zsh
 
-  # List files in a container
-  uc exec web-service ls -la
+  # List files in the specific container of the service
+  uc exec --container d792ea7347e5 web-service ls -la
 
-  # Pipe input to a command in the container
+  # Pipe input to a command inside the service container
   cat /var/log/app.log | uc exec -T web-service grep "ERROR"
 
   # Run a task in the background (detached mode)
