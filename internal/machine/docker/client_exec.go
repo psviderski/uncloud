@@ -208,6 +208,9 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 
 	slog.Debug("starting ExecContainer", "containerID", opts.ContainerID, "options", opts.Options)
 
+	// Initialize exit code to non-zero in case we have to return early
+	exitCode = 1
+
 	// Set up I/O streams - use custom streams if provided, otherwise default to os.Stdin/Stdout/Stderr
 	stdin := io.Reader(os.Stdin)
 	stdout := io.Writer(os.Stdout)
