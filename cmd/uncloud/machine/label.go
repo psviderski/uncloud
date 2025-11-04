@@ -1,9 +1,12 @@
 package machine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -15,68 +18,65 @@ func newLabelCmd() *cobra.Command {
 			return fmt.Errorf("a valid subcommand is required")
 		},
 	}
-	cmd.AddCommand(newLabelAddCmd())
-	cmd.AddCommand(newLabelRmCmd())
-	cmd.AddCommand(newLabelLsCmd())
+	cmd.AddCommand(
+		newLabelAddCmd(),
+		newLabelRmCmd(),
+		newLabelLsCmd(),
+	)
+	return cmd
+}
+
+type labelActionFunc func(ctx context.Context, client *client.Client, machineNameOrID string, labels []string) (*pb.MachineInfo, error)
+
+func newLabelModifyCmd(use, short, successMsg string, action labelActionFunc) *cobra.Command {
+	var contextName string
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			machineNameOrID := args[0]
+			labels := args[1:]
+
+			client, err := uncli.ConnectCluster(cmd.Context(), contextName)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+
+			if _, err = action(cmd.Context(), client, machineNameOrID, labels); err != nil {
+				return err
+			}
+
+			fmt.Printf(successMsg, machineNameOrID)
+			return nil
+		},
+	}
+	cmd.Flags().StringVarP(&contextName, "context", "c", "", "Name of the cluster context. (default is the current context)")
 	return cmd
 }
 
 func newLabelAddCmd() *cobra.Command {
-	var contextName string
-	cmd := &cobra.Command{
-		Use:   "add <machine> <label> [labels...]",
-		Short: "Add one or more labels to a machine",
-		Args:  cobra.MinimumNArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			machineNameOrID := args[0]
-			labels := args[1:]
-
-			client, err := uncli.ConnectCluster(cmd.Context(), contextName)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-
-			if _, err = client.AddMachineLabels(cmd.Context(), machineNameOrID, labels); err != nil {
-				return fmt.Errorf("add labels to machine: %w", err)
-			}
-
-			fmt.Printf("Label(s) added to machine %q.\n", machineNameOrID)
-			return nil
+	return newLabelModifyCmd(
+		"add <machine> <label> [labels...]",
+		"Add one or more labels to a machine",
+		"Label(s) added to machine %q.\n",
+		func(ctx context.Context, client *client.Client, machineNameOrID string, labels []string) (*pb.MachineInfo, error) {
+			return client.AddMachineLabels(ctx, machineNameOrID, labels)
 		},
-	}
-	cmd.Flags().StringVarP(&contextName, "context", "c", "", "Name of the cluster context. (default is the current context)")
-	return cmd
+	)
 }
 
 func newLabelRmCmd() *cobra.Command {
-	var contextName string
-	cmd := &cobra.Command{
-		Use:   "rm <machine> <label> [labels...]",
-		Short: "Remove one or more labels from a machine",
-		Args:  cobra.MinimumNArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			machineNameOrID := args[0]
-			labels := args[1:]
-
-			client, err := uncli.ConnectCluster(cmd.Context(), contextName)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-
-			if _, err = client.RemoveMachineLabels(cmd.Context(), machineNameOrID, labels); err != nil {
-				return fmt.Errorf("remove labels from machine: %w", err)
-			}
-
-			fmt.Printf("Label(s) removed from machine %q.\n", machineNameOrID)
-			return nil
+	return newLabelModifyCmd(
+		"rm <machine> <label> [labels...]",
+		"Remove one or more labels from a machine",
+		"Label(s) removed from machine %q.\n",
+		func(ctx context.Context, client *client.Client, machineNameOrID string, labels []string) (*pb.MachineInfo, error) {
+			return client.RemoveMachineLabels(ctx, machineNameOrID, labels)
 		},
-	}
-	cmd.Flags().StringVarP(&contextName, "context", "c", "", "Name of the cluster context. (default is the current context)")
-	return cmd
+	)
 }
 
 func newLabelLsCmd() *cobra.Command {
