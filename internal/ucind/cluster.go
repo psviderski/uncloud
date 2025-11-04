@@ -142,7 +142,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 
 	// Join the rest of the machines to the cluster.
 	for _, m := range machines[1:] {
-		if err = WaitMachineReady(ctx, m, 5*time.Second); err != nil {
+		if err = WaitMachineReady(ctx, m, 30*time.Second); err != nil {
 			return fmt.Errorf("wait for machine %q to be ready: %w", m.Name, err)
 		}
 
