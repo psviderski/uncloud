@@ -33,12 +33,12 @@ import (
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
+	"golang.zx2c4.com/wireguard/wgctrl"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"golang.zx2c4.com/wireguard/wgctrl"
 )
 
 const (
@@ -98,7 +98,6 @@ func (m *Machine) GetWireGuardDevice(ctx context.Context, req *emptypb.Empty) (*
 		Peers:      peers,
 	}, nil
 }
-
 
 type Config struct {
 	// DataDir is the directory where the machine stores its persistent state. Default is /var/lib/uncloud.
