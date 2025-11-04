@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -17,6 +18,8 @@ import (
 )
 
 type deployOptions struct {
+	cli.BuildServicesOptions
+
 	files    []string
 	profiles []string
 	services []string
@@ -37,21 +40,25 @@ func NewDeployCommand() *cobra.Command {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
 
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-
-			if len(args) > 0 {
-				opts.services = args
-			}
+			opts.services = args
 
 			return runDeploy(cmd.Context(), uncli, opts)
 		},
 	}
 
+	cmd.Flags().StringArrayVar(&opts.BuildServicesOptions.BuildArgs, "build-arg", nil,
+		"Set a build-time variable for services. Used in Dockerfiles that declare the variable with ARG.\n"+
+			"Can be specified multiple times. Format: --build-arg VAR=VALUE")
+	cmd.Flags().BoolVar(&opts.BuildServicesOptions.Pull, "build-pull", false,
+		"Always attempt to pull newer versions of base images before building service images.")
 	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context to deploy to (default is the current context)")
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
 		"One or more Compose files to deploy services from. (default compose.yaml)")
-	cmd.Flags().BoolVarP(&opts.noBuild, "no-build", "n", false,
-		"Do not build images before deploying services. (default false)")
+	cmd.Flags().BoolVar(&opts.noBuild, "no-build", false,
+		"Do not build new images before deploying services.")
+	cmd.Flags().BoolVar(&opts.BuildServicesOptions.NoCache, "no-cache", false,
+		"Do not use cache when building images.")
 	cmd.Flags().StringSliceVarP(&opts.profiles, "profile", "p", nil,
 		"One or more Compose profiles to enable.")
 	cmd.Flags().BoolVar(&opts.recreate, "recreate", false,
@@ -66,22 +73,9 @@ func NewDeployCommand() *cobra.Command {
 	return cmd
 }
 
-// projectOpts returns the project options for the Compose file(s).
-func projectOpts(opts deployOptions) []composecli.ProjectOptionsFn {
-	var projOpts []composecli.ProjectOptionsFn
-
-	if len(opts.profiles) > 0 {
-		projOpts = append(projOpts, composecli.WithDefaultProfiles(opts.profiles...))
-	}
-
-	return projOpts
-}
-
 // runDeploy parses the Compose file(s) and deploys the services.
 func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
-	projOpts := projectOpts(opts)
-
-	project, err := compose.LoadProject(ctx, opts.files, projOpts...)
+	project, err := compose.LoadProject(ctx, opts.files, composecli.WithDefaultProfiles(opts.profiles...))
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
@@ -103,15 +97,15 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		if opts.noBuild {
 			fmt.Println("Not building services as requested.")
 		} else {
-			buildOpts := cli.BuildOptions{
-				Push:    true,
-				NoCache: false,
-			}
+			// Build service images without pushing them to cluster yet to not connect to the cluster twice.
+			opts.BuildServicesOptions.Deps = true // build dependencies as deploy includes them by default
+			opts.BuildServicesOptions.Services = opts.services
 
-			if err := cli.BuildServices(ctx, servicesToBuild, buildOpts); err != nil {
+			if err = uncli.BuildServices(ctx, project, opts.BuildServicesOptions); err != nil {
 				return fmt.Errorf("build services: %w", err)
 			}
 		}
+		fmt.Println()
 	}
 
 	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
@@ -119,6 +113,43 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer clusterClient.Close()
+
+	if len(servicesToBuild) > 0 && !opts.noBuild {
+		// Push built service images to cluster machines one at a time.
+		var errs []error
+		for _, s := range servicesToBuild {
+			if s.Image == "" {
+				// Skip services without an image name (shouldn't happen for services with build config).
+				continue
+			}
+
+			// Push to the specified x-machines or to *all* cluster machines if not specified.
+			var pushOpts client.PushImageOptions
+			if machines, ok := s.Extensions[compose.MachinesExtensionKey].(compose.MachinesSource); ok {
+				pushOpts.Machines = machines
+				if len(machines) == 0 {
+					pushOpts.AllMachines = true
+				}
+			}
+
+			boldStyle := lipgloss.NewStyle().Bold(true)
+			err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+				if err = clusterClient.PushImage(ctx, s.Image, pushOpts); err != nil {
+					return fmt.Errorf("push image '%s' for service '%s': %w", s.Image, s.Name, err)
+				}
+				return nil
+			}, uncli.ProgressOut(), fmt.Sprintf("Pushing image %s to cluster", boldStyle.Render(s.Image)))
+			// Collect errors to try pushing all images.
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if err = errors.Join(errs...); err != nil {
+			return err
+		}
+		fmt.Println()
+	}
 
 	var strategy deploy.Strategy
 	if opts.recreate {
@@ -139,7 +170,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return nil
 	}
 
-	fmt.Println("Deployment plan:")
+	fmt.Println(lipgloss.NewStyle().Bold(true).Render("Deployment plan"))
 	if err = printPlan(ctx, clusterClient, plan); err != nil {
 		return fmt.Errorf("print deployment plan: %w", err)
 	}

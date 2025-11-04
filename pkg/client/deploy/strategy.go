@@ -182,9 +182,8 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 
 		// Remove the old container.
 		plan.Operations = append(plan.Operations, &RemoveContainerOperation{
-			ServiceID:   plan.ServiceID,
-			ContainerID: ctr.ID,
-			MachineID:   m.Id,
+			MachineID: m.Id,
+			Container: ctr,
 		})
 	}
 
@@ -192,9 +191,8 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 	for mid, containers := range containersOnMachine {
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
-				ServiceID:   plan.ServiceID,
-				ContainerID: c.ID,
-				MachineID:   mid,
+				MachineID: mid,
+				Container: c,
 			})
 		}
 	}
@@ -244,9 +242,8 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 	for _, containers := range containersOnMachine {
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
-				ServiceID:   plan.ServiceID,
-				ContainerID: c.Container.ID,
-				MachineID:   c.MachineID,
+				MachineID: c.MachineID,
+				Container: c.Container,
 			})
 		}
 	}
@@ -295,9 +292,8 @@ func reconcileGlobalContainer(
 					continue
 				}
 				ops = append(ops, &RemoveContainerOperation{
-					ServiceID:   serviceID,
-					ContainerID: old.Container.ID,
-					MachineID:   old.MachineID,
+					MachineID: old.MachineID,
+					Container: old.Container,
 				})
 			}
 			break
@@ -338,9 +334,8 @@ func reconcileGlobalContainer(
 	// Remove the old containers.
 	for _, c := range containers {
 		ops = append(ops, &RemoveContainerOperation{
-			ServiceID:   serviceID,
-			ContainerID: c.Container.ID,
-			MachineID:   c.MachineID,
+			MachineID: c.MachineID,
+			Container: c.Container,
 		})
 	}
 

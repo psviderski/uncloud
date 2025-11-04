@@ -16,6 +16,7 @@ type Client struct {
 }
 
 // WaitDaemonReady waits for the Docker daemon to start and be ready to serve requests.
+// TODO(lhf): convert into a Client method.
 func WaitDaemonReady(ctx context.Context, cli *client.Client) error {
 	// Retry to ping the Docker daemon until it's ready or the context is canceled.
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(

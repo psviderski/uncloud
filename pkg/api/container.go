@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
 )
 
@@ -142,6 +143,11 @@ func (c *Container) UnmarshalJSON(data []byte) error {
 type ServiceContainer struct {
 	Container
 	ServiceSpec ServiceSpec
+}
+
+// ShortID returns the truncated ID of the container (12 characters).
+func (c *ServiceContainer) ShortID() string {
+	return stringid.TruncateID(c.ID)
 }
 
 // ServiceID returns the ID of the service this container belongs to.
