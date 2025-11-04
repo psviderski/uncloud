@@ -16,7 +16,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/psviderski/uncloud/internal/cli"
-	cliInternal "github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/compose"
@@ -98,7 +97,7 @@ func TestComposeBuild(t *testing.T) {
 			}),
 		)
 		require.NoError(t, err)
-		servicesToBuild, err := cliInternal.ServicesThatNeedBuild(project, nil, false)
+		servicesToBuild, err := cli.ServicesThatNeedBuild(project, nil, false)
 		require.NoError(t, err)
 		serviceImage1 := project.Services["service-first"].Image // contains auto-generated default tag
 		serviceImage2 := fmt.Sprintf("127.0.0.1:%d/service-second:version2", registryHostPort)
@@ -111,8 +110,8 @@ func TestComposeBuild(t *testing.T) {
 			assert.NoErrorf(t, err, "failed to remove image %s on test cleanup", serviceImage2)
 		})
 
-		servicesToBuildExpected := map[string]types.ServiceConfig{
-			"service-first": {
+		servicesToBuildExpected := []types.ServiceConfig{
+			{
 				Name: "service-first",
 				Build: &types.BuildConfig{
 					Context:    path.Join(project.WorkingDir, "service-first-dir"),
@@ -124,7 +123,7 @@ func TestComposeBuild(t *testing.T) {
 					"default": nil,
 				},
 			},
-			"service-second": {
+			{
 				Name: "service-second",
 				Build: &types.BuildConfig{
 					Context:    path.Join(project.WorkingDir, "service-second-dir"),
@@ -137,14 +136,16 @@ func TestComposeBuild(t *testing.T) {
 				},
 			},
 		}
-		assert.Equal(t, servicesToBuildExpected, servicesToBuild)
+		assert.ElementsMatch(t, servicesToBuildExpected, servicesToBuild)
 
-		// Build and push the images
-		buildOpts := cli.BuildOptions{
-			Push:    true,
-			NoCache: false,
+		// Build and push the images to the test registry.
+		// Create a minimal CLI instance for the build function (it's only used for cluster push, which we're not using here).
+		uncli := &cli.CLI{}
+		buildOpts := cli.BuildServicesOptions{
+			PushRegistry: true,
 		}
-		cli.BuildServices(context.Background(), servicesToBuild, buildOpts)
+		err = uncli.BuildServices(context.Background(), project, buildOpts)
+		require.NoError(t, err)
 
 		// Check the image of the first service
 		tagSeparatorIdx := strings.LastIndex(serviceImage1, ":")

@@ -2,40 +2,151 @@ package cli
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/distribution/reference"
-	"github.com/docker/cli/cli/config"
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/image"
-	dockerclient "github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
-	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/docker/registry"
-	"github.com/moby/term"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/flags"
+	composeapi "github.com/docker/compose/v2/pkg/api"
+	composev2 "github.com/docker/compose/v2/pkg/compose"
+	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/client/compose"
 )
 
-type BuildOptions struct {
-	Files    []string
-	Profiles []string
+// BuildServicesOptions contains options for building services in a Compose project.
+type BuildServicesOptions struct {
+	// BuildArgs sets build-time variables for services. Used in Dockerfiles that declare variables with ARG.
+	BuildArgs []string
+	// Check the build configuration for services without building them.
+	Check bool
+	// Deps enables to also build services declared as dependencies of the selected Services.
+	Deps bool
+	// NoCache disables the use of cache when building images.
+	NoCache bool
+	// Pull attempts to pull newer versions of the base images before building.
+	Pull bool
+	// Services specifies which services to build. If empty, all services with a build config are built.
 	Services []string
-	Push     bool
-	NoCache  bool
+
+	// Push targets are mutually exclusive.
+	// PushCluster uploads the built images to cluster machines after building.
+	PushCluster bool
+	// PushRegistry uploads the built images to external registries after building.
+	PushRegistry bool
+
+	// Cluster-specific options (only used if PushCluster is true).
+	// Context is the name of the cluster context.
+	Context string
+	// Machines is a list of machine names or IDs to push the image to. If empty, images are pushed to all machines.
+	Machines []string
 }
 
-// ServicesThatNeedBuild returns a map of services that require building.
+// BuildServices builds images for services in the Compose project.
+func (cli *CLI) BuildServices(ctx context.Context, project *composetypes.Project, opts BuildServicesOptions) error {
+	// Validate push targets.
+	if opts.PushCluster && opts.PushRegistry {
+		return fmt.Errorf("cannot specify both PushCluster and PushRegistry: choose one push target")
+	}
+
+	// Build service images using Compose implementation.
+	dockerCli, err := command.NewDockerCli()
+	if err != nil {
+		return fmt.Errorf("create docker client: %w", err)
+	}
+	// Initialise the Docker CLI with default options.
+	if err = dockerCli.Initialize(flags.NewClientOptions()); err != nil {
+		return fmt.Errorf("initialise docker client: %w", err)
+	}
+
+	composeService := composev2.NewComposeService(dockerCli)
+	buildOpts := composeapi.BuildOptions{
+		Args:     composetypes.NewMappingWithEquals(opts.BuildArgs),
+		Check:    opts.Check,
+		Deps:     opts.Deps,
+		NoCache:  opts.NoCache,
+		Pull:     opts.Pull,
+		Push:     opts.PushRegistry,
+		Services: opts.Services,
+	}
+
+	if err = composeService.Build(ctx, project, buildOpts); err != nil {
+		return err
+	}
+
+	if !opts.PushCluster {
+		return nil
+	}
+
+	// Push built service images to cluster machines.
+	builtServices, err := ServicesThatNeedBuild(project, opts.Services, opts.Deps)
+	if err != nil {
+		return fmt.Errorf("determine built services: %w", err)
+	}
+	if len(builtServices) == 0 {
+		// No services were built, nothing to push.
+		return nil
+	}
+
+	// Add a line break after the build output.
+	fmt.Fprintln(cli.ProgressOut())
+
+	clusterClient, err := cli.ConnectCluster(ctx, opts.Context)
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
+	}
+	defer clusterClient.Close()
+
+	// Push one service image at a time.
+	var errs []error
+	for _, s := range builtServices {
+		if s.Image == "" {
+			// Skip services without an image name (shouldn't happen for services with build config).
+			continue
+		}
+
+		// Push to the specified machines falling back to service x-machines.
+		// If none specified, push to *all* cluster machines.
+		var pushOpts client.PushImageOptions
+
+		if len(opts.Machines) > 0 {
+			pushOpts.Machines = opts.Machines
+		} else if machines, ok := s.Extensions[compose.MachinesExtensionKey].(compose.MachinesSource); ok {
+			pushOpts.Machines = machines
+		}
+
+		if len(pushOpts.Machines) == 0 {
+			pushOpts.AllMachines = true
+		}
+
+		boldStyle := lipgloss.NewStyle().Bold(true)
+		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+			if err = clusterClient.PushImage(ctx, s.Image, pushOpts); err != nil {
+				return fmt.Errorf("push image '%s' for service '%s': %w", s.Image, s.Name, err)
+			}
+			return nil
+		}, cli.ProgressOut(), fmt.Sprintf("Pushing image %s to cluster", boldStyle.Render(s.Image)))
+
+		// Collect errors to try pushing all images.
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// ServicesThatNeedBuild returns a list of services that require building.
 // deps indicates whether to include services that are dependencies of the selected services.
 // Implementation is based on the logic from docker/compose/v2/pkg/compose/build.go.
 func ServicesThatNeedBuild(
 	project *composetypes.Project, selectedServices []string, deps bool,
-) (map[string]composetypes.ServiceConfig, error) {
-	servicesToBuild := make(map[string]composetypes.ServiceConfig, len(project.Services))
+) ([]composetypes.ServiceConfig, error) {
+	servicesToBuild := make([]composetypes.ServiceConfig, 0, len(project.Services))
 
 	var policy composetypes.DependencyOption = composetypes.IgnoreDependencies
 	if deps {
@@ -55,18 +166,12 @@ func ServicesThatNeedBuild(
 
 	err = project.ForEachService(selectedServices, func(serviceName string, service *composetypes.ServiceConfig) error {
 		if service.Build != nil {
-			servicesToBuild[serviceName] = *service
+			servicesToBuild = append(servicesToBuild, *service)
 		}
 		return nil
 	}, policy)
 	if err != nil {
 		return nil, err
-	}
-
-	for serviceName, service := range project.Services {
-		if service.Build != nil {
-			servicesToBuild[serviceName] = service
-		}
 	}
 
 	return servicesToBuild, nil
@@ -94,141 +199,4 @@ func includeAdditionalContextsServices(project *composetypes.Project, selectedSe
 	}
 
 	return servicesWithDependencies.ToSlice()
-}
-
-// BuildServices builds the services defined in the provided map.
-func BuildServices(ctx context.Context, servicesToBuild map[string]composetypes.ServiceConfig, opts BuildOptions) error {
-	fmt.Println("Building services...")
-
-	// Init docker client (can be local or remote, depending on DOCKER_HOST environment variable)
-	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
-	if err != nil {
-		return err
-	}
-	defer dockerCli.Close()
-
-	serviceImages := make(map[string]string, len(servicesToBuild))
-
-	// Build the services using the local docker client and compose libraries
-	for _, service := range servicesToBuild {
-		fmt.Printf("Building service: %s\n", service.Name)
-		imageName, err := buildSingleService(ctx, dockerCli, service, opts)
-		if err != nil {
-			return fmt.Errorf("build service %s: %w", service.Name, err)
-		}
-		serviceImages[service.Name] = imageName
-	}
-	fmt.Printf("Service images are built.\n")
-
-	if opts.Push {
-		err = pushServiceImages(ctx, dockerCli, serviceImages)
-	}
-
-	return err
-}
-
-// buildSingleService builds a single service using the Docker client and Compose libraries.
-func buildSingleService(ctx context.Context, dockerCli *dockerclient.Client, service composetypes.ServiceConfig, opts BuildOptions) (string, error) {
-	if service.Build == nil {
-		return "", fmt.Errorf("service %s has no build configuration", service.Name)
-	}
-	if service.Image == "" {
-		return "", fmt.Errorf("service %s has no image specified; building services without image is not supported yet",
-			service.Name)
-	}
-
-	buildContextPath := service.Build.Context
-	imageName := service.Image
-
-	// Create a tar archive of the build context
-	buildContext, err := archive.TarWithOptions(buildContextPath, &archive.TarOptions{})
-	if err != nil {
-		return "", fmt.Errorf("failed to create build context for service %s: %w", service.Name, err)
-	}
-
-	buildOptions := build.ImageBuildOptions{
-		// TODO: Support Dockerfiles outside the build context
-		// See https://github.com/docker/compose/blob/cf89fd1aa1328d5af77658ccc5a1e1b29981ae80/pkg/compose/build_classic.go#L92
-		Dockerfile: service.Build.Dockerfile,
-		Tags:       []string{imageName},
-		Remove:     true, // Remove intermediate containers
-		NoCache:    opts.NoCache,
-	}
-
-	buildResponse, err := dockerCli.ImageBuild(ctx, buildContext, buildOptions)
-	if err != nil {
-		return "", fmt.Errorf("failed to build image for service %s: %w", service.Name, err)
-	}
-	defer buildResponse.Body.Close()
-
-	// Display the build response
-	fd, isTerminal := term.GetFdInfo(os.Stdout)
-	if err := jsonmessage.DisplayJSONMessagesStream(buildResponse.Body, os.Stdout, fd, isTerminal, nil); err != nil {
-		return "", fmt.Errorf("failed to display build response for service %s: %w", service.Name, err)
-	}
-
-	return imageName, nil
-}
-
-// pushSingleServiceImage pushes a single service image.
-func pushSingleServiceImage(ctx context.Context, dockerCli *dockerclient.Client, serviceName string, imageName string) error {
-	ref, err := reference.ParseNormalizedNamed(imageName)
-	if err != nil {
-		return err
-	}
-
-	repoInfo, err := registry.ParseRepositoryInfo(ref)
-	if err != nil {
-		return err
-	}
-
-	registryKey := repoInfo.Index.Name
-	if repoInfo.Index.Official {
-		registryKey = registry.IndexServer
-	}
-
-	// Load the Docker config file with auth details, if available
-	configFile := config.LoadDefaultConfigFile(os.Stderr)
-
-	authConfig, err := configFile.GetAuthConfig(registryKey)
-	if err != nil {
-		return err
-	}
-
-	authJSON, err := json.Marshal(authConfig)
-	if err != nil {
-		return fmt.Errorf("failed to marshal auth config for registry %s: %w", registryKey, err)
-	}
-
-	authStr := base64.URLEncoding.EncodeToString(authJSON)
-
-	pushOptions := image.PushOptions{
-		RegistryAuth: authStr,
-	}
-	pushResponse, err := dockerCli.ImagePush(ctx, imageName, pushOptions)
-	if err != nil {
-		return fmt.Errorf("failed to push image %s: %w", imageName, err)
-	}
-	defer pushResponse.Close()
-
-	fmt.Printf("Pushing image %s for service %s...\n", imageName, serviceName)
-
-	fd, isTerminal := term.GetFdInfo(os.Stdout)
-	if err := jsonmessage.DisplayJSONMessagesStream(pushResponse, os.Stdout, fd, isTerminal, nil); err != nil {
-		return fmt.Errorf("failed to display push response for image %s: %w", imageName, err)
-	}
-
-	fmt.Printf("Image %s pushed successfully.\n", imageName)
-	return nil
-}
-
-// pushServiceImages pushes all built service images to the registry.
-func pushServiceImages(ctx context.Context, dockerCli *dockerclient.Client, serviceImages map[string]string) error {
-	fmt.Printf("Pushing images...\n")
-	for serviceName, imageName := range serviceImages {
-		if err := pushSingleServiceImage(ctx, dockerCli, serviceName, imageName); err != nil {
-			return fmt.Errorf("push image for service %s: %w", serviceName, err)
-		}
-	}
-	return nil
 }
