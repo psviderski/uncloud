@@ -18,6 +18,8 @@ service Cluster {
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
   rpc ReleaseDomain(google.protobuf.Empty) returns (Domain);
   rpc CreateDomainRecords(CreateDomainRecordsRequest) returns (CreateDomainRecordsResponse);
+  rpc AddMachineLabels(AddMachineLabelsRequest) returns (UpdateMachineResponse);
+  rpc RemoveMachineLabels(RemoveMachineLabelsRequest) returns (UpdateMachineResponse);
 }
 
 message AddMachineRequest {
@@ -67,6 +69,16 @@ message UpdateMachineResponse {
 
 message RemoveMachineRequest {
   string id = 1;
+}
+
+message AddMachineLabelsRequest {
+  string machine_id = 1;
+  repeated string labels = 2;
+}
+
+message RemoveMachineLabelsRequest {
+  string machine_id = 1;
+  repeated string labels = 2;
 }
 
 message Domain {
