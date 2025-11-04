@@ -22,6 +22,8 @@ type State struct {
 	ID string
 	// Name provides a human-readable identifier for the machine.
 	Name string
+	// Labels provides a set of strings that can be used to identify and organize machines.
+	Labels []string
 	// Network specifies the network configuration for this machine.
 	Network *network.Config
 

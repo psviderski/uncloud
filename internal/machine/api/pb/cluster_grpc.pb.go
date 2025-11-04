@@ -28,6 +28,8 @@ const (
 	Cluster_GetDomain_FullMethodName           = "/api.Cluster/GetDomain"
 	Cluster_ReleaseDomain_FullMethodName       = "/api.Cluster/ReleaseDomain"
 	Cluster_CreateDomainRecords_FullMethodName = "/api.Cluster/CreateDomainRecords"
+	Cluster_AddMachineLabels_FullMethodName    = "/api.Cluster/AddMachineLabels"
+	Cluster_RemoveMachineLabels_FullMethodName = "/api.Cluster/RemoveMachineLabels"
 )
 
 // ClusterClient is the client API for Cluster service.
@@ -42,6 +44,8 @@ type ClusterClient interface {
 	GetDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	ReleaseDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	CreateDomainRecords(ctx context.Context, in *CreateDomainRecordsRequest, opts ...grpc.CallOption) (*CreateDomainRecordsResponse, error)
+	AddMachineLabels(ctx context.Context, in *AddMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
+	RemoveMachineLabels(ctx context.Context, in *RemoveMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
 }
 
 type clusterClient struct {
@@ -132,6 +136,26 @@ func (c *clusterClient) CreateDomainRecords(ctx context.Context, in *CreateDomai
 	return out, nil
 }
 
+func (c *clusterClient) AddMachineLabels(ctx context.Context, in *AddMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMachineResponse)
+	err := c.cc.Invoke(ctx, Cluster_AddMachineLabels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterClient) RemoveMachineLabels(ctx context.Context, in *RemoveMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMachineResponse)
+	err := c.cc.Invoke(ctx, Cluster_RemoveMachineLabels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServer is the server API for Cluster service.
 // All implementations must embed UnimplementedClusterServer
 // for forward compatibility.
@@ -144,6 +168,8 @@ type ClusterServer interface {
 	GetDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	ReleaseDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	CreateDomainRecords(context.Context, *CreateDomainRecordsRequest) (*CreateDomainRecordsResponse, error)
+	AddMachineLabels(context.Context, *AddMachineLabelsRequest) (*UpdateMachineResponse, error)
+	RemoveMachineLabels(context.Context, *RemoveMachineLabelsRequest) (*UpdateMachineResponse, error)
 	mustEmbedUnimplementedClusterServer()
 }
 
@@ -177,6 +203,12 @@ func (UnimplementedClusterServer) ReleaseDomain(context.Context, *emptypb.Empty)
 }
 func (UnimplementedClusterServer) CreateDomainRecords(context.Context, *CreateDomainRecordsRequest) (*CreateDomainRecordsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDomainRecords not implemented")
+}
+func (UnimplementedClusterServer) AddMachineLabels(context.Context, *AddMachineLabelsRequest) (*UpdateMachineResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddMachineLabels not implemented")
+}
+func (UnimplementedClusterServer) RemoveMachineLabels(context.Context, *RemoveMachineLabelsRequest) (*UpdateMachineResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveMachineLabels not implemented")
 }
 func (UnimplementedClusterServer) mustEmbedUnimplementedClusterServer() {}
 func (UnimplementedClusterServer) testEmbeddedByValue()                 {}
@@ -343,6 +375,42 @@ func _Cluster_CreateDomainRecords_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cluster_AddMachineLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddMachineLabelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).AddMachineLabels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_AddMachineLabels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).AddMachineLabels(ctx, req.(*AddMachineLabelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Cluster_RemoveMachineLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveMachineLabelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).RemoveMachineLabels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_RemoveMachineLabels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).RemoveMachineLabels(ctx, req.(*RemoveMachineLabelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Cluster_ServiceDesc is the grpc.ServiceDesc for Cluster service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -381,6 +449,14 @@ var Cluster_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateDomainRecords",
 			Handler:    _Cluster_CreateDomainRecords_Handler,
+		},
+		{
+			MethodName: "AddMachineLabels",
+			Handler:    _Cluster_AddMachineLabels_Handler,
+		},
+		{
+			MethodName: "RemoveMachineLabels",
+			Handler:    _Cluster_RemoveMachineLabels_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

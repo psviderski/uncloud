@@ -99,3 +99,50 @@ func (cli *Client) RenameMachine(ctx context.Context, nameOrID, newName string) 
 
 	return cli.UpdateMachine(ctx, req)
 }
+
+// AddMachineLabels adds labels to a machine.
+func (cli *Client) AddMachineLabels(ctx context.Context, nameOrID string, labels []string) (*pb.MachineInfo, error) {
+	machine, err := cli.InspectMachine(ctx, nameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &pb.AddMachineLabelsRequest{
+		MachineId: machine.Machine.Id,
+		Labels:    labels,
+	}
+
+	resp, err := cli.ClusterClient.AddMachineLabels(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Machine, nil
+}
+
+// RemoveMachineLabels removes labels from a machine.
+func (cli *Client) RemoveMachineLabels(ctx context.Context, nameOrID string, labels []string) (*pb.MachineInfo, error) {
+	machine, err := cli.InspectMachine(ctx, nameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &pb.RemoveMachineLabelsRequest{
+		MachineId: machine.Machine.Id,
+		Labels:    labels,
+	}
+
+	resp, err := cli.ClusterClient.RemoveMachineLabels(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Machine, nil
+}
+
+// GetMachineLabels returns the labels for a machine.
+func (cli *Client) GetMachineLabels(ctx context.Context, nameOrID string) ([]string, error) {
+	machine, err := cli.InspectMachine(ctx, nameOrID)
+	if err != nil {
+		return nil, err
+	}
+	return machine.Machine.Labels, nil
+}
