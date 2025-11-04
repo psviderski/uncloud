@@ -139,7 +139,6 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 				}
 				return nil
 			}, uncli.ProgressOut(), fmt.Sprintf("Pushing image %s to cluster", boldStyle.Render(s.Image)))
-
 			// Collect errors to try pushing all images.
 			if err != nil {
 				errs = append(errs, err)
