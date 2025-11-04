@@ -29,6 +29,8 @@ type NameResolver interface {
 	ContainerName(containerID string) string
 }
 
+// TODO: pass api.ServiceContainer to operations to simplify operation formatting in the plan.
+
 // RunContainerOperation creates and starts a new container on a specific machine.
 type RunContainerOperation struct {
 	ServiceID string
@@ -56,8 +58,8 @@ func (o *RunContainerOperation) Format(resolver NameResolver) string {
 }
 
 func (o *RunContainerOperation) String() string {
-	return fmt.Sprintf("RunContainerOperation[service_id=%s, image=%s, machine_id=%s]",
-		o.ServiceID, o.Spec.Container.Image, o.MachineID)
+	return fmt.Sprintf("RunContainerOperation[machine_id=%s service_id=%s image=%s]",
+		o.MachineID, o.ServiceID, o.Spec.Container.Image)
 }
 
 // StopContainerOperation stops a container on a specific machine.
@@ -76,26 +78,26 @@ func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error 
 
 func (o *StopContainerOperation) Format(resolver NameResolver) string {
 	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Stop container [name=%s]", machineName, resolver.ContainerName(o.ContainerID))
+	return fmt.Sprintf("%s: Stop container [id=%s name=%s]", machineName,
+		o.ContainerID, resolver.ContainerName(o.ContainerID))
 }
 
 func (o *StopContainerOperation) String() string {
-	return fmt.Sprintf("StopContainerOperation[service_id=%s, container_id=%s, machine_id=%s]",
-		o.ServiceID, o.ContainerID, o.MachineID)
+	return fmt.Sprintf("StopContainerOperation[machine_id=%s service_id=%s container_id=%s]",
+		o.MachineID, o.ServiceID, o.ContainerID)
 }
 
 // RemoveContainerOperation stops and removes a container from a specific machine.
 type RemoveContainerOperation struct {
-	ServiceID   string
-	ContainerID string
-	MachineID   string
+	MachineID string
+	Container api.ServiceContainer
 }
 
 func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) error {
-	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, container.StopOptions{}); err != nil {
+	if err := cli.StopContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.StopOptions{}); err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
-	if err := cli.RemoveContainer(ctx, o.ServiceID, o.ContainerID, container.RemoveOptions{
+	if err := cli.RemoveContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.RemoveOptions{
 		// Remove anonymous volumes created by the container.
 		RemoveVolumes: true,
 	}); err != nil {
@@ -107,12 +109,13 @@ func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) erro
 
 func (o *RemoveContainerOperation) Format(resolver NameResolver) string {
 	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Remove container [name=%s]", machineName, resolver.ContainerName(o.ContainerID))
+	return fmt.Sprintf("%s: Remove container [ID=%s image=%s]",
+		machineName, o.Container.ShortID(), o.Container.Config.Image)
 }
 
 func (o *RemoveContainerOperation) String() string {
-	return fmt.Sprintf("RemoveContainerOperation[service_id=%s, container_id=%s, machine_id=%s]",
-		o.ServiceID, o.ContainerID, o.MachineID)
+	return fmt.Sprintf("RemoveContainerOperation[machine_id=%s service_id=%s container_id=%s]",
+		o.MachineID, o.Container.ServiceID(), o.Container.ID)
 }
 
 // CreateVolumeOperation creates a volume on a specific machine.
@@ -151,8 +154,8 @@ func (o *CreateVolumeOperation) Format(_ NameResolver) string {
 }
 
 func (o *CreateVolumeOperation) String() string {
-	return fmt.Sprintf("CreateVolumeOperation[volume=%s, machine_id=%s]",
-		o.VolumeSpec.DockerVolumeName(), o.MachineID)
+	return fmt.Sprintf("CreateVolumeOperation[machine_id=%s volume=%s]",
+		o.MachineID, o.VolumeSpec.DockerVolumeName())
 }
 
 // SequenceOperation is a composite operation that executes a sequence of operations in order.
