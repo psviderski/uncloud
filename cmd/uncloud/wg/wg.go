@@ -7,7 +7,6 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
-	// "github.com/psviderski/uncloud/internal/machine/api/pb/machine"
 	"github.com/spf13/cobra"
 )
 
