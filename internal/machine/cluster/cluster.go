@@ -282,7 +282,7 @@ func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 }
 
 // AddMachineLabels adds labels to a machine.
-func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.AddMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.MachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
 		return nil, err
 	}
@@ -323,7 +323,7 @@ func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.AddMachineLabels
 }
 
 // RemoveMachineLabels removes labels from a machine.
-func (c *Cluster) RemoveMachineLabels(ctx context.Context, req *pb.RemoveMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+func (c *Cluster) RemoveMachineLabels(ctx context.Context, req *pb.MachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
 		return nil, err
 	}
