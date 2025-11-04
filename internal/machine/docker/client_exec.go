@@ -294,5 +294,10 @@ func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode i
 	})
 
 	err = errGroup.Wait()
+
+	if err == nil && opts.Options.Detach {
+		return 0, nil
+	}
+
 	return exitCode, err
 }

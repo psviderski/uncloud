@@ -194,6 +194,24 @@ func TestExecBasicCommands(t *testing.T) {
 		assert.Empty(t, stderr.String(), "stderr should be empty for detached command")
 	})
 
+	// Test: Detached mode with invalid command
+	t.Run("detached invalid command", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		execOptions := api.ExecOptions{
+			Command: []string{"nonexistent-detached-command"},
+			Stdout:  &stdout,
+			Stderr:  &stderr,
+			Detach:  true,
+		}
+
+		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+
+		require.ErrorContains(t, err, "executable file not found")
+		assert.Equal(t, 1, exitCode)
+		assert.Empty(t, stdout.String(), "stdout should be empty for detached command")
+		assert.Empty(t, stderr.String(), "stderr should be empty for detached command")
+	})
+
 	// Deploy a service with multiple replicas
 	multiServiceName := "multi-replica-service"
 	deployTestService(t, ctx, cli, multiServiceName, 2)
