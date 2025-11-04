@@ -224,38 +224,39 @@ func (m spinnerModel) collectContainers() tea.Msg {
 			machinesNamesByID[m.Machine.Id] = m.Machine.Name
 		}
 
-		        for _, ctr := range service.Containers {
-		            status, err := ctr.Container.HumanState()
-		            if err != nil {
-		                return containersCollectedMsg{err: fmt.Errorf("get human state for container %s: %w", ctr.Container.ID, err)}
-		            }
+		for _, ctr := range service.Containers {
+			status, err := ctr.Container.HumanState()
+			if err != nil {
+				return containersCollectedMsg{err: fmt.Errorf("get human state for container %s: %w", ctr.Container.ID, err)}
+			}
 
-		            var statusState string
-		            healthStatus := ""
-		            if ctr.Container.State.Health != nil {
-		                healthStatus = ctr.Container.State.Health.Status
-		            }
+			var statusState string
+			healthStatus := ""
+			if ctr.Container.State.Health != nil {
+				healthStatus = ctr.Container.State.Health.Status
+			}
 
-					if healthStatus == container.Healthy {
-						statusState = statusHealthy
-					} else if healthStatus == container.Unhealthy {
-						statusState = statusUnhealthy
-					} else if ctr.Container.State.Status == "running" {
-						statusState = statusRunning
-					} else {
-						statusState = statusOther
-					}
+			if healthStatus == container.Healthy {
+				statusState = statusHealthy
+			} else if healthStatus == container.Unhealthy {
+				statusState = statusUnhealthy
+			} else if ctr.Container.State.Status == "running" {
+				statusState = statusRunning
+			} else {
+				statusState = statusOther
+			}
 
-					info := containerInfo{
-		                serviceName: service.Name,
-		                machineName: machinesNamesByID[ctr.MachineID],
-		                id:          ctr.Container.ID,
-		                name:        ctr.Container.Name,
-		                image:       ctr.Container.Config.Image,
-		                status:      status,
-		                statusState: statusState,
-		            }
-		            containers = append(containers, info)
-		        }	}
+			info := containerInfo{
+				serviceName: service.Name,
+				machineName: machinesNamesByID[ctr.MachineID],
+				id:          ctr.Container.ID,
+				name:        ctr.Container.Name,
+				image:       ctr.Container.Config.Image,
+				status:      status,
+				statusState: statusState,
+			}
+			containers = append(containers, info)
+		}
+	}
 	return containersCollectedMsg{containers: containers}
 }
