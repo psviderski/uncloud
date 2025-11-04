@@ -84,7 +84,7 @@ func (cli *Client) AddMachineLabels(ctx context.Context, nameOrID string, labels
 		return nil, err
 	}
 
-	req := &pb.AddMachineLabelsRequest{
+	req := &pb.MachineLabelsRequest{
 		MachineId: machine.Machine.Id,
 		Labels:    labels,
 	}
@@ -103,7 +103,7 @@ func (cli *Client) RemoveMachineLabels(ctx context.Context, nameOrID string, lab
 		return nil, err
 	}
 
-	req := &pb.RemoveMachineLabelsRequest{
+	req := &pb.MachineLabelsRequest{
 		MachineId: machine.Machine.Id,
 		Labels:    labels,
 	}
