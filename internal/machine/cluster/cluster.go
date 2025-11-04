@@ -281,6 +281,86 @@ func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 	return resp, nil
 }
 
+// AddMachineLabels adds labels to a machine.
+func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.AddMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+	if req.MachineId == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_id not set")
+	}
+
+	machine, err := c.store.GetMachine(ctx, req.MachineId)
+	if err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
+	}
+
+	// Use a map to prevent duplicates
+	existingLabels := make(map[string]struct{})
+	for _, label := range machine.Labels {
+		existingLabels[label] = struct{}{}
+	}
+	for _, label := range req.Labels {
+		existingLabels[label] = struct{}{}
+	}
+
+	// Convert back to a slice
+	newLabels := make([]string, 0, len(existingLabels))
+	for label := range existingLabels {
+		newLabels = append(newLabels, label)
+	}
+	machine.Labels = newLabels
+
+	if err = c.store.UpdateMachine(ctx, machine); err != nil {
+		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
+	}
+
+	slog.Info("Labels added to machine.", "id", machine.Id, "labels", req.Labels)
+	return &pb.UpdateMachineResponse{Machine: machine}, nil
+}
+
+// RemoveMachineLabels removes labels from a machine.
+func (c *Cluster) RemoveMachineLabels(ctx context.Context, req *pb.RemoveMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+	if req.MachineId == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_id not set")
+	}
+
+	machine, err := c.store.GetMachine(ctx, req.MachineId)
+	if err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
+	}
+
+	// Use a map for efficient removal
+	labelsToRemove := make(map[string]struct{})
+	for _, label := range req.Labels {
+		labelsToRemove[label] = struct{}{}
+	}
+
+	var updatedLabels []string
+	for _, label := range machine.Labels {
+		if _, found := labelsToRemove[label]; !found {
+			updatedLabels = append(updatedLabels, label)
+		}
+	}
+	machine.Labels = updatedLabels
+
+	if err = c.store.UpdateMachine(ctx, machine); err != nil {
+		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
+	}
+
+	slog.Info("Labels removed from machine.", "id", machine.Id, "labels", req.Labels)
+	return &pb.UpdateMachineResponse{Machine: machine}, nil
+}
+
 // ListMachines lists all machines in the cluster including their membership states.
 func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListMachinesResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
