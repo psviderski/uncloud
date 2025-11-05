@@ -60,6 +60,31 @@ func (c *MachineConnection) Validate() error {
 	return nil
 }
 
+func (c MachineConnection) Equal(other MachineConnection) bool {
+	// First, compare all the simple, non-pointer fields.
+	if c.SSH != other.SSH ||
+		c.SSHCLI != other.SSHCLI ||
+		c.SSHKeyFile != other.SSHKeyFile ||
+		c.Host != other.Host ||
+		!c.PublicKey.Equal(other.PublicKey) {
+		return false
+	}
+
+	// Now, handle the more complex TCP pointer comparison.
+	// If one is nil and the other is not, they are not equal.
+	if (c.TCP == nil) != (other.TCP == nil) {
+		return false
+	}
+
+	// If TCPs are not nil, compare them.
+	if c.TCP != nil && c.TCP.Compare(*other.TCP) != 0 {
+		return false
+	}
+
+	// If all checks passed, the connections are equal.
+	return true
+}
+
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".
 // The default user "root" and port 22 can be omitted.
 type SSHDestination string
