@@ -299,3 +299,49 @@ func (cli *Client) RemoveContainer(
 
 	return nil
 }
+
+// ExecContainer executes a command in a container within the service.
+// If containerNameOrID is empty, the first container in the service will be used.
+func (cli *Client) ExecContainer(
+	ctx context.Context, serviceNameOrID, containerNameOrID string, execOpts api.ExecOptions,
+) (int, error) {
+	var ctr api.MachineServiceContainer
+
+	if containerNameOrID == "" {
+		// Find the first (random) container in the service
+		service, err := cli.InspectService(ctx, serviceNameOrID)
+		if err != nil {
+			return -1, fmt.Errorf("inspect service: %w", err)
+		}
+		if len(service.Containers) == 0 {
+			return -1, fmt.Errorf("no containers found in service %s", serviceNameOrID)
+		}
+		ctr = service.Containers[0]
+	} else {
+		// Find the specific container
+		var err error
+		ctr, err = cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
+		if err != nil {
+			return -1, fmt.Errorf("inspect container: %w", err)
+		}
+	}
+
+	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
+	if err != nil {
+		return -1, fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
+	}
+
+	// Proxy Docker gRPC requests to the machine hosting the container
+	ctx = proxyToMachine(ctx, machine.Machine)
+
+	// Execute the command in the container
+	exitCode, err := cli.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
+		ContainerID: ctr.Container.ID,
+		Options:     execOpts,
+	})
+	if err != nil {
+		return exitCode, fmt.Errorf("exec in container %s: %w", ctr.Container.Name, err)
+	}
+
+	return exitCode, nil
+}

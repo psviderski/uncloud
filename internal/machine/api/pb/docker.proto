@@ -30,6 +30,8 @@ service Docker {
   rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
   rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
+
+  rpc ExecContainer(stream ExecContainerRequest) returns (stream ExecContainerResponse);
 }
 
 message CreateContainerRequest {
@@ -213,4 +215,40 @@ message ListServiceContainersResponse {
 message MachineServiceContainers {
   Metadata metadata = 1;
   repeated ServiceContainer containers = 2;
+}
+
+message ExecContainerRequest {
+  oneof payload {
+    // Initial configuration for the exec session. Must be sent as the first message.
+    ExecConfig config = 1;
+    // Raw stdin data to be written to the exec process.
+    bytes stdin = 2;
+    // TTY resize event (only used when TTY is enabled).
+    ResizeEvent resize = 3;
+  }
+}
+
+message ExecConfig {
+  // Container ID to execute the command in.
+  string container_id = 1;
+  // JSON serialised ExecOptions
+  bytes options = 2;
+}
+
+message ResizeEvent {
+  uint32 height = 1;
+  uint32 width = 2;
+}
+
+message ExecContainerResponse {
+  oneof payload {
+    // Exec instance ID returned after creating the exec.
+    string exec_id = 1;
+    // Raw stdout data from the exec process.
+    bytes stdout = 2;
+    // Raw stderr data from the exec process (only when TTY is disabled).
+    bytes stderr = 3;
+    // Exit code of the exec process. Sent as the final message.
+    int32 exit_code = 4;
+  }
 }

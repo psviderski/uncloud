@@ -16,6 +16,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/log"
 	"github.com/psviderski/uncloud/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -26,6 +27,8 @@ type globalOptions struct {
 }
 
 func main() {
+	log.InitLoggerFromEnv()
+
 	opts := globalOptions{}
 	cmd := &cobra.Command{
 		Use:           "uc",
@@ -87,6 +90,7 @@ func main() {
 		image.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
+		service.NewExecCommand(),
 		service.NewInspectCommand(),
 		service.NewListCommand(),
 		service.NewRmCommand(),
