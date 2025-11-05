@@ -35,8 +35,7 @@ uc image push IMAGE [flags]
 ```
   -c, --context string    Name of the cluster context. (default is the current context)
   -h, --help              help for push
-  -m, --machine strings   Machine names to push the image to. Can be specified multiple times or as a comma-separated list of machine names.
-                          Use 'all' to push to all machines. (default is connected machine)
+  -m, --machine strings   Machine names or IDs to push the image to. Can be specified multiple times or as a comma-separated list. (default is all machines)
       --platform string   Push a specific platform of a multi-platform image (e.g., linux/amd64, linux/arm64).
                           Local Docker must be configured to use containerd image store to support multi-platform images.
 ```

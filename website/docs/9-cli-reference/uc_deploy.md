@@ -9,14 +9,18 @@ uc deploy [FLAGS] [SERVICE...] [flags]
 ## Options
 
 ```
-  -c, --context string    Name of the cluster context to deploy to (default is the current context)
-  -f, --file strings      One or more Compose files to deploy services from. (default compose.yaml)
-  -h, --help              help for deploy
-  -n, --no-build          Do not build images before deploying services. (default false)
-  -p, --profile strings   One or more Compose profiles to enable.
-      --recreate          Recreate containers even if their configuration and image haven't changed.
-  -y, --yes               Auto-confirm deployment plan. Should be explicitly set when running non-interactively,
-                          e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
+      --build-arg stringArray   Set a build-time variable for services. Used in Dockerfiles that declare the variable with ARG.
+                                Can be specified multiple times. Format: --build-arg VAR=VALUE
+      --build-pull              Always attempt to pull newer versions of base images before building service images.
+  -c, --context string          Name of the cluster context to deploy to (default is the current context)
+  -f, --file strings            One or more Compose files to deploy services from. (default compose.yaml)
+  -h, --help                    help for deploy
+      --no-build                Do not build new images before deploying services.
+      --no-cache                Do not use cache when building images.
+  -p, --profile strings         One or more Compose profiles to enable.
+      --recreate                Recreate containers even if their configuration and image haven't changed.
+  -y, --yes                     Auto-confirm deployment plan. Should be explicitly set when running non-interactively,
+                                e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
 
 ## Options inherited from parent commands

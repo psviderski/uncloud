@@ -18,7 +18,7 @@ uc caddy deploy [flags]
   -c, --context string     Name of the cluster context to deploy to. (default is the current context)
   -h, --help               help for deploy
       --image string       Caddy Docker image to deploy. (default caddy:LATEST_VERSION)
-  -m, --machine strings    Machine names to deploy to. Can be specified multiple times or as a comma-separated list of machine names. (default is all machines)
+  -m, --machine strings    Machine names or IDs to deploy to. Can be specified multiple times or as a comma-separated list. (default is all machines)
 ```
 
 ## Options inherited from parent commands

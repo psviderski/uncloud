@@ -26,7 +26,7 @@ uc exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
   uc exec --container d792ea7347e5 web-service ls -la
 
   # Pipe input to a command inside the service container
-  cat /var/log/app.log | uc exec -T web-service grep "ERROR"
+  cat backup.sql | uc exec -T db-service psql -U postgres mydb
 
   # Run a task in the background (detached mode)
   uc exec -d web-service /scripts/cleanup.sh
