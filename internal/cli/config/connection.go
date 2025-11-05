@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -17,6 +18,7 @@ const (
 
 type MachineConnection struct {
 	SSH        SSHDestination `yaml:"ssh,omitempty"`
+	SSHCLI     SSHDestination `yaml:"ssh_cli,omitempty"`
 	SSHKeyFile string         `yaml:"ssh_key_file,omitempty"`
 	// TCP is the address and port of the machine's API server.
 	// The pointer is used to omit the field when not set. Otherwise, yaml marshalling includes an empty object.
@@ -27,11 +29,35 @@ type MachineConnection struct {
 
 func (c MachineConnection) String() string {
 	if c.SSH != "" {
-		return string(c.SSH)
+		return "ssh://" + string(c.SSH)
+	} else if c.SSHCLI != "" {
+		return "ssh+cli://" + string(c.SSHCLI)
 	} else if c.TCP != nil && c.TCP.IsValid() {
 		return fmt.Sprintf("tcp://%s", c.TCP)
 	}
 	return "unknown connection"
+}
+
+func (c *MachineConnection) Validate() error {
+	setCount := 0
+	if c.SSH != "" {
+		setCount++
+	}
+	if c.SSHCLI != "" {
+		setCount++
+	}
+	if c.TCP != nil && c.TCP.IsValid() {
+		setCount++
+	}
+
+	if setCount == 0 {
+		return errors.New("no connection method specified (ssh, ssh_cli, or tcp required)")
+	}
+	if setCount > 1 {
+		return errors.New("only one connection method allowed per connection (ssh, ssh_cli, or tcp)")
+	}
+
+	return nil
 }
 
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".

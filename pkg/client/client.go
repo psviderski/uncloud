@@ -57,6 +57,7 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 	c.ClusterClient = pb.NewClusterClient(c.conn)
 	c.Caddy = pb.NewCaddyClient(c.conn)
 	c.Docker = docker.NewClient(c.conn)
+
 	return c, nil
 }
 
