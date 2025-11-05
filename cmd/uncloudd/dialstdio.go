@@ -118,6 +118,8 @@ func runDialStdio(ctx context.Context, socketPath string, stdin io.Reader, stdou
 		if err != nil {
 			return err
 		}
+		// wait for stdout
+		err = <-socket2stdout
 	case err = <-socket2stdout:
 		// return immediately, matching Docker's approach
 		// (stdin is never closed when TTY)
