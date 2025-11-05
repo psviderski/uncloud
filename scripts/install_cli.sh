@@ -21,7 +21,11 @@ print_manual_install() {
 
 fetch_latest_version() {
     api_url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
-    VERSION=$(curl -fsSL "$api_url" | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
+    auth_header=""
+    if [ -n "$GITHUB_TOKEN" ]; then
+        auth_header="Authorization: Bearer $GITHUB_TOKEN"
+    fi
+    VERSION=$(curl -fsSL -H "$auth_header" "$api_url" | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
     if [ -z "$VERSION" ]; then
         echo "Failed to fetch the latest version from GitHub."
         print_manual_install
