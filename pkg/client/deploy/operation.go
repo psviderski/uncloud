@@ -79,7 +79,7 @@ func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error 
 func (o *StopContainerOperation) Format(resolver NameResolver) string {
 	machineName := resolver.MachineName(o.MachineID)
 	return fmt.Sprintf("%s: Stop container [id=%s name=%s]", machineName,
-		o.ContainerID, resolver.ContainerName(o.ContainerID))
+		o.ContainerID[:12], resolver.ContainerName(o.ContainerID))
 }
 
 func (o *StopContainerOperation) String() string {
