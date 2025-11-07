@@ -127,9 +127,9 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 			var pushOpts client.PushImageOptions
 			if machines, ok := s.Extensions[compose.MachinesExtensionKey].(compose.MachinesSource); ok {
 				pushOpts.Machines = machines
-				if len(machines) == 0 {
-					pushOpts.AllMachines = true
-				}
+			}
+			if len(pushOpts.Machines) == 0 {
+				pushOpts.AllMachines = true
 			}
 
 			boldStyle := lipgloss.NewStyle().Bold(true)
