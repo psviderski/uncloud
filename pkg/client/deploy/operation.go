@@ -109,7 +109,7 @@ func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) erro
 
 func (o *RemoveContainerOperation) Format(resolver NameResolver) string {
 	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Remove container [ID=%s image=%s]",
+	return fmt.Sprintf("%s: Remove container [id=%s image=%s]",
 		machineName, o.Container.ShortID(), o.Container.Config.Image)
 }
 
