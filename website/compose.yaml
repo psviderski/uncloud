@@ -1,8 +1,23 @@
 services:
+  dep:
+    build: .
+    image: myapp:{{gitdate "20060102-150405" "Local"}}.{{gitsha 7}}
+    x-machines:
+      - dev1
+
   uncloud-website:
-    image: ghcr.io/psviderski/uncloud-website:latest
-    pull_policy: always
+    image: ghcr.io/psviderski/uncloud-website
+    build:
+      cache_from:
+        - type=gha,scope=uncloud-website
+      cache_to:
+        - type=gha,mode=max,scope=uncloud-website
+      platforms:
+        - linux/amd64
+        - linux/arm64
     user: nobody
     x-ports:
       - uncloud.run:8000/https
-    scale: 2
+    scale: 1
+    x-machines:
+      - uc-prod-us2
