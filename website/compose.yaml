@@ -13,7 +13,3 @@ services:
     x-ports:
       - uncloud.run:8000/https
     scale: 2
-    # TODO: remove x-machines after destroying uc-prod-us1
-    x-machines:
-      - uc-prod-ap1
-      - uc-prod-us2
