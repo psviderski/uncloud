@@ -79,7 +79,7 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 	if err := n.configureDevice(config); err != nil {
 		return err
 	}
-	slog.Info("Configured WireGuard interface.", "name", n.link.Attrs().Name)
+	slog.Info("Configured WireGuard interface.", "name", n.link.Attrs().Name, "peers", len(n.peers))
 
 	managementPrefix, err := addrToSingleIPPrefix(config.ManagementIP)
 	if err != nil {

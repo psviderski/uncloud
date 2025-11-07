@@ -358,6 +358,14 @@ func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
 					slog.Error("Failed to list machines.", "err", err)
 					continue
 				}
+				// Skip reconfiguration if the machines list is empty. This can happen when joining the cluster.
+				// Corrosion can notifies about table changes before the data is fully replicated.
+				// Reconfiguring with an empty list would remove all peers and lock this machine out of the cluster.
+				// See https://github.com/psviderski/uncloud/issues/155.
+				if len(machines) == 0 {
+					slog.Debug("Skipping peer reconfiguration: machines list in store is empty.")
+					continue
+				}
 				if err = cc.configurePeers(machines); err != nil {
 					slog.Error("Failed to configure peers.", "err", err)
 				}

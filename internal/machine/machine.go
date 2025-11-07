@@ -821,7 +821,14 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 	if err := m.state.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
 	}
-	slog.Info("Machine configured to join the cluster.", "id", m.state.ID, "name", m.state.Name)
+	slog.Info(
+		"Machine configured to join the cluster.",
+		"id", m.state.ID,
+		"name", m.state.Name,
+		"subnet", m.state.Network.Subnet.String(),
+		"management_ip", m.state.Network.ManagementIP.String(),
+		"peers", len(m.state.Network.Peers),
+	)
 	// Signal that the machine is initialised as a member of a cluster.
 	m.initialised <- struct{}{}
 

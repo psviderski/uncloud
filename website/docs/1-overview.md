@@ -42,7 +42,7 @@ Some of the common use cases Uncloud is a great fit for:
 - **Dev/staging environments**: Spin up additional environments for development and testing that mirror production
   reusing the same Compose configuration.
 
-## What makes Uncloud different
+## What makes Uncloud special
 
 Here are the design decisions that make Uncloud stand out:
 
