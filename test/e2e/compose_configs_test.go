@@ -51,7 +51,7 @@ func TestComposeConfigs(t *testing.T) {
 			Name: name,
 			Mode: api.ServiceModeReplicated,
 			Container: api.ContainerSpec{
-				Command: []string{"true"},
+				Command: []string{"sleep", "600"},
 				Image:   "busybox:1.37.0-uclibc",
 				ConfigMounts: []api.ConfigMount{
 					{
@@ -93,18 +93,22 @@ func TestComposeConfigs(t *testing.T) {
 		// Verify the config files are actually created in the container and contain expected content
 		containerName := svc.Containers[0].Container.Name
 
-		configContentFirst, err := readFileInfoInContainer(t, &machine, containerName, "/etc/config-from-file.conf")
+		configContentFirst, err := readFileInfoInContainer(t, cli, name, containerName, "/etc/config-from-file.conf")
 		require.NoError(t, err)
 		assert.Equal(t, fileInfo{
 			permissions: 0o644,
 			content:     "this is file config\n",
+			userId:      0,
+			groupId:     0,
 		}, configContentFirst)
 
-		configContentSecond, err := readFileInfoInContainer(t, &machine, containerName, "/etc/config-inline.conf")
+		configContentSecond, err := readFileInfoInContainer(t, cli, name, containerName, "/etc/config-inline.conf")
 		require.NoError(t, err)
 		assert.Equal(t, fileInfo{
 			permissions: 0o600,
 			content:     "this is inline config\n",
+			userId:      1000,
+			groupId:     1000,
 		}, configContentSecond)
 	})
 }

@@ -1,7 +1,7 @@
 services:
   web:
     image: busybox:1.37.0-uclibc
-    command: ["true"]
+    command: ["sleep", "600"]
     configs:
       - source: from-file
         target: /etc/config-from-file.conf
