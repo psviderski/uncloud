@@ -9,7 +9,6 @@ import (
 )
 
 func NewRenameCommand() *cobra.Command {
-	var contextName string
 	cmd := &cobra.Command{
 		Use:   "rename OLD_NAME NEW_NAME",
 		Short: "Rename a machine in the cluster.",
@@ -20,18 +19,14 @@ configuration including network settings, public IP, and cluster membership.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return rename(cmd.Context(), uncli, contextName, args[0], args[1])
+			return rename(cmd.Context(), uncli, args[0], args[1])
 		},
 	}
-	cmd.Flags().StringVarP(
-		&contextName, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 	return cmd
 }
 
-func rename(ctx context.Context, uncli *cli.CLI, contextName, oldName, newName string) error {
-	client, err := uncli.ConnectCluster(ctx, contextName)
+func rename(ctx context.Context, uncli *cli.CLI, oldName, newName string) error {
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return err
 	}

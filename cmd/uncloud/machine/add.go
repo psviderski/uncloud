@@ -26,7 +26,6 @@ type addOptions struct {
 	noInstall bool
 	publicIP  string
 	sshKey    string
-	context   string
 	version   string
 }
 
@@ -89,10 +88,6 @@ Connection methods:
 		&opts.version, "version", "latest",
 		"Version of the Uncloud daemon to install on the machine.",
 	)
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context to add the machine to. (default is the current context)",
-	)
 
 	return cmd
 }
@@ -113,7 +108,6 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	}
 
 	clusterClient, machineClient, err := uncli.AddMachine(ctx, cli.AddMachineOptions{
-		Context:       opts.context,
 		MachineName:   opts.name,
 		PublicIP:      publicIP,
 		RemoteMachine: remoteMachine,

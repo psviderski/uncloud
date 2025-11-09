@@ -22,7 +22,6 @@ type deployOptions struct {
 	caddyfile string
 	image     string
 	machines  []string
-	context   string
 }
 
 func NewDeployCommand() *cobra.Command {
@@ -46,10 +45,6 @@ func NewDeployCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Machine names or IDs to deploy to. Can be specified multiple times or as a comma-separated "+
 			"list. (default is all machines)")
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context to deploy to. (default is the current context)",
-	)
 
 	return cmd
 }
@@ -64,7 +59,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		caddyfile = strings.TrimSpace(string(data))
 	}
 
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

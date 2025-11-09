@@ -10,9 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type showOptions struct {
-	context string
-}
+type showOptions struct{}
 
 func NewShowCommand() *cobra.Command {
 	opts := showOptions{}
@@ -26,16 +24,11 @@ func NewShowCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
-
 	return cmd
 }
 
 func show(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
