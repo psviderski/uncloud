@@ -39,10 +39,10 @@ func selectConnection(uncli *cli.CLI) error {
 		return fmt.Errorf("no connections found in context '%s'", currentCtxName)
 	}
 
-	var selectedConnection *config.MachineConnection
+	var selectedConnection int
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewSelect[*config.MachineConnection]().
+			huh.NewSelect[int]().
 				Title("Select a default connection").
 				Options(buildConnectionOptions(currentCtx.Connections)...).
 				Value(&selectedConnection),
@@ -53,12 +53,14 @@ func selectConnection(uncli *cli.CLI) error {
 	}
 
 	// Reorder the connections with the selected one at the top.
+	selected := currentCtx.Connections[selectedConnection]
 	newConnections := make([]config.MachineConnection, 0, len(currentCtx.Connections))
-	newConnections = append(newConnections, *selectedConnection)
-	for _, conn := range currentCtx.Connections {
-		if !conn.Equal(*selectedConnection) {
-			newConnections = append(newConnections, conn)
+	newConnections = append(newConnections, selected)
+	for i, conn := range currentCtx.Connections {
+		if i == selectedConnection {
+			continue
 		}
+		newConnections = append(newConnections, conn)
 	}
 	currentCtx.Connections = newConnections
 
@@ -66,15 +68,15 @@ func selectConnection(uncli *cli.CLI) error {
 		return fmt.Errorf("save config: %w", err)
 	}
 
-	fmt.Printf("Default connection for context '%s' is now '%s'.\n", currentCtxName, selectedConnection.String())
+	fmt.Printf("Default connection for context '%s' is now '%s'.\n", currentCtxName, selected)
 	return nil
 }
 
-func buildConnectionOptions(connections []config.MachineConnection) []huh.Option[*config.MachineConnection] {
-	options := make([]huh.Option[*config.MachineConnection], len(connections))
+func buildConnectionOptions(connections []config.MachineConnection) []huh.Option[int] {
+	options := make([]huh.Option[int], len(connections))
 	for i, conn := range connections {
 		key := conn.String()
-		opt := huh.NewOption(key, &connections[i])
+		opt := huh.NewOption(key, i)
 		if i == 0 {
 			opt.Key += " (default)"
 			opt = opt.Selected(true)
