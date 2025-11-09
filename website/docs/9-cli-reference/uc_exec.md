@@ -5,7 +5,7 @@ Execute a command in a running service container
 ## Synopsis
 
 Execute a command (interactive shell by default) in a running container within a service.
-If the service has multiple replicas, the command will be executed in a random container.
+If the service has multiple replicas and no container ID is specified, the command will be executed in a random container.
 	
 
 ```
@@ -22,8 +22,8 @@ uc exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
   # Start an interactive shell with explicit command
   uc exec web-service /bin/zsh
 
-  # List files in the specific container of the service
-  uc exec --container d792ea7347e5 web-service ls -la
+  # List files in the specific container of the service; --container accepts full ID or a (unique) prefix
+  uc exec --container d792e web-service ls -la
 
   # Pipe input to a command inside the service container
   cat backup.sql | uc exec -T db-service psql -U postgres mydb

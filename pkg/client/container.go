@@ -10,7 +10,6 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/docker"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/secret"
@@ -200,7 +199,7 @@ func toPullProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
 }
 
 // InspectContainer returns the information about the specified container within the service.
-// containerNameOrID can be name, ID, or truncated ID of the container.
+// containerNameOrID can be name, full ID, or ID prefix of the container.
 func (cli *Client) InspectContainer(
 	ctx context.Context, serviceNameOrID, containerNameOrID string,
 ) (api.MachineServiceContainer, error) {
@@ -209,13 +208,23 @@ func (cli *Client) InspectContainer(
 		return api.MachineServiceContainer{}, fmt.Errorf("inspect service: %w", err)
 	}
 
-	// TODO: support matching by any prefix of the container ID
+	prefixMatchCandidates := []api.MachineServiceContainer{}
 	for _, c := range svc.Containers {
 		if c.Container.ID == containerNameOrID ||
-			c.Container.Name == containerNameOrID ||
-			stringid.TruncateID(c.Container.ID) == containerNameOrID {
+			c.Container.Name == containerNameOrID {
 			return c, nil
 		}
+
+		if strings.HasPrefix(c.Container.ID, containerNameOrID) {
+			prefixMatchCandidates = append(prefixMatchCandidates, c)
+		}
+	}
+
+	if len(prefixMatchCandidates) == 1 {
+		return prefixMatchCandidates[0], nil
+	} else if len(prefixMatchCandidates) > 1 {
+		return api.MachineServiceContainer{}, fmt.Errorf(
+			"multiple containers found with ID prefix '%s'", containerNameOrID)
 	}
 
 	return api.MachineServiceContainer{}, api.ErrNotFound
