@@ -1049,6 +1049,13 @@ func (s *Server) handleServerExecInput(
 
 	defer attachConn.CloseWrite()
 	for {
+		select {
+		case <-ctx.Done():
+			slog.Debug("Input goroutine context canceled via context", "exec_id", execID)
+			return nil
+		default:
+		}
+
 		req, err := stream.Recv()
 		switch {
 		case errors.Is(err, io.EOF):
@@ -1209,9 +1216,9 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	}
 	defer attachConn.Close()
 
-	// Create a cancelable context for the handlers
-	handlerCtx, cancel := context.WithCancel(ctx)
-	defer cancel() // Ensure handlers are canceled when we return
+	// Create a cancelable context for the input handler
+	handlerCtx, cancelInput := context.WithCancel(ctx)
+	defer cancelInput()
 
 	// Create a channel to wait for output completion
 	outputDone := make(chan error, 1)
@@ -1236,13 +1243,14 @@ func (s *Server) ExecContainer(stream pb.Docker_ExecContainerServer) error {
 	}()
 
 	// Wait for the output goroutine to complete (it signals when done)
-	// We only wait for output, not for stdin goroutine.
+	// We only wait for the output handler goroutine, not for the stdin one.
 	if err := <-outputDone; err != nil {
 		slog.Warn("Error in exec output handler", "err", err, "exec_id", execResp.ID)
 	}
-	// The stdin goroutine may still be blocked in stream.Recv() waiting for client data,
-	// so cancel it explicitly.
-	cancel()
+	// Do a best-effort cancellation of the stdin handler.
+	// We can't guarantee immediate exit because it may be blocked on stream.Recv(), but at
+	// least we want to send a cancel signal explicitly.
+	cancelInput()
 
 	inspectResp, err := s.client.ContainerExecInspect(ctx, execResp.ID)
 	if err != nil {
