@@ -224,7 +224,8 @@ func TestExecBasicCommands(t *testing.T) {
 
 		var stdout, stderr bytes.Buffer
 
-		containerID := service.Containers[1].Container.ID
+		// Use container prefix
+		containerIDPrefix := service.Containers[1].Container.ID[:3]
 		execOptions := api.ExecOptions{
 			Command:      []string{"hostname"},
 			AttachStdout: true,
@@ -233,7 +234,7 @@ func TestExecBasicCommands(t *testing.T) {
 			Stderr:       &stderr,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, multiServiceName, containerID, execOptions)
+		exitCode, err := cli.ExecContainer(ctx, multiServiceName, containerIDPrefix, execOptions)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode)
