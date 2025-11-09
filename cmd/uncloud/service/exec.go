@@ -74,7 +74,8 @@ If the service has multiple replicas and no container ID is specified, the comma
 
 	// Common flags
 	execCmd.Flags().StringVar(&opts.containerId, "container", "",
-		"ID of the container to exec into (default is the random container of the service)")
+		"ID of the container to exec into. Accepts full ID or a unique prefix "+
+			"(default is the random container of the service)")
 
 	// This tells Cobra that all flags must come before positional arguments, so that
 	// commands with their own flags can be handled correctly.

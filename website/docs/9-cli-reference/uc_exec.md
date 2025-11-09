@@ -35,7 +35,7 @@ uc exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
 ## Options
 
 ```
-      --container string   ID of the container to exec into (default is the random container of the service)
+      --container string   ID of the container to exec into. Accepts full ID or a unique prefix (default is the random container of the service)
   -c, --context string     Name of the cluster context. (default is the current context)
   -d, --detach             Detached mode: run command in the background
   -h, --help               help for exec
