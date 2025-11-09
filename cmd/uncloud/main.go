@@ -24,6 +24,7 @@ import (
 type globalOptions struct {
 	configPath string
 	connect    string
+	context    string
 }
 
 func main() {
@@ -39,6 +40,7 @@ func main() {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "connect", "UNCLOUD_CONNECT")
 			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
+			cli.BindEnvToFlag(cmd, "context", "UNCLOUD_CONTEXT")
 
 			var conn *config.MachineConnection
 			if opts.connect != "" {
@@ -67,7 +69,7 @@ func main() {
 			}
 
 			configPath := fs.ExpandHomeDir(opts.configPath)
-			uncli, err := cli.New(configPath, conn)
+			uncli, err := cli.New(configPath, opts.context, conn)
 			if err != nil {
 				return fmt.Errorf("initialise CLI: %w", err)
 			}
@@ -82,7 +84,8 @@ func main() {
 	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"Path to the Uncloud configuration file. [$UNCLOUD_CONFIG]")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
-	// TODO: make --context a global flag and pass it as a value of the command context.
+	cmd.PersistentFlags().StringVarP(&opts.context, "context", "c", "",
+		"Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]")
 
 	cmd.AddCommand(
 		NewDeployCommand(),

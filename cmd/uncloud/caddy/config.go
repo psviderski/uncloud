@@ -14,7 +14,6 @@ import (
 type configOptions struct {
 	machine string
 	noColor bool
-	context string
 }
 
 func NewConfigCommand() *cobra.Command {
@@ -34,16 +33,12 @@ func NewConfigCommand() *cobra.Command {
 		"Name or ID of the machine to get the configuration from. (default is connected machine)")
 	cmd.Flags().BoolVar(&opts.noColor, "no-color", false,
 		"Disable syntax highlighting for the output.")
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 
 	return cmd
 }
 
 func runConfig(ctx context.Context, uncli *cli.CLI, opts configOptions) error {
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

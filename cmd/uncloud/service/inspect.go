@@ -15,7 +15,6 @@ import (
 
 type inspectOptions struct {
 	service string
-	context string
 }
 
 func NewInspectCommand() *cobra.Command {
@@ -30,15 +29,11 @@ func NewInspectCommand() *cobra.Command {
 			return inspect(cmd.Context(), uncli, opts)
 		},
 	}
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 	return cmd
 }
 
 func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

@@ -14,7 +14,6 @@ type removeOptions struct {
 	force    bool
 	machines []string
 	yes      bool
-	context  string
 }
 
 func NewRemoveCommand() *cobra.Command {
@@ -41,14 +40,11 @@ func NewRemoveCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Do not prompt for confirmation before removing the volume(s).")
 
-	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
-
 	return cmd
 }
 
 func remove(ctx context.Context, uncli *cli.CLI, names []string, opts removeOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
