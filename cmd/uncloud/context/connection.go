@@ -52,17 +52,8 @@ func selectConnection(uncli *cli.CLI) error {
 		return fmt.Errorf("select connection: %w", err)
 	}
 
-	// Reorder the connections with the selected one at the top.
-	selected := currentCtx.Connections[selectedConnection]
-	newConnections := make([]config.MachineConnection, 0, len(currentCtx.Connections))
-	newConnections = append(newConnections, selected)
-	for i, conn := range currentCtx.Connections {
-		if i == selectedConnection {
-			continue
-		}
-		newConnections = append(newConnections, conn)
-	}
-	currentCtx.Connections = newConnections
+	currentCtx.SetDefaultConnection(selectedConnection)
+	selected := currentCtx.Connections[0]
 
 	if err := uncli.Config.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
