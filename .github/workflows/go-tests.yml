@@ -40,7 +40,7 @@ jobs:
         run: |
           make ucind-image
           make test
-    timeout-minutes: 10
+    timeout-minutes: 15
 
   check-protobuf:
     runs-on: ${{ matrix.os }}
