@@ -22,16 +22,16 @@ import (
 const (
 	groupByService = "service"
 	groupByMachine = "machine"
+	groupByHealth  = "health"
 )
-
 
 type containerHighlight int
 
 const (
-	highlightNormal containerHighlight = iota
-	highlightSuccess
-	highlightDanger
+	highlightDanger containerHighlight = iota
 	highlightWarning
+	highlightSuccess
+	highlightNormal
 )
 
 type psOptions struct {
@@ -49,13 +49,13 @@ func NewPsCommand() *cobra.Command {
 This command provides a comprehensive overview of all running containers that are part of a service,
 making it easy to see the distribution and status of containers across the cluster.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if opts.groupBy != groupByService && opts.groupBy != groupByMachine {
-				return fmt.Errorf("invalid value for --group-by: %q, must be one of '%s' or '%s'", opts.groupBy, groupByService, groupByMachine)
+			if opts.groupBy != groupByService && opts.groupBy != groupByMachine && opts.groupBy != groupByHealth {
+				return fmt.Errorf("invalid value for --group-by: %q, must be one of '%s', '%s' or '%s'", opts.groupBy, groupByService, groupByMachine, groupByHealth)
 			}
 			return runPs(cmd, opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.groupBy, "group-by", "g", groupByService, "Group containers by 'service' or 'machine'")
+	cmd.Flags().StringVarP(&opts.groupBy, "group-by", "g", groupByService, "Group containers by 'service', 'machine' or 'health'")
 	cmd.Flags().StringVarP(&opts.contextName, "context", "c", "", "Name of the cluster context. (default is the current context)")
 	return cmd
 }
@@ -94,25 +94,35 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 	containers := m.containers
 	// Sort the containers based on the grouping option
 	sort.SliceStable(containers, func(i, j int) bool {
-		if opts.groupBy == groupByMachine {
-			if containers[i].machineName != containers[j].machineName {
-				return containers[i].machineName < containers[j].machineName
+		a, b := containers[i], containers[j]
+		switch opts.groupBy {
+		case groupByHealth:
+			if a.highlight != b.highlight {
+				return a.highlight < b.highlight
 			}
-			// If machine names are the same, then sort by service name
-			if containers[i].serviceName != containers[j].serviceName {
-				return containers[i].serviceName < containers[j].serviceName
+			if a.serviceName != b.serviceName {
+				return a.serviceName < b.serviceName
 			}
-		} else { // opts.groupBy == groupByService
-			if containers[i].serviceName != containers[j].serviceName {
-				return containers[i].serviceName < containers[j].serviceName
+			if a.machineName != b.machineName {
+				return a.machineName < b.machineName
 			}
-			// If service names are the same, then sort by machine name
-			if containers[i].machineName != containers[j].machineName {
-				return containers[i].machineName < containers[j].machineName
+		case groupByMachine:
+			if a.machineName != b.machineName {
+				return a.machineName < b.machineName
+			}
+			if a.serviceName != b.serviceName {
+				return a.serviceName < b.serviceName
+			}
+		default: // groupByService
+			if a.serviceName != b.serviceName {
+				return a.serviceName < b.serviceName
+			}
+			if a.machineName != b.machineName {
+				return a.machineName < b.machineName
 			}
 		}
-		// Finally, sort by container name if both machine and service names are the same
-		return containers[i].name < containers[j].name
+		// Final tie-breaker
+		return a.name < b.name
 	})
 
 	return printContainers(os.Stdout, containers, opts.groupBy)
