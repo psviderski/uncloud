@@ -12,8 +12,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-
-
 func NewReleaseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "release",

@@ -69,7 +69,7 @@ func main() {
 			}
 
 			configPath := fs.ExpandHomeDir(opts.configPath)
-			uncli, err := cli.New(configPath, opts.context, conn)
+			uncli, err := cli.New(configPath, conn, opts.context)
 			if err != nil {
 				return fmt.Errorf("initialise CLI: %w", err)
 			}
