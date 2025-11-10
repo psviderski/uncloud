@@ -24,11 +24,14 @@ const (
 	groupByMachine = "machine"
 )
 
+
+type containerHighlight int
+
 const (
-	statusHealthy   = "healthy"
-	statusUnhealthy = "unhealthy"
-	statusRunning   = "running"
-	statusOther     = "other"
+	highlightNormal containerHighlight = iota
+	highlightSuccess
+	highlightDanger
+	highlightWarning
 )
 
 type psOptions struct {
@@ -64,7 +67,7 @@ type containerInfo struct {
 	name        string
 	image       string
 	status      string
-	statusState string
+	highlight   containerHighlight
 }
 
 func runPs(cmd *cobra.Command, opts psOptions) error {
@@ -135,14 +138,14 @@ func printContainers(out io.Writer, containers []containerInfo, groupBy string) 
 		name := strings.TrimPrefix(ctr.name, "/")
 
 		var statusStyle lipgloss.Style
-		switch ctr.statusState {
-		case statusHealthy:
+		switch ctr.highlight {
+		case highlightSuccess:
 			statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2")) // Green
-		case statusUnhealthy:
+		case highlightDanger:
 			statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // Red
-		case statusOther:
+		case highlightWarning:
 			statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // Yellow
-		default: // statusRunning
+		default:
 			statusStyle = lipgloss.NewStyle() // Default
 		}
 
@@ -230,20 +233,20 @@ func (m spinnerModel) collectContainers() tea.Msg {
 				return containersCollectedMsg{err: fmt.Errorf("get human state for container %s: %w", ctr.Container.ID, err)}
 			}
 
-			var statusState string
+			var highlight containerHighlight
 			healthStatus := ""
 			if ctr.Container.State.Health != nil {
 				healthStatus = ctr.Container.State.Health.Status
 			}
 
-			if healthStatus == container.Healthy {
-				statusState = statusHealthy
-			} else if healthStatus == container.Unhealthy {
-				statusState = statusUnhealthy
+			if healthStatus == container.Unhealthy || ctr.Container.State.Status == "dead" || ctr.Container.State.OOMKilled || ctr.Container.State.Dead {
+				highlight = highlightDanger
+			} else if healthStatus == container.Healthy {
+				highlight = highlightSuccess
 			} else if ctr.Container.State.Status == "running" {
-				statusState = statusRunning
-			} else {
-				statusState = statusOther
+				highlight = highlightNormal
+			} else { // Other non-critical but noteworthy states
+				highlight = highlightWarning
 			}
 
 			info := containerInfo{
@@ -253,7 +256,7 @@ func (m spinnerModel) collectContainers() tea.Msg {
 				name:        ctr.Container.Name,
 				image:       ctr.Container.Config.Image,
 				status:      status,
-				statusState: statusState,
+				highlight:   highlight,
 			}
 			containers = append(containers, info)
 		}
