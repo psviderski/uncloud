@@ -25,7 +25,7 @@ func NewPushCommand() *cobra.Command {
 		Use:   "push IMAGE",
 		Short: "Upload a local Docker image to the cluster.",
 		Long: `Upload a local Docker image to the cluster transferring only the missing layers.
-The image is uploaded to the machine which CLI is connected to (default) or the specified machine(s).`,
+The image is uploaded to all cluster machines (default) or the specified machine(s).`,
 		Example: `  # Push image to all machines in the cluster.
   uc image push myapp:latest
 
