@@ -5,7 +5,7 @@ Upload a local Docker image to the cluster.
 ## Synopsis
 
 Upload a local Docker image to the cluster transferring only the missing layers.
-The image is uploaded to the machine which CLI is connected to (default) or the specified machine(s).
+The image is uploaded to all cluster machines (default) or the specified machine(s).
 
 ```
 uc image push IMAGE [flags]
@@ -14,7 +14,7 @@ uc image push IMAGE [flags]
 ## Examples
 
 ```
-  # Push image to the machine the CLI is connected to.
+  # Push image to all machines in the cluster.
   uc image push myapp:latest
 
   # Push image to specific machine.
@@ -22,9 +22,6 @@ uc image push IMAGE [flags]
 
   # Push image to multiple machines.
   uc image push myapp:latest -m machine1,machine2,machine3
-
-  # Push image to all machines in the cluster.
-  uc image push myapp:latest -m all
 
   # Push a specific platform of a multi-platform image.
   uc image push myapp:latest --platform linux/amd64
