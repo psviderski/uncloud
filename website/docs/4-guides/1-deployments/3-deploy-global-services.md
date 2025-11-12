@@ -63,6 +63,7 @@ The default mode is `replicated`, where you specify the number of replicas.
 
 ## See also
 
+- [Deploy an app](1-deploy-app.md): Deploy from source code or prebuilt images
 - [Deploy to specific machines](2-deploy-specific-machines.md): Deploy services to specific machines in your cluster
 - [Compose Specification: deploy.mode](https://github.com/compose-spec/compose-spec/blob/main/deploy.md#mode):
   Compose specification for deployment modes

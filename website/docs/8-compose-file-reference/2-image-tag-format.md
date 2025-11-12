@@ -1,3 +1,0 @@
-# Image tag format
-
-TBD

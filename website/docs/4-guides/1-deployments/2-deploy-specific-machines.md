@@ -78,7 +78,7 @@ See [Push local images to cluster machines](1-deploy-app.md#push-local-images-to
 
 ## See also
 
-- [Deploy a global service](3-deploy-global-services.md): Deploy one service replica on each cluster machine
 - [Deploy an app](1-deploy-app.md): Deploy from source code or prebuilt images
+- [Deploy a global service](3-deploy-global-services.md): Deploy one service replica on each cluster machine
 - [Compose support matrix](../../8-compose-file-reference/1-support-matrix.md): Supported Compose features and Uncloud
   extensions

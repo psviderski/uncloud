@@ -140,7 +140,7 @@ This generates tags like:
 `uc deploy` renders the image templates when it loads the Compose file and then uses the resulting names for the build
 and deploy stages.
 
-See the [Image tag format](../../8-compose-file-reference/2-image-tag-format.md) reference for all available template
+See the [Image tag template](../../8-compose-file-reference/2-image-tag-template.md) reference for all available template
 variables and functions.
 
 ### Separate build and deploy steps
@@ -164,7 +164,7 @@ source code and images haven't changed. However, the image tag may still change 
 [dynamic tags](#customise-image-tags) based on the Git state (default). In that case, the deploy will likely fail
 because the new tag won't be found on cluster machines.
 
-Use less sensitive dynamic tags or specify the built and pushed images you want to deploy explicitly to avoid this
+Use less sensitive dynamic tags or specify the built and pushed image tags you want to deploy explicitly to avoid this
 issue.
 
 The recommended approach though is to commit all your changes, including the configuration ones, to the repo. Then
