@@ -21,10 +21,11 @@ const (
 )
 
 type RemoteMachine struct {
-	User    string
-	Host    string
-	Port    int
-	KeyPath string
+	User      string
+	Host      string
+	Port      int
+	KeyPath   string
+	UseSSHCLI bool // indicates ssh+cli:// should be used
 }
 
 func installCmd(user string, version string) string {
