@@ -11,12 +11,12 @@ This guide covers both scenarios:
 
 Uncloud uses [Compose Specification](https://compose-spec.io/) for defining the deployment configuration of your app's
 services. It implements the most common Compose features with some Uncloud-specific extensions. See
-[Compose support matrix](../8-compose-file-reference/1-support-matrix.md) for details.
+[Compose support matrix](../../8-compose-file-reference/1-support-matrix.md) for details.
 
 ## Prerequisites
 
-- `uc` CLI [installed](../2-getting-started/1-install-cli.md) on your local machine
-- An Uncloud cluster with at least one machine (see [Quick start](../2-getting-started/2-deploy-demo-app.md))
+- `uc` CLI [installed](../../2-getting-started/1-install-cli.md) on your local machine
+- An Uncloud cluster with at least one machine (see [Quick start](../../2-getting-started/2-deploy-demo-app.md))
 - Basic knowledge of [Compose Specification](https://compose-spec.io/)
 
 ## Deploy from source code
@@ -62,7 +62,7 @@ This command looks for a Compose file in your current working directory and:
 5. **Deploys service containers** using the built images and latest configuration changes with zero-downtime rolling
    updates
 
-See the [uc deploy](../9-cli-reference/uc_deploy.md) reference for all available options.
+See the [uc deploy](../../9-cli-reference/uc_deploy.md) reference for all available options.
 
 Watch `uc deploy` building and deploying a demo app (18 seconds):
 
@@ -140,7 +140,7 @@ This generates tags like:
 `uc deploy` renders the image templates when it loads the Compose file and then uses the resulting names for the build
 and deploy stages.
 
-See the [Image tag format](../8-compose-file-reference/2-image-tag-format.md) reference for all available template
+See the [Image tag format](../../8-compose-file-reference/2-image-tag-format.md) reference for all available template
 variables and functions.
 
 ### Separate build and deploy steps
@@ -251,7 +251,7 @@ machines. For example, images you built locally outside of the Compose workflow 
 is unreachable from your cluster machines. This is useful for deploying to air-gapped or restricted environments.
 
 You can push these local images directly to your cluster machines using the
-[`uc image push`](../9-cli-reference/uc_image_push.md) command:
+[`uc image push`](../../9-cli-reference/uc_image_push.md) command:
 
 ```shell
 # Push to *all* cluster machines
@@ -276,7 +276,7 @@ services:
     pull_policy: never
 ```
 
-Run [`uc images`](../9-cli-reference/uc_images.md) to verify that the image is available on the target machines.
+Run [`uc images`](../../9-cli-reference/uc_images.md) to verify that the image is available on the target machines.
 
 Then deploy as usual:
 
@@ -321,86 +321,6 @@ Choose unique names to avoid conflicts with services deployed from other Compose
 
 :::
 
-## Deploy to specific machines
-
-By default, Uncloud randomly chooses available machines to run your services on, spreading multiple replicas of a
-service across all machines for high availability. You can restrict which machines can run your service using the
-[`x-machines`](../8-compose-file-reference/1-support-matrix.md#x-machines) extension in your Compose file.
-
-This is useful when you want to:
-
-- Deploy services to machines in a specific region or data center
-- Run services only on machines with specific hardware (for example, GPUs or ARM processors)
-- Keep certain services isolated to dedicated machines
-- Deploy to a subset of machines for testing before rolling out cluster-wide
-
-Here's a basic example:
-
-```yaml
-services:
-  web:
-    build: .
-    x-ports:
-      - app.example.com:8000/https
-    # Spread 3 replicas across machine-1 and machine-2 only
-    scale: 3
-    x-machines:
-      - machine-1
-      - machine-2
-
-  db:
-    image: postgres:18
-    environment:
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - db-data:/var/lib/postgresql
-    # Create the db-data volume and run the DB container on machine-db
-    x-machines: machine-db
-
-volumes:
-  db-data:
-```
-
-When you deploy this Compose file with `uc deploy`:
-
-- The `web` service will create and spread its 3 replicas only across `machine-1` and `machine-2`
-- The `db` service will create its `db-data` volume and run only on `machine-db`
-
-:::tip
-
-Use [`uc machine ls`](../9-cli-reference/uc_machine_ls.md) to see available machines in your cluster.
-
-:::
-
-### Push images to specific machines only
-
-When building from source, `uc deploy` and `uc build --push` automatically push images to **all** cluster machines by
-default. This ensures images are available wherever services might be deployed.
-
-If you're using `x-machines` to restrict deployments to specific machines, `uc deploy` and `uc build --push` push images
-only to those machines. This saves time and bandwidth by uploading images only where they're needed.
-
-## Run one replica on each machine
-
-To deploy exactly one service replica on each machine in your cluster, set
-[`mode: global`](https://github.com/compose-spec/compose-spec/blob/main/deploy.md#mode) under the `deploy` section. It's
-useful for cluster-wide services like monitoring agents, log collectors, or reverse proxies.
-
-You can also combine `mode: global` with `x-machines` to run one container on each machine in a specific set.
-
-```yaml
-services:
-  monitoring:
-    image: quay.io/prometheus/node-exporter:latest
-    deploy:
-      # Run one container on each machine in the cluster
-      mode: global
-    # Optionally run one container on each of these specific machines only
-    #x-machines:
-    #  - machine-1
-    #  - machine-2
-```
-
 ## Use a different Compose file location
 
 If your Compose file has a different name or location, use the `-f/--file` flag to specify its path:
@@ -432,3 +352,11 @@ and inspecting the status of containers for a specific service:
 ```shell
 uc inspect web
 ```
+
+# See also
+
+- [Deploy to specific machines](2-deploy-specific-machines.md): Deploy services to specific machines in your cluster
+- [Deploy a global service](3-deploy-global-services.md): Deploy one service replica on each cluster machine
+- [Compose Specification](https://compose-spec.io/): Official specification for the Compose file format
+- [Compose support matrix](../../8-compose-file-reference/1-support-matrix.md): Supported Compose features and Uncloud
+  extensions

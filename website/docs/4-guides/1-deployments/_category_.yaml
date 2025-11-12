@@ -1,0 +1,4 @@
+label: Deployments
+collapsed: false # keep the category open by default
+link:
+  type: generated-index
