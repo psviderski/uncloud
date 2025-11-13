@@ -7,7 +7,7 @@ Template syntax for tagging built images.
 When building service images as part of [`uc build`](../9-cli-reference/uc_build.md) or
 [`uc deploy`](../9-cli-reference/uc_deploy.md) commands, Uncloud automatically generates image tags based on the current
 Git repository state. You can customise the image name and tag format for the built images using the
-[Go template](https://pkg.go.dev/text/template) syntax environment variables.
+[Go template](https://pkg.go.dev/text/template) syntax and environment variables.
 
 ## Default template
 

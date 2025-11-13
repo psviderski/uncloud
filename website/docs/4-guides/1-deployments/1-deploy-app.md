@@ -62,7 +62,7 @@ This command looks for a Compose file in your current working directory and:
 5. **Deploys service containers** using the built images and latest configuration changes with zero-downtime rolling
    updates
 
-See the [uc deploy](../../9-cli-reference/uc_deploy.md) reference for all available options.
+See the [`uc deploy` ](../../9-cli-reference/uc_deploy.md) reference for all available options.
 
 Watch `uc deploy` building and deploying a demo app (18 seconds):
 
