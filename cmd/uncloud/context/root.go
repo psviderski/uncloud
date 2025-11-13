@@ -19,6 +19,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(
 		NewListCommand(),
 		NewUseCommand(),
+		NewConnectionCommand(),
 	)
 
 	return cmd
