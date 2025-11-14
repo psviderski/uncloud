@@ -19,7 +19,6 @@ type createOptions struct {
 	driverOpts []string
 	labels     []string
 	machine    string
-	context    string
 }
 
 func NewCreateCommand() *cobra.Command {
@@ -50,14 +49,12 @@ func NewCreateCommand() *cobra.Command {
 		"Labels to assign to the volume in the form of 'key=value' pairs. Can be specified multiple times.")
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine to create the volume on.")
-	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
 
 	return cmd
 }
 
 func create(ctx context.Context, uncli *cli.CLI, name string, opts createOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

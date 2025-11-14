@@ -40,8 +40,6 @@ type BuildServicesOptions struct {
 	PushRegistry bool
 
 	// Cluster-specific options (only used if PushCluster is true).
-	// Context is the name of the cluster context.
-	Context string
 	// Machines is a list of machine names or IDs to push the image to. If empty, images are pushed to all machines.
 	Machines []string
 }
@@ -95,7 +93,7 @@ func (cli *CLI) BuildServices(ctx context.Context, project *composetypes.Project
 	// Add a line break after the build output.
 	fmt.Fprintln(cli.ProgressOut())
 
-	clusterClient, err := cli.ConnectCluster(ctx, opts.Context)
+	clusterClient, err := cli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

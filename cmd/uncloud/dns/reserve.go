@@ -19,7 +19,6 @@ const DefaultUncloudDNSAPIEndpoint = "https://dns.uncloud.run/v1"
 
 type reserveOptions struct {
 	endpoint string
-	context  string
 }
 
 func NewReserveCommand() *cobra.Command {
@@ -36,16 +35,12 @@ func NewReserveCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.endpoint, "endpoint", DefaultUncloudDNSAPIEndpoint,
 		"API endpoint for the Uncloud DNS service.")
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 
 	return cmd
 }
 
 func reserve(ctx context.Context, uncli *cli.CLI, opts reserveOptions) error {
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

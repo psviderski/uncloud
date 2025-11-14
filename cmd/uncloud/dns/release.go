@@ -12,32 +12,21 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-type releaseOptions struct {
-	context string
-}
-
 func NewReleaseCommand() *cobra.Command {
-	opts := releaseOptions{}
-
 	cmd := &cobra.Command{
 		Use:   "release",
 		Short: "Release the reserved cluster domain.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return release(cmd.Context(), uncli, opts)
+			return release(cmd.Context(), uncli)
 		},
 	}
-
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 
 	return cmd
 }
 
-func release(ctx context.Context, uncli *cli.CLI, opts releaseOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+func release(ctx context.Context, uncli *cli.CLI) error {
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

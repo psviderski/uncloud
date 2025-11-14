@@ -13,7 +13,6 @@ import (
 type updateOptions struct {
 	name     string
 	publicIP string
-	context  string
 }
 
 func NewUpdateCommand() *cobra.Command {
@@ -43,10 +42,6 @@ At least one flag must be specified to perform an update operation.`,
 		&opts.publicIP, "public-ip", "",
 		fmt.Sprintf("Public IP address of the machine for ingress configuration. Use '%s' or '' to remove the public IP.", PublicIPNone),
 	)
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 
 	return cmd
 }
@@ -57,7 +52,7 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 		return fmt.Errorf("at least one update flag must be specified (--name, --public-ip)")
 	}
 
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return err
 	}

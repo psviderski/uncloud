@@ -74,8 +74,6 @@ to cluster machines or --push-registry to upload them to external registries.`,
 			"Use --machine to specify which machines. (default is all machines)")
 	cmd.Flags().BoolVar(&opts.PushRegistry, "push-registry", false,
 		"Upload the built images to external registries (e.g., Docker Hub) after building.")
-	cmd.Flags().StringVarP(&opts.Context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
 
 	return cmd
 }
