@@ -42,6 +42,20 @@ func rename(ctx context.Context, uncli *cli.CLI, contextName, oldName, newName s
 		return fmt.Errorf("rename machine: %w", err)
 	}
 
+	// Update the machine name in the config file.
+	if uncli.Config != nil {
+		context := uncli.Config.Contexts[uncli.Config.CurrentContext]
+		for i, c := range context.Connections {
+			if c.Name == oldName {
+				context.Connections[i].Name = newName
+				break
+			}
+		}
+		if err := uncli.Config.Save(); err != nil {
+			return fmt.Errorf("save config: %w", err)
+		}
+	}
+
 	fmt.Printf("Machine %q renamed to %q (ID: %s)\n", oldName, machine.Name, machine.Id)
 	return nil
 }

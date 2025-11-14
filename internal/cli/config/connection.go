@@ -25,16 +25,30 @@ type MachineConnection struct {
 	TCP       *netip.AddrPort `yaml:"tcp,omitempty"`
 	Host      string          `yaml:"host,omitempty"`
 	PublicKey secret.Secret   `yaml:"public_key,omitempty"`
+	Name      string          `yaml:"name,omitempty"`
 }
 
 func (c MachineConnection) String() string {
+	var connStr string
 	if c.SSH != "" {
-		return "ssh://" + string(c.SSH)
+		connStr = "ssh://" + string(c.SSH)
 	} else if c.SSHCLI != "" {
-		return "ssh+cli://" + string(c.SSHCLI)
+		connStr = "ssh+cli://" + string(c.SSHCLI)
 	} else if c.TCP != nil && c.TCP.IsValid() {
-		return fmt.Sprintf("tcp://%s", c.TCP)
+		connStr = fmt.Sprintf("tcp://%s", c.TCP)
 	}
+
+	if c.Name != "" {
+		if connStr != "" {
+			return fmt.Sprintf("%s (%s)", c.Name, connStr)
+		}
+		return c.Name
+	}
+
+	if connStr != "" {
+		return connStr
+	}
+
 	return "unknown connection"
 }
 
