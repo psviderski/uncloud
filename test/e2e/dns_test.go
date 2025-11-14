@@ -121,7 +121,7 @@ func TestInternalDNS(t *testing.T) {
 	}
 
 	t.Run("service name resolves to all container IPs", func(t *testing.T) {
-		dnsOutput := runNslookup(t, serviceName + ".internal")
+		dnsOutput := runNslookup(t, serviceName+".internal")
 		t.Logf("DNS query output:\n%s", dnsOutput)
 
 		// Verify that all service container IPs are in the DNS response
@@ -167,7 +167,7 @@ func TestInternalDNS(t *testing.T) {
 
 	t.Run("service ID DNS lookup", func(t *testing.T) {
 		// Test that service ID also resolves (existing functionality)
-		dnsOutput := runNslookup(t, svc.ID + ".internal")
+		dnsOutput := runNslookup(t, svc.ID+".internal")
 		t.Logf("Service ID DNS query output:\n%s", dnsOutput)
 
 		// Verify that all service container IPs are in the DNS response
