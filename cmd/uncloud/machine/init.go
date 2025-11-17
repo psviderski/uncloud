@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strings"
 
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
@@ -34,8 +35,12 @@ func NewInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [USER@HOST:PORT]",
 		Short: "Initialise a new cluster with a remote machine as the first member.",
-		Long: "Initialise a new cluster by setting up a remote machine as the first member.\n" +
-			"This command creates a new context in your Uncloud config to manage the cluster.",
+		Long: `Initialise a new cluster by setting up a remote machine as the first member.
+This command creates a new context in your Uncloud config to manage the cluster.
+
+Connection methods:
+  ssh://user@host       - Use built-in SSH library (default, no prefix required)
+  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
 		Example: `  # Initialise a new cluster with default settings.
   uc machine init root@<your-server-ip>
 
@@ -55,15 +60,22 @@ func NewInitCommand() *cobra.Command {
 
 			var remoteMachine *cli.RemoteMachine
 			if len(args) > 0 {
-				user, host, port, err := config.SSHDestination(args[0]).Parse()
+				// Determine if SSH CLI is requested and strip scheme
+				destination := args[0]
+				useSSHCLI := strings.HasPrefix(destination, "ssh+cli://")
+				destination = strings.TrimPrefix(destination, "ssh+cli://")
+				destination = strings.TrimPrefix(destination, "ssh://")
+
+				user, host, port, err := config.SSHDestination(destination).Parse()
 				if err != nil {
 					return fmt.Errorf("parse remote machine: %w", err)
 				}
 				remoteMachine = &cli.RemoteMachine{
-					User:    user,
-					Host:    host,
-					Port:    port,
-					KeyPath: opts.sshKey,
+					User:      user,
+					Host:      host,
+					Port:      port,
+					KeyPath:   opts.sshKey,
+					UseSSHCLI: useSSHCLI,
 				}
 			}
 
