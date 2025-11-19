@@ -22,7 +22,6 @@ import (
 type removeOptions struct {
 	noReset bool
 	yes     bool
-	context string
 }
 
 func NewRmCommand() *cobra.Command {
@@ -39,8 +38,6 @@ func NewRmCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Do not prompt for confirmation before removing the machine.")
 	cmd.Flags().BoolVar(&opts.noReset, "no-reset", false,
@@ -51,7 +48,7 @@ func NewRmCommand() *cobra.Command {
 
 func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOptions) error {
 	// TODO: automatically choose a connection to the machine that is not being removed.
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

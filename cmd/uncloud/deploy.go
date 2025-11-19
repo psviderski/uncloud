@@ -26,8 +26,6 @@ type deployOptions struct {
 	noBuild  bool
 	recreate bool
 	yes      bool
-
-	context string
 }
 
 // NewDeployCommand creates a new command to deploy services from a Compose file.
@@ -51,8 +49,6 @@ func NewDeployCommand() *cobra.Command {
 			"Can be specified multiple times. Format: --build-arg VAR=VALUE")
 	cmd.Flags().BoolVar(&opts.BuildServicesOptions.Pull, "build-pull", false,
 		"Always attempt to pull newer versions of base images before building service images.")
-	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
-		"Name of the cluster context to deploy to (default is the current context)")
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
 		"One or more Compose files to deploy services from. (default compose.yaml)")
 	cmd.Flags().BoolVar(&opts.noBuild, "no-build", false,
@@ -108,7 +104,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		fmt.Println()
 	}
 
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

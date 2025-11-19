@@ -12,25 +12,20 @@ import (
 )
 
 func NewListCommand() *cobra.Command {
-	var contextName string
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List services.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return list(cmd.Context(), uncli, contextName)
+			return list(cmd.Context(), uncli)
 		},
 	}
-	cmd.Flags().StringVarP(
-		&contextName, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 	return cmd
 }
 
-func list(ctx context.Context, uncli *cli.CLI, contextName string) error {
-	client, err := uncli.ConnectCluster(ctx, contextName)
+func list(ctx context.Context, uncli *cli.CLI) error {
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

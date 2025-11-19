@@ -15,7 +15,6 @@ type pushOptions struct {
 	image    string
 	machines []string
 	platform string
-	context  string
 }
 
 func NewPushCommand() *cobra.Command {
@@ -54,16 +53,12 @@ The image is uploaded to all cluster machines (default) or the specified machine
 		"Push a specific platform of a multi-platform image (e.g., linux/amd64, linux/arm64).\n"+
 			"Local Docker must be configured to use containerd image store to support multi-platform images.",
 	)
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 
 	return cmd
 }
 
 func push(ctx context.Context, uncli *cli.CLI, opts pushOptions) error {
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

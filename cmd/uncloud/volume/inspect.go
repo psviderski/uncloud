@@ -13,7 +13,6 @@ import (
 
 type inspectOptions struct {
 	machine string
-	context string
 }
 
 func NewInspectCommand() *cobra.Command {
@@ -32,14 +31,12 @@ func NewInspectCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine where the volume is located. "+
 			"If not specified, the volume will be searched across all machines.")
-	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
 
 	return cmd
 }
 
 func inspect(ctx context.Context, uncli *cli.CLI, name string, opts inspectOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

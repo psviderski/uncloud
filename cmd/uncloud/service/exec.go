@@ -15,7 +15,6 @@ type execCliOptions struct {
 	detach      bool
 	interactive bool
 	noTty       bool
-	context     string
 	containerId string
 }
 
@@ -69,9 +68,6 @@ If the service has multiple replicas and no container ID is specified, the comma
 	execCmd.Flags().BoolP("tty", "t", false, "Allocate a pseudo-TTY")
 	execCmd.Flags().MarkHidden("tty")
 
-	execCmd.Flags().StringVarP(&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
-
 	// Common flags
 	execCmd.Flags().StringVar(&opts.containerId, "container", "",
 		"ID of the container to exec into. Accepts full ID or a unique prefix "+
@@ -95,7 +91,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		}
 	}
 
-	client, err := uncli.ConnectClusterWithOptions(ctx, opts.context, cli.ConnectOptions{
+	client, err := uncli.ConnectClusterWithOptions(ctx, cli.ConnectOptions{
 		ShowProgress: false,
 	})
 	if err != nil {

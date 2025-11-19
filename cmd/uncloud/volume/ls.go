@@ -16,7 +16,6 @@ import (
 type listOptions struct {
 	machines []string
 	quiet    bool
-	context  string
 }
 
 func NewListCommand() *cobra.Command {
@@ -38,14 +37,11 @@ func NewListCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false,
 		"Only display volume names.")
 
-	cmd.Flags().StringVarP(&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
-
 	return cmd
 }
 
 func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
-	client, err := uncli.ConnectCluster(ctx, opts.context)
+	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}

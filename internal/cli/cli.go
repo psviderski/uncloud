@@ -28,14 +28,16 @@ const (
 )
 
 type CLI struct {
-	Config *config.Config
-	conn   *config.MachineConnection
+	Config          *config.Config
+	conn            *config.MachineConnection
+	contextOverride string
 }
 
 // New creates a new CLI instance with the given config path or remote machine connection.
 // If the connection is provided, the config is ignored for all operations which is useful for interacting with
 // a cluster without creating a config.
-func New(configPath string, conn *config.MachineConnection) (*CLI, error) {
+// If a non-empty context name is given, it will override the current default.
+func New(configPath string, conn *config.MachineConnection, contextName string) (*CLI, error) {
 	if conn != nil {
 		return &CLI{conn: conn}, nil
 	}
@@ -46,7 +48,8 @@ func New(configPath string, conn *config.MachineConnection) (*CLI, error) {
 	}
 
 	return &CLI{
-		Config: cfg,
+		Config:          cfg,
+		contextOverride: contextName,
 	}, nil
 }
 
@@ -68,19 +71,20 @@ func (cli *CLI) SetCurrentContext(name string) error {
 	return cli.Config.Save()
 }
 
-// ConnectCluster connects to a cluster using the given context name or the current context if not specified.
+// ConnectCluster connects to a cluster using the context override or the current context if not specified.
 // If the CLI was initialised with a machine connection, the config is ignored and the connection is used instead.
-func (cli *CLI) ConnectCluster(ctx context.Context, contextName string) (*client.Client, error) {
-	return cli.ConnectClusterWithOptions(ctx, contextName, ConnectOptions{
+func (cli *CLI) ConnectCluster(ctx context.Context) (*client.Client, error) {
+	return cli.ConnectClusterWithOptions(ctx, ConnectOptions{
 		// Default to showing progress for CLI usage.
 		ShowProgress: true,
 	})
 }
 
-// ConnectClusterWithOptions connects to a cluster using the given context name and options.
+// ConnectClusterWithOptions connects to a cluster with the given options.
 // If the CLI was initialised with a machine connection, the config is ignored and the connection is used instead.
+// If the CLI has an override context, it is used instead of the current default.
 // Options are useful when using the CLI as a library where you may want to disable visual feedback.
-func (cli *CLI) ConnectClusterWithOptions(ctx context.Context, contextName string, opts ConnectOptions) (*client.Client, error) {
+func (cli *CLI) ConnectClusterWithOptions(ctx context.Context, opts ConnectOptions) (*client.Client, error) {
 	if cli.conn != nil {
 		return ConnectCluster(ctx, *cli.conn, opts)
 	}
@@ -92,6 +96,8 @@ func (cli *CLI) ConnectClusterWithOptions(ctx context.Context, contextName strin
 			cli.Config.Path(),
 		)
 	}
+
+	contextName := cli.contextOverride
 	if contextName == "" {
 		// If the cluster is not specified, use the current cluster if set.
 		if cli.Config.CurrentContext == "" {
@@ -269,7 +275,6 @@ func (cli *CLI) newContextName(name string) (string, error) {
 }
 
 type AddMachineOptions struct {
-	Context       string
 	MachineName   string
 	PublicIP      *netip.Addr
 	RemoteMachine *RemoteMachine
@@ -282,11 +287,11 @@ type AddMachineOptions struct {
 // cluster. The machine client is connected to the new machine and can be used to interact with it.
 // Both client should be closed after use by the caller.
 func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client.Client, *client.Client, error) {
-	contextName := opts.Context
+	contextName := cli.contextOverride
 	if contextName == "" {
 		contextName = cli.Config.CurrentContext
 	}
-	c, err := cli.ConnectCluster(ctx, contextName)
+	c, err := cli.ConnectCluster(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
 	}
@@ -406,9 +411,6 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
 	} else {
 		connCfg.SSH = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
-	}
-	if contextName == "" {
-		contextName = cli.Config.CurrentContext
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {

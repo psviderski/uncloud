@@ -22,7 +22,6 @@ import (
 type listOptions struct {
 	machines   []string
 	nameFilter string
-	context    string
 }
 
 func NewListCommand() *cobra.Command {
@@ -60,10 +59,6 @@ func NewListCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Filter images by machine name or ID. Can be specified multiple times or as a comma-separated list. "+
 			"(default is include all machines)")
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)",
-	)
 
 	return cmd
 }
@@ -82,7 +77,7 @@ type imageRow struct {
 }
 
 func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
-	clusterClient, err := uncli.ConnectCluster(ctx, opts.context)
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
