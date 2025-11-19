@@ -235,6 +235,7 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
 		SSHKeyFile: opts.RemoteMachine.KeyPath,
+		MachineID:  resp.Machine.Id,
 	}
 	if opts.RemoteMachine.UseSSHCLI {
 		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
@@ -406,6 +407,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	// Save the machine's SSH connection details in the context config.
 	connCfg := config.MachineConnection{
 		SSHKeyFile: opts.RemoteMachine.KeyPath,
+		MachineID:  addResp.Machine.Id,
 	}
 	if opts.RemoteMachine.UseSSHCLI {
 		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
