@@ -25,6 +25,7 @@ type MachineConnection struct {
 	TCP       *netip.AddrPort `yaml:"tcp,omitempty"`
 	Host      string          `yaml:"host,omitempty"`
 	PublicKey secret.Secret   `yaml:"public_key,omitempty"`
+	MachineID string          `yaml:"machine_id,omitempty"`
 }
 
 func (c MachineConnection) String() string {

@@ -58,6 +58,15 @@ func TestMachineConnection_String(t *testing.T) {
 			conn: MachineConnection{},
 			want: "unknown connection",
 		},
+		{
+			name: "ssh connection with machine id",
+			conn: MachineConnection{
+				SSH:       "user@host.com",
+				MachineID: "ed98b9f7575308c340263cd279e3b568",
+			},
+			// String() does not use MachineID; just verifying entry with it is valid
+			want: "ssh://user@host.com",
+		},
 	}
 
 	for _, tt := range tests {

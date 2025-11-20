@@ -152,8 +152,21 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 		}
 	}
 
-	// TODO: remove the connection to the machine from the uncloud config if it exists. We need a way to associate
-	//  the machine with its connection in the config, e.g. by storing the machine name in the connection metadata.
+	// Remove the connection to the machine from the uncloud config if it exists.
+	if uncli.Config != nil {
+		contextName := uncli.GetContextOverrideOrCurrent()
+		if context, ok := uncli.Config.Contexts[contextName]; ok {
+			for i, c := range context.Connections {
+				if c.MachineID == m.Id {
+					context.Connections = slices.Delete(context.Connections, i, i+1)
+					break
+				}
+			}
+			if err := uncli.Config.Save(); err != nil {
+				return fmt.Errorf("save config: %w", err)
+			}
+		}
+	}
 
 	// TODO: If Caddy was running on this machine and a cluster domain is reserved,
 	//  let the user know that the DNS records should be updated.
