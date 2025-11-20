@@ -41,7 +41,6 @@ uc build [FLAGS] [SERVICE...] [flags]
       --build-arg stringArray   Set a build-time variable for services. Used in Dockerfiles that declare the variable with ARG.
                                 Can be specified multiple times. Format: --build-arg VAR=VALUE
       --check                   Check the build configuration for services without building them.
-  -c, --context string          Name of the cluster context. (default is the current context)
       --deps                    Also build services declared as dependencies of the selected services.
   -f, --file strings            One or more Compose files to build. (default compose.yaml)
   -h, --help                    help for build
@@ -60,6 +59,7 @@ uc build [FLAGS] [SERVICE...] [flags]
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+  -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 

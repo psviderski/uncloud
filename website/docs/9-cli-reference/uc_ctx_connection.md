@@ -1,19 +1,15 @@
-# uc service scale
+# uc ctx connection
 
-Scale a replicated service by changing the number of replicas.
-
-## Synopsis
-
-Scale a replicated service by changing the number of replicas. Scaling down requires confirmation.
+Choose a new default connection for the current context.
 
 ```
-uc service scale SERVICE REPLICAS [flags]
+uc ctx connection [flags]
 ```
 
 ## Options
 
 ```
-  -h, --help   help for scale
+  -h, --help   help for connection
 ```
 
 ## Options inherited from parent commands
@@ -27,5 +23,5 @@ uc service scale SERVICE REPLICAS [flags]
 
 ## See also
 
-* [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
+* [uc ctx](uc_ctx.md)	 - Switch between different cluster contexts. Contains subcommands to manage contexts.
 

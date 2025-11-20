@@ -10,7 +10,6 @@ uc run IMAGE [COMMAND...] [flags]
 
 ```
       --caddyfile string    Path to a custom Caddy config (Caddyfile) for the service. Cannot be used together with non-@host published ports.
-  -c, --context string      Name of the cluster context to run the service in. (default is the current context)
       --cpu decimal         Maximum number of CPU cores a service container can use. Fractional values are allowed: 0.5 for half a core or 2.25 for two and a quarter cores.
       --entrypoint string   Overwrite the default ENTRYPOINT of the image. Pass an empty string "" to reset it.
   -e, --env strings         Set an environment variable for service containers. Can be specified multiple times.
@@ -48,6 +47,7 @@ uc run IMAGE [COMMAND...] [flags]
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+  -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 

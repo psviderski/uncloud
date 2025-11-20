@@ -2,6 +2,14 @@
 
 Add a remote machine to a cluster.
 
+## Synopsis
+
+Add a new machine to an existing Uncloud cluster.
+
+Connection methods:
+  ssh://user@host       - Use built-in SSH library (default, no prefix required)
+  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)
+
 ```
 uc machine add [USER@]HOST[:PORT] [flags]
 ```
@@ -9,7 +17,6 @@ uc machine add [USER@]HOST[:PORT] [flags]
 ## Options
 
 ```
-  -c, --context string     Name of the cluster context to add the machine to. (default is the current context)
   -h, --help               help for add
   -n, --name string        Assign a name to the machine.
       --no-caddy           Don't deploy Caddy reverse proxy service to the machine.
@@ -24,6 +31,7 @@ uc machine add [USER@]HOST[:PORT] [flags]
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+  -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 

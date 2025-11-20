@@ -7,6 +7,10 @@ Initialise a new cluster with a remote machine as the first member.
 Initialise a new cluster by setting up a remote machine as the first member.
 This command creates a new context in your Uncloud config to manage the cluster.
 
+Connection methods:
+  ssh://user@host       - Use built-in SSH library (default, no prefix required)
+  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)
+
 ```
 uc machine init [USER@HOST:PORT] [flags]
 ```

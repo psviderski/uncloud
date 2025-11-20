@@ -13,7 +13,6 @@ uc volume rm VOLUME_NAME [VOLUME_NAME...] [flags]
 ## Options
 
 ```
-  -c, --context string    Name of the cluster context. (default is the current context)
   -f, --force             Force the removal of one or more volumes.
   -h, --help              help for rm
   -m, --machine strings   Name or ID of the machine to remove one or more volumes from. Can be specified multiple times or as a comma-separated list.
@@ -26,6 +25,7 @@ uc volume rm VOLUME_NAME [VOLUME_NAME...] [flags]
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
                                 Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+  -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 
