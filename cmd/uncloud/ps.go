@@ -9,8 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types/container"
 	"github.com/spf13/cobra"
@@ -76,20 +75,20 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 	}
 	defer client.Close()
 
-	model := newSpinnerModel(client, "Collecting container info...")
-	p := tea.NewProgram(model)
-
-	finalModel, err := p.Run()
+	var containers []containerInfo
+	err = spinner.New().
+		Title(" Collecting container info...").
+		Type(spinner.MiniDot).
+		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
+		ActionWithErr(func(context.Context) error {
+			containers, err = collectContainers(client)
+			return err
+		}).
+		Run()
 	if err != nil {
-		return fmt.Errorf("failed to run spinner: %w", err)
+		return fmt.Errorf("collect containers: %w", err)
 	}
 
-	m := finalModel.(spinnerModel)
-	if m.err != nil {
-		return m.err
-	}
-
-	containers := m.containers
 	// Sort the containers based on the sorting option
 	sort.SliceStable(containers, func(i, j int) bool {
 		a, b := containers[i], containers[j]
@@ -170,65 +169,22 @@ func printContainers(out io.Writer, containers []containerInfo, sortBy string) e
 	return nil
 }
 
-type spinnerModel struct {
-	client     *client.Client
-	spinner    spinner.Model
-	message    string
-	containers []containerInfo
-	err        error
-}
-
-type containersCollectedMsg struct {
-	containers []containerInfo
-	err        error
-}
-
-func newSpinnerModel(client *client.Client, message string) spinnerModel {
-	s := spinner.New()
-	s.Spinner = spinner.Jump
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return spinnerModel{client: client, spinner: s, message: message}
-}
-
-func (m spinnerModel) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.collectContainers)
-}
-
-func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
-	case containersCollectedMsg:
-		m.containers = msg.containers
-		m.err = msg.err
-		return m, tea.Quit
-	default:
-		return m, nil
-	}
-}
-
-func (m spinnerModel) View() string {
-	return fmt.Sprintf("%s %s", m.spinner.View(), m.message)
-}
-
-func (m spinnerModel) collectContainers() tea.Msg {
-	services, err := m.client.ListServices(context.Background())
+func collectContainers(cli *client.Client) ([]containerInfo, error) {
+	services, err := cli.ListServices(context.Background())
 	if err != nil {
-		return containersCollectedMsg{err: fmt.Errorf("list services: %w", err)}
+		return nil, fmt.Errorf("list services: %w", err)
 	}
 
 	var containers []containerInfo
 	for _, s := range services {
-		service, err := m.client.InspectService(context.Background(), s.ID)
+		service, err := cli.InspectService(context.Background(), s.ID)
 		if err != nil {
-			return containersCollectedMsg{err: fmt.Errorf("inspecting service %q (%s): %w", s.Name, s.ID, err)}
+			return nil, fmt.Errorf("inspecting service %q (%s): %w", s.Name, s.ID, err)
 		}
 
-		machines, err := m.client.ListMachines(context.Background(), nil)
+		machines, err := cli.ListMachines(context.Background(), nil)
 		if err != nil {
-			return containersCollectedMsg{err: fmt.Errorf("list machines: %w", err)}
+			return nil, fmt.Errorf("list machines: %w", err)
 		}
 		machinesNamesByID := make(map[string]string)
 		for _, m := range machines {
@@ -238,7 +194,7 @@ func (m spinnerModel) collectContainers() tea.Msg {
 		for _, ctr := range service.Containers {
 			status, err := ctr.Container.HumanState()
 			if err != nil {
-				return containersCollectedMsg{err: fmt.Errorf("get human state for container %s: %w", ctr.Container.ID, err)}
+				return nil, fmt.Errorf("get human state for container %s: %w", ctr.Container.ID, err)
 			}
 
 			var highlight containerHighlight
@@ -269,5 +225,5 @@ func (m spinnerModel) collectContainers() tea.Msg {
 			containers = append(containers, info)
 		}
 	}
-	return containersCollectedMsg{containers: containers}
+	return containers, nil
 }
