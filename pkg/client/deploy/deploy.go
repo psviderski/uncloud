@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
 type Client interface {
@@ -25,6 +26,8 @@ type Deployment struct {
 	Strategy Strategy
 	cli      Client
 	plan     *Plan
+	// state is an optional current and planned cluster state used for scheduling decisions.
+	state *scheduler.ClusterState
 }
 
 type Plan struct {
@@ -45,6 +48,16 @@ func NewDeployment(cli Client, spec api.ServiceSpec, strategy Strategy) *Deploym
 		Strategy: strategy,
 		cli:      cli,
 	}
+}
+
+// NewDeploymentWithClusterState creates a new deployment like NewDeployment but also with a provided current cluster
+// state used for scheduling decisions.
+func NewDeploymentWithClusterState(
+	cli Client, spec api.ServiceSpec, strategy Strategy, state *scheduler.ClusterState,
+) *Deployment {
+	d := NewDeployment(cli, spec, strategy)
+	d.state = state
+	return d
 }
 
 // Plan returns a plan of operations to reconcile the service to the desired state.
@@ -73,7 +86,14 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		return Plan{}, fmt.Errorf("resolve service spec: %w", err)
 	}
 
-	plan, err := d.Strategy.Plan(ctx, d.cli, d.Service, resolvedSpec)
+	if d.state == nil {
+		d.state, err = scheduler.InspectClusterState(ctx, d.cli)
+		if err != nil {
+			return Plan{}, fmt.Errorf("inspect cluster state: %w", err)
+		}
+	}
+
+	plan, err := d.Strategy.Plan(d.state, d.Service, resolvedSpec)
 	if err != nil {
 		return Plan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
 	}

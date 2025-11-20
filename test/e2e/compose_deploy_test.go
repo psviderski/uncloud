@@ -533,4 +533,29 @@ func TestComposeDeployment(t *testing.T) {
 		assert.ElementsMatch(t, serviceMachines.ToSlice(), []string{c.Machines[0].ID, c.Machines[2].ID},
 			"Service containers should be on machines 1 and 3 from comma-separated list")
 	})
+
+	// Catches regression: https://github.com/psviderski/uncloud/issues/176
+	t.Run("plan new deployment with volumes and recreate strategy", func(t *testing.T) {
+		t.Parallel()
+
+		project, err := compose.LoadProjectFromContent(ctx, `
+services:
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+volumes:
+  redis-data:
+`)
+		require.NoError(t, err)
+
+		deployment, err := compose.NewDeploymentWithStrategy(ctx, cli, project,
+			&deploy.RollingStrategy{ForceRecreate: true})
+		require.NoError(t, err)
+
+		plan, err := deployment.Plan(ctx)
+		require.NoError(t, err)
+
+		assert.Len(t, plan.Operations, 2, "Expected 1 volume creation and 1 service to deploy")
+	})
 }

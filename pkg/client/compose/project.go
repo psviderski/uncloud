@@ -3,12 +3,15 @@ package compose
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/compose-spec/compose-go/v2/types"
 )
 
+// LoadProject loads a Compose project from the default locations or the given paths.
 func LoadProject(ctx context.Context, paths []string, opts ...composecli.ProjectOptionsFn) (*types.Project, error) {
 	defaultOpts := []composecli.ProjectOptionsFn{
 		// First apply os.Environment, always wins.
@@ -59,6 +62,26 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 	}
 
 	return project, nil
+}
+
+// LoadProjectFromContent loads a Compose project from the given YAML content.
+func LoadProjectFromContent(
+	ctx context.Context, content string, opts ...composecli.ProjectOptionsFn,
+) (*types.Project, error) {
+	// Create a temporary directory for the compose file.
+	tmpDir, err := os.MkdirTemp("", "uncloud-compose-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Write the YAML content to compose.yaml in the temporary directory.
+	composePath := filepath.Join(tmpDir, "compose.yaml")
+	if err := os.WriteFile(composePath, []byte(content), 0644); err != nil {
+		return nil, fmt.Errorf("write compose file: %w", err)
+	}
+
+	return LoadProject(ctx, []string{composePath}, opts...)
 }
 
 // removeProjectPrefixFromNames removes the project name prefix from volume names.

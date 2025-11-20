@@ -22,6 +22,7 @@ import (
 
 // loadProjectFromContent loads a compose project from YAML content.
 // Keep the implementation in sync with LoadProject.
+// TODO(lhf): remove and replace with compose.LoadProjectFromContent
 func loadProjectFromContent(t *testing.T, content string) (*types.Project, error) {
 	t.Helper()
 	ctx := context.Background()

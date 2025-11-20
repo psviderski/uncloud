@@ -1,7 +1,6 @@
 package deploy
 
 import (
-	"context"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -18,31 +17,31 @@ type Strategy interface {
 	// Type returns the type of the deployment strategy, e.g. "rolling", "blue-green".
 	Type() string
 	// Plan returns the operation to reconcile the service to the desired state.
-	// If the service does not exist (new deployment), svc will be nil.
-	Plan(ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec) (Plan, error)
+	// If the service does not exist (new deployment), svc will be nil. state provides the current and planned state
+	// of the cluster for scheduling decisions.
+	Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (Plan, error)
 }
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
 // to minimize service disruption.
 type RollingStrategy struct {
-	State         *scheduler.ClusterState
+	// ForceRecreate indicates whether all containers should be recreated during the deployment,
+	// regardless of whether their specifications have changed.
 	ForceRecreate bool
+
+	// state is the current and planned state of the cluster used for scheduling decisions.
+	state *scheduler.ClusterState
 }
 
 func (s *RollingStrategy) Type() string {
 	return "rolling"
 }
 
-func (s *RollingStrategy) Plan(
-	ctx context.Context, cli scheduler.Client, svc *api.Service, spec api.ServiceSpec,
-) (Plan, error) {
-	if s.State == nil {
-		state, err := scheduler.InspectClusterState(ctx, cli)
-		if err != nil {
-			return Plan{}, fmt.Errorf("inspect cluster state: %w", err)
-		}
-		s.State = state
+func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (Plan, error) {
+	if state == nil {
+		return Plan{}, fmt.Errorf("cluster state must be provided")
 	}
+	s.state = state
 
 	// We can assume that the spec is valid at this point because it has been validated by the deployment.
 	switch spec.Mode {
@@ -65,7 +64,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		return plan, err
 	}
 
-	sched := scheduler.NewServiceScheduler(s.State, spec)
+	sched := scheduler.NewServiceScheduler(s.state, spec)
 	// TODO: return a detailed report on required constraints and which ones are satisfied?
 	availableMachines, err := sched.EligibleMachines()
 	if err != nil {
@@ -221,7 +220,7 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 		}
 	}
 
-	sched := scheduler.NewServiceScheduler(s.State, spec)
+	sched := scheduler.NewServiceScheduler(s.state, spec)
 	availableMachines, err := sched.EligibleMachines()
 	if err != nil {
 		return plan, err

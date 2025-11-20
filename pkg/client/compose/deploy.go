@@ -49,10 +49,6 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		ClusterDomain: domain,
 	}
 
-	if strategy == nil {
-		strategy = &deploy.RollingStrategy{State: state}
-	}
-
 	return &Deployment{
 		Client:       cli,
 		Project:      project,
@@ -88,6 +84,7 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 	}
 
 	// Check external volumes and plan the creation of missing volumes before deploying services.
+	// Updates the cluster state (d.state) with the scheduled volumes.
 	volumeOps, err := d.planVolumes(serviceSpecs)
 	if err != nil {
 		return plan, err
@@ -98,8 +95,8 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
-		// Pass the update cluster state with scheduled volumes to the deployment.
-		deployment := deploy.NewDeployment(d.Client, spec, d.Strategy)
+		// Pass the updated cluster state with the scheduled volumes to the deployment.
+		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
 		servicePlan, err := deployment.Plan(ctx)
 		if err != nil {
 			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)

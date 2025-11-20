@@ -17,7 +17,7 @@ import (
 //   - If a volume already exists on a machine, it must be used instead of creating a new one.
 //   - A missing volume must only be created on one machine.
 type VolumeScheduler struct {
-	// state is the current state of machines and their resources in the cluster.
+	// state is the current and planned state of machines and their resources in the cluster.
 	state *ClusterState
 	// serviceSpecs is a list of service specifications included in the deployment.
 	serviceSpecs []api.ServiceSpec
@@ -106,6 +106,7 @@ func NewVolumeScheduler(state *ClusterState, specs []api.ServiceSpec) (*VolumeSc
 // Schedule determines what missing volumes should be created and where for services in the multi-service deployment.
 // It returns a map of machine IDs to a list of api.VolumeSpec that should be created on that machine,
 // or an error if services can't be scheduled due to scheduling constraints.
+// It also updates the state of the machines in the cluster state to reflect the scheduled volumes.
 func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 	if len(s.serviceSpecs) == 0 {
 		// No services with volume mounts, nothing to schedule.
