@@ -154,11 +154,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 
 	// Remove the connection to the machine from the uncloud config if it exists.
 	if uncli.Config != nil {
-		contextName := opts.context
-		if contextName == "" {
-			contextName = uncli.Config.CurrentContext
-		}
-
+		contextName := uncli.GetContextOverrideOrCurrent()
 		if context, ok := uncli.Config.Contexts[contextName]; ok {
 			for i, c := range context.Connections {
 				if c.MachineID == m.Id {

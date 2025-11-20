@@ -71,6 +71,14 @@ func (cli *CLI) SetCurrentContext(name string) error {
 	return cli.Config.Save()
 }
 
+func (cli *CLI) GetContextOverrideOrCurrent() string {
+	contextName := cli.contextOverride
+	if contextName == "" {
+		contextName = cli.Config.CurrentContext
+	}
+	return contextName
+}
+
 // ConnectCluster connects to a cluster using the context override or the current context if not specified.
 // If the CLI was initialised with a machine connection, the config is ignored and the connection is used instead.
 func (cli *CLI) ConnectCluster(ctx context.Context) (*client.Client, error) {
@@ -288,10 +296,7 @@ type AddMachineOptions struct {
 // cluster. The machine client is connected to the new machine and can be used to interact with it.
 // Both client should be closed after use by the caller.
 func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client.Client, *client.Client, error) {
-	contextName := cli.contextOverride
-	if contextName == "" {
-		contextName = cli.Config.CurrentContext
-	}
+	contextName := cli.GetContextOverrideOrCurrent()
 	c, err := cli.ConnectCluster(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
