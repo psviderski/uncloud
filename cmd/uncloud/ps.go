@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	groupByService = "service"
-	groupByMachine = "machine"
-	groupByHealth  = "health"
+	sortByService = "service"
+	sortByMachine = "machine"
+	sortByHealth  = "health"
 )
 
 type containerHighlight int
@@ -35,8 +35,7 @@ const (
 )
 
 type psOptions struct {
-	groupBy     string
-	contextName string
+	sortBy string
 }
 
 func NewPsCommand() *cobra.Command {
@@ -49,14 +48,13 @@ func NewPsCommand() *cobra.Command {
 This command provides a comprehensive overview of all running containers that are part of a service,
 making it easy to see the distribution and status of containers across the cluster.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if opts.groupBy != groupByService && opts.groupBy != groupByMachine && opts.groupBy != groupByHealth {
-				return fmt.Errorf("invalid value for --group-by: %q, must be one of '%s', '%s' or '%s'", opts.groupBy, groupByService, groupByMachine, groupByHealth)
+			if opts.sortBy != sortByService && opts.sortBy != sortByMachine && opts.sortBy != sortByHealth {
+				return fmt.Errorf("invalid value for --sort: %q, must be one of '%s', '%s' or '%s'", opts.sortBy, sortByService, sortByMachine, sortByHealth)
 			}
 			return runPs(cmd, opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.groupBy, "group-by", "g", groupByService, "Group containers by 'service', 'machine' or 'health'")
-	cmd.Flags().StringVarP(&opts.contextName, "context", "c", "", "Name of the cluster context. (default is the current context)")
+	cmd.Flags().StringVarP(&opts.sortBy, "sort", "s", sortByService, "Sort containers by 'service', 'machine' or 'health'")
 	return cmd
 }
 
@@ -72,7 +70,7 @@ type containerInfo struct {
 
 func runPs(cmd *cobra.Command, opts psOptions) error {
 	uncli := cmd.Context().Value("cli").(*cli.CLI)
-	client, err := uncli.ConnectCluster(cmd.Context(), opts.contextName)
+	client, err := uncli.ConnectCluster(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
@@ -92,11 +90,11 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 	}
 
 	containers := m.containers
-	// Sort the containers based on the grouping option
+	// Sort the containers based on the sorting option
 	sort.SliceStable(containers, func(i, j int) bool {
 		a, b := containers[i], containers[j]
-		switch opts.groupBy {
-		case groupByHealth:
+		switch opts.sortBy {
+		case sortByHealth:
 			if a.highlight != b.highlight {
 				return a.highlight < b.highlight
 			}
@@ -106,14 +104,14 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 			if a.machineName != b.machineName {
 				return a.machineName < b.machineName
 			}
-		case groupByMachine:
+		case sortByMachine:
 			if a.machineName != b.machineName {
 				return a.machineName < b.machineName
 			}
 			if a.serviceName != b.serviceName {
 				return a.serviceName < b.serviceName
 			}
-		default: // groupByService
+		default: // sortByService
 			if a.serviceName != b.serviceName {
 				return a.serviceName < b.serviceName
 			}
@@ -125,15 +123,15 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		return a.name < b.name
 	})
 
-	return printContainers(os.Stdout, containers, opts.groupBy)
+	return printContainers(os.Stdout, containers, opts.sortBy)
 }
 
-func printContainers(out io.Writer, containers []containerInfo, groupBy string) error {
+func printContainers(out io.Writer, containers []containerInfo, sortBy string) error {
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	defer w.Flush()
 
 	var header string
-	if groupBy == groupByMachine {
+	if sortBy == sortByMachine {
 		header = "MACHINE\tSERVICE\tCONTAINER ID\tNAME\tIMAGE\tSTATUS"
 	} else {
 		header = "SERVICE\tMACHINE\tCONTAINER ID\tNAME\tIMAGE\tSTATUS"
@@ -160,7 +158,7 @@ func printContainers(out io.Writer, containers []containerInfo, groupBy string) 
 		}
 
 		var row string
-		if groupBy == groupByMachine {
+		if sortBy == sortByMachine {
 			row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s",
 				ctr.machineName, ctr.serviceName, id, name, ctr.image, statusStyle.Render(ctr.status))
 		} else {
