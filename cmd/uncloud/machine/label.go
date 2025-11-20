@@ -29,7 +29,6 @@ func newLabelCmd() *cobra.Command {
 type labelActionFunc func(ctx context.Context, client *client.Client, machineNameOrID string, labels []string) (*pb.MachineInfo, error)
 
 func newLabelModifyCmd(use, short, successMsg string, action labelActionFunc) *cobra.Command {
-	var contextName string
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
@@ -39,7 +38,7 @@ func newLabelModifyCmd(use, short, successMsg string, action labelActionFunc) *c
 			machineNameOrID := args[0]
 			labels := args[1:]
 
-			client, err := uncli.ConnectCluster(cmd.Context(), contextName)
+			client, err := uncli.ConnectCluster(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -53,7 +52,6 @@ func newLabelModifyCmd(use, short, successMsg string, action labelActionFunc) *c
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&contextName, "context", "c", "", "Name of the cluster context. (default is the current context)")
 	return cmd
 }
 
@@ -80,7 +78,6 @@ func newLabelRmCmd() *cobra.Command {
 }
 
 func newLabelLsCmd() *cobra.Command {
-	var contextName string
 	cmd := &cobra.Command{
 		Use:   "ls <machine>",
 		Short: "List labels on a machine",
@@ -89,7 +86,7 @@ func newLabelLsCmd() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			machineNameOrID := args[0]
 
-			client, err := uncli.ConnectCluster(cmd.Context(), contextName)
+			client, err := uncli.ConnectCluster(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -112,6 +109,5 @@ func newLabelLsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&contextName, "context", "c", "", "Name of the cluster context. (default is the current context)")
 	return cmd
 }
