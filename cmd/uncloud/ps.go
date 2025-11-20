@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types/container"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -79,8 +80,8 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		Title(" Collecting container info...").
 		Type(spinner.MiniDot).
 		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
-		ActionWithErr(func(context.Context) error {
-			containers, err = collectContainers(client)
+		ActionWithErr(func(ctx context.Context) error {
+			containers, err = collectContainers(ctx, client)
 			return err
 		}).
 		Run()
@@ -167,29 +168,51 @@ func printContainers(out io.Writer, containers []containerInfo, sortBy string) e
 	return nil
 }
 
-func collectContainers(cli *client.Client) ([]containerInfo, error) {
-	services, err := cli.ListServices(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("list services: %w", err)
-	}
-
-	machines, err := cli.ListMachines(context.Background(), nil)
+func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
+	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("list machines: %w", err)
 	}
-	machinesNamesByID := make(map[string]string)
+
+	// List all available machines and create a list of IPs and an IP to name map
+	machinesNamesByIP := make(map[string]string)
+	md := metadata.New(nil)
 	for _, m := range machines {
-		machinesNamesByID[m.Machine.Id] = m.Machine.Name
+		if addr, err := m.Machine.Network.ManagementIp.ToAddr(); err == nil {
+			machineIP := addr.String()
+			machinesNamesByIP[machineIP] = m.Machine.Name
+			md.Append("machines", machineIP)
+		}
+	}
+	listCtx := metadata.NewOutgoingContext(ctx, md)
+
+	// List all service containers across all machines in the cluster.
+	machineContainers, err := cli.Docker.ListServiceContainers(
+		listCtx, "", container.ListOptions{All: true},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list service containers: %w", err)
 	}
 
 	var containers []containerInfo
-	for _, s := range services {
-		service, err := cli.InspectService(context.Background(), s.ID)
-		if err != nil {
-			return nil, fmt.Errorf("inspecting service %q (%s): %w", s.Name, s.ID, err)
+	for _, msc := range machineContainers {
+		if msc.Metadata == nil {
+			continue
+		}
+		if msc.Metadata.Error != "" {
+			return nil, fmt.Errorf("list containers on machine %s: %s", msc.Metadata.Machine, msc.Metadata.Error)
 		}
 
-		for _, ctr := range service.Containers {
+		machineName, ok := machinesNamesByIP[msc.Metadata.Machine]
+		if !ok {
+			machineName = msc.Metadata.Machine
+		}
+
+		for _, ctr := range msc.Containers {
+			if ctr.Container.State == nil || ctr.Container.Config == nil {
+				continue
+			}
+
 			status, err := ctr.Container.HumanState()
 			if err != nil {
 				return nil, fmt.Errorf("get human state for container %s: %w", ctr.Container.ID, err)
@@ -212,8 +235,8 @@ func collectContainers(cli *client.Client) ([]containerInfo, error) {
 			}
 
 			info := containerInfo{
-				serviceName: service.Name,
-				machineName: machinesNamesByID[ctr.MachineID],
+				serviceName: ctr.ServiceName(),
+				machineName: machineName,
 				id:          ctr.Container.ID,
 				name:        ctr.Container.Name,
 				image:       ctr.Container.Config.Image,
