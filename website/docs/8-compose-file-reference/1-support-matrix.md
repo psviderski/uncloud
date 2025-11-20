@@ -42,6 +42,8 @@ The following table shows the support status for main Compose features:
 | `replicas`         | ✅ Supported        | Number of container replicas                                                          |
 | `resources`        | ⚠️ Limited         | CPU, memory limits and device reservations                                            |
 | `restart_policy`   | ❌ Not supported    | Defaults to `unless-stopped`                                                          |
+| `rollback_config`  | ❌ Not supported    | See [#151](https://github.com/psviderski/uncloud/issues/151)                          |
+| `update_config`    | ❌ Not supported    | See [#151](https://github.com/psviderski/uncloud/issues/151)                          |
 | **Volumes**        |                    |                                                                                       |
 | Named volumes      | ✅ Supported        | Docker volumes                                                                        |
 | Bind mounts        | ✅ Supported        | Host path binding                                                                     |
