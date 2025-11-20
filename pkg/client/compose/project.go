@@ -77,7 +77,7 @@ func LoadProjectFromContent(
 
 	// Write the YAML content to compose.yaml in the temporary directory.
 	composePath := filepath.Join(tmpDir, "compose.yaml")
-	if err := os.WriteFile(composePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(composePath, []byte(content), 0o644); err != nil {
 		return nil, fmt.Errorf("write compose file: %w", err)
 	}
 
