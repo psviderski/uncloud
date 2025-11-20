@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/charmbracelet/huh/spinner"
@@ -142,7 +141,6 @@ func printContainers(out io.Writer, containers []containerInfo, sortBy string) e
 		if len(id) > 12 {
 			id = id[:12]
 		}
-		name := strings.TrimPrefix(ctr.name, "/")
 
 		var statusStyle lipgloss.Style
 		switch ctr.highlight {
@@ -159,10 +157,10 @@ func printContainers(out io.Writer, containers []containerInfo, sortBy string) e
 		var row string
 		if sortBy == sortByMachine {
 			row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s",
-				ctr.machineName, ctr.serviceName, id, name, ctr.image, statusStyle.Render(ctr.status))
+				ctr.machineName, ctr.serviceName, id, ctr.name, ctr.image, statusStyle.Render(ctr.status))
 		} else {
 			row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s",
-				ctr.serviceName, ctr.machineName, id, name, ctr.image, statusStyle.Render(ctr.status))
+				ctr.serviceName, ctr.machineName, id, ctr.name, ctr.image, statusStyle.Render(ctr.status))
 		}
 		fmt.Fprintln(w, row)
 	}
