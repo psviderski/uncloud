@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -301,7 +302,7 @@ services:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			project, err := loadProjectFromContent(t, tt.content)
+			project, err := LoadProjectFromContent(context.Background(), tt.content)
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
@@ -375,7 +376,7 @@ services:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			project, err := loadProjectFromContent(t, tt.content)
+			project, err := LoadProjectFromContent(context.Background(), tt.content)
 			require.NoError(t, err)
 
 			service, err := project.GetService("web")
@@ -402,7 +403,7 @@ services:
       - "9090:9090/tcp@host"
 `
 
-	project, err := loadProjectFromContent(t, content)
+	project, err := LoadProjectFromContent(context.Background(), content)
 	require.NoError(t, err)
 
 	service, err := project.GetService("web")

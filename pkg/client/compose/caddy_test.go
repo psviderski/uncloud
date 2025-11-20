@@ -1,8 +1,11 @@
 package compose
 
 import (
+	"context"
+	"os"
 	"testing"
 
+	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -178,7 +181,15 @@ services:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			project, err := loadProjectFromContent(t, tt.composeYAML)
+			// Get current working directory for relative path resolution to testdata directory.
+			wd, err := os.Getwd()
+			require.NoError(t, err)
+
+			project, err := LoadProjectFromContent(
+				context.Background(),
+				tt.composeYAML,
+				composecli.WithWorkingDirectory(wd),
+			)
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)

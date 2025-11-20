@@ -3,13 +3,13 @@ package compose
 import (
 	"context"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/compose-spec/compose-go/v2/loader"
-	"github.com/compose-spec/compose-go/v2/types"
+	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/go-units"
@@ -19,58 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// loadProjectFromContent loads a compose project from YAML content.
-// Keep the implementation in sync with LoadProject.
-// TODO(lhf): remove and replace with compose.LoadProjectFromContent
-func loadProjectFromContent(t *testing.T, content string) (*types.Project, error) {
-	t.Helper()
-	ctx := context.Background()
-
-	configDetails := types.ConfigDetails{
-		ConfigFiles: []types.ConfigFile{
-			{
-				Filename: "docker-compose.yml",
-				Content:  []byte(content),
-			},
-		},
-	}
-
-	project, err := loader.LoadWithContext(ctx, configDetails, func(o *loader.Options) {
-		o.SetProjectName("test", true)
-		// Register our custom extensions
-		if o.KnownExtensions == nil {
-			o.KnownExtensions = map[string]any{}
-		}
-		o.KnownExtensions[CaddyExtensionKey] = Caddy{}
-		o.KnownExtensions[PortsExtensionKey] = PortsSource{}
-		o.KnownExtensions[MachinesExtensionKey] = MachinesSource{}
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	removeProjectPrefixFromNames(project)
-	// Apply extension transformations since we're not using LoadProject.
-	if project, err = transformServicesCaddyExtension(project); err != nil {
-		return nil, err
-	}
-	if project, err = transformServicesPortsExtension(project); err != nil {
-		return nil, err
-	}
-
-	// Validate extension combinations after all transformations.
-	if err = validateServicesExtensions(project); err != nil {
-		return nil, err
-	}
-
-	// Process image templates in services to expand Go template expressions using git repo state.
-	if project, err = ProcessImageTemplates(project); err != nil {
-		return nil, err
-	}
-
-	return project, nil
-}
 
 func TestServiceSpecFromCompose(t *testing.T) {
 	t.Parallel()
@@ -432,7 +380,15 @@ services:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			project, err := loadProjectFromContent(t, tt.composeYAML)
+			// Get current working directory for relative path resolution to testdata directory.
+			wd, err := os.Getwd()
+			require.NoError(t, err)
+
+			project, err := LoadProjectFromContent(
+				context.Background(),
+				tt.composeYAML,
+				composecli.WithWorkingDirectory(wd),
+			)
 			require.NoError(t, err)
 
 			spec, err := ServiceSpecFromCompose(project, "web")
@@ -618,7 +574,7 @@ services:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			project, err := loadProjectFromContent(t, tt.composeYAML)
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
 			require.NoError(t, err)
 
 			spec, err := ServiceSpecFromCompose(project, "ai")
@@ -766,7 +722,7 @@ services:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			project, err := loadProjectFromContent(t, tt.composeYAML)
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
 
 			if tt.expectError {
 				assert.Error(t, err)
