@@ -122,20 +122,14 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		return a.name < b.name
 	})
 
-	return printContainers(os.Stdout, containers, opts.sortBy)
+	return printContainers(os.Stdout, containers)
 }
 
-func printContainers(out io.Writer, containers []containerInfo, sortBy string) error {
+func printContainers(out io.Writer, containers []containerInfo) error {
 	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	defer w.Flush()
 
-	var header string
-	if sortBy == sortByMachine {
-		header = "MACHINE\tSERVICE\tCONTAINER ID\tNAME\tIMAGE\tSTATUS"
-	} else {
-		header = "SERVICE\tMACHINE\tCONTAINER ID\tNAME\tIMAGE\tSTATUS"
-	}
-	fmt.Fprintln(w, header)
+	fmt.Fprintln(w, "SERVICE\tCONTAINER ID\tNAME\tIMAGE\tSTATUS\tMACHINE")
 
 	for _, ctr := range containers {
 		id := ctr.id
@@ -155,15 +149,12 @@ func printContainers(out io.Writer, containers []containerInfo, sortBy string) e
 			statusStyle = lipgloss.NewStyle() // Default
 		}
 
-		var row string
-		if sortBy == sortByMachine {
-			row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s",
-				ctr.machineName, ctr.serviceName, id, ctr.name, ctr.image, statusStyle.Render(ctr.status))
-		} else {
-			row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s",
-				ctr.serviceName, ctr.machineName, id, ctr.name, ctr.image, statusStyle.Render(ctr.status))
-		}
-		fmt.Fprintln(w, row)
+		fmt.Fprintf(
+			w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			ctr.serviceName, id, ctr.name, ctr.image,
+			statusStyle.Render(ctr.status),
+			ctr.machineName,
+		)
 	}
 	return nil
 }
