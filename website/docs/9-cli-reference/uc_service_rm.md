@@ -2,6 +2,14 @@
 
 Remove one or more services.
 
+## Synopsis
+
+Remove one or more services.
+
+The volumes used by the services are preserved and should be removed separately
+with 'uc volume rm'. Anonymous Docker volumes (automatically created from VOLUME
+directives in image Dockerfiles) are automatically removed with their containers.
+
 ```
 uc service rm SERVICE [SERVICE...] [flags]
 ```
