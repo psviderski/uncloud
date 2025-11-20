@@ -173,20 +173,20 @@ func collectContainers(cli *client.Client) ([]containerInfo, error) {
 		return nil, fmt.Errorf("list services: %w", err)
 	}
 
+	machines, err := cli.ListMachines(context.Background(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("list machines: %w", err)
+	}
+	machinesNamesByID := make(map[string]string)
+	for _, m := range machines {
+		machinesNamesByID[m.Machine.Id] = m.Machine.Name
+	}
+
 	var containers []containerInfo
 	for _, s := range services {
 		service, err := cli.InspectService(context.Background(), s.ID)
 		if err != nil {
 			return nil, fmt.Errorf("inspecting service %q (%s): %w", s.Name, s.ID, err)
-		}
-
-		machines, err := cli.ListMachines(context.Background(), nil)
-		if err != nil {
-			return nil, fmt.Errorf("list machines: %w", err)
-		}
-		machinesNamesByID := make(map[string]string)
-		for _, m := range machines {
-			machinesNamesByID[m.Machine.Id] = m.Machine.Name
 		}
 
 		for _, ctr := range service.Containers {
