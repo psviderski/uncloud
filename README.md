@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./website/landing/images/logo-title.svg#gh-light-mode-only" alt="Uncloud logo"/>
   <img src="./website/landing/images/logo-title-dark.svg#gh-dark-mode-only" alt="Uncloud logo"/>
-  <p><strong>Docker simplicity. Multi-machine power.</strong></p>
+  <p><strong>▸ Docker simplicity. Multi-machine power ◂</strong></p>
 
   <p>
     <a href="https://uncloud.run/docs"><img src="https://img.shields.io/badge/Docs-blue.svg?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
