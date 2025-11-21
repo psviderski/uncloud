@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
@@ -86,6 +87,24 @@ func main() {
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
 	cmd.PersistentFlags().StringVarP(&opts.context, "context", "c", "",
 		"Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]")
+
+	// Set custom help function to show links to docs and Discord only for the root 'uc' command.
+	defaultHelpFunc := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		defaultHelpFunc(c, args)
+		// Only show links for the root 'uc' command.
+		if c.Name() == "uc" {
+			urlStyle := lipgloss.NewStyle().
+				Underline(true).
+				Foreground(lipgloss.Color("12")) // light blue
+
+			fmt.Fprintln(c.OutOrStdout())
+			fmt.Fprintf(c.OutOrStdout(), "Learn more about Uncloud:       %s\n",
+				urlStyle.Render("https://uncloud.run/docs"))
+			fmt.Fprintf(c.OutOrStdout(), "Join our Discord community:     %s\n",
+				urlStyle.Render("https://uncloud.run/discord"))
+		}
+	})
 
 	cmd.AddCommand(
 		NewDeployCommand(),
