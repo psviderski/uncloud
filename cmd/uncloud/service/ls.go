@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -36,15 +38,15 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 		return fmt.Errorf("list services: %w", err)
 	}
 
-	serviceNames := make(map[string]struct{}, len(services))
+	// Sort services by name.
 	haveDuplicateNames := false
-	for _, svc := range services {
-		if _, exists := serviceNames[svc.Name]; exists {
+	slices.SortFunc(services, func(a, b api.Service) int {
+		if a.Name == b.Name {
 			haveDuplicateNames = true
-			break
+			return strings.Compare(a.ID, b.ID)
 		}
-		serviceNames[svc.Name] = struct{}{}
-	}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	// Print the list of services in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
