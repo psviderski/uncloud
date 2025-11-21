@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="./website/landing/images/logo.svg" height="100" width="100" alt="Uncloud logo"/>
-  <h1>Uncloud</h1>
+  <img src="./website/landing/images/logo-title.svg#gh-light-mode-only" alt="Uncloud logo"/>
+  <img src="./website/landing/images/logo-title-dark.svg#gh-dark-mode-only" alt="Uncloud logo"/>
   <p><strong>Docker simplicity. Multi-machine power.</strong></p>
 
   <p>
