@@ -33,10 +33,12 @@ import (
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
+	"golang.zx2c4.com/wireguard/wgctrl"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -47,6 +49,55 @@ const (
 	// reverse proxy configuration.
 	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
 )
+
+func (m *Machine) GetWireGuardDevice(ctx context.Context, req *emptypb.Empty) (*pb.GetWireGuardDeviceResponse, error) {
+	deviceName := network.WireGuardInterfaceName
+
+	wg, err := wgctrl.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create wireguard client: %w", err)
+	}
+	defer wg.Close()
+
+	dev, err := wg.Device(deviceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get wireguard device %q: %w", deviceName, err)
+	}
+
+	peers := make([]*pb.WireGuardPeer, len(dev.Peers))
+	for i, p := range dev.Peers {
+		var lastHandshake *timestamppb.Timestamp
+		if !p.LastHandshakeTime.IsZero() {
+			lastHandshake = timestamppb.New(p.LastHandshakeTime)
+		}
+
+		allowedIPs := make([]string, len(p.AllowedIPs))
+		for j, ip := range p.AllowedIPs {
+			allowedIPs[j] = ip.String()
+		}
+
+		var endpoint string
+		if p.Endpoint != nil {
+			endpoint = p.Endpoint.String()
+		}
+
+		peers[i] = &pb.WireGuardPeer{
+			PublicKey:         p.PublicKey.String(),
+			Endpoint:          endpoint,
+			LastHandshakeTime: lastHandshake,
+			ReceiveBytes:      p.ReceiveBytes,
+			TransmitBytes:     p.TransmitBytes,
+			AllowedIps:        allowedIPs,
+		}
+	}
+
+	return &pb.GetWireGuardDeviceResponse{
+		Name:       dev.Name,
+		PublicKey:  dev.PublicKey.String(),
+		ListenPort: int32(dev.ListenPort),
+		Peers:      peers,
+	}, nil
+}
 
 type Config struct {
 	// DataDir is the directory where the machine stores its persistent state. Default is /var/lib/uncloud.
