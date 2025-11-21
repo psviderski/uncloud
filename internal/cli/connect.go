@@ -73,6 +73,8 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 		useSSHCLI = true
 	} else if conn.TCP != nil && conn.TCP.IsValid() {
 		return client.New(ctx, connector.NewTCPConnector(*conn.TCP))
+	} else if conn.Unix != "" {
+		return client.New(ctx, connector.NewUnixConnector(conn.Unix))
 	} else {
 		return nil, errors.New("connection configuration is invalid")
 	}
