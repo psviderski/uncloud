@@ -186,13 +186,15 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 		if msc.Metadata == nil {
 			continue
 		}
-		if msc.Metadata.Error != "" {
-			return nil, fmt.Errorf("list containers on machine %s: %s", msc.Metadata.Machine, msc.Metadata.Error)
-		}
 
 		machineName, ok := machinesNamesByIP[msc.Metadata.Machine]
 		if !ok {
 			machineName = msc.Metadata.Machine
+		}
+
+		if msc.Metadata.Error != "" {
+			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName, msc.Metadata.Error))
+			continue
 		}
 
 		for _, ctr := range msc.Containers {
