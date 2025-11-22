@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"sort"
-	"text/tabwriter"
 
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/docker/docker/api/types/container"
 	"github.com/spf13/cobra"
 
@@ -122,14 +120,28 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		return a.name < b.name
 	})
 
-	return printContainers(os.Stdout, containers)
+	return printContainers(containers)
 }
 
-func printContainers(out io.Writer, containers []containerInfo) error {
-	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	defer w.Flush()
+func printContainers(containers []containerInfo) error {
+	t := table.New().
+		// Remove the default border.
+		Border(lipgloss.Border{}).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderLeft(false).
+		BorderRight(false).
+		BorderHeader(false).
+		BorderColumn(false).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == table.HeaderRow {
+				return lipgloss.NewStyle().Bold(true).PaddingRight(3)
+			}
+			// Regular style for data rows with padding.
+			return lipgloss.NewStyle().PaddingRight(3)
+		})
 
-	fmt.Fprintln(w, "SERVICE\tCONTAINER ID\tNAME\tIMAGE\tSTATUS\tMACHINE")
+	t.Headers("SERVICE", "CONTAINER ID", "NAME", "IMAGE", "STATUS", "MACHINE")
 
 	for _, ctr := range containers {
 		id := ctr.id
@@ -149,13 +161,17 @@ func printContainers(out io.Writer, containers []containerInfo) error {
 			statusStyle = lipgloss.NewStyle() // Default
 		}
 
-		fmt.Fprintf(
-			w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			ctr.serviceName, id, ctr.name, ctr.image,
+		t.Row(
+			ctr.serviceName,
+			id,
+			ctr.name,
+			ctr.image,
 			statusStyle.Render(ctr.status),
 			ctr.machineName,
 		)
 	}
+
+	fmt.Println(t)
 	return nil
 }
 
