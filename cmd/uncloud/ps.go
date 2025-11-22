@@ -12,9 +12,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types/container"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 )
 
@@ -160,22 +160,18 @@ func printContainers(out io.Writer, containers []containerInfo) error {
 }
 
 func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
-	machines, err := cli.ListMachines(ctx, nil)
+	listCtx, machines, err := api.ProxyMachinesContext(ctx, cli, nil)
 	if err != nil {
-		return nil, fmt.Errorf("list machines: %w", err)
+		return nil, fmt.Errorf("proxy machines context: %w", err)
 	}
 
-	// List all available machines and create a list of IPs and an IP to name map
+	// Create a map of IP to machine name for resolving response metadata
 	machinesNamesByIP := make(map[string]string)
-	md := metadata.New(nil)
 	for _, m := range machines {
 		if addr, err := m.Machine.Network.ManagementIp.ToAddr(); err == nil {
-			machineIP := addr.String()
-			machinesNamesByIP[machineIP] = m.Machine.Name
-			md.Append("machines", machineIP)
+			machinesNamesByIP[addr.String()] = m.Machine.Name
 		}
 	}
-	listCtx := metadata.NewOutgoingContext(ctx, md)
 
 	// List all service containers across all machines in the cluster.
 	machineContainers, err := cli.Docker.ListServiceContainers(
