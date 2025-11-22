@@ -111,6 +111,7 @@ func main() {
 		NewDocsCommand(),
 		NewBuildCommand(),
 		NewImagesCommand(),
+		NewPsCommand(),
 		caddy.NewRootCommand(),
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
