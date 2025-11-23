@@ -3,12 +3,11 @@ package volume
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/output"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +15,7 @@ import (
 type listOptions struct {
 	machines []string
 	quiet    bool
+	format   string
 }
 
 func NewListCommand() *cobra.Command {
@@ -36,8 +36,15 @@ func NewListCommand() *cobra.Command {
 			"(default is include all machines)")
 	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false,
 		"Only display volume names.")
+	cmd.Flags().StringVar(&opts.format, "format", "table", "Output format (table, json)")
 
 	return cmd
+}
+
+type volumeItem struct {
+	Name    string `json:"name"`
+	Driver  string `json:"driver"`
+	Machine string `json:"machine"`
 }
 
 func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
@@ -62,6 +69,10 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 
 	if len(volumes) == 0 {
+		if opts.format == "json" {
+			fmt.Println("[]")
+			return nil
+		}
 		if !opts.quiet {
 			fmt.Println("No volumes found.")
 		}
@@ -79,23 +90,30 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 	// If quiet mode, just print volume names.
 	if opts.quiet {
+		// Quiet mode usually implies text output of just names, regardless of json format flag unless explicitly documented otherwise.
+		// If both are present, standard convention varies. Docker ignores format if quiet is set?
+		// Docker: `docker volume ls -q --format json` -> prints raw names.
+		// So quiet takes precedence or they are mutually exclusive.
 		for _, v := range volumes {
 			fmt.Println(v.Volume.Name)
 		}
 		return nil
 	}
 
-	// Print the volumes in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tDRIVER\tMACHINE")
-
+	var items []volumeItem
 	for _, v := range volumes {
-		fmt.Fprintf(tw, "%s\t%s\t%s\n",
-			v.Volume.Name,
-			v.Volume.Driver,
-			v.MachineName,
-		)
+		items = append(items, volumeItem{
+			Name:    v.Volume.Name,
+			Driver:  v.Volume.Driver,
+			Machine: v.MachineName,
+		})
 	}
 
-	return tw.Flush()
+	columns := []output.Column[volumeItem]{
+		{Header: "NAME", Field: "Name"},
+		{Header: "DRIVER", Field: "Driver"},
+		{Header: "MACHINE", Field: "Machine"},
+	}
+
+	return output.Print(items, columns, opts.format)
 }
