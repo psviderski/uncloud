@@ -1,4 +1,4 @@
-package logs
+package service
 
 import (
 	"container/heap"
@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-func NewRootCommand() *cobra.Command {
+func NewLogsCommand() *cobra.Command {
 	var options logsOptions
 
 	cmd := &cobra.Command{
@@ -38,8 +38,6 @@ of the specified service across all machines in the cluster.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&options.context, "context", "c", "",
-		"Name of the cluster context. (default is the current context)")
 	cmd.Flags().BoolVarP(&options.follow, "follow", "f", false,
 		"Follow log output")
 	cmd.Flags().Int64Var(&options.tail, "tail", -1,
@@ -57,7 +55,6 @@ of the specified service across all machines in the cluster.`,
 }
 
 type logsOptions struct {
-	context     string
 	follow      bool
 	tail        int64
 	timestamps  bool
