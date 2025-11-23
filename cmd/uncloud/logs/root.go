@@ -67,7 +67,7 @@ type logsOptions struct {
 }
 
 func streamLogs(ctx context.Context, uncli *cli.CLI, serviceName string, opts logsOptions) error {
-	c, err := uncli.ConnectCluster(ctx, opts.context)
+	c, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
@@ -302,9 +302,11 @@ func streamMachineLogs(ctx context.Context, client *client.Client, machine strin
 		wg.Add(1)
 		go func(container api.MachineServiceContainer) {
 			defer wg.Done()
-			if err := streamContainerLogs(machineCtx, client, machineInfo.Machine.Id, machineInfo.Machine.Name, container, serviceName, opts, logChan); err != nil {
+			if err := streamContainerLogs(machineCtx, client, machineInfo.Machine.Id, machineInfo.Machine.Name,
+				container, serviceName, opts, logChan); err != nil {
 				// Log error but don't fail the whole operation
-				fmt.Fprintf(os.Stderr, "Warning: failed to stream logs for container %s: %v\n", container.Container.ID, err)
+				fmt.Fprintf(os.Stderr, "Warning: failed to stream logs for container %s: %v\n", container.Container.ID,
+					err)
 			}
 		}(container)
 	}

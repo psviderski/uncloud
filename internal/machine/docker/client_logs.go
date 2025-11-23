@@ -3,8 +3,9 @@ package docker
 import (
 	"context"
 	"errors"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"io"
+
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 // ContainerLogsOptions specifies parameters for ContainerLogs
@@ -36,7 +37,7 @@ func (c *Client) ContainerLogs(ctx context.Context, containerID string, opts Con
 		Details:     opts.Details,
 	}
 
-	stream, err := c.grpcClient.ContainerLogs(ctx, req)
+	stream, err := c.GRPCClient.ContainerLogs(ctx, req)
 	if err != nil {
 		return nil, err
 	}
