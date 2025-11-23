@@ -201,10 +201,10 @@ func handleClientOutputStream(ctx context.Context, stream pb.Docker_ExecContaine
 // ExecContainer executes a command in a running container with bidirectional streaming.
 // TODO: This can be merged with pkg/client as it's an unnecessary logic split.
 func (c *Client) ExecContainer(ctx context.Context, opts ExecConfig) (exitCode int, err error) {
-	// TODO: We need to handle Ctrl-C and other signals here to forward them to the container process.
-	// Right now, Ctrl-C will just terminate the client process, which is not ideal.
-	// We should catch the signal, send it to the container process, and only exit
-	// when the container process exits.
+	// Note: In non-interactive mode (without TTY), signals like SIGTERM/SIGINT will terminate the client
+	// process without being forwarded to the remote container process. We could catch and forward these
+	// signals (useful for long-running commands), but for example "kubectl exec" doesn't do this either (as of November 2025),
+	// so we keep it simple for now.
 
 	slog.Debug("starting ExecContainer", "containerID", opts.ContainerID, "options", opts.Options)
 
