@@ -48,6 +48,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var fullDockerIDRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -1025,8 +1026,7 @@ func (s *Server) ContainerLogs(req *pb.ContainerLogsRequest, stream grpc.ServerS
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     req.Follow,
-		Timestamps: req.Timestamps,
-		Details:    req.Details,
+		Timestamps: true,
 	}
 
 	// Handle tail option
@@ -1069,7 +1069,7 @@ func (s *Server) ContainerLogs(req *pb.ContainerLogsRequest, stream grpc.ServerS
 		}
 
 		// Parse header
-		streamType := int32(buf[0])
+		//streamType := int32(buf[0])
 		size := binary.BigEndian.Uint32(buf[4:8])
 
 		// Read payload
@@ -1086,24 +1086,30 @@ func (s *Server) ContainerLogs(req *pb.ContainerLogsRequest, stream grpc.ServerS
 				continue
 			}
 
-			timestamp := ""
+			timestampFormatted := ""
 			message := line
-			if req.Timestamps && len(line) > 30 {
+			if len(line) > 30 {
 				// docker timestamp format: 2024-01-01T00:00:00.000000000Z
 				if line[4] == '-' && line[7] == '-' && line[10] == 'T' {
 					parts := strings.SplitN(line, " ", 2)
 					if len(parts) == 2 {
-						timestamp = parts[0]
+						timestampFormatted = parts[0]
 						message = parts[1]
 					}
 				}
 			}
 
+			timestamp, err := time.Parse(time.RFC3339Nano, timestampFormatted)
+			if err != nil {
+				timestamp = time.Time{}
+			}
+
 			// Send log entry
 			resp := &pb.ContainerLogsResponse{
-				StreamType: streamType,
-				Message:    message,
-				Timestamp:  timestamp,
+				// TODO: convert streamType to enum
+				Stream:    pb.ContainerLogsResponse_STDOUT,
+				Message:   message,
+				Timestamp: timestamppb.New(timestamp),
 			}
 
 			if err := stream.Send(resp); err != nil {

@@ -20,17 +20,22 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+type logsOptions struct {
+	follow bool
+	tail   int64
+	since  string
+	until  string
+}
+
 func NewLogsCommand() *cobra.Command {
 	var options logsOptions
 
 	cmd := &cobra.Command{
 		Use:     "logs SERVICE",
 		Aliases: []string{"log"},
-		Short:   "View service logs",
-		Long: `View logs from all replicas of a service.
-
-The logs command retrieves and displays logs from all running replicas
-of the specified service across all machines in the cluster.`,
+		Short:   "View service logs.",
+		Long:    "View logs from all replicas of the specified service across all machines in the cluster.",
+		// TODO: support streaming logs from multiple services.
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
@@ -39,28 +44,23 @@ of the specified service across all machines in the cluster.`,
 	}
 
 	cmd.Flags().BoolVarP(&options.follow, "follow", "f", false,
-		"Follow log output")
-	cmd.Flags().Int64Var(&options.tail, "tail", -1,
-		"Number of lines to show from the end of the logs")
-	cmd.Flags().BoolVarP(&options.timestamps, "timestamps", "t", false,
-		"Show timestamps")
+		"Continually stream new logs.")
+	cmd.Flags().Int64Var(&options.tail, "tail", 100,
+		"Show the most recent logs and limit the number of lines shown per replica. Use -1 to show all logs.")
 	cmd.Flags().StringVar(&options.since, "since", "",
-		"Show logs since timestamp or duration (42m for 42 minutes)")
+		"Show logs generated on or after the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
+			"Examples:\n"+
+			"  --since 2m30s                      Relative duration (2 minutes 30 seconds ago)\n"+
+			"  --since 1h                         Relative duration (1 hour ago)\n"+
+			"  --since 2025-11-24                 RFC 3339 date only (midnight using local timezone)\n"+
+			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using local timezone\n"+
+			"  --since 2024-01-31T10:30:00Z       RFC 3339 date/time in UTC\n"+
+			"  --since 1763953966                 Unix timestamp (seconds since January 1, 1970)")
 	cmd.Flags().StringVar(&options.until, "until", "",
-		"Show logs before a timestamp or duration (42m for 42 minutes)")
-	cmd.Flags().BoolVar(&options.strictOrder, "strict-order", false,
-		"Merge logs in strict chronological order (slower but accurate)")
+		"Show logs generated before the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
+			"See --since for examples.")
 
 	return cmd
-}
-
-type logsOptions struct {
-	follow      bool
-	tail        int64
-	timestamps  bool
-	since       string
-	until       string
-	strictOrder bool
 }
 
 func streamLogs(ctx context.Context, uncli *cli.CLI, serviceName string, opts logsOptions) error {
@@ -86,13 +86,7 @@ func streamLogs(ctx context.Context, uncli *cli.CLI, serviceName string, opts lo
 		containersByMachine[container.MachineID] = append(containersByMachine[container.MachineID], container)
 	}
 
-	// Choose between fast mode and strict ordering mode
-	if opts.strictOrder {
-		return streamLogsOrdered(ctx, c, containersByMachine, serviceName, opts)
-	}
-
-	// use by default: logs are printed as they arrive
-	return streamLogsFast(ctx, c, containersByMachine, serviceName, opts)
+	return streamLogsOrdered(ctx, c, containersByMachine, serviceName, opts)
 }
 
 // streamLogsFast is the default fast mode that prints logs as they arrive
@@ -126,7 +120,7 @@ func streamLogsFast(ctx context.Context, client *client.Client, containersByMach
 				// All streams completed
 				return nil
 			}
-			printLogEntry(log, opts.timestamps)
+			printLogEntry(log, true)
 		case err := <-errChan:
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
@@ -245,7 +239,7 @@ func streamLogsOrdered(ctx context.Context, client *client.Client, containersByM
 		}
 
 		item := heap.Pop(h).(*logEntryWithChannel)
-		printLogEntry(item.entry, opts.timestamps)
+		printLogEntry(item.entry, true)
 
 		// Try to read the next entry from the same channel
 		select {
@@ -315,7 +309,7 @@ func streamContainerLogs(ctx context.Context, client *client.Client, machineID s
 	dockerOpts := docker.ContainerLogsOptions{
 		Follow:     opts.follow,
 		Tail:       opts.tail,
-		Timestamps: opts.timestamps,
+		Timestamps: true,
 		Since:      opts.since,
 		Until:      opts.until,
 	}

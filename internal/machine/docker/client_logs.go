@@ -31,10 +31,8 @@ func (c *Client) ContainerLogs(ctx context.Context, containerID string, opts Con
 		ContainerId: containerID,
 		Follow:      opts.Follow,
 		Tail:        opts.Tail,
-		Timestamps:  opts.Timestamps,
 		Since:       opts.Since,
 		Until:       opts.Until,
-		Details:     opts.Details,
 	}
 
 	stream, err := c.GRPCClient.ContainerLogs(ctx, req)
@@ -56,9 +54,10 @@ func (c *Client) ContainerLogs(ctx context.Context, containerID string, opts Con
 			}
 
 			ch <- ContainerLogEntry{
-				StreamType: resp.StreamType,
+				// TODO: use proper stream type.
+				StreamType: 1,
 				Message:    resp.Message,
-				Timestamp:  resp.Timestamp,
+				Timestamp:  resp.Timestamp.AsTime().String(),
 			}
 		}
 	}()
