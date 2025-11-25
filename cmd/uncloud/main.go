@@ -81,7 +81,7 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&opts.connect, "connect", "",
 		"Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]\n"+
-			"Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/socket")
+			"Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock")
 	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"Path to the Uncloud configuration file. [$UNCLOUD_CONFIG]")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
