@@ -22,7 +22,7 @@ import (
 
 type logsOptions struct {
 	follow bool
-	tail   int64
+	tail   string
 	since  string
 	until  string
 }
@@ -45,8 +45,8 @@ func NewLogsCommand() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&options.follow, "follow", "f", false,
 		"Continually stream new logs.")
-	cmd.Flags().Int64Var(&options.tail, "tail", 100,
-		"Show the most recent logs and limit the number of lines shown per replica. Use -1 to show all logs.")
+	cmd.Flags().StringVarP(&options.tail, "tail", "n", "100",
+		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.")
 	cmd.Flags().StringVar(&options.since, "since", "",
 		"Show logs generated on or after the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
 			"Examples:\n"+
@@ -384,7 +384,7 @@ func printLogEntry(entry logEntry, showTimestamp bool) {
 	var output strings.Builder
 
 	if showTimestamp {
-		output.WriteString(entry.timestamp.Format(time.DateTime))
+		output.WriteString(entry.timestamp.Format(time.Stamp))
 		output.WriteString(" ")
 	}
 
@@ -392,7 +392,7 @@ func printLogEntry(entry logEntry, showTimestamp bool) {
 	machineColor := getMachineColor(entry.machineID)
 
 	// Format colored prefix: [machineName (machineID)/serviceName]
-	prefix := fmt.Sprintf("[%s (%s)/%s]", entry.machineName, entry.machineID, entry.serviceName)
+	prefix := fmt.Sprintf("[%s/%s]", entry.machineName, entry.replica)
 	coloredPrefix := machineColor.Sprint(prefix)
 
 	// Build final output
