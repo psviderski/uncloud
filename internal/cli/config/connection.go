@@ -22,10 +22,12 @@ type MachineConnection struct {
 	SSHKeyFile string         `yaml:"ssh_key_file,omitempty"`
 	// TCP is the address and port of the machine's API server.
 	// The pointer is used to omit the field when not set. Otherwise, yaml marshalling includes an empty object.
-	TCP       *netip.AddrPort `yaml:"tcp,omitempty"`
-	Host      string          `yaml:"host,omitempty"`
-	PublicKey secret.Secret   `yaml:"public_key,omitempty"`
-	MachineID string          `yaml:"machine_id,omitempty"`
+	TCP *netip.AddrPort `yaml:"tcp,omitempty"`
+	// Unix is the path to the machine's API unix socket.
+	Unix      string        `yaml:"unix,omitempty"`
+	Host      string        `yaml:"host,omitempty"`
+	PublicKey secret.Secret `yaml:"public_key,omitempty"`
+	MachineID string        `yaml:"machine_id,omitempty"`
 }
 
 func (c MachineConnection) String() string {
@@ -35,6 +37,8 @@ func (c MachineConnection) String() string {
 		return "ssh+cli://" + string(c.SSHCLI)
 	} else if c.TCP != nil && c.TCP.IsValid() {
 		return fmt.Sprintf("tcp://%s", c.TCP)
+	} else if c.Unix != "" {
+		return fmt.Sprintf("unix://%s", c.Unix)
 	}
 	return "unknown connection"
 }
@@ -50,12 +54,15 @@ func (c *MachineConnection) Validate() error {
 	if c.TCP != nil && c.TCP.IsValid() {
 		setCount++
 	}
+	if c.Unix != "" {
+		setCount++
+	}
 
 	if setCount == 0 {
-		return errors.New("no connection method specified (ssh, ssh_cli, or tcp required)")
+		return errors.New("no connection method specified (ssh, ssh_cli, tcp, or unix required)")
 	}
 	if setCount > 1 {
-		return errors.New("only one connection method allowed per connection (ssh, ssh_cli, or tcp)")
+		return errors.New("only one connection method allowed per connection (ssh, ssh_cli, tcp, or unix)")
 	}
 
 	return nil
