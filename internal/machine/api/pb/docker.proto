@@ -17,7 +17,7 @@ service Docker {
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
 
   rpc ExecContainer(stream ExecContainerRequest) returns (stream ExecContainerResponse);
-  rpc ContainerLogs(ContainerLogsRequest) returns (stream ContainerLogsResponse);
+  rpc ContainerLogs(ContainerLogsRequest) returns (stream ContainerLogEntry);
 
   rpc PullImage(PullImageRequest) returns (stream JSONMessage);
   rpc InspectImage(InspectImageRequest) returns (InspectImageResponse);
@@ -136,12 +136,12 @@ message ContainerLogsRequest {
   string container_id = 1;
   // Options for logs retrieval.
   bool follow = 2;
-  int64 tail = 3; // -1 means all
+  int32 tail = 3; // -1 means all
   string since = 4; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or Go duration string
   string until = 5; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or Go duration string
 }
 
-message ContainerLogsResponse {
+message ContainerLogEntry {
   enum Stream {
     UNKNOWN = 0;
     STDOUT = 1;
@@ -150,7 +150,7 @@ message ContainerLogsResponse {
   Stream stream = 1;
   google.protobuf.Timestamp timestamp = 2;
   // Log line content.
-  string message = 3;
+  bytes message = 3;
 }
 
 message PullImageRequest {

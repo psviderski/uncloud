@@ -52,7 +52,7 @@ type DockerClient interface {
 	ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error)
 	RemoveContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ExecContainer(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecContainerRequest, ExecContainerResponse], error)
-	ContainerLogs(ctx context.Context, in *ContainerLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerLogsResponse], error)
+	ContainerLogs(ctx context.Context, in *ContainerLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerLogEntry], error)
 	PullImage(ctx context.Context, in *PullImageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JSONMessage], error)
 	InspectImage(ctx context.Context, in *InspectImageRequest, opts ...grpc.CallOption) (*InspectImageResponse, error)
 	// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
@@ -149,13 +149,13 @@ func (c *dockerClient) ExecContainer(ctx context.Context, opts ...grpc.CallOptio
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Docker_ExecContainerClient = grpc.BidiStreamingClient[ExecContainerRequest, ExecContainerResponse]
 
-func (c *dockerClient) ContainerLogs(ctx context.Context, in *ContainerLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerLogsResponse], error) {
+func (c *dockerClient) ContainerLogs(ctx context.Context, in *ContainerLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerLogEntry], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Docker_ServiceDesc.Streams[1], Docker_ContainerLogs_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ContainerLogsRequest, ContainerLogsResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[ContainerLogsRequest, ContainerLogEntry]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (c *dockerClient) ContainerLogs(ctx context.Context, in *ContainerLogsReque
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Docker_ContainerLogsClient = grpc.ServerStreamingClient[ContainerLogsResponse]
+type Docker_ContainerLogsClient = grpc.ServerStreamingClient[ContainerLogEntry]
 
 func (c *dockerClient) PullImage(ctx context.Context, in *PullImageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JSONMessage], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -298,7 +298,7 @@ type DockerServer interface {
 	ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error)
 	RemoveContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
 	ExecContainer(grpc.BidiStreamingServer[ExecContainerRequest, ExecContainerResponse]) error
-	ContainerLogs(*ContainerLogsRequest, grpc.ServerStreamingServer[ContainerLogsResponse]) error
+	ContainerLogs(*ContainerLogsRequest, grpc.ServerStreamingServer[ContainerLogEntry]) error
 	PullImage(*PullImageRequest, grpc.ServerStreamingServer[JSONMessage]) error
 	InspectImage(context.Context, *InspectImageRequest) (*InspectImageResponse, error)
 	// InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's
@@ -343,7 +343,7 @@ func (UnimplementedDockerServer) RemoveContainer(context.Context, *RemoveContain
 func (UnimplementedDockerServer) ExecContainer(grpc.BidiStreamingServer[ExecContainerRequest, ExecContainerResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ExecContainer not implemented")
 }
-func (UnimplementedDockerServer) ContainerLogs(*ContainerLogsRequest, grpc.ServerStreamingServer[ContainerLogsResponse]) error {
+func (UnimplementedDockerServer) ContainerLogs(*ContainerLogsRequest, grpc.ServerStreamingServer[ContainerLogEntry]) error {
 	return status.Errorf(codes.Unimplemented, "method ContainerLogs not implemented")
 }
 func (UnimplementedDockerServer) PullImage(*PullImageRequest, grpc.ServerStreamingServer[JSONMessage]) error {
@@ -520,11 +520,11 @@ func _Docker_ContainerLogs_Handler(srv interface{}, stream grpc.ServerStream) er
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(DockerServer).ContainerLogs(m, &grpc.GenericServerStream[ContainerLogsRequest, ContainerLogsResponse]{ServerStream: stream})
+	return srv.(DockerServer).ContainerLogs(m, &grpc.GenericServerStream[ContainerLogsRequest, ContainerLogEntry]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Docker_ContainerLogsServer = grpc.ServerStreamingServer[ContainerLogsResponse]
+type Docker_ContainerLogsServer = grpc.ServerStreamingServer[ContainerLogEntry]
 
 func _Docker_PullImage_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(PullImageRequest)

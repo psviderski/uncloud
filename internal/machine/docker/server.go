@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1017,113 +1016,88 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	return resp, nil
 }
 
-// ContainerLogs streams logs from a container
-func (s *Server) ContainerLogs(req *pb.ContainerLogsRequest, stream grpc.ServerStreamingServer[pb.ContainerLogsResponse]) error {
+// ContainerLogs streams logs from a container.
+func (s *Server) ContainerLogs(
+	req *pb.ContainerLogsRequest, stream grpc.ServerStreamingServer[pb.ContainerLogEntry],
+) error {
 	ctx := stream.Context()
 
-	// Build container logs options
 	opts := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     req.Follow,
+		Tail:       strconv.FormatInt(req.Tail, 10),
+		Since:      req.Since,
+		Until:      req.Until,
 		Timestamps: true,
 	}
 
-	// Handle tail option
-	if req.Tail > 0 {
-		opts.Tail = strconv.FormatInt(req.Tail, 10)
-	} else if req.Tail == 0 {
-		// Tail 0 means show no logs, just follow new ones
-		opts.Tail = "0"
-	}
-	// Tail -1 or unset means show all logs
-
-	// Handle since/until options
-	if req.Since != "" {
-		opts.Since = req.Since
-	}
-	if req.Until != "" {
-		opts.Until = req.Until
-	}
-
-	// Get logs reader from Docker
+	// Get the logs reader from Docker.
 	reader, err := s.client.ContainerLogs(ctx, req.ContainerId, opts)
 	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return status.Error(codes.NotFound, err.Error())
+		}
 		return status.Errorf(codes.Internal, "get container logs: %v", err)
 	}
 	defer reader.Close()
 
-	// Well, docker multiplexes stdout and stderr in the stream. Look https://github.com/moby/moby/blob/e77ff99ede5ee5952b3a9227863552ae6e5b6fb1/client/container_logs.go#L14-L36
-	// The stream format is: [8 bytes header][payload]
-	// Header format: [stream type (1 byte)][reserved (3 bytes)][size (4 bytes, big endian)]
-	buf := make([]byte, 8)
+	stdoutWriter := &logsStreamWriter{stream: stream, isStderr: false}
+	stderrWriter := &logsStreamWriter{stream: stream, isStderr: true}
 
-	for {
-		// Read header
-		_, err := io.ReadFull(reader, buf)
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return status.Errorf(codes.Internal, "read log header: %v", err)
+	// Run StdCopy in a goroutine to allow context cancellation handling.
+	done := make(chan error, 1)
+	go func() {
+		if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader); err != nil {
+			done <- status.Errorf(codes.Internal, "stream container logs: %v", err)
 		}
+		done <- nil
+	}()
 
-		// Parse header
-		//streamType := int32(buf[0])
-		size := binary.BigEndian.Uint32(buf[4:8])
+	select {
+	case err = <-done:
+		return err
+	case <-ctx.Done():
+		return status.Error(codes.Canceled, ctx.Err().Error())
+	}
+}
 
-		// Read payload
-		payload := make([]byte, size)
-		_, err = io.ReadFull(reader, payload)
-		if err != nil {
-			return status.Errorf(codes.Internal, "read log payload: %v", err)
-		}
+// logsStreamWriter is a writer that sends container logs data to a gRPC stream.
+type logsStreamWriter struct {
+	stream   grpc.ServerStreamingServer[pb.ContainerLogEntry]
+	isStderr bool
+}
 
-		// convert payload to string and split by lines. docker may send multiple lines in one payload
-		lines := strings.Split(string(payload), "\n")
-		for _, line := range lines {
-			if line == "" {
-				continue
-			}
-
-			timestampFormatted := ""
-			message := line
-			if len(line) > 30 {
-				// docker timestamp format: 2024-01-01T00:00:00.000000000Z
-				if line[4] == '-' && line[7] == '-' && line[10] == 'T' {
-					parts := strings.SplitN(line, " ", 2)
-					if len(parts) == 2 {
-						timestampFormatted = parts[0]
-						message = parts[1]
-					}
-				}
-			}
-
-			timestamp, err := time.Parse(time.RFC3339Nano, timestampFormatted)
+func (w *logsStreamWriter) Write(data []byte) (n int, err error) {
+	// Parse timestamp and message from the demultiplexed Docker log payload if the data looks like it contains one.
+	// Format: 2025-01-01T00:00:00.000000000Z message
+	timestamp := time.Time{}
+	message := data
+	if len(data) > 30 && data[4] == '-' && data[7] == '-' && data[10] == 'T' {
+		timestampPart, messagePart, found := bytes.Cut(data, []byte(" "))
+		if found {
+			timestamp, err = time.Parse(time.RFC3339Nano, string(timestampPart))
 			if err != nil {
 				timestamp = time.Time{}
 			}
-
-			// Send log entry
-			resp := &pb.ContainerLogsResponse{
-				// TODO: convert streamType to enum
-				Stream:    pb.ContainerLogsResponse_STDOUT,
-				Message:   message,
-				Timestamp: timestamppb.New(timestamp),
-			}
-
-			if err := stream.Send(resp); err != nil {
-				return status.Errorf(codes.Internal, "send log entry: %v", err)
-			}
-		}
-
-		// Check if context is cancelled
-		select {
-		case <-ctx.Done():
-			return status.Errorf(codes.Canceled, ctx.Err().Error())
-		default:
+			message = messagePart
 		}
 	}
+
+	entry := &pb.ContainerLogEntry{
+		Timestamp: timestamppb.New(timestamp),
+		Message:   message,
+	}
+	if w.isStderr {
+		entry.Stream = pb.ContainerLogEntry_STDERR
+	} else {
+		entry.Stream = pb.ContainerLogEntry_STDOUT
+	}
+
+	if err = w.stream.Send(entry); err != nil {
+		return 0, err
+	}
+	return len(data), nil
 }
 
 // receiveExecConfig receives and validates the initial exec configuration from the stream.
