@@ -143,13 +143,13 @@ message ContainerLogsRequest {
 
 message ContainerLogEntry {
   enum Stream {
-    UNKNOWN = 0;
+    HEARTBEAT = 0;
     STDOUT = 1;
     STDERR = 2;
   }
   Stream stream = 1;
   google.protobuf.Timestamp timestamp = 2;
-  // Log line content.
+  // Log line content. Empty for heartbeat entries.
   bytes message = 3;
 }
 
