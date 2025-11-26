@@ -158,19 +158,17 @@ func TestLogMerger_ErrorForwarding(t *testing.T) {
 	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch})
 	output := merger.Stream()
 
-	testErr := assert.AnError
-
 	// Send an error entry.
-	ch <- api.ServiceLogEntry{Err: testErr}
-	close(ch)
+	ch <- api.ServiceLogEntry{Err: assert.AnError}
 
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
+	select {
+	case entry := <-output:
+		assert.Equal(t, assert.AnError, entry.Err)
+	case <-time.After(time.Second):
+		require.FailNow(t, "expected error to be emitted out of order")
 	}
 
-	require.Len(t, results, 1)
-	assert.Equal(t, testErr, results[0].Err)
+	close(ch)
 }
 
 func TestLogMerger_LateEntryBuffered(t *testing.T) {
@@ -224,11 +222,13 @@ func TestLogMerger_OutOfOrderWithinStream(t *testing.T) {
 	t1 := time.Now()
 	t2 := t1.Add(time.Second)
 	t3 := t1.Add(2 * time.Second)
+	t4 := t1.Add(3 * time.Second)
 
 	// Send entries out of order within the stream.
-	ch <- api.ServiceLogEntry{Stream: api.LogStreamStdout, Timestamp: t2, Message: []byte("second")}
-	ch <- api.ServiceLogEntry{Stream: api.LogStreamStdout, Timestamp: t1, Message: []byte("first")}
 	ch <- api.ServiceLogEntry{Stream: api.LogStreamStdout, Timestamp: t3, Message: []byte("third")}
+	ch <- api.ServiceLogEntry{Stream: api.LogStreamStdout, Timestamp: t2, Message: []byte("second")}
+	ch <- api.ServiceLogEntry{Stream: api.LogStreamStdout, Timestamp: t4, Message: []byte("forth")}
+	ch <- api.ServiceLogEntry{Stream: api.LogStreamStdout, Timestamp: t1, Message: []byte("first")}
 	close(ch)
 
 	var results []api.ServiceLogEntry
@@ -236,11 +236,11 @@ func TestLogMerger_OutOfOrderWithinStream(t *testing.T) {
 		results = append(results, entry)
 	}
 
-	// Should be sorted by timestamp.
-	require.Len(t, results, 3)
-	assert.Equal(t, "first", string(results[0].Message))
-	assert.Equal(t, "second", string(results[1].Message))
-	assert.Equal(t, "third", string(results[2].Message))
+	require.Len(t, results, 4)
+	assert.Equal(t, "second", string(results[0].Message))
+	assert.Equal(t, "third", string(results[1].Message))
+	assert.Equal(t, "first", string(results[2].Message))
+	assert.Equal(t, "forth", string(results[3].Message))
 }
 
 func TestLogMerger_PreservesMetadata(t *testing.T) {
@@ -275,26 +275,6 @@ func TestLogMerger_PreservesMetadata(t *testing.T) {
 	assert.Equal(t, api.LogStreamStdout, results[0].Stream)
 }
 
-func TestLogMerger_StreamAlias(t *testing.T) {
-	t.Parallel()
-
-	ch := make(chan api.ServiceLogEntry, 10)
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch})
-
-	// Test that Stream() works as an alias for Stream().
-	output := merger.Stream()
-
-	ch <- api.ServiceLogEntry{Stream: api.LogStreamStdout, Timestamp: time.Now(), Message: []byte("test")}
-	close(ch)
-
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
-
-	require.Len(t, results, 1)
-}
-
 func TestLogMerger_FairInterleaving(t *testing.T) {
 	t.Parallel()
 
@@ -307,70 +287,87 @@ func TestLogMerger_FairInterleaving(t *testing.T) {
 	output := merger.Stream()
 
 	baseTime := time.Now()
+	numFastEntries := maxInFlightPerStream + 5
 
 	// Stream 1 tries to send many entries quickly.
 	// Stream 2 sends entries slowly.
-	// With semaphores, stream 1 will be throttled after maxInFlightPerStream entries.
+	// With semaphores, stream 1 will be throttled after maxInFlightPerStream entries
+	// are queued and will only unblock as entries are emitted.
 
-	done := make(chan struct{})
+	ch1Done := make(chan struct{})
 	go func() {
-		defer close(done)
+		defer close(ch1Done)
 
 		// Send maxInFlightPerStream + 5 entries from stream 1.
-		// The last 5 should block until stream 2 advances the watermark.
-		for i := 0; i < maxInFlightPerStream+5; i++ {
+		// After maxInFlightPerStream entries are queued, stream 1 will block
+		// until entries are emitted (which requires stream 2 to advance watermark).
+		for i := 0; i < numFastEntries; i++ {
 			ch1 <- api.ServiceLogEntry{
 				Stream:    api.LogStreamStdout,
 				Timestamp: baseTime.Add(time.Duration(i) * time.Millisecond),
 				Message:   []byte("fast"),
 			}
 		}
+		close(ch1)
+	}()
+
+	// Concurrently collect results - needed because emitting entries frees semaphore slots.
+	resultsCh := make(chan []api.ServiceLogEntry)
+	go func() {
+		var results []api.ServiceLogEntry
+		for entry := range output {
+			results = append(results, entry)
+		}
+		resultsCh <- results
 	}()
 
 	// Give stream 1 time to fill its semaphore.
 	time.Sleep(50 * time.Millisecond)
 
-	// Now stream 2 sends an entry to advance its watermark.
-	// This allows some of stream 1's entries to be emitted.
+	// Stream 2 sends a "slow" entry at 5ms, which should be interleaved with fast entries.
 	ch2 <- api.ServiceLogEntry{
 		Stream:    api.LogStreamStdout,
-		Timestamp: baseTime.Add(100 * time.Millisecond),
+		Timestamp: baseTime.Add(5 * time.Millisecond),
 		Message:   []byte("slow"),
 	}
 
-	// Send heartbeat from stream 2 to advance watermark further.
+	// Stream 2 sends another "slow" entry at 50ms to advance the watermark further.
 	ch2 <- api.ServiceLogEntry{
-		Stream:    api.LogStreamHeartbeat,
-		Timestamp: baseTime.Add(200 * time.Millisecond),
+		Stream:    api.LogStreamStdout,
+		Timestamp: baseTime.Add(50 * time.Millisecond),
+		Message:   []byte("slow"),
 	}
 
 	// Wait for stream 1 goroutine to finish sending.
-	<-done
+	<-ch1Done
 
-	// Close streams.
-	close(ch1)
+	// Close stream 2 to allow merger to finish.
 	close(ch2)
 
-	// Collect all results.
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
+	// Collect results.
+	results := <-resultsCh
 
-	// We should have maxInFlightPerStream + 5 entries from stream 1,
-	// plus 1 entry from stream 2.
-	assert.Len(t, results, maxInFlightPerStream+5+1)
+	// We should have all fast entries plus 2 slow entries.
+	require.Len(t, results, numFastEntries+2)
 
 	// Count entries from each stream.
 	fastCount := 0
 	slowCount := 0
 	for _, entry := range results {
-		if string(entry.Message) == "fast" {
+		switch string(entry.Message) {
+		case "fast":
 			fastCount++
-		} else if string(entry.Message) == "slow" {
+		case "slow":
 			slowCount++
 		}
 	}
-	assert.Equal(t, maxInFlightPerStream+5, fastCount)
-	assert.Equal(t, 1, slowCount)
+	assert.Equal(t, numFastEntries, fastCount)
+	assert.Equal(t, 2, slowCount)
+
+	// Verify entries are in chronological order.
+	for i := 1; i < len(results); i++ {
+		assert.False(t, results[i].Timestamp.Before(results[i-1].Timestamp),
+			"entry %d (ts=%v) should not be before entry %d (ts=%v)",
+			i, results[i].Timestamp, i-1, results[i-1].Timestamp)
+	}
 }

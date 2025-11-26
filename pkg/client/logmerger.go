@@ -67,6 +67,12 @@ type streamEvent struct {
 	closed bool
 }
 
+// queuedEntry wraps a log entry with its source semaphore for release tracking.
+type queuedEntry struct {
+	entry     api.ServiceLogEntry
+	semaphore chan struct{}
+}
+
 // run is the main processing loop that merges all streams.
 // TODO: check stalled streams, e.g. 30 seconds without heartbeat or log entry?
 func (m *LogMerger) run() {
@@ -105,12 +111,10 @@ func (m *LogMerger) run() {
 			continue
 		}
 
-		// Release semaphore slot now that we've received the entry.
-		<-e.stream.semaphore
-
-		// Forward errors immediately.
+		// Forward errors immediately and release semaphore.
 		if e.entry.Err != nil {
 			m.output <- e.entry
+			<-e.stream.semaphore
 			continue
 		}
 
@@ -118,7 +122,10 @@ func (m *LogMerger) run() {
 			e.stream.lastSeen = e.entry.Timestamp
 		}
 		if e.entry.Stream == api.LogStreamStdout || e.entry.Stream == api.LogStreamStderr {
-			heap.Push(&m.queue, e.entry)
+			heap.Push(&m.queue, queuedEntry{entry: e.entry, semaphore: e.stream.semaphore})
+		} else {
+			// Release semaphore immediately for the heartbeat entry.
+			<-e.stream.semaphore
 		}
 
 		m.updateWatermark()
@@ -127,8 +134,9 @@ func (m *LogMerger) run() {
 
 	// All streams closed: flush remaining entries in order.
 	for m.queue.Len() > 0 {
-		entry := heap.Pop(&m.queue).(api.ServiceLogEntry)
-		m.output <- entry
+		qe := heap.Pop(&m.queue).(queuedEntry)
+		m.output <- qe.entry
+		<-qe.semaphore
 	}
 }
 
@@ -154,21 +162,22 @@ func (m *LogMerger) emitReadyEntries() {
 		return
 	}
 
-	for m.queue.Len() > 0 && m.queue[0].Timestamp.Before(m.watermark) {
-		entry := heap.Pop(&m.queue).(api.ServiceLogEntry)
-		m.output <- entry
+	for m.queue.Len() > 0 && m.queue[0].entry.Timestamp.Before(m.watermark) {
+		qe := heap.Pop(&m.queue).(queuedEntry)
+		m.output <- qe.entry
+		<-qe.semaphore
 	}
 }
 
-// logsHeap is a min-heap (heap.Interface) of log entries ordered by timestamp.
-type logsHeap []api.ServiceLogEntry
+// logsHeap is a min-heap (heap.Interface) of queued entries ordered by timestamp.
+type logsHeap []queuedEntry
 
 func (h *logsHeap) Len() int {
 	return len(*h)
 }
 
 func (h *logsHeap) Less(i, j int) bool {
-	return (*h)[i].Timestamp.Before((*h)[j].Timestamp)
+	return (*h)[i].entry.Timestamp.Before((*h)[j].entry.Timestamp)
 }
 
 func (h *logsHeap) Swap(i, j int) {
@@ -176,7 +185,7 @@ func (h *logsHeap) Swap(i, j int) {
 }
 
 func (h *logsHeap) Push(x any) {
-	*h = append(*h, x.(api.ServiceLogEntry))
+	*h = append(*h, x.(queuedEntry))
 }
 
 func (h *logsHeap) Pop() any {
