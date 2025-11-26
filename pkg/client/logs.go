@@ -45,13 +45,13 @@ func (cli *Client) ServiceLogs(
 		}
 
 		// Enrich log entries from the container with service metadata.
-		enrichedStream := withServiceMetadata(stream, svc.ID, svc.Name)
+		enrichedStream := logsStreamWithServiceMetadata(stream, svc.ID, svc.Name)
 		svcStreams = append(svcStreams, enrichedStream)
 	}
 
 	// Use the log merger to combine streams from all containers in chronological order.
-	merger := NewLogMerger(svcStreams, DefaultMergerOptions())
-	mergedStream := merger.Merge(ctx)
+	merger := NewLogMerger(svcStreams)
+	mergedStream := merger.Stream()
 
 	return svc, mergedStream, nil
 }
@@ -119,8 +119,8 @@ func (cli *Client) ContainerLogs(
 	return ch, nil
 }
 
-// withServiceMetadata wraps a logs stream and enriches each log entry with service metadata.
-func withServiceMetadata(
+// logsStreamWithServiceMetadata wraps a logs stream and enriches each log entry with service metadata.
+func logsStreamWithServiceMetadata(
 	stream <-chan api.ServiceLogEntry,
 	serviceID string,
 	serviceName string,
