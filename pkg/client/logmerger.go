@@ -11,7 +11,7 @@ import (
 // maxInFlightPerStream limits how many entries each input stream can have in the processing queue before being
 // throttled. This ensures fair interleaving between streams and prevents one fast stream from causing unbounded
 // buffering while waiting for slower streams.
-const maxInFlightPerStream = 10
+const maxInFlightPerStream = 100
 
 // LogMerger merges multiple log streams into a single chronologically ordered stream based on timestamps.
 // It uses a low watermark algorithm to ensure proper ordering across streams.
