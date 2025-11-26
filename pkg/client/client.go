@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -75,4 +76,42 @@ func proxyToMachine(ctx context.Context, machine *pb.MachineInfo) context.Contex
 	machineIP, _ := machine.Network.ManagementIp.ToAddr()
 	md := metadata.Pairs("machines", machineIP.String())
 	return metadata.NewOutgoingContext(ctx, md)
+}
+
+// ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
+// If namesOrIDs is nil, all machines are included.
+func (cli *Client) ProxyMachinesContext(
+	ctx context.Context, namesOrIDs []string,
+) (context.Context, api.MachineMembersList, error) {
+	// TODO: move the machine IP resolution to the proxy router to allow setting machine names and IDs in the metadata.
+	machines, err := cli.ListMachines(ctx, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list machines: %w", err)
+	}
+
+	var proxiedMachines api.MachineMembersList
+	var notFound []string
+	for _, nameOrID := range namesOrIDs {
+		if m := machines.FindByNameOrID(nameOrID); m != nil {
+			proxiedMachines = append(proxiedMachines, m)
+		} else {
+			notFound = append(notFound, nameOrID)
+		}
+	}
+
+	if len(notFound) > 0 {
+		return nil, nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
+	}
+
+	if len(namesOrIDs) == 0 {
+		proxiedMachines = machines
+	}
+
+	md := metadata.New(nil)
+	for _, m := range proxiedMachines {
+		machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
+		md.Append("machines", machineIP.String())
+	}
+
+	return metadata.NewOutgoingContext(ctx, md), proxiedMachines, nil
 }

@@ -55,7 +55,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	defer client.Close()
 
 	// Verify the machine exists and list all service containers on it including stopped ones.
-	mctx, machines, err := api.ProxyMachinesContext(ctx, client, []string{nameOrID})
+	mctx, machines, err := client.ProxyMachinesContext(ctx, []string{nameOrID})
 	if err != nil {
 		return err
 	}
