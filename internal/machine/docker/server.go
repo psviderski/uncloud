@@ -1026,7 +1026,7 @@ func (s *Server) ContainerLogs(
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     req.Follow,
-		Tail:       strconv.FormatInt(req.Tail, 10),
+		Tail:       strconv.FormatInt(int64(req.Tail), 10),
 		Since:      req.Since,
 		Until:      req.Until,
 		Timestamps: true,
