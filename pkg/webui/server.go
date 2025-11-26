@@ -3,48 +3,13 @@ package webui
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
 	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/client/connector"
 	datastar "github.com/starfederation/datastar-go/datastar"
-	"golang.org/x/net/proxy"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
-
-// UnixConnector establishes a connection to the machine API through a unix socket.
-type UnixConnector struct {
-	sockPath string
-}
-
-func NewUnixConnector(sockPath string) *UnixConnector {
-	return &UnixConnector{sockPath: sockPath}
-}
-
-func (c *UnixConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
-	dialer := func(ctx context.Context, addr string) (net.Conn, error) {
-		return net.Dial("unix", addr)
-	}
-
-	conn, err := grpc.NewClient("passthrough:///"+c.sockPath,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(dialer),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("dial unix socket: %w", err)
-	}
-	return conn, nil
-}
-
-func (c *UnixConnector) Dialer() (proxy.ContextDialer, error) {
-	return nil, fmt.Errorf("proxy connections not supported on unix connector")
-}
-
-func (c *UnixConnector) Close() error {
-	return nil
-}
 
 type Server struct {
 	mux    *http.ServeMux
@@ -54,7 +19,7 @@ type Server struct {
 func NewServer(sockPath string) (*Server, error) {
 	ctx := context.Background()
 
-	conn := NewUnixConnector(sockPath)
+	conn := connector.NewUnixConnector(sockPath)
 	cli, err := client.New(ctx, conn)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %w", err)
