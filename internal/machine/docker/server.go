@@ -431,6 +431,67 @@ func (s *Server) ListImages(ctx context.Context, req *pb.ListImagesRequest) (*pb
 	}, nil
 }
 
+// RemoveImage removes an image with the given ID.
+func (s *Server) RemoveImage(ctx context.Context, req *pb.RemoveImageRequest) (*pb.RemoveImageResponse, error) {
+	var opts image.RemoveOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+	}
+
+	deleteResp, err := s.client.ImageRemove(ctx, req.Image, opts)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	respBytes, err := json.Marshal(deleteResp)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
+	}
+
+	return &pb.RemoveImageResponse{
+		Messages: []*pb.MachineRemoveImageResponse{
+			{
+				Response: respBytes,
+			},
+		},
+	}, nil
+}
+
+// PruneImages prunes unused images.
+func (s *Server) PruneImages(ctx context.Context, req *pb.PruneImagesRequest) (*pb.PruneImagesResponse, error) {
+	var filtersArgs filters.Args
+	if len(req.Filters) > 0 {
+		var err error
+		filtersArgs, err = filters.FromJSON(string(req.Filters))
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal filters: %v", err)
+		}
+	}
+
+	report, err := s.client.ImagesPrune(ctx, filtersArgs)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	reportBytes, err := json.Marshal(report)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal report: %v", err)
+	}
+
+	return &pb.PruneImagesResponse{
+		Messages: []*pb.MachinePruneImagesResponse{
+			{
+				Report: reportBytes,
+			},
+		},
+	}, nil
+}
+
 // CreateVolume creates a new volume with the given options.
 func (s *Server) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
 	var opts volume.CreateOptions

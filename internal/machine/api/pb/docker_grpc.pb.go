@@ -32,6 +32,8 @@ const (
 	Docker_InspectImage_FullMethodName            = "/api.Docker/InspectImage"
 	Docker_InspectRemoteImage_FullMethodName      = "/api.Docker/InspectRemoteImage"
 	Docker_ListImages_FullMethodName              = "/api.Docker/ListImages"
+	Docker_RemoveImage_FullMethodName             = "/api.Docker/RemoveImage"
+	Docker_PruneImages_FullMethodName             = "/api.Docker/PruneImages"
 	Docker_CreateVolume_FullMethodName            = "/api.Docker/CreateVolume"
 	Docker_ListVolumes_FullMethodName             = "/api.Docker/ListVolumes"
 	Docker_RemoveVolume_FullMethodName            = "/api.Docker/RemoveVolume"
@@ -59,6 +61,8 @@ type DockerClient interface {
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(ctx context.Context, in *InspectRemoteImageRequest, opts ...grpc.CallOption) (*InspectRemoteImageResponse, error)
 	ListImages(ctx context.Context, in *ListImagesRequest, opts ...grpc.CallOption) (*ListImagesResponse, error)
+	RemoveImage(ctx context.Context, in *RemoveImageRequest, opts ...grpc.CallOption) (*RemoveImageResponse, error)
+	PruneImages(ctx context.Context, in *PruneImagesRequest, opts ...grpc.CallOption) (*PruneImagesResponse, error)
 	CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*CreateVolumeResponse, error)
 	ListVolumes(ctx context.Context, in *ListVolumesRequest, opts ...grpc.CallOption) (*ListVolumesResponse, error)
 	RemoveVolume(ctx context.Context, in *RemoveVolumeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -217,6 +221,26 @@ func (c *dockerClient) ListImages(ctx context.Context, in *ListImagesRequest, op
 	return out, nil
 }
 
+func (c *dockerClient) RemoveImage(ctx context.Context, in *RemoveImageRequest, opts ...grpc.CallOption) (*RemoveImageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveImageResponse)
+	err := c.cc.Invoke(ctx, Docker_RemoveImage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dockerClient) PruneImages(ctx context.Context, in *PruneImagesRequest, opts ...grpc.CallOption) (*PruneImagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PruneImagesResponse)
+	err := c.cc.Invoke(ctx, Docker_PruneImages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dockerClient) CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*CreateVolumeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateVolumeResponse)
@@ -305,6 +329,8 @@ type DockerServer interface {
 	// Docker auth credentials if necessary.
 	InspectRemoteImage(context.Context, *InspectRemoteImageRequest) (*InspectRemoteImageResponse, error)
 	ListImages(context.Context, *ListImagesRequest) (*ListImagesResponse, error)
+	RemoveImage(context.Context, *RemoveImageRequest) (*RemoveImageResponse, error)
+	PruneImages(context.Context, *PruneImagesRequest) (*PruneImagesResponse, error)
 	CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error)
 	ListVolumes(context.Context, *ListVolumesRequest) (*ListVolumesResponse, error)
 	RemoveVolume(context.Context, *RemoveVolumeRequest) (*emptypb.Empty, error)
@@ -357,6 +383,12 @@ func (UnimplementedDockerServer) InspectRemoteImage(context.Context, *InspectRem
 }
 func (UnimplementedDockerServer) ListImages(context.Context, *ListImagesRequest) (*ListImagesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListImages not implemented")
+}
+func (UnimplementedDockerServer) RemoveImage(context.Context, *RemoveImageRequest) (*RemoveImageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveImage not implemented")
+}
+func (UnimplementedDockerServer) PruneImages(context.Context, *PruneImagesRequest) (*PruneImagesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PruneImages not implemented")
 }
 func (UnimplementedDockerServer) CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateVolume not implemented")
@@ -591,6 +623,42 @@ func _Docker_ListImages_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_RemoveImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).RemoveImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_RemoveImage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).RemoveImage(ctx, req.(*RemoveImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Docker_PruneImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PruneImagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).PruneImages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_PruneImages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).PruneImages(ctx, req.(*PruneImagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Docker_CreateVolume_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateVolumeRequest)
 	if err := dec(in); err != nil {
@@ -759,6 +827,14 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListImages",
 			Handler:    _Docker_ListImages_Handler,
+		},
+		{
+			MethodName: "RemoveImage",
+			Handler:    _Docker_RemoveImage_Handler,
+		},
+		{
+			MethodName: "PruneImages",
+			Handler:    _Docker_PruneImages_Handler,
 		},
 		{
 			MethodName: "CreateVolume",
