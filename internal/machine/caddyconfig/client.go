@@ -140,3 +140,36 @@ func (c *CaddyAdminClient) Validate(ctx context.Context, caddyfile string) error
 	_, err := c.Adapt(ctx, caddyfile)
 	return err
 }
+
+type UpstreamStatus struct {
+	Address     string `json:"address"`
+	Status      string `json:"status"` // "healthy", "unhealthy", "unknown"
+	Fails       int64  `json:"fails"`
+	NumRequests int64  `json:"num_requests"`
+}
+
+// GetUpstreams retrieves the status of Caddy upstreams.
+func (c *CaddyAdminClient) GetUpstreams(ctx context.Context) ([]UpstreamStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/reverse_proxy/upstreams", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create upstreams request: %w", err)
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send upstreams request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	var upstreams []UpstreamStatus
+	if err := json.NewDecoder(resp.Body).Decode(&upstreams); err != nil {
+		return nil, fmt.Errorf("decode upstreams response: %w", err)
+	}
+
+	return upstreams, nil
+}

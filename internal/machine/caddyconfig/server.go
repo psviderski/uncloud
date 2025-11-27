@@ -37,3 +37,25 @@ func (s *Server) GetConfig(ctx context.Context, _ *emptypb.Empty) (*pb.GetCaddyC
 		ModifiedAt: timestamppb.New(modifiedAt),
 	}, nil
 }
+
+// GetUpstreams retrieves the status of Caddy upstreams.
+func (s *Server) GetUpstreams(ctx context.Context, _ *emptypb.Empty) (*pb.GetCaddyUpstreamsResponse, error) {
+	upstreams, err := s.service.GetUpstreams(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	pbUpstreams := make([]*pb.Upstream, len(upstreams))
+	for i, u := range upstreams {
+		pbUpstreams[i] = &pb.Upstream{
+			Address:     u.Address,
+			Status:      u.Status,
+			Fails:       u.Fails,
+			NumRequests: u.NumRequests,
+		}
+	}
+
+	return &pb.GetCaddyUpstreamsResponse{
+		Upstreams: pbUpstreams,
+	}, nil
+}
