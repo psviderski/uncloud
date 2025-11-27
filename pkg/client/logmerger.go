@@ -123,7 +123,7 @@ func (m *LogMerger) run() {
 		}
 		if e.entry.Stream == api.LogStreamStdout || e.entry.Stream == api.LogStreamStderr {
 			heap.Push(&m.queue, queuedEntry{entry: e.entry, semaphore: e.stream.semaphore})
-		} else {
+		} else if e.entry.Stream == api.LogStreamHeartbeat {
 			// Release semaphore immediately for the heartbeat entry.
 			<-e.stream.semaphore
 		}
