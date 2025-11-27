@@ -199,18 +199,29 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 
 	var containers []containerInfo
 	for _, msc := range machineContainers {
-		if msc.Metadata == nil {
-			continue
-		}
+		machineName := "unknown"
 
-		machineName, ok := machinesNamesByIP[msc.Metadata.Machine]
-		if !ok {
-			machineName = msc.Metadata.Machine
+		// Metadata can be nil if the request was broadcasted to only one machine.
+		if msc.Metadata == nil && len(machineContainers) > 1 {
+			return nil, fmt.Errorf("something went wrong with gRPC proxy: metadata is missing for a machine response")
 		}
-
-		if msc.Metadata.Error != "" {
+		if msc.Metadata != nil && msc.Metadata.Error != "" {
 			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName, msc.Metadata.Error))
 			continue
+		}
+
+		if msc.Metadata != nil {
+			var ok bool
+			machineName, ok = machinesNamesByIP[msc.Metadata.Machine]
+			if !ok {
+				// Fallback to machine's IP as name.
+				machineName = msc.Metadata.Machine
+			}
+		} else {
+			// Fallback to the first available machine name.
+			if len(machines) > 0 {
+				machineName = machines[0].Machine.Name
+			}
 		}
 
 		for _, ctr := range msc.Containers {
