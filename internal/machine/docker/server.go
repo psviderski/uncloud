@@ -1050,80 +1050,102 @@ func (s *Server) ContainerLogs(
 	log.Debug("Starting container logs streaming.",
 		"follow", req.Follow, "tail", req.Tail, "since", req.Since, "until", req.Until)
 
-	// lastSentCh tracks the timestamp of the last sent log entry to either of the streams for heartbeat purposes.
 	// Heartbeats are needed only when following logs to let the client know when there are no new log entries
 	// to allow it to advance the watermark of last received log timestamp.
-	var lastSentCh chan time.Time
-	lastSent := time.Time{}
-	// Set up lastSentCh and heartbeat ticker only when following logs.
 	var heartbeatCh <-chan time.Time
 	if req.Follow {
-		lastSentCh = make(chan time.Time)
-
 		heartbeatTicker := time.NewTicker(logsHeartbeatInterval)
 		defer heartbeatTicker.Stop()
 		heartbeatCh = heartbeatTicker.C
 	}
 
-	stdoutWriter := &logsStreamWriter{stream: stream, isStderr: false, lastSentCh: lastSentCh}
-	stderrWriter := &logsStreamWriter{stream: stream, isStderr: true, lastSentCh: lastSentCh}
+	sendCh := make(chan *pb.ContainerLogEntry, 100)
+	stdoutWriter := &logsChannelWriter{ctx: ctx, ch: sendCh, isStderr: false}
+	stderrWriter := &logsChannelWriter{ctx: ctx, ch: sendCh, isStderr: true}
 
 	// Run StdCopy in a goroutine to allow context cancellation handling.
-	done := make(chan error, 1)
+	copyDone := make(chan error, 1)
 	go func() {
-		if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader); err != nil {
-			done <- status.Errorf(codes.Internal, "stream container logs: %v", err)
-			return
-		}
-		done <- nil
+		_, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader)
+		close(sendCh)
+		copyDone <- err
 	}()
 
-	started := time.Now()
-	log.Debug("### Starting for loop streaming.", "started", started)
-	for {
-		select {
-		case err = <-done:
-			return err
-		// TODO: consider detecting when active log is processing and maybe trying to Send so we should skip heartbeat
-		//  because we may send incorrect heartbeat timestamp and also Send is not concurrent safe.
-		case lastSent = <-lastSentCh:
-		case now := <-heartbeatCh:
-			// Only send heartbeat if no log entries have been sent since the last heartbeat interval or
-			// if no log entries have been sent at all and it's been at least 2 heartbeat intervals since starting.
-			if (lastSent.IsZero() && now.Sub(started) < 2*logsHeartbeatInterval) ||
-				now.Sub(lastSent) < logsHeartbeatInterval {
-				continue
-			}
+	senderDone := make(chan error, 1)
+	go func() {
+		started := time.Now()
+		lastSent := time.Time{}
 
-			// Use the timestamp one heartbeat in the past to be conservative. This avoids sending a timestamp that
-			// could be greater than a log entry currently being parsed but not yet sent, which would cause the client
-			// to incorrectly believe it has received all logs up to that point.
-			heartbeatTimestamp := now.Add(-logsHeartbeatInterval)
-			heartbeat := &pb.ContainerLogEntry{
-				Stream:    pb.ContainerLogEntry_HEARTBEAT,
-				Timestamp: timestamppb.New(heartbeatTimestamp),
-			}
-			if err = stream.Send(heartbeat); err != nil {
-				return status.Errorf(codes.Internal, "send log stream heartbeat: %v", err)
-			}
-			log.Debug("Sent log stream heartbeat.", "timestamp", heartbeatTimestamp)
+		for {
+			select {
+			case entry, ok := <-sendCh:
+				if !ok {
+					// sendCh channel closed, no more log entries to send.
+					senderDone <- nil
+					return
+				}
 
-			lastSent = heartbeatTimestamp
-		case <-ctx.Done():
-			return status.Error(codes.Canceled, ctx.Err().Error())
+				if err := stream.Send(entry); err != nil {
+					senderDone <- err
+					return
+				}
+				lastSent = entry.Timestamp.AsTime()
+
+			case now := <-heartbeatCh:
+				// Only send heartbeat if no log entries have been sent since the last heartbeat interval or
+				// if no log entries have been sent at all for at least a heartbeat interval since starting.
+				if now.Sub(lastSent) < logsHeartbeatInterval ||
+					(lastSent.IsZero() && now.Sub(started) < logsHeartbeatInterval) {
+					continue
+				}
+
+				// Use the timestamp one heartbeat in the past to be conservative. This reduces the chance of sending
+				// a timestamp that is greater than a log entry currently being parsed but not yet sent, which would
+				// cause the client to incorrectly believe it has received all logs up to that point.
+				heartbeat := &pb.ContainerLogEntry{
+					Stream:    pb.ContainerLogEntry_HEARTBEAT,
+					Timestamp: timestamppb.New(now.Add(-logsHeartbeatInterval)),
+				}
+				if err := stream.Send(heartbeat); err != nil {
+					senderDone <- err
+					return
+				}
+				lastSent = heartbeat.Timestamp.AsTime()
+				log.Debug("Sent log stream heartbeat.", "timestamp", lastSent)
+
+			case <-ctx.Done():
+				senderDone <- ctx.Err()
+				return
+			}
 		}
+	}()
+
+	select {
+	case err = <-copyDone:
+		// Wait for sender to drain and finish.
+		if sendErr := <-senderDone; sendErr != nil && err == nil {
+			err = sendErr
+		}
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "stream container logs: %v", err)
+		}
+		return nil
+	case err = <-senderDone:
+		// No need to do anything with the StdCopy goroutine. The stream context is automatically canceled on return,
+		// which will terminate it.
+		return err
 	}
 }
 
-// logsStreamWriter is a writer that sends container logs data to a gRPC stream.
-type logsStreamWriter struct {
-	stream   grpc.ServerStreamingServer[pb.ContainerLogEntry]
+// logsChannelWriter is a writer for stdcopy.StdCopy that sends demultiplexed container logs to a channel.
+type logsChannelWriter struct {
+	ctx      context.Context
+	ch       chan<- *pb.ContainerLogEntry
 	isStderr bool
-	// lastSentCh is a channel to signal the timestamp of the last sent log entry.
-	lastSentCh chan<- time.Time
 }
 
-func (w *logsStreamWriter) Write(data []byte) (n int, err error) {
+func (w *logsChannelWriter) Write(data []byte) (n int, err error) {
 	// Parse timestamp and message from the demultiplexed Docker log payload if the data looks like it contains one.
 	// Format: 2025-01-01T00:00:00.000000000Z message
 	timestamp := time.Time{}
@@ -1141,7 +1163,9 @@ func (w *logsStreamWriter) Write(data []byte) (n int, err error) {
 
 	entry := &pb.ContainerLogEntry{
 		Timestamp: timestamppb.New(timestamp),
-		Message:   message,
+		// Clone is required because message is a slice into data, which stdcopy.StdCopy may reuse
+		// after Write returns but before the entry is consumed from the channel.
+		Message: bytes.Clone(message),
 	}
 	if w.isStderr {
 		entry.Stream = pb.ContainerLogEntry_STDERR
@@ -1149,14 +1173,12 @@ func (w *logsStreamWriter) Write(data []byte) (n int, err error) {
 		entry.Stream = pb.ContainerLogEntry_STDOUT
 	}
 
-	if err = w.stream.Send(entry); err != nil {
-		return 0, err
+	select {
+	case w.ch <- entry:
+		return len(data), nil
+	case <-w.ctx.Done():
+		return 0, w.ctx.Err()
 	}
-	if w.lastSentCh != nil {
-		w.lastSentCh <- timestamp
-	}
-
-	return len(data), nil
 }
 
 // receiveExecConfig receives and validates the initial exec configuration from the stream.
