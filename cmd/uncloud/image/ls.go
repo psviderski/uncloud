@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 	"github.com/containerd/platforms"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/go-units"
-	"github.com/muesli/termenv"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/output"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -22,6 +21,7 @@ import (
 type listOptions struct {
 	machines   []string
 	nameFilter string
+	format     string
 }
 
 func NewListCommand() *cobra.Command {
@@ -45,7 +45,10 @@ func NewListCommand() *cobra.Command {
   uc image ls myapp
 
   # List images filtered by name pattern on specific machine.
-  uc image ls "myapp:1.*" -m machine1`,
+  uc image ls "myapp:1.*" -m machine1
+
+  # Output in JSON format
+  uc image ls --format json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -59,21 +62,22 @@ func NewListCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Filter images by machine name or ID. Can be specified multiple times or as a comma-separated list. "+
 			"(default is include all machines)")
+	cmd.Flags().StringVar(&opts.format, "format", "table", "Output format (table, json)")
 
 	return cmd
 }
 
-// imageRow represents a single image with its metadata for display.
-type imageRow struct {
-	id           string
-	name         string
-	platforms    string
-	createdHuman string
-	createdUnix  int64
-	size         string
-	inUse        string
-	store        string
-	machine      string
+// imageItem represents a single image with its metadata.
+type imageItem struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Platforms []string `json:"platforms"`
+	Created   int64    `json:"created"`
+	Size      int64    `json:"size"`
+	// InUse indicates if the image is used by a container. -1 means unknown.
+	InUse   int64  `json:"inUse"`
+	Store   string `json:"store"`
+	Machine string `json:"machine"`
 }
 
 func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
@@ -107,7 +111,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 
 	// Collect all images from all machines.
-	var rows []imageRow
+	var items []imageItem
 
 	for _, machineImages := range clusterImages {
 		// Get machine name for better readability.
@@ -132,41 +136,25 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 			}
 
 			imgPlatforms, _ := imagePlatforms(img)
-			formattedPlatforms := formatPlatforms(imgPlatforms)
 
-			created := ""
-			createdAt := time.Unix(img.Created, 0)
-			if !createdAt.IsZero() {
-				created = units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
-			}
-
-			size := units.HumanSizeWithPrecision(float64(img.Size), 3)
-
-			// Check if the image is in use by any containers. Only supported by Docker API >=1.51
-			inUse := "-"
-			if img.Containers != -1 { // -1 means the info is not available.
-				if img.Containers > 0 {
-					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("●")
-				} else {
-					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("○")
-				}
-			}
-
-			rows = append(rows, imageRow{
-				id:           id,
-				name:         name,
-				platforms:    formattedPlatforms,
-				createdHuman: created,
-				createdUnix:  img.Created,
-				size:         size,
-				inUse:        inUse,
-				store:        store,
-				machine:      machineName,
+			items = append(items, imageItem{
+				ID:        id,
+				Name:      name,
+				Platforms: imgPlatforms,
+				Created:   img.Created,
+				Size:      img.Size,
+				InUse:     img.Containers,
+				Store:     store,
+				Machine:   machineName,
 			})
 		}
 	}
 
-	if len(rows) == 0 {
+	if len(items) == 0 {
+		if opts.format == "json" {
+			fmt.Println("[]")
+			return nil
+		}
 		if opts.nameFilter != "" {
 			fmt.Printf("No images matching '%s' found.\n", opts.nameFilter)
 		} else {
@@ -176,17 +164,87 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 
 	// Sort images by name, then by machine name.
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].name != rows[j].name {
-			return rows[i].name < rows[j].name
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Name != items[j].Name {
+			return items[i].Name < items[j].Name
 		}
-		return rows[i].machine < rows[j].machine
+		return items[i].Machine < items[j].Machine
 	})
 
-	// Print the images in a table format.
-	fmt.Println(formatImageTable(rows))
+	// Define columns.
+	columns := []output.Column[imageItem]{
+		{
+			Header: "IMAGE ID",
+			Field:  "ID",
+		},
+		{
+			Header: "NAME",
+			Field:  "Name",
+		},
+		{
+			Header: "PLATFORMS",
+			Accessor: func(item imageItem) string {
+				if len(item.Platforms) == 0 {
+					return "-"
+				}
+				style := output.PillStyle()
+				styled := make([]string, len(item.Platforms))
+				for i, p := range item.Platforms {
+					styled[i] = style.Render(p)
+				}
+				return strings.Join(styled, " ")
+			},
+		},
+		{
+			Header: "CREATED",
+			Accessor: func(item imageItem) string {
+				createdAt := time.Unix(item.Created, 0)
+				if createdAt.IsZero() {
+					return ""
+				}
+				return units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
+			},
+		},
+		{
+			Header: "SIZE",
+			Accessor: func(item imageItem) string {
+				return units.HumanSizeWithPrecision(float64(item.Size), 3)
+			},
+		},
+	}
 
-	return nil
+	// Add IN USE column if available.
+	inUseAvailable := slices.ContainsFunc(items, func(i imageItem) bool {
+		return i.InUse != -1
+	})
+
+	if inUseAvailable {
+		columns = append(columns, output.Column[imageItem]{
+			Header: "IN USE",
+			Accessor: func(item imageItem) string {
+				if item.InUse == -1 {
+					return "-"
+				}
+				if item.InUse > 0 {
+					return lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("●")
+				}
+				return lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("○")
+			},
+		})
+	}
+
+	columns = append(columns,
+		output.Column[imageItem]{
+			Header: "STORE",
+			Field:  "Store",
+		},
+		output.Column[imageItem]{
+			Header: "MACHINE",
+			Field:  "Machine",
+		},
+	)
+
+	return output.Print(items, columns, opts.format)
 }
 
 // imagePlatforms returns a list of platforms supported by the image and a boolean indicating if it's multi-platform.
@@ -210,98 +268,4 @@ func imagePlatforms(img image.Summary) ([]string, bool) {
 	slices.Sort(formattedPlatforms)
 
 	return formattedPlatforms, multiPlatform
-}
-
-func formatPlatforms(platforms []string) string {
-	if len(platforms) == 0 {
-		return "-"
-	}
-
-	platformStyle := lipgloss.NewStyle().
-		BorderForeground(lipgloss.Color("152")).
-		Foreground(lipgloss.Color("0")).
-		Background(lipgloss.Color("152"))
-	// Use fancy pill borders only if the output is a terminal with color support.
-	if lipgloss.ColorProfile() != termenv.Ascii {
-		platformStyle = platformStyle.Border(lipgloss.Border{Left: "", Right: ""}, false, true, false, true)
-	}
-
-	styledPlatforms := make([]string, len(platforms))
-	for i, p := range platforms {
-		styledPlatforms[i] = platformStyle.Render(p)
-	}
-
-	return strings.Join(styledPlatforms, " ")
-}
-
-func formatImageTable(rows []imageRow) string {
-	columns := []struct {
-		name string
-		hide bool
-	}{
-		{name: "IMAGE ID"},
-		{name: "NAME"},
-		{name: "PLATFORMS"},
-		{name: "CREATED"},
-		{name: "SIZE"},
-		{name: "IN USE"},
-		{name: "STORE"},
-		{name: "MACHINE"},
-	}
-
-	// Hide the "IN USE" column if none of the images have that info available.
-	inUseInfoAvailable := slices.ContainsFunc(rows, func(r imageRow) bool {
-		return r.inUse != "-"
-	})
-	if !inUseInfoAvailable {
-		// Hide "IN USE" column.
-		columns[5].hide = true
-	}
-
-	t := table.New().
-		// Remove the default border.
-		Border(lipgloss.Border{}).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		BorderRight(false).
-		BorderHeader(false).
-		BorderColumn(false).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == table.HeaderRow {
-				return lipgloss.NewStyle().Bold(true).PaddingRight(3)
-			}
-			// Regular style for data rows with padding.
-			return lipgloss.NewStyle().PaddingRight(3)
-		})
-
-	var headers []string
-	for _, col := range columns {
-		if !col.hide {
-			headers = append(headers, col.name)
-		}
-	}
-	t.Headers(headers...)
-
-	for _, row := range rows {
-		values := []string{
-			row.id,
-			row.name,
-			row.platforms,
-			row.createdHuman,
-			row.size,
-			row.inUse,
-			row.store,
-			row.machine,
-		}
-		var filteredValues []string
-		for i, v := range values {
-			if !columns[i].hide {
-				filteredValues = append(filteredValues, v)
-			}
-		}
-		t.Row(filteredValues...)
-	}
-
-	return t.String()
 }

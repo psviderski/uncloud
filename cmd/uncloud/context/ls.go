@@ -3,34 +3,48 @@ package context
 import (
 	"fmt"
 	"maps"
-	"os"
 	"slices"
-	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/output"
 	"github.com/spf13/cobra"
 )
 
+type listOptions struct {
+	format string
+}
+
 func NewListCommand() *cobra.Command {
+	opts := listOptions{}
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List available cluster contexts.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return list(uncli)
+			return list(uncli, opts)
 		},
 	}
-
+	cmd.Flags().StringVar(&opts.format, "format", "table", "Output format (table, json)")
 	return cmd
 }
 
-func list(uncli *cli.CLI) error {
+type contextItem struct {
+	Name        string `json:"name"`
+	Current     bool   `json:"current"`
+	Connections int    `json:"connections"`
+}
+
+func list(uncli *cli.CLI, opts listOptions) error {
 	if uncli.Config == nil {
 		return fmt.Errorf("context management is not available: Uncloud configuration file is not being used")
 	}
 
 	if len(uncli.Config.Contexts) == 0 {
+		if opts.format == "json" {
+			fmt.Println("[]")
+			return nil
+		}
 		fmt.Println("No contexts found")
 		return nil
 	}
@@ -38,17 +52,28 @@ func list(uncli *cli.CLI) error {
 	contextNames := slices.Sorted(maps.Keys(uncli.Config.Contexts))
 	currentContext := uncli.Config.CurrentContext
 
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tCURRENT\tCONNECTIONS")
-
+	var items []contextItem
 	for _, name := range contextNames {
-		current := ""
-		if name == currentContext {
-			current = "✓"
-		}
-		connCount := len(uncli.Config.Contexts[name].Connections)
-		fmt.Fprintf(tw, "%s\t%s\t%d\n", name, current, connCount)
+		items = append(items, contextItem{
+			Name:        name,
+			Current:     name == currentContext,
+			Connections: len(uncli.Config.Contexts[name].Connections),
+		})
 	}
 
-	return tw.Flush()
+	columns := []output.Column[contextItem]{
+		{Header: "NAME", Field: "Name"},
+		{
+			Header: "CURRENT",
+			Accessor: func(item contextItem) string {
+				if item.Current {
+					return "✓"
+				}
+				return ""
+			},
+		},
+		{Header: "CONNECTIONS", Field: "Connections"},
+	}
+
+	return output.Print(items, columns, opts.format)
 }
