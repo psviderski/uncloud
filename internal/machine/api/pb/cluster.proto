@@ -18,6 +18,8 @@ service Cluster {
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
   rpc ReleaseDomain(google.protobuf.Empty) returns (Domain);
   rpc CreateDomainRecords(CreateDomainRecordsRequest) returns (CreateDomainRecordsResponse);
+  rpc AddMachineLabels(MachineLabelsRequest) returns (UpdateMachineResponse);
+  rpc RemoveMachineLabels(MachineLabelsRequest) returns (UpdateMachineResponse);
 }
 
 message AddMachineRequest {
@@ -95,4 +97,9 @@ message DNSRecord {
   }
   RecordType type = 2;
   repeated string values = 3;
+}
+
+message MachineLabelsRequest {
+  string machine_id = 1;
+  repeated string labels = 2;
 }
