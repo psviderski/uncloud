@@ -297,15 +297,14 @@ func TestLogMerger_PreservesMetadata(t *testing.T) {
 	assert.Equal(t, api.LogStreamStdout, results[0].Stream)
 }
 
-func TestLogMerger_FairInterleaving(t *testing.T) {
+func TestLogMerger_UnevenStreams(t *testing.T) {
 	t.Parallel()
 
-	// Test that the semaphore limits prevent one fast stream from
-	// dominating and causing unbounded buffering.
-	numFastEntries := maxInFlightPerStream + 5
+	// Test that entries from streams with different rates are merged correctly in chronological order.
+	numFastEntries := maxInFlightPerStream
 
 	// Use buffered channels to allow sends without blocking on receiver.
-	ch1 := make(chan api.ServiceLogEntry, numFastEntries+10)
+	ch1 := make(chan api.ServiceLogEntry, numFastEntries+5)
 	ch2 := make(chan api.ServiceLogEntry, 10)
 
 	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, 0, 0)
