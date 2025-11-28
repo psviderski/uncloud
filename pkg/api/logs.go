@@ -52,10 +52,9 @@ type ServiceLogEntry struct {
 
 // ServiceLogEntryMetadata contains metadata about the source of a log entry.
 type ServiceLogEntryMetadata struct {
-	ServiceID     string
-	ServiceName   string
-	ContainerID   string
-	ContainerName string
-	MachineID     string
-	MachineName   string
+	ServiceID   string
+	ServiceName string
+	ContainerID string
+	MachineID   string
+	MachineName string
 }
