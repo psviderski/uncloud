@@ -47,9 +47,18 @@ func (s *Server) GetUpstreams(ctx context.Context, _ *emptypb.Empty) (*pb.GetCad
 
 	pbUpstreams := make([]*pb.Upstream, len(upstreams))
 	for i, u := range upstreams {
+		// TODO: This logic assumes the default Caddy health check configuration where max_fails is 1.
+		// If a custom configuration increases max_fails, an upstream with fails > 0 might still be healthy.
+		// For accurate status in all cases, we should query the Caddy /metrics endpoint and check
+		// the 'caddy_reverse_proxy_upstreams_healthy' gauge.
+		statusStr := "healthy"
+		if u.Fails > 0 {
+			statusStr = "unhealthy"
+		}
+
 		pbUpstreams[i] = &pb.Upstream{
 			Address:     u.Address,
-			Status:      u.Status,
+			Status:      statusStr,
 			Fails:       u.Fails,
 			NumRequests: u.NumRequests,
 		}

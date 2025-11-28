@@ -143,7 +143,6 @@ func (c *CaddyAdminClient) Validate(ctx context.Context, caddyfile string) error
 
 type UpstreamStatus struct {
 	Address     string `json:"address"`
-	Status      string `json:"status"` // "healthy", "unhealthy", "unknown"
 	Fails       int64  `json:"fails"`
 	NumRequests int64  `json:"num_requests"`
 }
@@ -161,13 +160,17 @@ func (c *CaddyAdminClient) GetUpstreams(ctx context.Context) ([]UpstreamStatus, 
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
 	}
 
 	var upstreams []UpstreamStatus
-	if err := json.NewDecoder(resp.Body).Decode(&upstreams); err != nil {
+	if err := json.Unmarshal(body, &upstreams); err != nil {
 		return nil, fmt.Errorf("decode upstreams response: %w", err)
 	}
 

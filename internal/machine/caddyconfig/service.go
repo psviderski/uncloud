@@ -8,13 +8,15 @@ import (
 	"time"
 )
 
-// Service provides methods to interact with the Caddy configuration on the machine.
+// Service provides methods to interact with the Caddy configuration on the machine
+// and the running Caddy instance via its Admin API.
 type Service struct {
 	configDir string
 	client    *CaddyAdminClient
 }
 
-// NewService creates a new Service instance with the specified Caddy configuration directory.
+// NewService creates a new Service instance with the specified Caddy configuration directory
+// and Admin API socket path.
 func NewService(configDir, adminSock string) *Service {
 	return &Service{
 		configDir: configDir,
