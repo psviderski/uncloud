@@ -17,17 +17,19 @@ const maxInFlightPerStream = 100
 // It uses a low watermark algorithm to ensure proper ordering across streams.
 // Heartbeat entries from streams advance the watermark to enable timely emission of buffered logs.
 type LogMerger struct {
-	streams      []*mergerStream
-	queue        logsHeap
-	watermark    time.Time
-	output       chan api.ServiceLogEntry
-	stallTimeout time.Duration
+	streams            []*mergerStream
+	queue              logsHeap
+	watermark          time.Time
+	output             chan api.ServiceLogEntry
+	stallTimeout       time.Duration
+	stallCheckInterval time.Duration
 }
 
 // NewLogMerger creates a new LogMerger for the given input streams. The stallTimeout parameter specifies
 // how long a stream can go without receiving any data before it's considered stalled and excluded from
-// watermark calculation. A zero timeout disables stall detection.
-func NewLogMerger(streams []<-chan api.ServiceLogEntry, stallTimeout time.Duration) *LogMerger {
+// watermark calculation. The stallCheckInterval specifies how often to check for stalled streams.
+// A zero timeout disables stall detection.
+func NewLogMerger(streams []<-chan api.ServiceLogEntry, stallTimeout, stallCheckInterval time.Duration) *LogMerger {
 	mergerStreams := make([]*mergerStream, len(streams))
 	now := time.Now()
 	for i, ch := range streams {
@@ -39,9 +41,10 @@ func NewLogMerger(streams []<-chan api.ServiceLogEntry, stallTimeout time.Durati
 	}
 
 	return &LogMerger{
-		streams:      mergerStreams,
-		output:       make(chan api.ServiceLogEntry),
-		stallTimeout: stallTimeout,
+		streams:            mergerStreams,
+		output:             make(chan api.ServiceLogEntry),
+		stallTimeout:       stallTimeout,
+		stallCheckInterval: stallCheckInterval,
 	}
 }
 
@@ -116,8 +119,8 @@ func (m *LogMerger) run() {
 
 	// Set up stall detection timer if enabled.
 	var stallCh <-chan time.Time
-	if m.stallTimeout > 0 {
-		stallTicker := time.NewTicker(1 * time.Second)
+	if m.stallTimeout > 0 && m.stallCheckInterval > 0 {
+		stallTicker := time.NewTicker(m.stallCheckInterval)
 		stallCh = stallTicker.C
 		defer stallTicker.Stop()
 	}

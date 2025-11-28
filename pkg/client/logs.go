@@ -15,6 +15,8 @@ const (
 	// logStreamStallTimeout is the duration after which a log stream is considered stalled if no data is received.
 	// A stalled stream is excluded from waiting upon to prevent blocking log emission from active streams.
 	logStreamStallTimeout = 10 * time.Second
+	// logStreamStallCheckInterval is how often to check for stalled log streams.
+	logStreamStallCheckInterval = 1 * time.Second
 )
 
 // ServiceLogs streams log entries from all service containers in chronological order based on timestamps.
@@ -67,7 +69,7 @@ func (cli *Client) ServiceLogs(
 	}
 
 	// Use the log merger to combine streams from all containers in chronological order.
-	merger := NewLogMerger(svcStreams, logStreamStallTimeout)
+	merger := NewLogMerger(svcStreams, logStreamStallTimeout, logStreamStallCheckInterval)
 	mergedStream := merger.Stream()
 
 	return svc, mergedStream, nil
