@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -55,15 +58,26 @@ func runUpstreams(ctx context.Context, uncli *cli.CLI, opts upstreamsOptions) er
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "ADDRESS\tSTATUS\tFAILS\tREQUESTS")
-	for _, u := range resp.Upstreams {
-		status := u.Status
-		if status == "healthy" {
-			status = "✅ " + status
-		} else if status == "unhealthy" {
-			status = "❌ " + status
+	fmt.Fprintln(w, "HOST\tUPSTREAMS")
+
+	slices.SortFunc(resp.Hosts, func(a, b *pb.HostUpstreams) int {
+		return strings.Compare(a.Host, b.Host)
+	})
+
+	for _, host := range resp.Hosts {
+		var upstreamsStrs []string
+		for _, u := range host.Upstreams {
+			statusIcon := "✅"
+			if u.Status != "healthy" {
+				statusIcon = "❌"
+			}
+
+			// Format: 10.210.0.4:80 (✅ healthy, reqs: 0, fails: 0)
+			s := fmt.Sprintf("%s (%s %s, reqs: %d, fails: %d)",
+				u.Address, statusIcon, u.Status, u.NumRequests, u.Fails)
+			upstreamsStrs = append(upstreamsStrs, s)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%d\n", u.Address, status, u.Fails, u.NumRequests)
+		fmt.Fprintf(w, "%s\t%s\n", host.Host, strings.Join(upstreamsStrs, ", "))
 	}
 	return w.Flush()
 }

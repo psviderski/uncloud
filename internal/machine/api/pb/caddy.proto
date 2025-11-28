@@ -23,7 +23,12 @@ message GetCaddyConfigResponse {
 }
 
 message GetCaddyUpstreamsResponse {
-  repeated Upstream upstreams = 1;
+  repeated HostUpstreams hosts = 1;
+}
+
+message HostUpstreams {
+  string host = 1;
+  repeated Upstream upstreams = 2;
 }
 
 message Upstream {

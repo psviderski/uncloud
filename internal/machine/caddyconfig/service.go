@@ -2,6 +2,7 @@ package caddyconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,10 +42,76 @@ func (s *Service) Caddyfile() (string, time.Time, error) {
 	return string(content), fileInfo.ModTime(), nil
 }
 
-// GetUpstreams retrieves the status of Caddy upstreams.
-func (s *Service) GetUpstreams(ctx context.Context) ([]UpstreamStatus, error) {
+// GetUpstreams retrieves the status of Caddy upstreams grouped by host.
+func (s *Service) GetUpstreams(ctx context.Context) (map[string][]UpstreamStatus, error) {
 	if !s.client.IsAvailable(ctx) {
 		return nil, fmt.Errorf("caddy is not running")
 	}
-	return s.client.GetUpstreams(ctx)
+
+	// Get the flat list of upstream statuses.
+	statuses, err := s.client.GetUpstreams(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get upstreams status: %w", err)
+	}
+	statusMap := make(map[string]UpstreamStatus, len(statuses))
+	for _, st := range statuses {
+		statusMap[st.Address] = st
+	}
+
+	// Get the current configuration to map upstreams to hosts.
+	configJSON, err := s.client.GetConfigJSON(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get caddy config: %w", err)
+	}
+
+	var config caddyConfig
+	if err := json.Unmarshal(configJSON, &config); err != nil {
+		return nil, fmt.Errorf("parse caddy config: %w", err)
+	}
+
+	result := make(map[string][]UpstreamStatus)
+
+	for _, server := range config.Apps.HTTP.Servers {
+		for _, route := range server.Routes {
+			var hosts []string
+			for _, m := range route.Match {
+				hosts = append(hosts, m.Host...)
+			}
+
+			for _, h := range route.Handle {
+				if h.Handler != "reverse_proxy" {
+					continue
+				}
+				for _, u := range h.Upstreams {
+					if st, ok := statusMap[u.Dial]; ok {
+						for _, host := range hosts {
+							result[host] = append(result[host], st)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+type caddyConfig struct {
+	Apps struct {
+		HTTP struct {
+			Servers map[string]struct {
+				Routes []struct {
+					Match []struct {
+						Host []string `json:"host"`
+					} `json:"match"`
+					Handle []struct {
+						Handler   string `json:"handler"`
+						Upstreams []struct {
+							Dial string `json:"dial"`
+						} `json:"upstreams"`
+					} `json:"handle"`
+				} `json:"routes"`
+			} `json:"servers"`
+		} `json:"http"`
+	} `json:"apps"`
 }
