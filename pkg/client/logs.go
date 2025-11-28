@@ -4,13 +4,18 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
-const defaultLogBufferSize = 100
+const (
+	// logStreamStallTimeout is the duration after which a log stream is considered stalled if no data is received.
+	// A stalled stream is excluded from waiting upon to prevent blocking log emission from active streams.
+	logStreamStallTimeout = 10 * time.Second
+)
 
 // ServiceLogs streams log entries from all service containers in chronological order based on timestamps.
 // Keep in mind that perfect ordering of log events across multiple machines can't be guaranteed due to the
@@ -62,7 +67,7 @@ func (cli *Client) ServiceLogs(
 	}
 
 	// Use the log merger to combine streams from all containers in chronological order.
-	merger := NewLogMerger(svcStreams)
+	merger := NewLogMerger(svcStreams, logStreamStallTimeout)
 	mergedStream := merger.Stream()
 
 	return svc, mergedStream, nil
@@ -89,7 +94,7 @@ func (cli *Client) ContainerLogs(
 		return nil, err
 	}
 
-	ch := make(chan api.ContainerLogEntry, defaultLogBufferSize)
+	ch := make(chan api.ContainerLogEntry)
 
 	go func() {
 		defer close(ch)
@@ -127,7 +132,7 @@ func (cli *Client) ContainerLogs(
 func logsStreamWithServiceMetadata(
 	stream <-chan api.ContainerLogEntry, metadata api.ServiceLogEntryMetadata,
 ) <-chan api.ServiceLogEntry {
-	out := make(chan api.ServiceLogEntry, defaultLogBufferSize)
+	out := make(chan api.ServiceLogEntry)
 
 	go func() {
 		for entry := range stream {

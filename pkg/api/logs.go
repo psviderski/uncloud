@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"time"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -77,3 +78,6 @@ type ContainerLogEntry struct {
 	// Other non-Metadata fields are not set if Err is not nil.
 	Err error
 }
+
+// ErrLogStreamStalled indicates that a log stream stopped sending data and may be unresponsive.
+var ErrLogStreamStalled = errors.New("log stream stopped responding")

@@ -17,25 +17,31 @@ const maxInFlightPerStream = 100
 // It uses a low watermark algorithm to ensure proper ordering across streams.
 // Heartbeat entries from streams advance the watermark to enable timely emission of buffered logs.
 type LogMerger struct {
-	streams   []*mergerStream
-	queue     logsHeap
-	watermark time.Time
-	output    chan api.ServiceLogEntry
+	streams      []*mergerStream
+	queue        logsHeap
+	watermark    time.Time
+	output       chan api.ServiceLogEntry
+	stallTimeout time.Duration
 }
 
-// NewLogMerger creates a new LogMerger for the given input streams.
-func NewLogMerger(streams []<-chan api.ServiceLogEntry) *LogMerger {
+// NewLogMerger creates a new LogMerger for the given input streams. The stallTimeout parameter specifies
+// how long a stream can go without receiving any data before it's considered stalled and excluded from
+// watermark calculation. A zero timeout disables stall detection.
+func NewLogMerger(streams []<-chan api.ServiceLogEntry, stallTimeout time.Duration) *LogMerger {
 	mergerStreams := make([]*mergerStream, len(streams))
+	now := time.Now()
 	for i, ch := range streams {
 		mergerStreams[i] = &mergerStream{
-			stream:    ch,
-			semaphore: make(chan struct{}, maxInFlightPerStream),
+			stream:       ch,
+			semaphore:    make(chan struct{}, maxInFlightPerStream),
+			lastActivity: now,
 		}
 	}
 
 	return &LogMerger{
-		streams: mergerStreams,
-		output:  make(chan api.ServiceLogEntry),
+		streams:      mergerStreams,
+		output:       make(chan api.ServiceLogEntry),
+		stallTimeout: stallTimeout,
 	}
 }
 
@@ -56,8 +62,16 @@ func (m *LogMerger) Stream() <-chan api.ServiceLogEntry {
 type mergerStream struct {
 	stream    <-chan api.ServiceLogEntry
 	semaphore chan struct{}
-	lastSeen  time.Time // Latest timestamp seen from this stream (log or heartbeat).
-	closed    bool      // Whether the stream channel has closed.
+	// Latest timestamp seen from this stream (log or heartbeat).
+	lastSeen time.Time
+	// Wall clock time when we last received any data from this stream.
+	lastActivity time.Time
+	// Metadata associated with this stream. It's populated from the first log entry received.
+	metadata *api.ServiceLogEntryMetadata
+	// Whether the stream channel has closed.
+	closed bool
+	// Whether the stream is considered stalled (no data received within timeout).
+	stalled bool
 }
 
 // streamEvent represents an event from a stream (entry received or stream closed).
@@ -74,7 +88,6 @@ type queuedEntry struct {
 }
 
 // run is the main processing loop that merges all streams.
-// TODO: check stalled streams, e.g. 30 seconds without heartbeat or log entry?
 func (m *LogMerger) run() {
 	defer close(m.output)
 
@@ -101,43 +114,107 @@ func (m *LogMerger) run() {
 		close(events)
 	}()
 
+	// Set up stall detection timer if enabled.
+	var stallCh <-chan time.Time
+	if m.stallTimeout > 0 {
+		stallTicker := time.NewTicker(1 * time.Second)
+		stallCh = stallTicker.C
+		defer stallTicker.Stop()
+	}
+
 	// Process events and emit entries.
-	for e := range events {
-		if e.closed {
-			e.stream.closed = true
+	for {
+		select {
+		case e, ok := <-events:
+			if !ok {
+				// All streams closed: flush remaining entries in order.
+				for m.queue.Len() > 0 {
+					qe := heap.Pop(&m.queue).(queuedEntry)
+					m.output <- qe.entry
+					<-qe.semaphore
+				}
+				return
+			}
+
+			e.stream.lastActivity = time.Now()
+			if e.stream.stalled {
+				e.stream.stalled = false
+			}
+			if e.stream.metadata == nil {
+				e.stream.metadata = &e.entry.Metadata
+			}
+
+			if e.closed {
+				e.stream.closed = true
+
+				m.updateWatermark()
+				m.emitReadyEntries()
+				continue
+			}
+
+			// Forward errors immediately and release semaphore.
+			if e.entry.Err != nil {
+				m.output <- e.entry
+				<-e.stream.semaphore
+				continue
+			}
+
+			if e.entry.Timestamp.After(e.stream.lastSeen) {
+				e.stream.lastSeen = e.entry.Timestamp
+			}
+			if e.entry.Stream == api.LogStreamStdout || e.entry.Stream == api.LogStreamStderr {
+				heap.Push(&m.queue, queuedEntry{entry: e.entry, semaphore: e.stream.semaphore})
+			} else if e.entry.Stream == api.LogStreamHeartbeat {
+				// Release semaphore immediately for the heartbeat entry.
+				<-e.stream.semaphore
+			}
 
 			m.updateWatermark()
 			m.emitReadyEntries()
+
+		case <-stallCh:
+			stalled := m.checkStalledStreams()
+			if len(stalled) == 0 {
+				continue
+			}
+
+			for _, s := range stalled {
+				errEntry := api.ServiceLogEntry{
+					ContainerLogEntry: api.ContainerLogEntry{
+						Err: api.ErrLogStreamStalled,
+					},
+				}
+				if s.metadata != nil {
+					errEntry.Metadata = *s.metadata
+				}
+
+				m.output <- errEntry
+			}
+
+			m.updateWatermark()
+			m.emitReadyEntries()
+		}
+	}
+}
+
+// checkStalledStreams marks streams as stalled if they haven't received any data within the timeout.
+// Returns true if any stream's stalled state changed.
+func (m *LogMerger) checkStalledStreams() []*mergerStream {
+	var stalled []*mergerStream
+	now := time.Now()
+
+	for _, s := range m.streams {
+		if s.closed || s.stalled {
 			continue
 		}
 
-		// Forward errors immediately and release semaphore.
-		if e.entry.Err != nil {
-			m.output <- e.entry
-			<-e.stream.semaphore
-			continue
+		if now.Sub(s.lastActivity) > m.stallTimeout {
+			s.stalled = true
+			stalled = append(stalled, s)
 		}
-
-		if e.entry.Timestamp.After(e.stream.lastSeen) {
-			e.stream.lastSeen = e.entry.Timestamp
-		}
-		if e.entry.Stream == api.LogStreamStdout || e.entry.Stream == api.LogStreamStderr {
-			heap.Push(&m.queue, queuedEntry{entry: e.entry, semaphore: e.stream.semaphore})
-		} else if e.entry.Stream == api.LogStreamHeartbeat {
-			// Release semaphore immediately for the heartbeat entry.
-			<-e.stream.semaphore
-		}
-
-		m.updateWatermark()
-		m.emitReadyEntries()
 	}
 
-	// All streams closed: flush remaining entries in order.
-	for m.queue.Len() > 0 {
-		qe := heap.Pop(&m.queue).(queuedEntry)
-		m.output <- qe.entry
-		<-qe.semaphore
-	}
+	return stalled
 }
 
 // updateWatermark recalculates the watermark based on the lastSeen timestamps of all active streams.
@@ -145,8 +222,9 @@ func (m *LogMerger) updateWatermark() {
 	first := true
 
 	for _, s := range m.streams {
-		if s.closed {
-			continue // Closed streams don't affect watermark.
+		if s.closed || s.stalled {
+			// Closed and stalled streams don't affect watermark.
+			continue
 		}
 		if first || s.lastSeen.Before(m.watermark) {
 			m.watermark = s.lastSeen
