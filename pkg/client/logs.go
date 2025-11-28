@@ -29,23 +29,35 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("no containers found for service: %s", serviceNameOrID)
 	}
 
+	machines, err := cli.ListMachines(ctx, nil)
+	if err != nil {
+		return svc, nil, fmt.Errorf("list machines: %w", err)
+	}
+
 	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(svc.Containers))
 	for _, ctr := range svc.Containers {
+		// Try to get machine name for ServiceLogEntry metadata and friendlier error message.
+		machineName := ctr.MachineID
+		m := machines.FindByNameOrID(ctr.MachineID)
+		if m != nil {
+			machineName = m.Machine.Name
+		}
+
 		stream, err := cli.ContainerLogs(ctx, ctr.MachineID, ctr.Container.ID, opts)
 		if err != nil {
-			// Try to get machine name for friendlier error message.
-			machineName := ctr.MachineID
-			machines, mErr := cli.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: []string{ctr.MachineID}})
-			if mErr == nil && len(machines) > 0 {
-				machineName = machines[0].Machine.Name
-			}
-
 			return svc, nil, fmt.Errorf("stream logs from service container '%s' on machine '%s': %w",
 				stringid.TruncateID(ctr.Container.ID), machineName, err)
 		}
 
 		// Enrich log entries from the container with service metadata.
-		enrichedStream := logsStreamWithServiceMetadata(stream, svc.ID, svc.Name)
+		metadata := api.ServiceLogEntryMetadata{
+			ServiceID:   svc.ID,
+			ServiceName: svc.Name,
+			ContainerID: ctr.Container.ID,
+			MachineID:   ctr.MachineID,
+			MachineName: machineName,
+		}
+		enrichedStream := logsStreamWithServiceMetadata(stream, metadata)
 		svcStreams = append(svcStreams, enrichedStream)
 	}
 
@@ -59,8 +71,8 @@ func (cli *Client) ServiceLogs(
 // ContainerLogs streams log entries from a single container on a specified machine.
 func (cli *Client) ContainerLogs(
 	ctx context.Context, machineNameOrID string, containerID string, opts api.ServiceLogsOptions,
-) (<-chan api.ServiceLogEntry, error) {
-	proxyCtx, machines, err := cli.ProxyMachinesContext(ctx, []string{machineNameOrID})
+) (<-chan api.ContainerLogEntry, error) {
+	proxyCtx, _, err := cli.ProxyMachinesContext(ctx, []string{machineNameOrID})
 	if err != nil {
 		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineNameOrID, err)
 	}
@@ -77,16 +89,10 @@ func (cli *Client) ContainerLogs(
 		return nil, err
 	}
 
-	ch := make(chan api.ServiceLogEntry, defaultLogBufferSize)
+	ch := make(chan api.ContainerLogEntry, defaultLogBufferSize)
 
 	go func() {
 		defer close(ch)
-
-		metadata := api.ServiceLogEntryMetadata{
-			ContainerID: containerID,
-			MachineID:   machines[0].Machine.Id,
-			MachineName: machines[0].Machine.Name,
-		}
 
 		for {
 			pbEntry, err := stream.Recv()
@@ -94,15 +100,13 @@ func (cli *Client) ContainerLogs(
 				return
 			}
 			if err != nil {
-				ch <- api.ServiceLogEntry{
-					Metadata: metadata,
-					Err:      err,
+				ch <- api.ContainerLogEntry{
+					Err: err,
 				}
 				return
 			}
 
-			entry := api.ServiceLogEntry{
-				Metadata:  metadata,
+			entry := api.ContainerLogEntry{
 				Stream:    api.LogStreamTypeFromProto(pbEntry.Stream),
 				Message:   pbEntry.Message,
 				Timestamp: pbEntry.Timestamp.AsTime(),
@@ -119,23 +123,20 @@ func (cli *Client) ContainerLogs(
 	return ch, nil
 }
 
-// logsStreamWithServiceMetadata wraps a logs stream and enriches each log entry with service metadata.
+// logsStreamWithServiceMetadata wraps a container logs stream and enriches each log entry with service metadata.
 func logsStreamWithServiceMetadata(
-	stream <-chan api.ServiceLogEntry,
-	serviceID string,
-	serviceName string,
+	stream <-chan api.ContainerLogEntry, metadata api.ServiceLogEntryMetadata,
 ) <-chan api.ServiceLogEntry {
 	out := make(chan api.ServiceLogEntry, defaultLogBufferSize)
 
 	go func() {
-		defer close(out)
-
 		for entry := range stream {
-			entry.Metadata.ServiceID = serviceID
-			entry.Metadata.ServiceName = serviceName
-
-			out <- entry
+			out <- api.ServiceLogEntry{
+				Metadata:          metadata,
+				ContainerLogEntry: entry,
+			}
 		}
+		close(out)
 	}()
 
 	return out

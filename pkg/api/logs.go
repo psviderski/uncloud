@@ -31,6 +31,20 @@ func LogStreamTypeFromProto(s pb.ContainerLogEntry_StreamType) LogStreamType {
 	}
 }
 
+// LogStreamTypeToProto converts LogStreamType to protobuf ContainerLogEntry.StreamType.
+func LogStreamTypeToProto(s LogStreamType) pb.ContainerLogEntry_StreamType {
+	switch s {
+	case LogStreamStdout:
+		return pb.ContainerLogEntry_STDOUT
+	case LogStreamStderr:
+		return pb.ContainerLogEntry_STDERR
+	case LogStreamHeartbeat:
+		return pb.ContainerLogEntry_HEARTBEAT
+	default:
+		return pb.ContainerLogEntry_UNKNOWN
+	}
+}
+
 // ServiceLogsOptions specifies parameters for ServiceLogs.
 type ServiceLogsOptions struct {
 	Follow bool
@@ -41,13 +55,8 @@ type ServiceLogsOptions struct {
 
 // ServiceLogEntry represents a single log entry from a service container.
 type ServiceLogEntry struct {
-	Metadata  ServiceLogEntryMetadata
-	Stream    LogStreamType
-	Message   []byte
-	Timestamp time.Time
-	// Err indicates that an error occurred while streaming logs from a container.
-	// Other non-Metadata fields are not set if Err is not nil.
-	Err error
+	Metadata ServiceLogEntryMetadata
+	ContainerLogEntry
 }
 
 // ServiceLogEntryMetadata contains metadata about the source of a log entry.
@@ -57,4 +66,14 @@ type ServiceLogEntryMetadata struct {
 	ContainerID string
 	MachineID   string
 	MachineName string
+}
+
+// ContainerLogEntry represents a single log entry from a container.
+type ContainerLogEntry struct {
+	Stream    LogStreamType
+	Timestamp time.Time
+	Message   []byte
+	// Err indicates that an error occurred while streaming logs from a container.
+	// Other non-Metadata fields are not set if Err is not nil.
+	Err error
 }

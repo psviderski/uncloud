@@ -1020,31 +1020,27 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 const logsHeartbeatInterval = 200 * time.Millisecond
 
 // ContainerLogs streams logs from a container.
-// TODO: move to the Service layer.
 func (s *Server) ContainerLogs(
 	req *pb.ContainerLogsRequest, stream grpc.ServerStreamingServer[pb.ContainerLogEntry],
 ) error {
+	// Stream context is cancelled when the client has disconnected or the stream has ended.
 	ctx := stream.Context()
 
-	opts := container.LogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-		Follow:     req.Follow,
-		Tail:       strconv.FormatInt(int64(req.Tail), 10),
-		Since:      req.Since,
-		Until:      req.Until,
-		Timestamps: true,
+	opts := ContainerLogsOptions{
+		ContainerID: req.ContainerId,
+		Follow:      req.Follow,
+		Tail:        int(req.Tail),
+		Since:       req.Since,
+		Until:       req.Until,
 	}
 
-	// Get the logs reader from Docker.
-	reader, err := s.client.ContainerLogs(ctx, req.ContainerId, opts)
+	logsCh, err := s.service.ContainerLogs(ctx, opts)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return status.Error(codes.NotFound, err.Error())
 		}
 		return status.Errorf(codes.Internal, "get container logs: %v", err)
 	}
-	defer reader.Close()
 
 	log := slog.With("container_id", req.ContainerId, "stream_id", fmt.Sprintf("%p", stream)[2:])
 	log.Debug("Starting container logs streaming.",
@@ -1059,125 +1055,55 @@ func (s *Server) ContainerLogs(
 		heartbeatCh = heartbeatTicker.C
 	}
 
-	sendCh := make(chan *pb.ContainerLogEntry, 100)
-	stdoutWriter := &logsChannelWriter{ctx: ctx, ch: sendCh, isStderr: false}
-	stderrWriter := &logsChannelWriter{ctx: ctx, ch: sendCh, isStderr: true}
+	started := time.Now()
+	lastSent := time.Time{}
 
-	// Run StdCopy in a goroutine to allow context cancellation handling.
-	copyDone := make(chan error, 1)
-	go func() {
-		_, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader)
-		close(sendCh)
-		copyDone <- err
-	}()
-
-	senderDone := make(chan error, 1)
-	go func() {
-		started := time.Now()
-		lastSent := time.Time{}
-
-		for {
-			select {
-			case entry, ok := <-sendCh:
-				if !ok {
-					// sendCh channel closed, no more log entries to send.
-					senderDone <- nil
-					return
-				}
-
-				if err := stream.Send(entry); err != nil {
-					senderDone <- err
-					return
-				}
-				lastSent = entry.Timestamp.AsTime()
-
-			case now := <-heartbeatCh:
-				// Only send heartbeat if no log entries have been sent since the last heartbeat interval or
-				// if no log entries have been sent at all for at least a heartbeat interval since starting.
-				if now.Sub(lastSent) < logsHeartbeatInterval ||
-					(lastSent.IsZero() && now.Sub(started) < logsHeartbeatInterval) {
-					continue
-				}
-
-				// Use the timestamp one heartbeat in the past to be conservative. This reduces the chance of sending
-				// a timestamp that is greater than a log entry currently being parsed but not yet sent, which would
-				// cause the client to incorrectly believe it has received all logs up to that point.
-				heartbeat := &pb.ContainerLogEntry{
-					Stream:    pb.ContainerLogEntry_HEARTBEAT,
-					Timestamp: timestamppb.New(now.Add(-logsHeartbeatInterval)),
-				}
-				if err := stream.Send(heartbeat); err != nil {
-					senderDone <- err
-					return
-				}
-				lastSent = heartbeat.Timestamp.AsTime()
-				log.Debug("Sent log stream heartbeat.", "timestamp", lastSent)
-
-			case <-ctx.Done():
-				senderDone <- ctx.Err()
-				return
+	for {
+		select {
+		case entry, ok := <-logsCh:
+			if !ok {
+				// Channel closed, no more log entries.
+				return nil
 			}
-		}
-	}()
 
-	select {
-	case err = <-copyDone:
-		// Wait for sender to drain and finish.
-		if sendErr := <-senderDone; sendErr != nil && err == nil {
-			err = sendErr
-		}
-
-		if err != nil {
-			return status.Errorf(codes.Internal, "stream container logs: %v", err)
-		}
-		return nil
-	case err = <-senderDone:
-		// No need to do anything with the StdCopy goroutine. The stream context is automatically canceled on return,
-		// which will terminate it.
-		return err
-	}
-}
-
-// logsChannelWriter is a writer for stdcopy.StdCopy that sends demultiplexed container logs to a channel.
-type logsChannelWriter struct {
-	ctx      context.Context
-	ch       chan<- *pb.ContainerLogEntry
-	isStderr bool
-}
-
-func (w *logsChannelWriter) Write(data []byte) (n int, err error) {
-	// Parse timestamp and message from the demultiplexed Docker log payload if the data looks like it contains one.
-	// Format: 2025-01-01T00:00:00.000000000Z message
-	timestamp := time.Time{}
-	message := data
-	if len(data) > 30 && data[4] == '-' && data[7] == '-' && data[10] == 'T' {
-		timestampPart, messagePart, found := bytes.Cut(data, []byte(" "))
-		if found {
-			timestamp, err = time.Parse(time.RFC3339Nano, string(timestampPart))
-			if err != nil {
-				timestamp = time.Time{}
+			if entry.Err != nil {
+				return status.Error(codes.Internal, entry.Err.Error())
 			}
-			message = messagePart
+
+			pbEntry := &pb.ContainerLogEntry{
+				Stream:    api.LogStreamTypeToProto(entry.Stream),
+				Timestamp: timestamppb.New(entry.Timestamp),
+				Message:   entry.Message,
+			}
+			if err = stream.Send(pbEntry); err != nil {
+				return status.Errorf(codes.Internal, "send log entry: %v", err)
+			}
+			lastSent = entry.Timestamp
+
+		case now := <-heartbeatCh:
+			// Only send heartbeat if no log entries have been sent since the last heartbeat interval or
+			// if no log entries have been sent at all for at least a heartbeat interval since starting.
+			if now.Sub(lastSent) < logsHeartbeatInterval ||
+				(lastSent.IsZero() && now.Sub(started) < logsHeartbeatInterval) {
+				continue
+			}
+
+			// Use the timestamp one heartbeat in the past to be conservative. This reduces the chance of sending
+			// a timestamp that is greater than a log entry currently being parsed but not yet sent, which would
+			// cause the client to incorrectly believe it has received all logs up to that point.
+			heartbeat := &pb.ContainerLogEntry{
+				Stream:    pb.ContainerLogEntry_HEARTBEAT,
+				Timestamp: timestamppb.New(now.Add(-logsHeartbeatInterval)),
+			}
+			if err = stream.Send(heartbeat); err != nil {
+				return status.Errorf(codes.Internal, "send log stream heartbeat: %v", err)
+			}
+			lastSent = heartbeat.Timestamp.AsTime()
+			log.Debug("Sent log stream heartbeat.", "timestamp", lastSent)
+
+		case <-ctx.Done():
+			return status.Error(codes.Canceled, ctx.Err().Error())
 		}
-	}
-
-	entry := &pb.ContainerLogEntry{
-		Timestamp: timestamppb.New(timestamp),
-		// Clone is required because message is a slice into data, which stdcopy.StdCopy may reuse
-		// after Write returns but before the entry is consumed from the channel.
-		Message: bytes.Clone(message),
-	}
-	if w.isStderr {
-		entry.Stream = pb.ContainerLogEntry_STDERR
-	} else {
-		entry.Stream = pb.ContainerLogEntry_STDOUT
-	}
-
-	select {
-	case w.ch <- entry:
-		return len(data), nil
-	case <-w.ctx.Done():
-		return 0, w.ctx.Err()
 	}
 }
 
