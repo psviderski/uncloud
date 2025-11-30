@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# If set to 'true', only install the packages and dependencies, without running, reloading, or
+# restarting services or systemd.
+INSTALL_ONLY=${INSTALL_ONLY:-false}
+
 INSTALL_BIN_DIR=${INSTALL_BIN_DIR:-/usr/local/bin}
 INSTALL_SYSTEMD_DIR=${INSTALL_SYSTEMD_DIR:-/etc/systemd/system}
 
@@ -57,7 +61,7 @@ verify_system() {
 Your system architecture ($arch) is not supported."
   fi
 
-  if [[ ! -d /run/systemd/system ]]; then
+  if [[ ! -d /run/systemd/system && "${INSTALL_ONLY}" != "true" ]]; then
       error "Cannot find systemd to use as a service manager for the Uncloud machine daemon. \
 Uncloud supports only systemd-based Linux systems for now."
   fi
@@ -66,9 +70,14 @@ Uncloud supports only systemd-based Linux systems for now."
 install_docker() {
     if command_exists dockerd; then
         log "✓ Docker is already installed."
+        DOCKER_ALREADY_INSTALLED=true
+
+        if [[ "${INSTALL_ONLY}" == "true" ]]; then
+            return
+        fi
+
         docker version
 
-        DOCKER_ALREADY_INSTALLED=true
         # Check if the installed Docker configured to use the containerd image store.
         local driver_status
         driver_status=$(docker info -f '{{ .DriverStatus }}' 2>/dev/null)
@@ -93,7 +102,9 @@ install_docker() {
     log "⏳ Configuring Docker daemon (${DOCKER_DAEMON_CONFIG_FILE}) to optimise it for Uncloud..."
     echo "${DOCKER_DAEMON_CONFIG}" > "${DOCKER_DAEMON_CONFIG_FILE}"
 
-    systemctl restart docker
+    if [[ "${INSTALL_ONLY}" != "true" ]]; then
+        systemctl restart docker
+    fi
 
     log "✓ Docker installed and configured successfully."
 }
@@ -215,8 +226,11 @@ WantedBy=multi-user.target
 EOF
     log "✓ Systemd unit file created: ${uncloud_service_path}"
 
-    # Reload systemd to recognize the new or updated unit file.
-    systemctl daemon-reload
+
+    if [[ "${INSTALL_ONLY}" != "true" ]]; then
+        # Reload systemd to recognize the new or updated unit file.
+        systemctl daemon-reload
+    fi
     systemctl enable uncloud.service
 }
 
@@ -284,11 +298,17 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 EOF
     log "✓ Systemd unit file created: ${corrosion_service_path}"
 
-    # Reload systemd to recognize the new unit file
-    systemctl daemon-reload
+    if [[ "${INSTALL_ONLY}" != "true" ]]; then
+        # Reload systemd to recognize the new unit file
+        systemctl daemon-reload
+    fi
 }
 
 start_uncloud() {
+    if [[ "${INSTALL_ONLY}" == "true" ]]; then
+        return
+    fi
+
     log "⏳ Starting Uncloud machine daemon (uncloud.service)..."
     systemctl restart uncloud.service
     log "✓ Uncloud machine daemon started."
