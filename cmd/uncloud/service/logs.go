@@ -1,23 +1,22 @@
 package service
 
 import (
-	"container/heap"
 	"context"
+	"errors"
 	"fmt"
-	"hash/fnv"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
+	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc/metadata"
 )
 
 type logsOptions struct {
@@ -31,15 +30,14 @@ func NewLogsCommand() *cobra.Command {
 	var options logsOptions
 
 	cmd := &cobra.Command{
-		Use:     "logs SERVICE",
+		Use:     "logs SERVICE [SERVICE...]",
 		Aliases: []string{"log"},
 		Short:   "View service logs.",
-		Long:    "View logs from all replicas of the specified service across all machines in the cluster.",
-		// TODO: support streaming logs from multiple services.
-		Args: cobra.ExactArgs(1),
+		Long:    "View logs from all replicas of the specified service(s) across all machines in the cluster.",
+		Args:    cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return streamLogs(cmd.Context(), uncli, args[0], options)
+			return streamLogs(cmd.Context(), uncli, args, options)
 		},
 	}
 
@@ -63,347 +61,215 @@ func NewLogsCommand() *cobra.Command {
 	return cmd
 }
 
-func streamLogs(ctx context.Context, uncli *cli.CLI, serviceName string, opts logsOptions) error {
+func streamLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logsOptions) error {
+	// Parse tail option.
+	tail := -1
+	if opts.tail != "all" {
+		tailInt, err := strconv.Atoi(opts.tail)
+		if err != nil {
+			return fmt.Errorf("invalid --tail value '%s': %w", opts.tail, err)
+		}
+		tail = tailInt
+	}
+
 	c, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer c.Close()
 
-	// Get service info to find all replicas
-	service, err := c.InspectService(ctx, serviceName)
-	if err != nil {
-		return fmt.Errorf("inspect service: %w", err)
+	logsOpts := api.ServiceLogsOptions{
+		Follow: opts.follow,
+		Tail:   tail,
+		Since:  opts.since,
+		Until:  opts.until,
 	}
 
-	if len(service.Containers) == 0 {
-		return fmt.Errorf("no containers found for service %s", serviceName)
-	}
-
-	// Group containers by machine
-	containersByMachine := make(map[string][]api.MachineServiceContainer)
-	for _, container := range service.Containers {
-		containersByMachine[container.MachineID] = append(containersByMachine[container.MachineID], container)
-	}
-
-	return streamLogsOrdered(ctx, c, containersByMachine, serviceName, opts)
-}
-
-// streamLogsFast is the default fast mode that prints logs as they arrive
-func streamLogsFast(ctx context.Context, client *client.Client, containersByMachine map[string][]api.MachineServiceContainer, serviceName string, opts logsOptions) error {
-	logChan := make(chan logEntry, 100)
-	errChan := make(chan error, len(containersByMachine))
-	var wg sync.WaitGroup
-
-	// Start streaming logs from each machine
-	for machine, containers := range containersByMachine {
-		wg.Add(1)
-		go func(machine string, containers []api.MachineServiceContainer) {
-			defer wg.Done()
-			if err := streamMachineLogs(ctx, client, machine, containers, serviceName, opts, logChan); err != nil {
-				errChan <- fmt.Errorf("stream logs from machine %s: %w", machine, err)
-			}
-		}(machine, containers)
-	}
-
-	go func() {
-		wg.Wait()
-		close(logChan)
-		close(errChan)
-	}()
-
-	// Print logs as they arrive
-	for {
-		select {
-		case log, ok := <-logChan:
-			if !ok {
-				// All streams completed
-				return nil
-			}
-			printLogEntry(log, true)
-		case err := <-errChan:
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-}
-
-type logEntry struct {
-	timestamp   time.Time
-	machineID   string
-	machineName string
-	serviceName string
-	replica     string
-	stream      string // stdout or stderr
-	message     string
-}
-
-// logEntryWithChannel wraps a log entry with its source channel for heap ordering
-type logEntryWithChannel struct {
-	entry   logEntry
-	channel <-chan logEntry
-	index   int // index in the heap
-}
-
-// logEntryHeap implements heap.Interface for ordering log entries by timestamp
-type logEntryHeap []*logEntryWithChannel
-
-func (h logEntryHeap) Len() int { return len(h) }
-
-func (h logEntryHeap) Less(i, j int) bool {
-	// Earlier timestamps come first
-	return h[i].entry.timestamp.Before(h[j].entry.timestamp)
-}
-
-func (h logEntryHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-	h[i].index = i
-	h[j].index = j
-}
-
-func (h *logEntryHeap) Push(x interface{}) {
-	n := len(*h)
-	item := x.(*logEntryWithChannel)
-	item.index = n
-	*h = append(*h, item)
-}
-
-func (h *logEntryHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil  // avoid memory leak
-	item.index = -1 // for safety
-	*h = old[0 : n-1]
-	return item
-}
-
-// streamLogsOrdered implements strict chronological ordering using a min-heap
-func streamLogsOrdered(ctx context.Context, client *client.Client, containersByMachine map[string][]api.MachineServiceContainer, serviceName string, opts logsOptions) error {
-	// Create separate channels for each machine
-	machineChannels := make(map[string]chan logEntry)
-	errChan := make(chan error, len(containersByMachine))
-	var wg sync.WaitGroup
-
-	// Start streaming logs from each machine into separate channels
-	for machine, containers := range containersByMachine {
-		ch := make(chan logEntry, 100)
-		machineChannels[machine] = ch
-
-		wg.Add(1)
-		go func(machine string, containers []api.MachineServiceContainer, ch chan<- logEntry) {
-			defer wg.Done()
-			defer close(ch)
-			if err := streamMachineLogs(ctx, client, machine, containers, serviceName, opts, ch); err != nil {
-				errChan <- fmt.Errorf("stream logs from machine %s: %w", machine, err)
-			}
-		}(machine, containers, ch)
-	}
-
-	go func() {
-		wg.Wait()
-		close(errChan)
-	}()
-
-	h := &logEntryHeap{}
-	heap.Init(h)
-
-	// Read initial entries from each channel
-	for _, ch := range machineChannels {
-		select {
-		case entry, ok := <-ch:
-			if ok {
-				heap.Push(h, &logEntryWithChannel{
-					entry:   entry,
-					channel: ch,
-				})
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	// Process log entries in chronological order
-	for h.Len() > 0 {
-		select {
-		case err := <-errChan:
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		item := heap.Pop(h).(*logEntryWithChannel)
-		printLogEntry(item.entry, true)
-
-		// Try to read the next entry from the same channel
-		select {
-		case entry, ok := <-item.channel:
-			if ok {
-				heap.Push(h, &logEntryWithChannel{
-					entry:   entry,
-					channel: item.channel,
-				})
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			select {
-			case entry, ok := <-item.channel:
-				if ok {
-					heap.Push(h, &logEntryWithChannel{
-						entry:   entry,
-						channel: item.channel,
-					})
-				}
-			default:
-				// Channel is truly empty, don't re-add
-			}
-		}
-	}
-
-	// Drain any remaining errors
-	for err := range errChan {
+	// Collect log streams from all services.
+	machineIDsSet := mapset.NewSet[string]()
+	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceNames))
+	for _, serviceName := range serviceNames {
+		// TODO: set Heartbeats in the opts.
+		svc, ch, err := c.ServiceLogs(ctx, serviceName, logsOpts)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			return fmt.Errorf("stream logs for service '%s': %w", serviceName, err)
 		}
+		svcStreams = append(svcStreams, ch)
+
+		machineIDs := svc.MachineIDs()
+		machineIDsSet.Append(machineIDs...)
 	}
 
-	return nil
-}
+	var stream <-chan api.ServiceLogEntry
+	if len(serviceNames) == 1 {
+		stream = svcStreams[0]
+	} else {
+		// Merge all service streams into a single sorted stream.
+		merger := client.NewLogMerger(svcStreams, client.DefaultLogMergerOptions)
+		stream = merger.Stream()
+	}
 
-func streamMachineLogs(ctx context.Context, client *client.Client, machine string, containers []api.MachineServiceContainer, serviceName string, opts logsOptions, logChan chan<- logEntry) error {
-	// Get machine info to proxy requests
-	machineInfo, err := client.InspectMachine(ctx, machine)
+	// Fetch machine names for all machines (machineIDsSet) service containers are running on.
+	machines, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: machineIDsSet.ToSlice()})
 	if err != nil {
-		return fmt.Errorf("inspect machine %s: %w", machine, err)
+		return fmt.Errorf("list machines: %w", err)
+	}
+	machineNames := make([]string, 0, len(machines))
+	for _, m := range machines {
+		machineNames = append(machineNames, m.Machine.Name)
 	}
 
-	// Create context that proxies to this specific machine
-	machineCtx := proxyToMachine(ctx, machineInfo.Machine)
+	formatter := newLogFormatter(machineNames, serviceNames)
 
-	// Stream logs from each container
-	var wg sync.WaitGroup
-	for _, container := range containers {
-		wg.Add(1)
-		go func(container api.MachineServiceContainer) {
-			defer wg.Done()
-			if err := streamContainerLogs(machineCtx, client, machineInfo.Machine.Id, machineInfo.Machine.Name,
-				container, serviceName, opts, logChan); err != nil {
-				// Log error but don't fail the whole operation
-				fmt.Fprintf(os.Stderr, "Warning: failed to stream logs for container %s: %v\n", container.Container.ID,
-					err)
-			}
-		}(container)
-	}
-	wg.Wait()
-	return nil
-}
-
-func streamContainerLogs(ctx context.Context, client *client.Client, machineID string, machineName string, container api.MachineServiceContainer, serviceName string, opts logsOptions, logChan chan<- logEntry) error {
-	dockerOpts := docker.ContainerLogsOptions{
-		Follow:     opts.follow,
-		Tail:       opts.tail,
-		Timestamps: true,
-		Since:      opts.since,
-		Until:      opts.until,
-	}
-
-	// Get container logs channel from Docker
-	logsChan, err := client.Docker.ContainerLogs(ctx, container.Container.ID, dockerOpts)
-	if err != nil {
-		return fmt.Errorf("get container logs: %w", err)
-	}
-
-	// Read from Docker logs channel and forward to our channel
-	for entry := range logsChan {
-		stream := "stdout"
-		if entry.StreamType == 2 {
-			stream = "stderr"
+	// Print merged logs.
+	for entry := range stream {
+		if entry.Err != nil {
+			formatter.printError(entry)
+			continue
 		}
-
-		// Parse timestamp if provided
-		var timestamp time.Time
-		if entry.Timestamp != "" {
-			timestamp, _ = time.Parse(time.RFC3339Nano, entry.Timestamp)
-		} else {
-			timestamp = time.Now()
-		}
-
-		logChan <- logEntry{
-			timestamp:   timestamp,
-			machineID:   machineID,
-			machineName: machineName,
-			serviceName: serviceName,
-			replica:     container.Container.Name,
-			stream:      stream,
-			message:     entry.Message,
-		}
+		formatter.printEntry(entry)
 	}
 
 	return nil
 }
 
-// proxyToMachine returns a new context that proxies gRPC requests to the specified machine.
-func proxyToMachine(ctx context.Context, machine *pb.MachineInfo) context.Context {
-	machineIP, _ := machine.Network.ManagementIp.ToAddr()
-	md := metadata.Pairs("machines", machineIP.String())
-	return metadata.NewOutgoingContext(ctx, md)
+// Available colors for machine/service differentiation.
+var colorPalette = []lipgloss.Color{
+	lipgloss.Color("10"), // Bright green
+	lipgloss.Color("11"), // Bright yellow
+	lipgloss.Color("12"), // Bright blue
+	lipgloss.Color("13"), // Bright magenta
+	lipgloss.Color("14"), // Bright cyan
+	lipgloss.Color("2"),  // Green
+	lipgloss.Color("3"),  // Yellow
+	lipgloss.Color("4"),  // Blue
+	lipgloss.Color("5"),  // Magenta
+	lipgloss.Color("6"),  // Cyan
 }
 
-// getMachineColor returns a consistent color for a given machine ID
-func getMachineColor(machineID string) *color.Color {
-	h := fnv.New32a()
-	h.Write([]byte(machineID))
-	hash := h.Sum32()
+// logFormatter handles formatting and printing of log entries with dynamic column alignment.
+type logFormatter struct {
+	machineNames []string
+	serviceNames []string
 
-	colors := []*color.Color{
-		color.New(color.FgCyan),
-		color.New(color.FgGreen),
-		color.New(color.FgYellow),
-		color.New(color.FgBlue),
-		color.New(color.FgMagenta),
-		color.New(color.FgRed),
-		color.New(color.FgHiCyan),
-		color.New(color.FgHiGreen),
-		color.New(color.FgHiYellow),
-		color.New(color.FgHiBlue),
-		color.New(color.FgHiMagenta),
-		color.New(color.FgHiRed),
+	maxMachineWidth int
+	maxServiceWidth int
+}
+
+func newLogFormatter(machineNames, serviceNames []string) *logFormatter {
+	slices.Sort(machineNames)
+	slices.Sort(serviceNames)
+
+	maxMachineWidth := 0
+	for _, name := range machineNames {
+		if len(name) > maxMachineWidth {
+			maxMachineWidth = len(name)
+		}
 	}
-	colorIndex := hash % uint32(len(colors))
-	return colors[colorIndex]
+
+	maxServiceWidth := 0
+	for _, name := range serviceNames {
+		if len(name) > maxServiceWidth {
+			maxServiceWidth = len(name)
+		}
+	}
+
+	return &logFormatter{
+		machineNames:    machineNames,
+		serviceNames:    serviceNames,
+		maxMachineWidth: maxMachineWidth,
+		maxServiceWidth: maxServiceWidth,
+	}
 }
 
-func printLogEntry(entry logEntry, showTimestamp bool) {
+// formatTimestamp formats timestamp using local timezone.
+func (f *logFormatter) formatTimestamp(t time.Time) string {
+	dimStyle := lipgloss.NewStyle().Faint(true)
+	t = t.In(time.Local)
+	return dimStyle.Render(t.Format(time.StampMilli))
+}
+
+func (f *logFormatter) formatMachine(name string) string {
+	style := lipgloss.NewStyle().Bold(true).PaddingRight(f.maxMachineWidth - len(name))
+
+	if len(f.serviceNames) == 1 {
+		// Machine name is coloured for single-service logs.
+		i := slices.Index(f.machineNames, name)
+		if i == -1 {
+			f.machineNames = append(f.machineNames, name)
+			i = len(f.machineNames) - 1
+		}
+
+		style = style.Foreground(colorPalette[i%len(colorPalette)])
+	}
+
+	return style.Render(name)
+}
+
+func (f *logFormatter) formatServiceContainer(serviceName, containerID string) string {
+	styleService := lipgloss.NewStyle().Bold(true).PaddingRight(f.maxServiceWidth - len(serviceName))
+	styleContainer := lipgloss.NewStyle().Faint(true)
+
+	if len(f.serviceNames) > 1 {
+		// Service name is coloured for multi-service logs.
+		i := slices.Index(f.serviceNames, serviceName)
+		if i == -1 {
+			f.serviceNames = append(f.serviceNames, serviceName)
+			i = len(f.serviceNames) - 1
+		}
+
+		styleService = styleService.Foreground(colorPalette[i%len(colorPalette)])
+	}
+
+	return styleService.Render(serviceName) + styleContainer.Render("["+containerID[:5]+"]")
+}
+
+// printEntry prints a single log entry with proper formatting.
+func (f *logFormatter) printEntry(entry api.ServiceLogEntry) {
 	var output strings.Builder
 
-	if showTimestamp {
-		output.WriteString(entry.timestamp.Format(time.Stamp))
-		output.WriteString(" ")
-	}
-
-	// Get color for machine ID
-	machineColor := getMachineColor(entry.machineID)
-
-	// Format colored prefix: [machineName (machineID)/serviceName]
-	prefix := fmt.Sprintf("[%s/%s]", entry.machineName, entry.replica)
-	coloredPrefix := machineColor.Sprint(prefix)
-
-	// Build final output
-	output.WriteString(coloredPrefix)
+	// Timestamp
+	output.WriteString(f.formatTimestamp(entry.Timestamp))
 	output.WriteString(" ")
-	output.WriteString(entry.message)
 
-	// Print to appropriate stream
-	if entry.stream == "stderr" {
-		fmt.Fprintln(os.Stderr, output.String())
+	// Machine name
+	output.WriteString(f.formatMachine(entry.Metadata.MachineName))
+	output.WriteString(" ")
+
+	// Service[container_id]
+	output.WriteString(f.formatServiceContainer(entry.Metadata.ServiceName, entry.Metadata.ContainerID))
+	output.WriteString(" ")
+
+	// Message
+	output.Write(entry.Message)
+
+	// Print to appropriate stream.
+	if entry.Stream == api.LogStreamStderr {
+		fmt.Fprint(os.Stderr, output.String())
 	} else {
-		fmt.Println(output.String())
+		fmt.Print(output.String())
+	}
+}
+
+// printError prints an error entry (e.g., stalled stream warning).
+func (f *logFormatter) printError(entry api.ServiceLogEntry) {
+	if entry.Metadata.ContainerID != "" {
+		msg := fmt.Sprintf("WARNING: log stream from %s[%s] on machine '%s'",
+			entry.Metadata.ServiceName,
+			stringid.TruncateID(entry.Metadata.ContainerID),
+			entry.Metadata.MachineName)
+
+		if errors.Is(entry.Err, api.ErrLogStreamStalled) {
+			msg += " stopped responding"
+		} else {
+			msg += fmt.Sprintf(": %v", entry.Err)
+		}
+
+		style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11")) // Bold bright yellow
+		fmt.Fprintln(os.Stderr, style.Render(msg))
+	} else {
+		msg := fmt.Sprintf("ERROR: %v", entry.Err)
+		style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9")) // Bold bright red
+		fmt.Fprintln(os.Stderr, style.Render(msg))
 	}
 }
