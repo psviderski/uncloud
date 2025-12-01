@@ -32,7 +32,7 @@ func testErrorEntry(err error) api.ServiceLogEntry {
 func TestLogMerger_EmptyStreams(t *testing.T) {
 	t.Parallel()
 
-	merger := NewLogMerger(nil, 0, 0)
+	merger := NewLogMerger(nil, LogMergerOptions{})
 	output := merger.Stream()
 
 	// Output channel should be closed immediately.
@@ -44,7 +44,7 @@ func TestLogMerger_SingleStream(t *testing.T) {
 	t.Parallel()
 
 	ch := make(chan api.ServiceLogEntry, 10)
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
 	output := merger.Stream()
 
 	t1 := time.Now()
@@ -72,7 +72,7 @@ func TestLogMerger_BasicMerge(t *testing.T) {
 	ch1 := make(chan api.ServiceLogEntry, 10)
 	ch2 := make(chan api.ServiceLogEntry, 10)
 
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{})
 	output := merger.Stream()
 
 	t1 := time.Now()
@@ -113,7 +113,7 @@ func TestLogMerger_HeartbeatAdvancesWatermark(t *testing.T) {
 	ch1 := make(chan api.ServiceLogEntry, 10)
 	ch2 := make(chan api.ServiceLogEntry, 10)
 
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{})
 	output := merger.Stream()
 
 	t1 := time.Now()
@@ -147,7 +147,7 @@ func TestLogMerger_StreamClosureFlushesEntries(t *testing.T) {
 	ch1 := make(chan api.ServiceLogEntry, 10)
 	ch2 := make(chan api.ServiceLogEntry, 10)
 
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{})
 	output := merger.Stream()
 
 	t1 := time.Now()
@@ -175,7 +175,7 @@ func TestLogMerger_ErrorForwarding(t *testing.T) {
 	t.Parallel()
 
 	ch := make(chan api.ServiceLogEntry, 10)
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
 	output := merger.Stream()
 
 	// Send an error entry.
@@ -197,7 +197,7 @@ func TestLogMerger_LateEntryBuffered(t *testing.T) {
 	ch1 := make(chan api.ServiceLogEntry, 10)
 	ch2 := make(chan api.ServiceLogEntry, 10)
 
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{})
 	output := merger.Stream()
 
 	t1 := time.Now()
@@ -236,7 +236,7 @@ func TestLogMerger_OutOfOrderWithinStream(t *testing.T) {
 	t.Parallel()
 
 	ch := make(chan api.ServiceLogEntry, 10)
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
 	output := merger.Stream()
 
 	t1 := time.Now()
@@ -267,7 +267,7 @@ func TestLogMerger_PreservesMetadata(t *testing.T) {
 	t.Parallel()
 
 	ch := make(chan api.ServiceLogEntry, 10)
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
 	output := merger.Stream()
 
 	metadata := api.ServiceLogEntryMetadata{
@@ -307,7 +307,7 @@ func TestLogMerger_UnevenStreams(t *testing.T) {
 	ch1 := make(chan api.ServiceLogEntry, numFastEntries+5)
 	ch2 := make(chan api.ServiceLogEntry, 10)
 
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, 0, 0)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{})
 	output := merger.Stream()
 
 	baseTime := time.Now()
@@ -371,8 +371,10 @@ func TestLogMerger_StalledStreamExcludedFromWatermark(t *testing.T) {
 	ch2 := make(chan api.ServiceLogEntry, 10)
 
 	stallTimeout := 100 * time.Millisecond
-	stallCheckInterval := 20 * time.Millisecond
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, stallTimeout, stallCheckInterval)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{
+		StallTimeout:       stallTimeout,
+		StallCheckInterval: 20 * time.Millisecond,
+	})
 	output := merger.Stream()
 
 	t0 := time.Now()

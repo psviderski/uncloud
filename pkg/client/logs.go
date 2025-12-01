@@ -4,19 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
-)
-
-const (
-	// logStreamStallTimeout is the duration after which a log stream is considered stalled if no data is received.
-	// A stalled stream is excluded from waiting upon to prevent blocking log emission from active streams.
-	logStreamStallTimeout = 10 * time.Second
-	// logStreamStallCheckInterval is how often to check for stalled log streams.
-	logStreamStallCheckInterval = 1 * time.Second
 )
 
 // ServiceLogs streams log entries from all service containers in chronological order based on timestamps.
@@ -41,7 +32,7 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("list machines: %w", err)
 	}
 
-	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(svc.Containers))
+	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(svc.Containers))
 	for _, ctr := range svc.Containers {
 		// Try to get machine name for ServiceLogEntry metadata and friendlier error message.
 		machineName := ctr.MachineID
@@ -65,11 +56,11 @@ func (cli *Client) ServiceLogs(
 			MachineName: machineName,
 		}
 		enrichedStream := logsStreamWithServiceMetadata(stream, metadata)
-		svcStreams = append(svcStreams, enrichedStream)
+		ctrStreams = append(ctrStreams, enrichedStream)
 	}
 
 	// Use the log merger to combine streams from all containers in chronological order.
-	merger := NewLogMerger(svcStreams, logStreamStallTimeout, logStreamStallCheckInterval)
+	merger := NewLogMerger(ctrStreams, DefaultLogMergerOptions)
 	mergedStream := merger.Stream()
 
 	return svc, mergedStream, nil

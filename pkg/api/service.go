@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/distribution/reference"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -364,6 +365,16 @@ type Service struct {
 type MachineServiceContainer struct {
 	MachineID string
 	Container ServiceContainer
+}
+
+// MachineIDs returns a list of unique machine IDs where the service containers are running.
+func (s *Service) MachineIDs() []string {
+	ids := mapset.NewSet[string]()
+	for _, mc := range s.Containers {
+		ids.Add(mc.MachineID)
+	}
+
+	return ids.ToSlice()
 }
 
 // Images returns a sorted list of unique images used by the service containers.

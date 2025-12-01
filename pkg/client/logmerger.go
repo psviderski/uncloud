@@ -13,6 +13,21 @@ import (
 // buffering while waiting for slower streams.
 const maxInFlightPerStream = 100
 
+// LogMergerOptions configures the behavior of LogMerger.
+type LogMergerOptions struct {
+	// StallTimeout specifies how long a stream can go without receiving any data before it's considered
+	// stalled and excluded from watermark calculation. A zero timeout disables stall detection.
+	StallTimeout time.Duration
+	// StallCheckInterval specifies how often to check for stalled streams.
+	StallCheckInterval time.Duration
+}
+
+// DefaultLogMergerOptions provides sensible default options for LogMerger.
+var DefaultLogMergerOptions = LogMergerOptions{
+	StallTimeout:       10 * time.Second,
+	StallCheckInterval: 1 * time.Second,
+}
+
 // LogMerger merges multiple log streams into a single chronologically ordered stream based on timestamps.
 // It uses a low watermark algorithm to ensure proper ordering across streams.
 // Heartbeat entries from streams advance the watermark to enable timely emission of buffered logs.
@@ -25,11 +40,8 @@ type LogMerger struct {
 	stallCheckInterval time.Duration
 }
 
-// NewLogMerger creates a new LogMerger for the given input streams. The stallTimeout parameter specifies
-// how long a stream can go without receiving any data before it's considered stalled and excluded from
-// watermark calculation. The stallCheckInterval specifies how often to check for stalled streams.
-// A zero timeout disables stall detection.
-func NewLogMerger(streams []<-chan api.ServiceLogEntry, stallTimeout, stallCheckInterval time.Duration) *LogMerger {
+// NewLogMerger creates a new LogMerger for the given input streams with the specified options.
+func NewLogMerger(streams []<-chan api.ServiceLogEntry, opts LogMergerOptions) *LogMerger {
 	mergerStreams := make([]*mergerStream, len(streams))
 	now := time.Now()
 	for i, ch := range streams {
@@ -43,8 +55,8 @@ func NewLogMerger(streams []<-chan api.ServiceLogEntry, stallTimeout, stallCheck
 	return &LogMerger{
 		streams:            mergerStreams,
 		output:             make(chan api.ServiceLogEntry),
-		stallTimeout:       stallTimeout,
-		stallCheckInterval: stallCheckInterval,
+		stallTimeout:       opts.StallTimeout,
+		stallCheckInterval: opts.StallCheckInterval,
 	}
 }
 

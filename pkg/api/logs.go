@@ -56,6 +56,7 @@ type ServiceLogsOptions struct {
 
 // ServiceLogEntry represents a single log entry from a service container.
 type ServiceLogEntry struct {
+	// Metadata may not be set if an error occurred (Err is not nil).
 	Metadata ServiceLogEntryMetadata
 	ContainerLogEntry
 }
@@ -75,7 +76,7 @@ type ContainerLogEntry struct {
 	Timestamp time.Time
 	Message   []byte
 	// Err indicates that an error occurred while streaming logs from a container.
-	// Other non-Metadata fields are not set if Err is not nil.
+	// Other fields are not set if Err is not nil.
 	Err error
 }
 
