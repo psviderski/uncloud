@@ -2,7 +2,9 @@ package wg
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/docker/go-units"
@@ -28,7 +30,7 @@ func newShowCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
-			client, err := uncli.ConnectCluster(cmd.Context(), "")
+			client, err := uncli.ConnectCluster(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("connection failed: %w", err)
 			}
@@ -41,37 +43,41 @@ func newShowCommand() *cobra.Command {
 
 			// Fetch the machine's name for more descriptive output
 			inspectResp, err := client.Inspect(cmd.Context(), nil)
-			if err != nil {
-				fmt.Println("Showing WireGuard configuration:")
-			} else {
-				fmt.Printf("Showing WireGuard configuration for machine: %s\n", inspectResp.Name)
+			if err == nil {
+				fmt.Printf("Machine Name:         %s\n", inspectResp.Name)
 			}
-			fmt.Println("---")
 
-			fmt.Printf("interface: %s\n", resp.Name)
-			fmt.Printf("  public key: %s\n", resp.PublicKey)
-			fmt.Printf("  listen port: %d\n", resp.ListenPort)
+			fmt.Printf("WireGuard interface:  %s\n", resp.Name)
+			fmt.Printf("WireGuard public key: %s\n", resp.PublicKey)
+			fmt.Printf("WireGuard port:       %d\n", resp.ListenPort)
 			fmt.Println()
 
-			for _, peer := range resp.Peers {
-				fmt.Printf("peer: %s\n", peer.PublicKey)
-				if peer.Endpoint != "" {
-					fmt.Printf("  endpoint: %s\n", peer.Endpoint)
-				}
-				if peer.LastHandshakeTime != nil {
-					lastHandshake := peer.LastHandshakeTime.AsTime()
-					fmt.Printf("  latest handshake: %s ago\n", time.Since(lastHandshake).Round(time.Second))
-				}
-				fmt.Printf("  transfer: %s received, %s sent\n",
-					units.HumanSize(float64(peer.ReceiveBytes)),
-					units.HumanSize(float64(peer.TransmitBytes)))
-				if len(peer.AllowedIps) > 0 {
-					fmt.Printf("  allowed ips: %s\n", strings.Join(peer.AllowedIps, ", "))
-				}
-				fmt.Println()
+			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+			if _, err = fmt.Fprintln(tw, "PEER\tENDPOINT\tLAST HANDSHAKE\tRECEIVED\tSENT\tALLOWED IPS"); err != nil {
+				return fmt.Errorf("write header: %w", err)
 			}
 
-			return nil
+			for _, peer := range resp.Peers {
+				lastHandshake := ""
+				if peer.LastHandshakeTime != nil {
+					lastHandshake = time.Since(peer.LastHandshakeTime.AsTime()).Round(time.Second).String() + " ago"
+				}
+
+				_, err = fmt.Fprintf(
+					tw,
+					"%s\t%s\t%s\t%s\t%s\t%s\n",
+					peer.PublicKey,
+					peer.Endpoint,
+					lastHandshake,
+					units.HumanSize(float64(peer.ReceiveBytes)),
+					units.HumanSize(float64(peer.TransmitBytes)),
+					strings.Join(peer.AllowedIps, ", "),
+				)
+				if err != nil {
+					return fmt.Errorf("write row: %w", err)
+				}
+			}
+			return tw.Flush()
 		},
 	}
 	return cmd
