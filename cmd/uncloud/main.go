@@ -58,11 +58,12 @@ func main() {
 					conn = &config.MachineConnection{
 						SSHCLI: config.SSHDestination(dest),
 					}
-				} else {
-					dest := opts.connect
-					if strings.HasPrefix(dest, "ssh://") {
-						dest = dest[len("ssh://"):]
+				} else if strings.HasPrefix(opts.connect, "unix://") {
+					conn = &config.MachineConnection{
+						Unix: opts.connect[len("unix://"):],
 					}
+				} else {
+					dest := strings.TrimPrefix(opts.connect, "ssh://")
 					conn = &config.MachineConnection{
 						SSH: config.SSHDestination(dest),
 					}
@@ -81,7 +82,7 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&opts.connect, "connect", "",
 		"Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]\n"+
-			"Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port")
+			"Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock")
 	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"Path to the Uncloud configuration file. [$UNCLOUD_CONFIG]")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
@@ -111,6 +112,7 @@ func main() {
 		NewDeployCommand(),
 		NewDocsCommand(),
 		NewImagesCommand(),
+		NewPsCommand(),
 		caddy.NewRootCommand(),
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
