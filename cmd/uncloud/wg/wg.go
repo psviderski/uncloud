@@ -1,6 +1,7 @@
 package wg
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -29,16 +30,27 @@ func newShowCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			ctx := cmd.Context()
 
-			client, err := uncli.ConnectCluster(cmd.Context())
+			client, err := uncli.ConnectCluster(ctx)
 			if err != nil {
 				return fmt.Errorf("connection failed: %w", err)
 			}
 			defer client.Close()
 
-			resp, err := client.MachineClient.GetWireGuardDevice(cmd.Context(), nil)
+			resp, err := client.MachineClient.GetWireGuardDevice(ctx, nil)
 			if err != nil {
 				return err
+			}
+
+			machines, err := client.ListMachines(ctx, nil)
+			if err != nil {
+				return fmt.Errorf("list machines: %w", err)
+			}
+			machinesNamesByPublicKey := make(map[string]string)
+			for _, m := range machines {
+				publicKey := base64.StdEncoding.EncodeToString(m.Machine.Network.PublicKey)
+				machinesNamesByPublicKey[publicKey] = m.Machine.Name
 			}
 
 			// Fetch the machine's name for more descriptive output
@@ -53,11 +65,16 @@ func newShowCommand() *cobra.Command {
 			fmt.Println()
 
 			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-			if _, err = fmt.Fprintln(tw, "PEER\tENDPOINT\tLAST HANDSHAKE\tRECEIVED\tSENT\tALLOWED IPS"); err != nil {
+			if _, err = fmt.Fprintln(tw, "MACHINE\tPUBLIC KEY\tENDPOINT\tHANDSHAKE\tRECEIVED\tSENT\tALLOWED IPS"); err != nil {
 				return fmt.Errorf("write header: %w", err)
 			}
 
 			for _, peer := range resp.Peers {
+				machineName, ok := machinesNamesByPublicKey[peer.PublicKey]
+				if !ok {
+					machineName = "(unknown)"
+				}
+
 				lastHandshake := ""
 				if peer.LastHandshakeTime != nil {
 					lastHandshake = time.Since(peer.LastHandshakeTime.AsTime()).Round(time.Second).String() + " ago"
@@ -65,7 +82,8 @@ func newShowCommand() *cobra.Command {
 
 				_, err = fmt.Fprintf(
 					tw,
-					"%s\t%s\t%s\t%s\t%s\t%s\n",
+					"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					machineName,
 					peer.PublicKey,
 					peer.Endpoint,
 					lastHandshake,
