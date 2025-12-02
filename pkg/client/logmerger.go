@@ -8,10 +8,15 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
-// maxInFlightPerStream limits how many entries each input stream can have in the processing queue before being
+// logMergerMaxInFlightPerStream limits how many entries each input stream can have in the processing queue before being
 // throttled. This ensures fair interleaving between streams and prevents one fast stream from causing unbounded
 // buffering while waiting for slower streams.
-const maxInFlightPerStream = 100
+const (
+	logMergerMaxInFlightPerStream = 100
+	// logMergerHeartbeatDebounceInterval defines the minimum interval between deduplicated heartbeat entries emitted
+	// by the LogMerger. Keep it in sync with logsHeartbeatInterval internal/machine/docker/server.go.
+	logMergerHeartbeatDebounceInterval = 200 * time.Millisecond
+)
 
 // LogMergerOptions configures the behavior of LogMerger.
 type LogMergerOptions struct {
@@ -22,7 +27,7 @@ type LogMergerOptions struct {
 	StallCheckInterval time.Duration
 }
 
-// DefaultLogMergerOptions provides sensible default options for LogMerger.
+// DefaultLogMergerOptions provides sensible default options that enable stall detection for LogMerger.
 var DefaultLogMergerOptions = LogMergerOptions{
 	StallTimeout:       10 * time.Second,
 	StallCheckInterval: 1 * time.Second,
@@ -32,10 +37,13 @@ var DefaultLogMergerOptions = LogMergerOptions{
 // It uses a low watermark algorithm to ensure proper ordering across streams.
 // Heartbeat entries from streams advance the watermark to enable timely emission of buffered logs.
 type LogMerger struct {
-	streams            []*mergerStream
-	queue              logsHeap
-	watermark          time.Time
-	output             chan api.ServiceLogEntry
+	streams []*mergerStream
+	queue   logsHeap
+	// watermark is min(latest_timestamp for each stream).
+	watermark time.Time
+	output    chan api.ServiceLogEntry
+	// lastEmitted is the timestamp of the last emitted log entry or heartbeat.
+	lastEmitted        time.Time
 	stallTimeout       time.Duration
 	stallCheckInterval time.Duration
 }
@@ -47,7 +55,7 @@ func NewLogMerger(streams []<-chan api.ServiceLogEntry, opts LogMergerOptions) *
 	for i, ch := range streams {
 		mergerStreams[i] = &mergerStream{
 			stream:       ch,
-			semaphore:    make(chan struct{}, maxInFlightPerStream),
+			semaphore:    make(chan struct{}, logMergerMaxInFlightPerStream),
 			lastActivity: now,
 		}
 	}
@@ -179,13 +187,24 @@ func (m *LogMerger) run() {
 			}
 			if e.entry.Stream == api.LogStreamStdout || e.entry.Stream == api.LogStreamStderr {
 				heap.Push(&m.queue, queuedEntry{entry: e.entry, semaphore: e.stream.semaphore})
-			} else if e.entry.Stream == api.LogStreamHeartbeat {
-				// Release semaphore immediately for the heartbeat entry.
-				<-e.stream.semaphore
 			}
 
 			m.updateWatermark()
 			m.emitReadyEntries()
+
+			// When merging streams, each input emits its own heartbeats. We want to debounce them and emit our own
+			// heartbeats at the same rate as a single input stream. Note that we need to adjust the heartbeat timestamp
+			// to the current watermark to not violate ordering guarantees.
+			if e.entry.Stream == api.LogStreamHeartbeat {
+				if m.watermark.Sub(m.lastEmitted) >= logMergerHeartbeatDebounceInterval {
+					heartbeat := e.entry
+					heartbeat.Timestamp = m.watermark
+					m.output <- heartbeat
+					m.lastEmitted = m.watermark
+				}
+				// Heartbeat processed, release semaphore.
+				<-e.stream.semaphore
+			}
 
 		case <-stallCh:
 			stalled := m.checkStalledStreams()
@@ -232,7 +251,7 @@ func (m *LogMerger) checkStalledStreams() []*mergerStream {
 	return stalled
 }
 
-// updateWatermark recalculates the watermark based on the lastSeen timestamps of all active streams.
+// updateWatermark recalculates the low watermark based on the lastSeen timestamps of all active streams.
 func (m *LogMerger) updateWatermark() {
 	first := true
 
@@ -255,9 +274,10 @@ func (m *LogMerger) emitReadyEntries() {
 		return
 	}
 
-	for m.queue.Len() > 0 && m.queue[0].entry.Timestamp.Before(m.watermark) {
+	for m.queue.Len() > 0 && m.queue[0].entry.Timestamp.Compare(m.watermark) <= 0 {
 		qe := heap.Pop(&m.queue).(queuedEntry)
 		m.output <- qe.entry
+		m.lastEmitted = qe.entry.Timestamp
 		<-qe.semaphore
 	}
 }

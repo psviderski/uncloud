@@ -20,13 +20,24 @@ func testEntry(stream api.LogStreamType, ts time.Time, msg string) api.ServiceLo
 	}
 }
 
-// testErrorEntry creates an error ServiceLogEntry for testing.
-func testErrorEntry(err error) api.ServiceLogEntry {
-	return api.ServiceLogEntry{
-		ContainerLogEntry: api.ContainerLogEntry{
-			Err: err,
-		},
+// collectEntries collects up to maxCount entries from the channel or until it is closed.
+func collectEntries(t *testing.T, ch <-chan api.ServiceLogEntry, maxCount int) []api.ServiceLogEntry {
+	t.Helper()
+	var entries []api.ServiceLogEntry
+
+	for i := 0; i < maxCount || maxCount <= 0; i++ {
+		select {
+		case e, ok := <-ch:
+			if !ok {
+				return entries
+			}
+			entries = append(entries, e)
+		case <-time.After(1 * time.Second):
+			require.FailNow(t, "timed out waiting for log entry")
+		}
 	}
+
+	return entries
 }
 
 func TestLogMerger_EmptyStreams(t *testing.T) {
@@ -35,7 +46,6 @@ func TestLogMerger_EmptyStreams(t *testing.T) {
 	merger := NewLogMerger(nil, LogMergerOptions{})
 	output := merger.Stream()
 
-	// Output channel should be closed immediately.
 	_, ok := <-output
 	assert.False(t, ok, "output channel should be closed for empty streams")
 }
@@ -50,20 +60,49 @@ func TestLogMerger_SingleStream(t *testing.T) {
 	t1 := time.Now()
 	t2 := t1.Add(time.Second)
 
-	// Send entries.
 	ch <- testEntry(api.LogStreamStdout, t1, "first")
 	ch <- testEntry(api.LogStreamStdout, t2, "second")
-	close(ch)
 
-	// Collect results.
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
+	results := collectEntries(t, output, 2)
 
 	require.Len(t, results, 2)
 	assert.Equal(t, "first", string(results[0].Message))
 	assert.Equal(t, "second", string(results[1].Message))
+
+	close(ch)
+
+	results = collectEntries(t, output, 0)
+	assert.Len(t, results, 0, "no entries expected after close")
+}
+
+func TestLogMerger_PreservesData(t *testing.T) {
+	t.Parallel()
+
+	ch := make(chan api.ServiceLogEntry, 10)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
+	output := merger.Stream()
+
+	metadata := api.ServiceLogEntryMetadata{
+		ServiceID:   "svc-123",
+		ServiceName: "my-service",
+		MachineID:   "machine-456",
+		MachineName: "machine-1",
+	}
+
+	e := api.ServiceLogEntry{
+		Metadata: metadata,
+		ContainerLogEntry: api.ContainerLogEntry{
+			Stream:    api.LogStreamStdout,
+			Timestamp: time.Now(),
+			Message:   []byte("test"),
+		},
+	}
+	ch <- e
+	close(ch)
+
+	results := collectEntries(t, output, 0)
+	require.Len(t, results, 1)
+	assert.Equal(t, e, results[0])
 }
 
 func TestLogMerger_BasicMerge(t *testing.T) {
@@ -91,20 +130,20 @@ func TestLogMerger_BasicMerge(t *testing.T) {
 	ch1 <- testEntry(api.LogStreamHeartbeat, t5, "")
 	ch2 <- testEntry(api.LogStreamHeartbeat, t5, "")
 
-	close(ch1)
-	close(ch2)
-
-	// Collect results.
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
-
+	results := collectEntries(t, output, 4)
 	require.Len(t, results, 4)
 	assert.Equal(t, "ch1-first", string(results[0].Message))
 	assert.Equal(t, "ch2-first", string(results[1].Message))
 	assert.Equal(t, "ch1-second", string(results[2].Message))
 	assert.Equal(t, "ch2-second", string(results[3].Message))
+
+	close(ch1)
+	close(ch2)
+
+	results = collectEntries(t, output, 0)
+	assert.Len(t, results, 1, "one debounced heartbeat expected after close")
+	assert.Equal(t, api.LogStreamHeartbeat, results[0].Stream)
+	assert.Equal(t, t5, results[0].Timestamp)
 }
 
 func TestLogMerger_HeartbeatAdvancesWatermark(t *testing.T) {
@@ -118,121 +157,66 @@ func TestLogMerger_HeartbeatAdvancesWatermark(t *testing.T) {
 
 	t1 := time.Now()
 	t2 := t1.Add(time.Second)
+	t3 := t1.Add(2 * time.Second)
 
 	// Stream 1 sends a log entry.
-	ch1 <- testEntry(api.LogStreamStdout, t1, "from-ch1")
-
+	ch1 <- testEntry(api.LogStreamStdout, t1, "ch1-first")
+	ch1 <- testEntry(api.LogStreamStdout, t3, "ch1-second")
 	// Stream 2 is quiet but sends a heartbeat.
 	ch2 <- testEntry(api.LogStreamHeartbeat, t2, "")
 
 	// Now stream 1's entry should be emitted because watermark is t1 (min of t1, t2).
-	// We need to advance stream 1's watermark too.
-	ch1 <- testEntry(api.LogStreamHeartbeat, t2, "")
-
-	close(ch1)
-	close(ch2)
-
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
-
+	results := collectEntries(t, output, 1)
 	require.Len(t, results, 1)
-	assert.Equal(t, "from-ch1", string(results[0].Message))
-}
+	assert.Equal(t, "ch1-first", string(results[0].Message))
 
-func TestLogMerger_StreamClosureFlushesEntries(t *testing.T) {
-	t.Parallel()
-
-	ch1 := make(chan api.ServiceLogEntry, 10)
-	ch2 := make(chan api.ServiceLogEntry, 10)
-
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{})
-	output := merger.Stream()
-
-	t1 := time.Now()
-	t2 := t1.Add(time.Second)
-
-	// Both streams send entries.
-	ch1 <- testEntry(api.LogStreamStdout, t1, "ch1-entry")
-	ch2 <- testEntry(api.LogStreamStdout, t2, "ch2-entry")
-
-	// Close both streams without heartbeats - entries should still be flushed.
 	close(ch1)
 	close(ch2)
 
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
+	results = collectEntries(t, output, 0)
+	require.NotEmpty(t, results)
 
-	require.Len(t, results, 2)
-	assert.Equal(t, "ch1-entry", string(results[0].Message))
-	assert.Equal(t, "ch2-entry", string(results[1].Message))
+	// Depending on timing, we may get a heartbeat before the second log entry.
+	require.LessOrEqual(t, len(results), 2, "one or two entries expected after close")
+	if len(results) == 2 {
+		assert.Equal(t, api.LogStreamHeartbeat, results[0].Stream)
+		assert.Equal(t, t2, results[0].Timestamp)
+		results = results[1:]
+	}
+	assert.Equal(t, "ch1-second", string(results[0].Message))
 }
 
 func TestLogMerger_ErrorForwarding(t *testing.T) {
 	t.Parallel()
 
-	ch := make(chan api.ServiceLogEntry, 10)
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
-	output := merger.Stream()
-
-	// Send an error entry.
-	ch <- testErrorEntry(assert.AnError)
-
-	select {
-	case entry := <-output:
-		assert.Equal(t, assert.AnError, entry.Err)
-	case <-time.After(time.Second):
-		require.FailNow(t, "expected error to be emitted out of order")
-	}
-
-	close(ch)
-}
-
-func TestLogMerger_LateEntryBuffered(t *testing.T) {
-	t.Parallel()
-
 	ch1 := make(chan api.ServiceLogEntry, 10)
 	ch2 := make(chan api.ServiceLogEntry, 10)
-
 	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch1, ch2}, LogMergerOptions{})
 	output := merger.Stream()
 
 	t1 := time.Now()
-	t2 := t1.Add(time.Second)
-	t3 := t1.Add(2 * time.Second)
 
-	// Advance both streams.
-	ch1 <- testEntry(api.LogStreamStdout, t2, "ch1-t2")
-	ch2 <- testEntry(api.LogStreamStdout, t3, "ch2-t3")
+	ch1 <- testEntry(api.LogStreamStdout, t1, "ch1-first")
+	// Send an error entry.
+	ch1 <- api.ServiceLogEntry{
+		ContainerLogEntry: api.ContainerLogEntry{
+			Err: assert.AnError,
+		},
+	}
 
-	// Now send a late entry (t1 < watermark which is now t2).
-	ch1 <- testEntry(api.LogStreamStdout, t1, "late-entry")
-
-	// Advance watermark to flush buffered entries.
-	t4 := t1.Add(4 * time.Second)
-	ch1 <- testEntry(api.LogStreamHeartbeat, t4, "")
-	ch2 <- testEntry(api.LogStreamHeartbeat, t4, "")
+	results := collectEntries(t, output, 1)
+	require.Len(t, results, 1, "expected error to emitted out of order")
+	assert.Equal(t, assert.AnError, results[0].Err)
 
 	close(ch1)
 	close(ch2)
 
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
-
-	// All entries should be in results, sorted by timestamp.
-	require.Len(t, results, 3)
-	// Late entry is sorted to the front due to heap ordering.
-	assert.Equal(t, "late-entry", string(results[0].Message))
-	assert.Equal(t, "ch1-t2", string(results[1].Message))
-	assert.Equal(t, "ch2-t3", string(results[2].Message))
+	results = collectEntries(t, output, 0)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "ch1-first", string(results[0].Message))
 }
 
-func TestLogMerger_OutOfOrderWithinStream(t *testing.T) {
+func TestLogMerger_OutOfOrderSingleStream(t *testing.T) {
 	t.Parallel()
 
 	ch := make(chan api.ServiceLogEntry, 10)
@@ -249,59 +233,26 @@ func TestLogMerger_OutOfOrderWithinStream(t *testing.T) {
 	ch <- testEntry(api.LogStreamStdout, t2, "second")
 	ch <- testEntry(api.LogStreamStdout, t4, "forth")
 	ch <- testEntry(api.LogStreamStdout, t1, "first")
-	close(ch)
 
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
-
+	results := collectEntries(t, output, 4)
 	require.Len(t, results, 4)
-	assert.Equal(t, "second", string(results[0].Message))
-	assert.Equal(t, "third", string(results[1].Message))
-	assert.Equal(t, "first", string(results[2].Message))
-	assert.Equal(t, "forth", string(results[3].Message))
-}
+	// Emitted in the same order as sent since no buffering/reordering is done within a single stream.
+	assert.Equal(t, "third", string(results[0].Message))
+	assert.Equal(t, "second", string(results[1].Message))
+	assert.Equal(t, "forth", string(results[2].Message))
+	assert.Equal(t, "first", string(results[3].Message))
 
-func TestLogMerger_PreservesMetadata(t *testing.T) {
-	t.Parallel()
-
-	ch := make(chan api.ServiceLogEntry, 10)
-	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
-	output := merger.Stream()
-
-	metadata := api.ServiceLogEntryMetadata{
-		ServiceID:   "svc-123",
-		ServiceName: "my-service",
-		MachineID:   "machine-456",
-		MachineName: "node-1",
-	}
-
-	ch <- api.ServiceLogEntry{
-		ContainerLogEntry: api.ContainerLogEntry{
-			Timestamp: time.Now(),
-			Message:   []byte("test"),
-			Stream:    api.LogStreamStdout,
-		},
-		Metadata: metadata,
-	}
 	close(ch)
 
-	var results []api.ServiceLogEntry
-	for entry := range output {
-		results = append(results, entry)
-	}
-
-	require.Len(t, results, 1)
-	assert.Equal(t, metadata, results[0].Metadata)
-	assert.Equal(t, api.LogStreamStdout, results[0].Stream)
+	results = collectEntries(t, output, 0)
+	assert.Len(t, results, 0, "no entries expected after close")
 }
 
+// Test that entries from streams with different rates are merged correctly in chronological order.
 func TestLogMerger_UnevenStreams(t *testing.T) {
 	t.Parallel()
 
-	// Test that entries from streams with different rates are merged correctly in chronological order.
-	numFastEntries := maxInFlightPerStream
+	numFastEntries := logMergerMaxInFlightPerStream
 
 	// Use buffered channels to allow sends without blocking on receiver.
 	ch1 := make(chan api.ServiceLogEntry, numFastEntries+5)
@@ -324,19 +275,12 @@ func TestLogMerger_UnevenStreams(t *testing.T) {
 	// Send heartbeats to advance watermark past all entries so they get emitted.
 	finalTime := baseTime.Add(time.Second)
 	ch1 <- testEntry(api.LogStreamHeartbeat, finalTime, "")
-	ch2 <- testEntry(api.LogStreamHeartbeat, finalTime, "")
+	ch2 <- testEntry(api.LogStreamHeartbeat, finalTime.Add(10*time.Millisecond), "")
 
 	// Read exactly numFastEntries + 2 log entries.
 	expectedCount := numFastEntries + 2
-	var results []api.ServiceLogEntry
-	for i := 0; i < expectedCount; i++ {
-		select {
-		case entry := <-output:
-			results = append(results, entry)
-		case <-time.After(500 * time.Millisecond):
-			require.FailNow(t, "timed out waiting for entry %d", i+1)
-		}
-	}
+	results := collectEntries(t, output, expectedCount)
+	require.Len(t, results, expectedCount)
 
 	// Count entries from each stream.
 	fastCount := 0
@@ -359,9 +303,12 @@ func TestLogMerger_UnevenStreams(t *testing.T) {
 			i, results[i].Timestamp, i-1, results[i-1].Timestamp)
 	}
 
-	// Clean up.
 	close(ch1)
 	close(ch2)
+
+	results = collectEntries(t, output, 0)
+	require.Len(t, results, 1, "one debounced heartbeat expected after close")
+	assert.Equal(t, api.LogStreamHeartbeat, results[0].Stream)
 }
 
 func TestLogMerger_StalledStreamExcludedFromWatermark(t *testing.T) {
@@ -377,59 +324,60 @@ func TestLogMerger_StalledStreamExcludedFromWatermark(t *testing.T) {
 	})
 	output := merger.Stream()
 
-	t0 := time.Now()
-	t1 := t0.Add(time.Second)
-	t2 := t0.Add(2 * time.Second)
+	//// Collect all output entries in a separate goroutine.
+	//var results []api.ServiceLogEntry
+	//doneCollecting := make(chan struct{})
+	//go func() {
+	//	for entry := range output {
+	//		results = append(results, entry)
+	//	}
+	//	close(doneCollecting)
+	//}()
 
-	// Send ch2 entry FIRST - its lastActivity will be oldest.
-	ch2 <- testEntry(api.LogStreamStdout, t0, "ch2-entry")
+	t1 := time.Now()
+	t2 := t1.Add(time.Second)
+	t3 := t1.Add(2 * time.Second)
+	t4 := t1.Add(3 * time.Second)
 
-	// Wait so ch2's lastActivity becomes significantly older than ch1's.
+	e1 := testEntry(api.LogStreamStdout, t1, "ch1-entry")
+	e1.Metadata = api.ServiceLogEntryMetadata{
+		ServiceID:   "ch1-svc1",
+		ServiceName: "ch1-svcName",
+		ContainerID: "ch1-ctr1",
+		MachineID:   "ch1-machine1",
+		MachineName: "ch1-machineName",
+	}
+
+	ch1 <- e1
+	ch2 <- testEntry(api.LogStreamStdout, t2, "ch2-first")
+
+	// Watermark is t1 now so ch1's entry could be collected.
+	results := collectEntries(t, output, 1)
+	require.Len(t, results, 1)
+	assert.Equal(t, "ch1-entry", string(results[0].Message))
+
+	// Keep pushing to stream 2 so that it does not stall. But it can't emit anything because watermark is stuck at t1.
 	time.Sleep(stallTimeout / 2)
+	ch2 <- testEntry(api.LogStreamStdout, t3, "ch2-second")
 
-	// Now send ch1 entries - their lastActivity will be newer.
-	ch1 <- testEntry(api.LogStreamStdout, t0, "ch1-entry")
-	ch1 <- testEntry(api.LogStreamHeartbeat, t1, "")
+	// 1/2 + 2/3 = 7/6 > 1, so stream 1 should be considered stalled now.
+	time.Sleep(stallTimeout / 3 * 2)
+	ch2 <- testEntry(api.LogStreamStdout, t4, "ch2-third")
 
-	// Wait for stall detection. Only ch2 should be stalled because:
-	// - ch2's lastActivity is ~stallTimeout old
-	// - ch1's lastActivity is only ~stallTimeout/2 old
-	// Stall detection emits error first, then updates watermark, then emits ready entries.
+	results = collectEntries(t, output, 1)
+	require.ErrorIs(t, results[0].Err, api.ErrLogStreamStalled)
+	assert.Equal(t, e1.Metadata, results[0].Metadata, "stalled entry should have stream metadata")
 
-	// Drain exactly 3 entries: 1 stall error + 2 log entries.
-	var results []api.ServiceLogEntry
-	for i := 0; i < 3; i++ {
-		select {
-		case entry := <-output:
-			results = append(results, entry)
-		case <-time.After(500 * time.Millisecond):
-			require.FailNow(t, "timed out waiting for entry %d", i+1)
-		}
-	}
-
+	// Now that stream 1 is marked as stalled and ignored, all in-flight entries from stream 2 are emitted.
+	results = collectEntries(t, output, 3)
 	require.Len(t, results, 3)
+	assert.Equal(t, "ch2-first", string(results[0].Message))
+	assert.Equal(t, "ch2-second", string(results[1].Message))
+	assert.Equal(t, "ch2-third", string(results[2].Message))
 
-	// First entry is the stall error (emitted before watermark advances).
-	assert.ErrorIs(t, results[0].Err, api.ErrLogStreamStalled)
-
-	// Following entries are the log entries (emitted after watermark advances to t1).
-	// Order between entries with the same timestamp is not deterministic.
-	logMessages := []string{string(results[1].Message), string(results[2].Message)}
-	assert.ElementsMatch(t, []string{"ch1-entry", "ch2-entry"}, logMessages)
-
-	// Now send more entries from stream 1 - they should be emitted without waiting for stream 2.
-	ch1 <- testEntry(api.LogStreamStdout, t2, "ch1-later")
-	ch1 <- testEntry(api.LogStreamHeartbeat, t2.Add(time.Second), "")
-
-	// Read exactly 1 more log entry.
-	select {
-	case entry := <-output:
-		assert.Equal(t, "ch1-later", string(entry.Message))
-	case <-time.After(500 * time.Millisecond):
-		require.FailNow(t, "timed out waiting for ch1-later entry")
-	}
-
-	// Clean up.
 	close(ch1)
 	close(ch2)
+
+	results = collectEntries(t, output, 0)
+	assert.Len(t, results, 0)
 }
