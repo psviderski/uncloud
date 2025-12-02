@@ -7,7 +7,7 @@ import (
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "volume",
-		Short: "Manage volumes in an Uncloud cluster.",
+		Short: "Manage volumes in the cluster.",
 	}
 	cmd.AddCommand(
 		NewCreateCommand(),

@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 )
 
@@ -46,12 +45,14 @@ This command provides a comprehensive overview of all running containers that ar
 making it easy to see the distribution and status of containers across the cluster.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.sortBy != sortByService && opts.sortBy != sortByMachine && opts.sortBy != sortByHealth {
-				return fmt.Errorf("invalid value for --sort: %q, must be one of '%s', '%s' or '%s'", opts.sortBy, sortByService, sortByMachine, sortByHealth)
+				return fmt.Errorf("invalid value for --sort: %q, must be one of '%s', '%s' or '%s'", opts.sortBy,
+					sortByService, sortByMachine, sortByHealth)
 			}
 			return runPs(cmd, opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.sortBy, "sort", "s", sortByService, "Sort containers by 'service', 'machine' or 'health'")
+	cmd.Flags().StringVarP(&opts.sortBy, "sort", "s", sortByService,
+		"Sort containers by 'service', 'machine' or 'health'")
 	return cmd
 }
 
@@ -176,7 +177,7 @@ func printContainers(containers []containerInfo) error {
 }
 
 func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
-	listCtx, machines, err := api.ProxyMachinesContext(ctx, cli, nil)
+	listCtx, machines, err := cli.ProxyMachinesContext(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("proxy machines context: %w", err)
 	}
@@ -206,7 +207,8 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 			return nil, fmt.Errorf("something went wrong with gRPC proxy: metadata is missing for a machine response")
 		}
 		if msc.Metadata != nil && msc.Metadata.Error != "" {
-			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName, msc.Metadata.Error))
+			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName,
+				msc.Metadata.Error))
 			continue
 		}
 

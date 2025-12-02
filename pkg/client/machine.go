@@ -48,6 +48,26 @@ func (cli *Client) ListMachines(ctx context.Context, filter *api.MachineFilter) 
 	return machines, nil
 }
 
+func MachineMatchesFilter(machine *pb.MachineMember, filter *api.MachineFilter) bool {
+	if filter == nil {
+		return true
+	}
+
+	if filter.Available && machine.State == pb.MachineMember_DOWN {
+		return false
+	}
+
+	if len(filter.NamesOrIDs) > 0 {
+		if !slices.ContainsFunc(filter.NamesOrIDs, func(nameOrID string) bool {
+			return machine.Machine.Id == nameOrID || machine.Machine.Name == nameOrID
+		}) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // UpdateMachine updates machine configuration in the cluster.
 func (cli *Client) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.MachineInfo, error) {
 	resp, err := cli.ClusterClient.UpdateMachine(ctx, req)
@@ -75,24 +95,4 @@ func (cli *Client) RenameMachine(ctx context.Context, nameOrID, newName string) 
 	}
 
 	return cli.UpdateMachine(ctx, req)
-}
-
-func MachineMatchesFilter(machine *pb.MachineMember, filter *api.MachineFilter) bool {
-	if filter == nil {
-		return true
-	}
-
-	if filter.Available && machine.State == pb.MachineMember_DOWN {
-		return false
-	}
-
-	if len(filter.NamesOrIDs) > 0 {
-		if !slices.ContainsFunc(filter.NamesOrIDs, func(nameOrID string) bool {
-			return machine.Machine.Id == nameOrID || machine.Machine.Name == nameOrID
-		}) {
-			return false
-		}
-	}
-
-	return true
 }

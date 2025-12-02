@@ -5,6 +5,7 @@ package api;
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "internal/machine/api/pb/common.proto";
 
 service Docker {
@@ -14,6 +15,9 @@ service Docker {
   rpc StopContainer(StopContainerRequest) returns (google.protobuf.Empty);
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
+
+  rpc ExecContainer(stream ExecContainerRequest) returns (stream ExecContainerResponse);
+  rpc ContainerLogs(ContainerLogsRequest) returns (stream ContainerLogEntry);
 
   rpc PullImage(PullImageRequest) returns (stream JSONMessage);
   rpc InspectImage(InspectImageRequest) returns (InspectImageResponse);
@@ -30,8 +34,6 @@ service Docker {
   rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
   rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
-
-  rpc ExecContainer(stream ExecContainerRequest) returns (stream ExecContainerResponse);
 }
 
 message CreateContainerRequest {
@@ -92,6 +94,64 @@ message RemoveContainerRequest {
   string id = 1;
   // JSON serialised container.RemoveOptions.
   bytes options = 2;
+}
+
+message ExecContainerRequest {
+  oneof payload {
+    // Initial configuration for the exec session. Must be sent as the first message.
+    ExecConfig config = 1;
+    // Raw stdin data to be written to the exec process.
+    bytes stdin = 2;
+    // TTY resize event (only used when TTY is enabled).
+    ResizeEvent resize = 3;
+  }
+}
+
+message ExecConfig {
+  // Container ID to execute the command in.
+  string container_id = 1;
+  // JSON serialised ExecOptions
+  bytes options = 2;
+}
+
+message ResizeEvent {
+  uint32 height = 1;
+  uint32 width = 2;
+}
+
+message ExecContainerResponse {
+  oneof payload {
+    // Exec instance ID returned after creating the exec.
+    string exec_id = 1;
+    // Raw stdout data from the exec process.
+    bytes stdout = 2;
+    // Raw stderr data from the exec process (only when TTY is disabled).
+    bytes stderr = 3;
+    // Exit code of the exec process. Sent as the final message.
+    int32 exit_code = 4;
+  }
+}
+
+message ContainerLogsRequest {
+  string container_id = 1;
+  // Options for logs retrieval.
+  bool follow = 2;
+  int32 tail = 3; // -1 means all
+  string since = 4; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or Go duration string
+  string until = 5; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or Go duration string
+}
+
+message ContainerLogEntry {
+  enum StreamType {
+    UNKNOWN = 0;
+    STDOUT = 1;
+    STDERR = 2;
+    HEARTBEAT = 3;
+  }
+  StreamType stream = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  // Log line content. Empty for heartbeat entries.
+  bytes message = 3;
 }
 
 message PullImageRequest {
@@ -215,40 +275,4 @@ message ListServiceContainersResponse {
 message MachineServiceContainers {
   Metadata metadata = 1;
   repeated ServiceContainer containers = 2;
-}
-
-message ExecContainerRequest {
-  oneof payload {
-    // Initial configuration for the exec session. Must be sent as the first message.
-    ExecConfig config = 1;
-    // Raw stdin data to be written to the exec process.
-    bytes stdin = 2;
-    // TTY resize event (only used when TTY is enabled).
-    ResizeEvent resize = 3;
-  }
-}
-
-message ExecConfig {
-  // Container ID to execute the command in.
-  string container_id = 1;
-  // JSON serialised ExecOptions
-  bytes options = 2;
-}
-
-message ResizeEvent {
-  uint32 height = 1;
-  uint32 width = 2;
-}
-
-message ExecContainerResponse {
-  oneof payload {
-    // Exec instance ID returned after creating the exec.
-    string exec_id = 1;
-    // Raw stdout data from the exec process.
-    bytes stdout = 2;
-    // Raw stderr data from the exec process (only when TTY is disabled).
-    bytes stderr = 3;
-    // Exit code of the exec process. Sent as the final message.
-    int32 exit_code = 4;
-  }
 }

@@ -1,18 +1,22 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/jmoiron/sqlx"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
@@ -149,4 +153,105 @@ func (s *Service) ListImages(ctx context.Context, opts image.ListOptions) (Image
 	}
 
 	return imagesResp, nil
+}
+
+// ContainerLogsOptions specifies parameters for ContainerLogs.
+type ContainerLogsOptions struct {
+	ContainerID string
+	Follow      bool
+	Tail        int
+	Since       string
+	Until       string
+}
+
+// ContainerLogs streams logs from a container and returns demultiplexed entries via a channel.
+// The channel is closed when streaming completes or context is cancelled.
+func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) (<-chan api.ContainerLogEntry, error) {
+	dockerOpts := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     opts.Follow,
+		Tail:       strconv.FormatInt(int64(opts.Tail), 10),
+		Since:      opts.Since,
+		Until:      opts.Until,
+		Timestamps: true,
+	}
+
+	reader, err := s.Client.ContainerLogs(ctx, opts.ContainerID, dockerOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	outCh := make(chan api.ContainerLogEntry)
+	stdoutWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: false}
+	stderrWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: true}
+
+	// Wrap the context in a cancellable one to unblock the second goroutine below when StdCopy completes.
+	ctx, cancel := context.WithCancel(ctx)
+
+	// Run StdCopy in a goroutine to be able to handle context cancellation.
+	go func() {
+		defer close(outCh)
+		defer cancel()
+
+		// StdCopy is blocking and will return when the reader is closed in another goroutine below or on error.
+		if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader); err != nil {
+			// Send error as the last entry.
+			select {
+			case outCh <- api.ContainerLogEntry{Err: fmt.Errorf("demultiplex container logs: %w", err)}:
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	// Close the reader when the context is done to cancel StdCopy if it's still running.
+	go func() {
+		<-ctx.Done()
+		reader.Close()
+	}()
+
+	return outCh, nil
+}
+
+// logsChannelWriter is a writer for stdcopy.StdCopy that sends demultiplexed container logs to a channel.
+type logsChannelWriter struct {
+	ctx      context.Context
+	ch       chan<- api.ContainerLogEntry
+	isStderr bool
+}
+
+func (w *logsChannelWriter) Write(data []byte) (n int, err error) {
+	// Parse timestamp and message from the demultiplexed Docker log payload if the data looks like it contains one.
+	// Format: 2025-01-01T00:00:00.000000000Z message
+	timestamp := time.Time{}
+	message := data
+	if len(data) > 30 && data[4] == '-' && data[7] == '-' && data[10] == 'T' {
+		timestampPart, messagePart, found := bytes.Cut(data, []byte(" "))
+		if found {
+			timestamp, err = time.Parse(time.RFC3339Nano, string(timestampPart))
+			if err != nil {
+				timestamp = time.Time{}
+			}
+			message = messagePart
+		}
+	}
+
+	entry := api.ContainerLogEntry{
+		Timestamp: timestamp,
+		// Clone is required because message is a slice into data, which stdcopy.StdCopy may reuse
+		// after Write returns but before the entry is consumed from the channel.
+		Message: bytes.Clone(message),
+	}
+	if w.isStderr {
+		entry.Stream = api.LogStreamStderr
+	} else {
+		entry.Stream = api.LogStreamStdout
+	}
+
+	select {
+	case w.ch <- entry:
+		return len(data), nil
+	case <-w.ctx.Done():
+		return 0, w.ctx.Err()
+	}
 }

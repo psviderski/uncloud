@@ -108,9 +108,9 @@ func main() {
 	})
 
 	cmd.AddCommand(
+		NewBuildCommand(),
 		NewDeployCommand(),
 		NewDocsCommand(),
-		NewBuildCommand(),
 		NewImagesCommand(),
 		NewPsCommand(),
 		caddy.NewRootCommand(),
@@ -122,6 +122,7 @@ func main() {
 		service.NewExecCommand(),
 		service.NewInspectCommand(),
 		service.NewListCommand(),
+		service.NewLogsCommand(),
 		service.NewRmCommand(),
 		service.NewRunCommand(),
 		service.NewScaleCommand(),

@@ -55,7 +55,7 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		proxyMachines = filter.Machines
 	}
 
-	listCtx, machines, err := api.ProxyMachinesContext(ctx, cli, proxyMachines)
+	listCtx, machines, err := cli.ProxyMachinesContext(ctx, proxyMachines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to all machines: %w", err)
 	}
