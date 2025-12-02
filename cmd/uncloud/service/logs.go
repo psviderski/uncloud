@@ -104,8 +104,8 @@ func streamLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts
 	if len(serviceNames) == 1 {
 		stream = svcStreams[0]
 	} else {
-		// Merge all service streams into a single sorted stream.
-		merger := client.NewLogMerger(svcStreams, client.DefaultLogMergerOptions)
+		// Merge all service streams into a single sorted stream without stall detection as its handled per-service.
+		merger := client.NewLogMerger(svcStreams, client.LogMergerOptions{})
 		stream = merger.Stream()
 	}
 
@@ -226,6 +226,10 @@ func (f *logFormatter) formatServiceContainer(serviceName, containerID string) s
 
 // printEntry prints a single log entry with proper formatting.
 func (f *logFormatter) printEntry(entry api.ServiceLogEntry) {
+	if entry.Stream != api.LogStreamStdout && entry.Stream != api.LogStreamStderr {
+		return
+	}
+
 	var output strings.Builder
 
 	// Timestamp
