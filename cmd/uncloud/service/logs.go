@@ -24,6 +24,7 @@ type logsOptions struct {
 	tail   string
 	since  string
 	until  string
+	utc    bool
 }
 
 func NewLogsCommand() *cobra.Command {
@@ -57,6 +58,8 @@ func NewLogsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&options.until, "until", "",
 		"Show logs generated before the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
 			"See --since for examples.")
+	cmd.Flags().BoolVar(&options.utc, "utc", false,
+		"Print timestamps in UTC instead of local timezone.")
 
 	return cmd
 }
@@ -119,7 +122,7 @@ func streamLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts
 		machineNames = append(machineNames, m.Machine.Name)
 	}
 
-	formatter := newLogFormatter(machineNames, serviceNames)
+	formatter := newLogFormatter(machineNames, serviceNames, opts.utc)
 
 	// Print merged logs.
 	for entry := range stream {
@@ -154,9 +157,11 @@ type logFormatter struct {
 
 	maxMachineWidth int
 	maxServiceWidth int
+
+	utc bool
 }
 
-func newLogFormatter(machineNames, serviceNames []string) *logFormatter {
+func newLogFormatter(machineNames, serviceNames []string, utc bool) *logFormatter {
 	slices.Sort(machineNames)
 	slices.Sort(serviceNames)
 
@@ -179,13 +184,19 @@ func newLogFormatter(machineNames, serviceNames []string) *logFormatter {
 		serviceNames:    serviceNames,
 		maxMachineWidth: maxMachineWidth,
 		maxServiceWidth: maxServiceWidth,
+		utc:             utc,
 	}
 }
 
-// formatTimestamp formats timestamp using local timezone.
+// formatTimestamp formats timestamp using local timezone or UTC if configured.
 func (f *logFormatter) formatTimestamp(t time.Time) string {
+	if f.utc {
+		t = t.UTC()
+	} else {
+		t = t.In(time.Local)
+	}
 	dimStyle := lipgloss.NewStyle().Faint(true)
-	t = t.In(time.Local)
+
 	return dimStyle.Render(t.Format(time.StampMilli))
 }
 
