@@ -20,11 +20,12 @@ import (
 )
 
 type logsOptions struct {
-	follow bool
-	tail   string
-	since  string
-	until  string
-	utc    bool
+	follow   bool
+	tail     string
+	since    string
+	until    string
+	utc      bool
+	machines []string
 }
 
 func NewLogsCommand() *cobra.Command {
@@ -44,6 +45,8 @@ func NewLogsCommand() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&options.follow, "follow", "f", false,
 		"Continually stream new logs.")
+	cmd.Flags().StringSliceVarP(&options.machines, "machine", "m", nil,
+		"Filter logs by machine name or ID. Can be specified multiple times or as a comma-separated list.")
 	cmd.Flags().StringVarP(&options.tail, "tail", "n", "100",
 		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.")
 	cmd.Flags().StringVar(&options.since, "since", "",
@@ -82,17 +85,17 @@ func streamLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts
 	defer c.Close()
 
 	logsOpts := api.ServiceLogsOptions{
-		Follow: opts.follow,
-		Tail:   tail,
-		Since:  opts.since,
-		Until:  opts.until,
+		Follow:   opts.follow,
+		Tail:     tail,
+		Since:    opts.since,
+		Until:    opts.until,
+		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
 	}
 
 	// Collect log streams from all services.
 	machineIDsSet := mapset.NewSet[string]()
 	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceNames))
 	for _, serviceName := range serviceNames {
-		// TODO: set Heartbeats in the opts.
 		svc, ch, err := c.ServiceLogs(ctx, serviceName, logsOpts)
 		if err != nil {
 			return fmt.Errorf("stream logs for service '%s': %w", serviceName, err)

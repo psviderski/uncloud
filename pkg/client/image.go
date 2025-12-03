@@ -149,18 +149,6 @@ func (cli *Client) PushImage(ctx context.Context, image string, opts PushImageOp
 			return fmt.Errorf("list machines: %w", err)
 		}
 
-		// Check if all specified machines were found.
-		if len(machineMembers) != len(opts.Machines) {
-			var notFound []string
-			for _, nameOrID := range opts.Machines {
-				if machineMembers.FindByNameOrID(nameOrID) == nil {
-					notFound = append(notFound, nameOrID)
-				}
-			}
-
-			return fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
-		}
-
 		for _, mm := range machineMembers {
 			machines = append(machines, mm.Machine)
 		}

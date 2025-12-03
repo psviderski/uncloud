@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -27,16 +28,23 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("no containers found for service: %s", serviceNameOrID)
 	}
 
-	machines, err := cli.ListMachines(ctx, nil)
+	machines, err := cli.ListMachines(ctx, &api.MachineFilter{
+		NamesOrIDs: opts.Machines,
+	})
 	if err != nil {
 		return svc, nil, fmt.Errorf("list machines: %w", err)
 	}
 
 	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(svc.Containers))
 	for _, ctr := range svc.Containers {
-		// Try to get machine name for ServiceLogEntry metadata and friendlier error message.
-		machineName := ctr.MachineID
+		// Skip containers not running on the specified machines.
 		m := machines.FindByNameOrID(ctr.MachineID)
+		if len(opts.Machines) > 0 && m == nil {
+			continue
+		}
+
+		// Machine name for ServiceLogEntry metadata and friendlier error message.
+		machineName := ctr.MachineID
 		if m != nil {
 			machineName = m.Machine.Name
 		}
@@ -57,6 +65,10 @@ func (cli *Client) ServiceLogs(
 		}
 		enrichedStream := logsStreamWithServiceMetadata(stream, metadata)
 		ctrStreams = append(ctrStreams, enrichedStream)
+	}
+
+	if len(ctrStreams) == 0 {
+		return svc, nil, errors.New("no service containers found on the specified machine(s)")
 	}
 
 	// Use the log merger to combine streams from all containers in chronological order.

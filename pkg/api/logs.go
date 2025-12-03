@@ -52,6 +52,9 @@ type ServiceLogsOptions struct {
 	Tail   int
 	Since  string
 	Until  string
+	// Machines filters logs to only include containers running on the specified machines (names or IDs).
+	// If empty, logs from all machines are included.
+	Machines []string
 }
 
 // ServiceLogEntry represents a single log entry from a service container.

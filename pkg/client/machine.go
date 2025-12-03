@@ -2,7 +2,8 @@ package client
 
 import (
 	"context"
-	"slices"
+	"fmt"
+	"strings"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -32,40 +33,42 @@ func (cli *Client) ListMachines(ctx context.Context, filter *api.MachineFilter) 
 	if err != nil {
 		return nil, err
 	}
+	machines := api.MachineMembersList(resp.Machines)
 
-	machines := resp.Machines
+	if filter == nil {
+		return machines, nil
+	}
 
-	if filter != nil {
-		var matchedMachines api.MachineMembersList
-		for _, m := range machines {
-			if MachineMatchesFilter(m, filter) {
-				matchedMachines = append(matchedMachines, m)
+	// Apply the filter.
+	if len(filter.NamesOrIDs) > 0 {
+		var matched api.MachineMembersList
+		var notFound []string
+
+		for _, nameOrID := range filter.NamesOrIDs {
+			if m := machines.FindByNameOrID(nameOrID); m != nil {
+				matched = append(matched, m)
+			} else {
+				notFound = append(notFound, nameOrID)
 			}
 		}
-		machines = matchedMachines
+		machines = matched
+
+		if len(notFound) > 0 {
+			return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
+		}
+	}
+
+	if filter.Available {
+		var available api.MachineMembersList
+		for _, m := range machines {
+			if m.State != pb.MachineMember_DOWN {
+				available = append(available, m)
+			}
+		}
+		machines = available
 	}
 
 	return machines, nil
-}
-
-func MachineMatchesFilter(machine *pb.MachineMember, filter *api.MachineFilter) bool {
-	if filter == nil {
-		return true
-	}
-
-	if filter.Available && machine.State == pb.MachineMember_DOWN {
-		return false
-	}
-
-	if len(filter.NamesOrIDs) > 0 {
-		if !slices.ContainsFunc(filter.NamesOrIDs, func(nameOrID string) bool {
-			return machine.Machine.Id == nameOrID || machine.Machine.Name == nameOrID
-		}) {
-			return false
-		}
-	}
-
-	return true
 }
 
 // UpdateMachine updates machine configuration in the cluster.
