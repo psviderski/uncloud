@@ -1705,7 +1705,8 @@ func TestServiceLifecycle(t *testing.T) {
 					"trap 'exit 0' TERM INT; " +
 						"echo \"Hello from $HOSTNAME\"; sleep 0.5;" +
 						"echo \"Hello stderr from $HOSTNAME\" >&2; " +
-						"while true; do sleep 1; done"},
+						"while true; do sleep 1; done",
+				},
 			},
 			Replicas: 3,
 		}
