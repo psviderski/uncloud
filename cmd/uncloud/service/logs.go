@@ -16,10 +16,12 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/spf13/cobra"
 )
 
 type logsOptions struct {
+	files    []string
 	follow   bool
 	tail     string
 	since    string
@@ -32,23 +34,25 @@ func NewLogsCommand() *cobra.Command {
 	var options logsOptions
 
 	cmd := &cobra.Command{
-		Use:     "logs SERVICE [SERVICE...]",
+		Use:     "logs [SERVICE...]",
 		Aliases: []string{"log"},
 		Short:   "View service logs.",
-		Long:    "View logs from all replicas of the specified service(s) across all machines in the cluster.",
-		Args:    cobra.MinimumNArgs(1),
+		Long: `View logs from all replicas of the specified service(s) across all machines in the cluster.
+
+If no services are specified, streams logs from all services defined in the Compose file
+(compose.yaml by default or the file(s) specified with --file).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return streamLogs(cmd.Context(), uncli, args, options)
+			return runLogs(cmd.Context(), uncli, args, options)
 		},
 	}
 
+	cmd.Flags().StringSliceVar(&options.files, "file", nil,
+		"One or more Compose files to load service names from when no services are specified. (default compose.yaml)")
 	cmd.Flags().BoolVarP(&options.follow, "follow", "f", false,
 		"Continually stream new logs.")
 	cmd.Flags().StringSliceVarP(&options.machines, "machine", "m", nil,
 		"Filter logs by machine name or ID. Can be specified multiple times or as a comma-separated list.")
-	cmd.Flags().StringVarP(&options.tail, "tail", "n", "100",
-		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.")
 	cmd.Flags().StringVar(&options.since, "since", "",
 		"Show logs generated on or after the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
 			"Examples:\n"+
@@ -58,6 +62,8 @@ func NewLogsCommand() *cobra.Command {
 			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using local timezone\n"+
 			"  --since 2024-01-31T10:30:00Z       RFC 3339 date/time in UTC\n"+
 			"  --since 1763953966                 Unix timestamp (seconds since January 1, 1970)")
+	cmd.Flags().StringVarP(&options.tail, "tail", "n", "100",
+		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.")
 	cmd.Flags().StringVar(&options.until, "until", "",
 		"Show logs generated before the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
 			"See --since for examples.")
@@ -67,7 +73,20 @@ func NewLogsCommand() *cobra.Command {
 	return cmd
 }
 
-func streamLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logsOptions) error {
+func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logsOptions) error {
+	// If no services specified, try to load them from the Compose file(s).
+	if len(serviceNames) == 0 {
+		project, err := compose.LoadProject(ctx, opts.files)
+		if err != nil {
+			return fmt.Errorf("load compose file(s): %w", err)
+		}
+		// View logs for all services, including disabled by inactive profiles.
+		serviceNames = append(project.ServiceNames(), project.DisabledServiceNames()...)
+		if len(serviceNames) == 0 {
+			return errors.New("no services found in compose file(s)")
+		}
+	}
+
 	// Parse tail option.
 	tail := -1
 	if opts.tail != "all" {
