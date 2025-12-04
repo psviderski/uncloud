@@ -3,18 +3,18 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
-	"text/tabwriter"
 	"time"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/output"
 	"github.com/spf13/cobra"
 )
 
 type inspectOptions struct {
 	service string
+	format  string
 }
 
 func NewInspectCommand() *cobra.Command {
@@ -29,7 +29,24 @@ func NewInspectCommand() *cobra.Command {
 			return inspect(cmd.Context(), uncli, opts)
 		},
 	}
+	cmd.Flags().StringVar(&opts.format, "format", "table", "Output format (table, json)")
 	return cmd
+}
+
+type containerItem struct {
+	ID        string `json:"id"`
+	Image     string `json:"image"`
+	Created   int64  `json:"created"`
+	Status    string `json:"status"`
+	StartedAt int64  `json:"startedAt,omitempty"`
+	Machine   string `json:"machine"`
+}
+
+type serviceInspectJSON struct {
+	ID         string          `json:"serviceID"`
+	Name       string          `json:"name"`
+	Mode       string          `json:"mode"`
+	Containers []containerItem `json:"containers"`
 }
 
 func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
@@ -50,26 +67,17 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	}
 	machinesNamesByID := make(map[string]string)
 	for _, m := range machines {
-		machinesNamesByID[m.Machine.Id] = m.Machine.Name
+		if machineMember := m.Machine; machineMember != nil {
+			machinesNamesByID[machineMember.Id] = machineMember.Name
+		}
 	}
 
-	fmt.Printf("Service ID: %s\n", svc.ID)
-	fmt.Printf("Name:       %s\n", svc.Name)
-	fmt.Printf("Mode:       %s\n", svc.Mode)
-	fmt.Println()
-
-	// Print the list of containers in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "CONTAINER ID\tIMAGE\tCREATED\tSTATUS\tMACHINE"); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
-
+	var containers []containerItem
 	for _, ctr := range svc.Containers {
 		createdAt, err := time.Parse(time.RFC3339Nano, ctr.Container.Created)
 		if err != nil {
 			return fmt.Errorf("parse created time: %w", err)
 		}
-		created := units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
 
 		machine := machinesNamesByID[ctr.MachineID]
 		if machine == "" {
@@ -80,18 +88,52 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 			return fmt.Errorf("get human state: %w", err)
 		}
 
-		_, err = fmt.Fprintf(
-			tw,
-			"%s\t%s\t%s\t%s\t%s\n",
-			stringid.TruncateID(ctr.Container.ID),
-			ctr.Container.Config.Image,
-			created,
-			state,
-			machine,
-		)
-		if err != nil {
-			return fmt.Errorf("write row: %w", err)
+		var startedAt int64
+		if ctr.Container.State != nil && ctr.Container.State.StartedAt != "" {
+			if t, err := time.Parse(time.RFC3339Nano, ctr.Container.State.StartedAt); err == nil {
+				startedAt = t.Unix()
+			}
 		}
+
+		containers = append(containers, containerItem{
+			ID:        stringid.TruncateID(ctr.Container.ID),
+			Image:     ctr.Container.Config.Image,
+			Created:   createdAt.Unix(),
+			Status:    state,
+			StartedAt: startedAt,
+			Machine:   machine,
+		})
 	}
-	return tw.Flush()
+
+	if opts.format == "json" {
+		data := serviceInspectJSON{
+			ID:         svc.ID,
+			Name:       svc.Name,
+			Mode:       svc.Mode,
+			Containers: containers,
+		}
+		return output.Print[any](data, nil, "json")
+	}
+
+	// Table Output
+	fmt.Printf("Service ID: %s\n", svc.ID)
+	fmt.Printf("Name:       %s\n", svc.Name)
+	fmt.Printf("Mode:       %s\n", svc.Mode)
+	fmt.Println()
+
+	columns := []output.Column[containerItem]{
+		{Header: "CONTAINER ID", Field: "ID"},
+		{Header: "IMAGE", Field: "Image"},
+		{
+			Header: "CREATED",
+			Accessor: func(i containerItem) string {
+				createdAt := time.Unix(i.Created, 0)
+				return units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
+			},
+		},
+		{Header: "STATUS", Field: "Status"},
+		{Header: "MACHINE", Field: "Machine"},
+	}
+
+	return output.Print(containers, columns, "table")
 }
