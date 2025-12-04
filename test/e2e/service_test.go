@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"slices"
 	"strings"
@@ -1681,5 +1682,115 @@ func TestServiceLifecycle(t *testing.T) {
 		assert.Equal(t, name, svc.Name)
 		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
 		assert.Len(t, svc.Containers, 3, "expected 1 container on each machine")
+	})
+
+	t.Run("service logs", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-service-logs"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		spec := api.ServiceSpec{
+			Name: name,
+			Container: api.ContainerSpec{
+				Image: "busybox:1.37.0-musl",
+				Command: []string{
+					"sh",
+					"-c",
+					"trap 'exit 0' TERM INT; " +
+						"echo \"Hello from $HOSTNAME\"; sleep 0.5;" +
+						"echo \"Hello stderr from $HOSTNAME\" >&2; " +
+						"while true; do sleep 1; done"},
+			},
+			Replicas: 3,
+		}
+		deployment := cli.NewDeployment(spec, nil)
+		_, err := deployment.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
+
+		machines := serviceMachines(svc)
+		assert.Len(t, machines.ToSlice(), 3, "should have containers on all 3 machines")
+
+		time.Sleep(1 * time.Second) // Wait for containers to produce the logs.
+
+		logsSvc, stream, err := cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{})
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, logsSvc, spec)
+
+		collectLogs := func(stream <-chan api.ServiceLogEntry) []string {
+			var entries []string
+			timeout := time.After(5 * time.Second)
+
+			for {
+				select {
+				case entry, ok := <-stream:
+					if !ok {
+						return entries
+					}
+
+					require.NoError(t, entry.Err)
+					if entry.Stream == api.LogStreamStdout || entry.Stream == api.LogStreamStderr {
+						entries = append(entries, string(entry.Message))
+					}
+				case <-timeout:
+					require.FailNow(t, "timed out waiting for logs")
+				}
+			}
+		}
+
+		logs := collectLogs(stream)
+		require.Len(t, logs, 6, "should have 6 log entries (1 stdout and 1 stderr from each of 3 replicas)")
+
+		for _, ctr := range svc.Containers {
+			stdoutMsg := fmt.Sprintf("Hello from %s\n", ctr.Container.Name)
+			stderrMsg := fmt.Sprintf("Hello stderr from %s\n", ctr.Container.Name)
+
+			assert.Contains(t, logs, stdoutMsg)
+			assert.Contains(t, logs, stderrMsg)
+
+			outIdx := slices.Index(logs, stdoutMsg)
+			errIdx := slices.Index(logs, stderrMsg)
+			assert.Less(t, outIdx, errIdx, "stdout log should appear before stderr log")
+		}
+
+		// Test filter logs by machine ID.
+		machineID := c.Machines[0].ID
+		_, machineStream, err := cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+			Machines: []string{machineID},
+		})
+		require.NoError(t, err)
+
+		machineLogs := collectLogs(machineStream)
+		require.Len(t, machineLogs, 2, "should have 2 log entries (1 stdout and 1 stderr) from the filtered machine")
+
+		ctrName := ""
+		for _, ctr := range svc.Containers {
+			if ctr.MachineID == machineID {
+				ctrName = ctr.Container.Name
+				break
+			}
+		}
+		require.NotEmpty(t, ctrName, "should have found container on the target machine")
+
+		stdoutMsg := fmt.Sprintf("Hello from %s\n", ctrName)
+		stderrMsg := fmt.Sprintf("Hello stderr from %s\n", ctrName)
+
+		assert.Equal(t, []string{stdoutMsg, stderrMsg}, machineLogs)
+
+		// Test non-existent machine filter returns error.
+		_, _, err = cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+			Machines: []string{"non-existent-machine"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "machines not found")
 	})
 }

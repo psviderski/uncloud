@@ -29,10 +29,7 @@ func deployTestService(t *testing.T, ctx context.Context, cli *client.Client, na
 	}
 
 	deployment := cli.NewDeployment(spec, nil)
-	err := deployment.Validate(ctx)
-	require.NoError(t, err)
-
-	_, err = deployment.Run(ctx)
+	_, err := deployment.Run(ctx)
 	require.NoError(t, err)
 
 	// Wait for all replicas to be running
@@ -41,9 +38,8 @@ func deployTestService(t *testing.T, ctx context.Context, cli *client.Client, na
 		if err != nil {
 			return false
 		}
-		if uint(len(service.Containers)) != replicas {
-			return false
-		}
+		assertServiceMatchesSpec(t, service, spec)
+
 		for _, ctr := range service.Containers {
 			if ctr.Container.State.Status != "running" {
 				return false

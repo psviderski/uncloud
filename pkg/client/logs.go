@@ -94,6 +94,12 @@ func (cli *Client) ContainerLogs(
 		Since:       opts.Since,
 		Until:       opts.Until,
 	}
+	if !opts.Follow && opts.Tail == 0 {
+		// If not following and tail is 0, set tail to -1 to return all logs.
+		// Otherwise, no logs will be returned at all.
+		req.Tail = -1
+	}
+
 	stream, err := cli.Docker.GRPCClient.ContainerLogs(proxyCtx, req)
 	if err != nil {
 		return nil, err
