@@ -71,6 +71,12 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 				Protocol:      api.ProtocolTCP,
 				Mode:          api.PortModeHost,
 			},
+			{
+				PublishedPort: 443,
+				ContainerPort: 443,
+				Protocol:      api.ProtocolUDP,
+				Mode:          api.PortModeHost,
+			},
 		},
 		Volumes: []api.VolumeSpec{
 			{
