@@ -10,6 +10,7 @@ import (
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -20,9 +21,17 @@ func NewListCommand() *cobra.Command {
 		Short:   "List services.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			ns := cmd.Flag("namespace").Value.String()
+			if ns != "" {
+				if err := api.ValidateNamespaceName(ns); err != nil {
+					return fmt.Errorf("invalid namespace: %w", err)
+				}
+				cmd.SetContext(client.WithNamespace(cmd.Context(), ns))
+			}
 			return list(cmd.Context(), uncli)
 		},
 	}
+	cmd.Flags().String("namespace", "", "Filter services by namespace (optional).")
 	return cmd
 }
 
@@ -57,7 +66,7 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			return fmt.Errorf("write header: %w", err)
 		}
 	}
-	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tIMAGE\tENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tNAMESPACE\tMODE\tREPLICAS\tIMAGE\tENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	for _, s := range services {
@@ -78,8 +87,8 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 				return fmt.Errorf("write row: %w", err)
 			}
 		}
-		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\n",
-			s.Name, s.Mode, len(s.Containers), images, endpoints); err != nil {
+		if _, err = fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\n",
+			s.Name, displayNamespace(s.Namespace()), s.Mode, len(s.Containers), images, endpoints); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}

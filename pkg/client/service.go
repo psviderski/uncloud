@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
@@ -87,8 +88,10 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 
 // InspectService returns detailed information about a service and its containers.
 // The nameOrID parameter can be either a service name or ID.
+// If namespace is present in context and nameOrID is a name, only containers in that namespace are matched.
 func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Service, error) {
 	var svc api.Service
+	namespace := namespaceFromContext(ctx)
 
 	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
@@ -148,6 +151,15 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 
 		for _, ctr := range mc.Containers {
 			if ctr.ServiceID() == nameOrID || ctr.ServiceName() == nameOrID {
+				if namespace != "" {
+					ns := ctr.Container.Config.Labels[api.LabelNamespace]
+					if ns == "" {
+						ns = api.DefaultNamespace
+					}
+					if ns != namespace {
+						continue
+					}
+				}
 				containers = append(containers, api.MachineServiceContainer{
 					MachineID: machineID,
 					Container: ctr,
@@ -161,23 +173,46 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	}
 
 	if len(containers) == 0 {
+		// If namespace was specified, check if the service exists in another namespace to provide a better error.
+		if namespace != "" {
+			// Retry without namespace to see if the name exists elsewhere.
+			anyCtx := WithNamespace(ctx, "")
+			svcAny, errAny := cli.InspectService(anyCtx, nameOrID)
+			if errAny == nil && svcAny.Name != "" {
+				return svc, fmt.Errorf("service '%s' exists but not in namespace '%s'", nameOrID, namespace)
+			}
+		}
 		return svc, api.ErrNotFound
 	}
 
 	// Containers from different services may share the same service name (distributed and eventually consistent store
 	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
-	// priority over matching by name.
+	// priority over matching by name. If still ambiguous by name, require namespace selection.
 	if foundByID {
 		containers = slices.DeleteFunc(containers, func(mc api.MachineServiceContainer) bool {
 			return mc.Container.ServiceID() != nameOrID
 		})
 	} else {
-		// Matched only by name but there could be multiple services with the same name.
-		serviceID := containers[0].Container.ServiceID()
-		for _, mc := range containers[1:] {
-			if mc.Container.ServiceID() != serviceID {
-				return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
+		// Group by service ID to detect collisions.
+		ids := make(map[string]int)
+		for _, mc := range containers {
+			ids[mc.Container.ServiceID()]++
+		}
+		if len(ids) > 1 {
+			namespaces := make(map[string]struct{})
+			for _, mc := range containers {
+				ns := mc.Container.Config.Labels[api.LabelNamespace]
+				if ns == "" {
+					ns = api.DefaultNamespace
+				}
+				namespaces[ns] = struct{}{}
 			}
+			var nsList []string
+			for ns := range namespaces {
+				nsList = append(nsList, ns)
+			}
+			slices.Sort(nsList)
+			return svc, fmt.Errorf("multiple services named '%s' found in namespaces: %s (specify --namespace)", nameOrID, strings.Join(nsList, ", "))
 		}
 	}
 

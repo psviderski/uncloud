@@ -6,11 +6,14 @@ import (
 
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type rmOptions struct {
 	services []string
+	namespace string
 }
 
 func NewRmCommand() *cobra.Command {
@@ -31,10 +34,17 @@ directives in image Dockerfiles) are automatically removed with their containers
 			return rm(cmd.Context(), uncli, opts)
 		},
 	}
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service(s) (optional).")
 	return cmd
 }
 
 func rm(ctx context.Context, uncli *cli.CLI, opts rmOptions) error {
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+		ctx = client.WithNamespace(ctx, opts.namespace)
+	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)

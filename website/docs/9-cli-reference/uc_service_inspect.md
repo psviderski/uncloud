@@ -9,6 +9,7 @@ uc service inspect SERVICE [flags]
 ## Options
 
 ```
+      --namespace string   Namespace of the service (optional).
   -h, --help   help for inspect
 ```
 
@@ -24,4 +25,3 @@ uc service inspect SERVICE [flags]
 ## See also
 
 * [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
-

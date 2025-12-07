@@ -9,6 +9,7 @@ uc service ls [flags]
 ## Options
 
 ```
+      --namespace string   Filter services by namespace (optional).
   -h, --help   help for ls
 ```
 
@@ -24,4 +25,3 @@ uc service ls [flags]
 ## See also
 
 * [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
-

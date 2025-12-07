@@ -9,12 +9,14 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type scaleOptions struct {
-	service  string
-	replicas uint
+	service    string
+	replicas   uint
+	namespace string
 }
 
 func NewScaleCommand() *cobra.Command {
@@ -37,11 +39,18 @@ func NewScaleCommand() *cobra.Command {
 			return scale(cmd.Context(), uncli, opts)
 		},
 	}
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service (optional).")
 
 	return cmd
 }
 
 func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+		ctx = client.WithNamespace(ctx, opts.namespace)
+	}
 	if opts.replicas == 0 {
 		return fmt.Errorf(
 			"scaling to zero replicas is not supported. This would effectively remove the service without preserving "+

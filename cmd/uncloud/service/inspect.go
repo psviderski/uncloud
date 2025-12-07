@@ -10,11 +10,14 @@ import (
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type inspectOptions struct {
 	service string
+	namespace string
 }
 
 func NewInspectCommand() *cobra.Command {
@@ -29,10 +32,17 @@ func NewInspectCommand() *cobra.Command {
 			return inspect(cmd.Context(), uncli, opts)
 		},
 	}
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service (optional).")
 	return cmd
 }
 
 func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+		ctx = client.WithNamespace(ctx, opts.namespace)
+	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -55,6 +65,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 
 	fmt.Printf("Service ID: %s\n", svc.ID)
 	fmt.Printf("Name:       %s\n", svc.Name)
+	fmt.Printf("Namespace:  %s\n", displayNamespace(svc.Namespace()))
 	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 

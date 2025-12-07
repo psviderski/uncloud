@@ -28,6 +28,7 @@ type logsOptions struct {
 	until    string
 	utc      bool
 	machines []string
+	namespace string
 }
 
 func NewLogsCommand() *cobra.Command {
@@ -69,6 +70,7 @@ If no services are specified, streams logs from all services defined in the Comp
 			"See --since for examples.")
 	cmd.Flags().BoolVar(&options.utc, "utc", false,
 		"Print timestamps in UTC instead of local timezone.")
+	cmd.Flags().StringVar(&options.namespace, "namespace", "", "Namespace of the service(s) (optional).")
 
 	return cmd
 }
@@ -85,6 +87,13 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		if len(serviceNames) == 0 {
 			return errors.New("no services found in compose file(s)")
 		}
+	}
+
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+		ctx = client.WithNamespace(ctx, opts.namespace)
 	}
 
 	// Parse tail option.
