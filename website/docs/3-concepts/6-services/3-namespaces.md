@@ -41,3 +41,9 @@ uc deploy --namespace staging
 ```
 
 This is useful for promoting the same compose file into different isolated environments without editing YAML.
+
+For ad-hoc services started with `uc run`, set the namespace directly:
+
+```bash
+uc run --namespace staging -p app.example.com:8080/https ghcr.io/acme/api:latest
+```

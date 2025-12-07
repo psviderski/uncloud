@@ -375,6 +375,26 @@ type Service struct {
 	Containers []MachineServiceContainer
 }
 
+// Namespace returns the namespace common to all containers in the service.
+// If containers span multiple namespaces, an empty string is returned.
+func (s Service) Namespace() string {
+	namespaces := make(map[string]struct{})
+	for _, mc := range s.Containers {
+		ns := mc.Container.Config.Labels[LabelNamespace]
+		if ns == "" {
+			ns = DefaultNamespace
+		}
+		namespaces[ns] = struct{}{}
+	}
+
+	if len(namespaces) == 1 {
+		for ns := range namespaces {
+			return ns
+		}
+	}
+	return ""
+}
+
 type MachineServiceContainer struct {
 	MachineID string
 	Container ServiceContainer
