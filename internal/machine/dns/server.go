@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const (
@@ -34,7 +35,9 @@ const (
 type Resolver interface {
 	// Resolve returns a list of IP addresses of the service containers.
 	// An empty list is returned if no service is found.
-	Resolve(serviceName string) []netip.Addr
+	Resolve(serviceName string, namespace string) []netip.Addr
+	// GetNamespaceByIP returns the namespace that owns the given IP.
+	GetNamespaceByIP(ip netip.Addr) string
 }
 
 // Server is an embedded internal DNS server for service discovery and forwarding external queries
@@ -176,6 +179,8 @@ func (s *Server) handleRequest(w dns.ResponseWriter, req *dns.Msg) {
 	s.inProgressReqs.Add(1)
 	defer s.inProgressReqs.Done()
 
+	requesterIP := remoteAddr(w.RemoteAddr())
+
 	if len(req.Question) == 0 {
 		resp := new(dns.Msg).SetRcode(req, dns.RcodeFormatError)
 		s.reply(w, req, resp)
@@ -208,7 +213,7 @@ func (s *Server) handleRequest(w dns.ResponseWriter, req *dns.Msg) {
 
 	switch q.Qtype {
 	case dns.TypeA:
-		records := s.handleAQuery(q.Name)
+		records := s.handleAQuery(q.Name, requesterIP)
 		if len(records) > 0 {
 			log.Debug("Found A records for internal DNS query.", "count", len(records))
 			resp.Answer = append(resp.Answer, records...)
@@ -289,14 +294,23 @@ func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
 
 // handleAQuery processes an A query for the internal domain and returns A records for the requested name.
 // The internal domain suffix is already stripped from the name. An empty list is returned if no records are found.
-func (s *Server) handleAQuery(name string) []dns.RR {
+func (s *Server) handleAQuery(name string, requesterIP netip.Addr) []dns.RR {
 	serviceName, mode := extractModeFromDomain(trimInternalDomain(name))
-	ips := s.resolver.Resolve(serviceName)
+
+	// Default to the default namespace unless the requester is part of another namespace.
+	namespace := api.DefaultNamespace
+	if requesterIP.IsValid() && s.localSubnet.Contains(requesterIP) {
+		if ns := s.resolver.GetNamespaceByIP(requesterIP); ns != "" {
+			namespace = ns
+		}
+	}
+
+	ips := s.resolver.Resolve(serviceName, namespace)
 	if len(ips) == 0 {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
 		return nil
 	}
-	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
+	s.log.Debug("Resolved service name.", "service", serviceName, "namespace", namespace, "ips", ips)
 
 	if len(ips) > 1 {
 		// Shuffle the IPs to approximate round-robin.
@@ -339,6 +353,22 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		})
 	}
 	return records
+}
+
+// remoteAddr extracts the remote IP address from a dns.ResponseWriter address.
+func remoteAddr(addr net.Addr) netip.Addr {
+	switch v := addr.(type) {
+	case *net.UDPAddr:
+		ip, _ := netip.ParseAddr(v.IP.String())
+		return ip
+	case *net.TCPAddr:
+		ip, _ := netip.ParseAddr(v.IP.String())
+		return ip
+	default:
+		host, _, _ := net.SplitHostPort(addr.String())
+		ip, _ := netip.ParseAddr(host)
+		return ip
+	}
 }
 
 // parseNameserversFromResolvConf parses the nameservers from /etc/resolv.conf.

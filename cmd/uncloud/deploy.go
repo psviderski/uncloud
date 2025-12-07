@@ -20,12 +20,13 @@ import (
 type deployOptions struct {
 	cli.BuildServicesOptions
 
-	files    []string
-	profiles []string
-	services []string
-	noBuild  bool
-	recreate bool
-	yes      bool
+	files     []string
+	profiles  []string
+	services  []string
+	noBuild   bool
+	recreate  bool
+	yes       bool
+	namespace string
 }
 
 // NewDeployCommand creates a new command to deploy services from a Compose file.
@@ -62,6 +63,7 @@ func NewDeployCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Auto-confirm deployment plan. Should be explicitly set when running non-interactively,\n"+
 			"e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace for this deployment (overrides x-namespace). Defaults to 'default'.")
 
 	// TODO: Consider adding a filter flag to specify which machines to deploy to but keep the rest running.
 	//  Could be useful to test a new version on a subset of machines before rolling out to all.
@@ -74,6 +76,12 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	project, err := compose.LoadProject(ctx, opts.files, composecli.WithDefaultProfiles(opts.profiles...))
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
+	}
+
+	if opts.namespace != "" {
+		if err := compose.ApplyNamespaceOverride(project, opts.namespace); err != nil {
+			return fmt.Errorf("apply namespace override: %w", err)
+		}
 	}
 
 	if len(opts.services) > 0 {

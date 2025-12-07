@@ -14,13 +14,19 @@ import (
 )
 
 const (
-	DockerUserChain   = "DOCKER-USER"
-	UncloudInputChain = "UNCLOUD-INPUT"
+	DockerUserChain             = "DOCKER-USER"
+	UncloudInputChain           = "UNCLOUD-INPUT"
+	UncloudNamespaceFilterChain = "UNCLOUD-NAMESPACE-FILTER"
 )
 
 // ConfigureIptablesChains sets up custom iptables chains and initial firewall rules for Uncloud networking.
 func ConfigureIptablesChains(machineIP netip.Addr) error {
 	if err := createIptablesChains(); err != nil {
+		return err
+	}
+
+	// Ensure namespace filter chain exists and is empty.
+	if err := ensureNamespaceFilterChain(); err != nil {
 		return err
 	}
 
@@ -172,6 +178,50 @@ func CleanupIptablesChains() error {
 		} else {
 			slog.Info(fmt.Sprintf("Deleted %s chain.", iptBin), "chain", UncloudInputChain)
 		}
+	}
+
+	return nil
+}
+
+// ensureNamespaceFilterChain ensures the namespace isolation chain exists and is flushed.
+func ensureNamespaceFilterChain() error {
+	ipt := iptables.GetIptable(iptables.IPv4)
+	if _, err := ipt.NewChain(UncloudNamespaceFilterChain, iptables.Filter); err != nil {
+		return fmt.Errorf("create iptables chain '%s': %w", UncloudNamespaceFilterChain, err)
+	}
+	if err := ipt.RawCombinedOutput("-t", string(iptables.Filter), "-F", UncloudNamespaceFilterChain); err != nil {
+		return fmt.Errorf("flush iptables chain '%s': %w", UncloudNamespaceFilterChain, err)
+	}
+	return nil
+}
+
+// UpdateNamespaceFilterRules rebuilds DROP rules to isolate namespaces from each other.
+// Uses iptables-restore for atomic updates to avoid any window where isolation rules are missing.
+func UpdateNamespaceFilterRules(namespaces []string) error {
+	var b strings.Builder
+	b.WriteString("*filter\n")
+	// Create chain if it doesn't exist, or use existing chain.
+	fmt.Fprintf(&b, ":%s - [0:0]\n", UncloudNamespaceFilterChain)
+	// Flush existing rules in this chain.
+	fmt.Fprintf(&b, "-F %s\n", UncloudNamespaceFilterChain)
+	// Add isolation rules for each namespace pair.
+	for _, src := range namespaces {
+		for _, dst := range namespaces {
+			if src == dst {
+				continue
+			}
+			fmt.Fprintf(&b, "-A %s -m set --match-set %s%s src -m set --match-set %s%s dst -j DROP\n",
+				UncloudNamespaceFilterChain, IPSetPrefix, src, IPSetPrefix, dst)
+		}
+	}
+	b.WriteString("COMMIT\n")
+
+	// Apply rules atomically using iptables-restore.
+	// The --noflush flag ensures we only modify the chains specified in the input.
+	cmd := exec.Command("iptables-restore", "--noflush")
+	cmd.Stdin = strings.NewReader(b.String())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("apply namespace filter rules: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 
 	return nil

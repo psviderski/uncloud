@@ -851,3 +851,52 @@ services:
 		})
 	}
 }
+
+func TestServiceSpecFromCompose_NamespaceExtension(t *testing.T) {
+	t.Parallel()
+
+	project, err := LoadProjectFromContent(context.Background(), `
+services:
+  app:
+    image: nginx
+    x-namespace: prod
+`)
+	require.NoError(t, err)
+
+	spec, err := ServiceSpecFromCompose(project, "app")
+	require.NoError(t, err)
+	assert.Equal(t, "prod", spec.Namespace)
+
+	// Ensure defaults fill in when extension is omitted.
+	projectDefault, err := LoadProjectFromContent(context.Background(), `
+services:
+  app:
+    image: nginx
+`)
+	require.NoError(t, err)
+	specDefault, err := ServiceSpecFromCompose(projectDefault, "app")
+	require.NoError(t, err)
+	assert.Equal(t, api.DefaultNamespace, specDefault.SetDefaults().Namespace)
+}
+
+func TestApplyNamespaceOverride(t *testing.T) {
+	t.Parallel()
+
+	project, err := LoadProjectFromContent(context.Background(), `
+services:
+  app:
+    image: nginx
+`)
+	require.NoError(t, err)
+
+	err = ApplyNamespaceOverride(project, "prod")
+	require.NoError(t, err)
+
+	spec, err := ServiceSpecFromCompose(project, "app")
+	require.NoError(t, err)
+	assert.Equal(t, "prod", spec.Namespace)
+
+	// Invalid namespace should error.
+	err = ApplyNamespaceOverride(project, "Invalid_Namespace")
+	require.Error(t, err)
+}

@@ -9,16 +9,21 @@ import (
 	"time"
 
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/pkg/api"
 )
+
+// resolverMaps holds DNS resolution data that must be updated atomically.
+type resolverMaps struct {
+	serviceIPs   map[string]map[string][]netip.Addr // namespace -> service name -> IPs
+	containerIPs map[netip.Addr]string               // IP -> namespace
+}
 
 // ClusterResolver implements Resolver by tracking containers in the cluster and resolving service names
 // to their IP addresses.
 type ClusterResolver struct {
 	store *store.Store
-	// serviceIPs maps service names to container IPs.
-	serviceIPs map[string][]netip.Addr
-	// mu protects the serviceIPs map.
-	mu sync.RWMutex
+	maps  *resolverMaps
+	mu    sync.RWMutex
 	// lastUpdate tracks when records were last updated.
 	lastUpdate time.Time
 	log        *slog.Logger
@@ -27,9 +32,12 @@ type ClusterResolver struct {
 // NewClusterResolver creates a new cluster resolver using the cluster store.
 func NewClusterResolver(store *store.Store) *ClusterResolver {
 	return &ClusterResolver{
-		store:      store,
-		serviceIPs: make(map[string][]netip.Addr),
-		log:        slog.With("component", "dns-resolver"),
+		store: store,
+		maps: &resolverMaps{
+			serviceIPs:   make(map[string]map[string][]netip.Addr),
+			containerIPs: make(map[netip.Addr]string),
+		},
+		log: slog.With("component", "dns-resolver"),
 	}
 }
 
@@ -68,7 +76,12 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 
 // updateServiceIPs processes container records and updates the serviceIPs map.
 func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
-	newServiceIPs := make(map[string][]netip.Addr, len(r.serviceIPs))
+	r.mu.RLock()
+	currentMaps := r.maps
+	r.mu.RUnlock()
+
+	newServiceIPs := make(map[string]map[string][]netip.Addr, len(currentMaps.serviceIPs))
+	newContainerIPs := make(map[netip.Addr]string)
 
 	containersCount := 0
 	for _, record := range containers {
@@ -88,31 +101,48 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 			continue
 		}
 
-		newServiceIPs[ctr.ServiceName()] = append(newServiceIPs[ctr.ServiceName()], ip)
+		namespace := ctr.Config.Labels[api.LabelNamespace]
+		if namespace == "" {
+			namespace = api.DefaultNamespace
+		}
+		if newServiceIPs[namespace] == nil {
+			newServiceIPs[namespace] = make(map[string][]netip.Addr)
+		}
+
+		newContainerIPs[ip] = namespace
+		newServiceIPs[namespace][ctr.ServiceName()] = append(newServiceIPs[namespace][ctr.ServiceName()], ip)
 		// Also add the service ID as a valid lookup.
-		newServiceIPs[ctr.ServiceID()] = append(newServiceIPs[ctr.ServiceID()], ip)
+		newServiceIPs[namespace][ctr.ServiceID()] = append(newServiceIPs[namespace][ctr.ServiceID()], ip)
 
 		// Add <machine-id>.m.<service-name> as a lookup
 		serviceNameWithMachineID := record.MachineID + ".m." + ctr.ServiceName()
-		newServiceIPs[serviceNameWithMachineID] = append(newServiceIPs[serviceNameWithMachineID], ip)
+		newServiceIPs[namespace][serviceNameWithMachineID] = append(newServiceIPs[namespace][serviceNameWithMachineID], ip)
 
 		containersCount++
 	}
 
-	// Update the serviceIPs map atomically.
+	// Update both maps atomically by replacing the entire resolverMaps pointer.
 	r.mu.Lock()
-	r.serviceIPs = newServiceIPs
+	r.maps = &resolverMaps{
+		serviceIPs:   newServiceIPs,
+		containerIPs: newContainerIPs,
+	}
 	r.mu.Unlock()
 
-	r.log.Debug("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
+	r.log.Debug("DNS records updated.", "namespaces", len(newServiceIPs), "containers", containersCount)
 }
 
 // Resolve returns IP addresses of the service containers.
-func (r *ClusterResolver) Resolve(serviceName string) []netip.Addr {
+func (r *ClusterResolver) Resolve(serviceName string, namespace string) []netip.Addr {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	maps := r.maps
+	r.mu.RUnlock()
 
-	ips, ok := r.serviceIPs[serviceName]
+	if namespace == "" {
+		namespace = api.DefaultNamespace
+	}
+
+	ips, ok := maps.serviceIPs[namespace][serviceName]
 	if !ok || len(ips) == 0 {
 		return nil
 	}
@@ -122,4 +152,12 @@ func (r *ClusterResolver) Resolve(serviceName string) []netip.Addr {
 	copy(ipsCopy, ips)
 
 	return ipsCopy
+}
+
+// GetNamespaceByIP returns the namespace a given IP belongs to.
+func (r *ClusterResolver) GetNamespaceByIP(ip netip.Addr) string {
+	r.mu.RLock()
+	maps := r.maps
+	r.mu.RUnlock()
+	return maps.containerIPs[ip]
 }

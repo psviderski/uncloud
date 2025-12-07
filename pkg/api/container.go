@@ -17,6 +17,7 @@ const (
 	// in internal/machine/docker/manager.go.
 	DockerNetworkName = "uncloud"
 	LabelManaged      = "uncloud.managed"
+	LabelNamespace    = "uncloud.namespace"
 	LabelServiceID    = "uncloud.service.id"
 	LabelServiceName  = "uncloud.service.name"
 	LabelServiceMode  = "uncloud.service.mode"

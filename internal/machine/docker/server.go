@@ -41,6 +41,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/dns"
+	"github.com/psviderski/uncloud/internal/machine/firewall"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc"
@@ -90,6 +91,24 @@ func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, m
 
 	s.networkReady = opts.NetworkReady
 	s.waitForNetworkReady = opts.WaitForNetworkReady
+
+	// Best-effort rebuild of namespace isolation on startup.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if s.waitForNetworkReady != nil {
+			if err := s.waitForNetworkReady(ctx); err != nil {
+				slog.Warn("Namespace isolation reconcile skipped; network not ready.", "err", err)
+				return
+			}
+		}
+		if err := s.reconcileNamespaceIsolation(ctx); err != nil {
+			slog.Warn("Failed to reconcile namespace isolation on startup.", "err", err)
+		} else {
+			slog.Debug("Namespace isolation reconciled successfully on startup.")
+		}
+	}()
 
 	return s
 }
@@ -560,6 +579,7 @@ func (s *Server) CreateServiceContainer(
 			api.LabelServiceName: spec.Name,
 			api.LabelServiceMode: spec.Mode,
 			api.LabelManaged:     "",
+			api.LabelNamespace:   spec.Namespace,
 		},
 		User: spec.Container.User,
 	}
@@ -666,6 +686,11 @@ func (s *Server) CreateServiceContainer(
 		return nil, status.Errorf(codes.Internal, "marshal response: %v", err)
 	}
 
+	// Update namespace ipsets and isolation rules for the newly created container.
+	if err := s.updateNamespaceIsolation(ctx, resp.ID, config.Labels[api.LabelNamespace]); err != nil {
+		slog.Warn("Failed to update namespace isolation for container.", "err", err, "id", resp.ID)
+	}
+
 	// Store the container spec in the database or remove the container with its anonymous volumes if storing fails.
 	removeContainer := func() {
 		_ = s.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{RemoveVolumes: true})
@@ -684,6 +709,123 @@ func (s *Server) CreateServiceContainer(
 	}
 
 	return &pb.CreateContainerResponse{Response: respBytes}, nil
+}
+
+// updateNamespaceIsolation ensures namespace ipsets include the container IP and rebuilds isolation rules.
+func (s *Server) updateNamespaceIsolation(ctx context.Context, containerID string, nsLabel string) error {
+	inspect, err := s.client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return fmt.Errorf("inspect container: %w", err)
+	}
+
+	ctr := api.Container{InspectResponse: inspect}
+	ip := ctr.UncloudNetworkIP()
+	if !ip.IsValid() {
+		return nil
+	}
+
+	namespace := nsLabel
+	if namespace == "" && inspect.Config != nil {
+		namespace = inspect.Config.Labels[api.LabelNamespace]
+	}
+	if namespace == "" {
+		namespace = api.DefaultNamespace
+	}
+
+	if err := firewall.CreateNamespaceIPSet(namespace); err != nil {
+		return err
+	}
+	if err := firewall.AddIPToNamespace(ip, namespace); err != nil {
+		return err
+	}
+
+	namespaces, err := firewall.ListNamespaces()
+	if err != nil {
+		return err
+	}
+	return firewall.UpdateNamespaceFilterRules(namespaces)
+}
+
+// cleanupNamespaceIsolation removes a container IP from namespace ipsets and refreshes rules.
+func (s *Server) cleanupNamespaceIsolation(ctx context.Context, containerID string) error {
+	inspect, err := s.client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		// If the container is already gone, nothing to clean up.
+		if client.IsErrNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("inspect container: %w", err)
+	}
+
+	ctr := api.Container{InspectResponse: inspect}
+	ip := ctr.UncloudNetworkIP()
+	if !ip.IsValid() {
+		return nil
+	}
+
+	namespace := api.DefaultNamespace
+	if inspect.Config != nil {
+		if ns := inspect.Config.Labels[api.LabelNamespace]; ns != "" {
+			namespace = ns
+		}
+	}
+
+	if err := firewall.RemoveIPFromNamespace(ip, namespace); err != nil {
+		return err
+	}
+
+	namespaces, err := firewall.ListNamespaces()
+	if err != nil {
+		return err
+	}
+	return firewall.UpdateNamespaceFilterRules(namespaces)
+}
+
+// reconcileNamespaceIsolation rebuilds ipsets and namespace rules for all containers in the Uncloud network.
+func (s *Server) reconcileNamespaceIsolation(ctx context.Context) error {
+	containers, err := s.client.ContainerList(ctx, container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.KeyValuePair{Key: "network", Value: api.DockerNetworkName},
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("list containers for isolation reconcile: %w", err)
+	}
+
+	nsSet := make(map[string]struct{})
+	for _, c := range containers {
+		ns := c.Labels[api.LabelNamespace]
+		if ns == "" {
+			ns = api.DefaultNamespace
+		}
+		if err := firewall.CreateNamespaceIPSet(ns); err != nil {
+			return err
+		}
+		inspect, err := s.client.ContainerInspect(ctx, c.ID)
+		if err != nil {
+			// Skip missing containers; they may be exiting.
+			if client.IsErrNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("inspect container %s: %w", c.ID, err)
+		}
+		ctr := api.Container{InspectResponse: inspect}
+		ip := ctr.UncloudNetworkIP()
+		if !ip.IsValid() {
+			continue
+		}
+		if err := firewall.AddIPToNamespace(ip, ns); err != nil {
+			return err
+		}
+		nsSet[ns] = struct{}{}
+	}
+
+	var namespaces []string
+	for ns := range nsSet {
+		namespaces = append(namespaces, ns)
+	}
+	return firewall.UpdateNamespaceFilterRules(namespaces)
 }
 
 func ToDockerMounts(volumes []api.VolumeSpec, mounts []api.VolumeMount) ([]mount.Mount, error) {
@@ -1005,6 +1147,11 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	resp, err := s.RemoveContainer(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+
+	// Clean up namespace isolation after successful removal to maintain consistency.
+	if err := s.cleanupNamespaceIsolation(ctx, ctrID); err != nil {
+		slog.Warn("Failed to clean up namespace isolation for removed container.", "err", err, "id", ctrID)
 	}
 
 	if _, err = s.db.ExecContext(ctx, `DELETE FROM containers WHERE id = $1`, ctrID); err != nil {
