@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/docker/cli/cli/connhelper/commandconn"
-	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -126,7 +126,7 @@ func (c *SSHCLIConnector) buildSSHArgs() []string {
 	args = append(args, "uncloudd", "dial-stdio")
 
 	// Add socket path if non-default.
-	if c.config.SockPath != "" && c.config.SockPath != machine.DefaultUncloudSockPath {
+	if c.config.SockPath != "" && c.config.SockPath != constants.DefaultUncloudSockPath {
 		args = append(args, "--socket", c.config.SockPath)
 	}
 

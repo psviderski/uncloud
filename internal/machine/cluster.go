@@ -21,6 +21,8 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/firewall"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/migrate"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -129,6 +131,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
 	}
+
 	errGroup.Go(func() error {
 		slog.Info("Starting network API server.", "addr", apiAddr)
 		if err := cc.server.Serve(listener); err != nil {
@@ -158,6 +161,18 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	errGroup.Go(func() error {
 		slog.Info("Watching Docker containers and syncing them to cluster store.")
 		return cc.syncDockerContainers(ctx)
+	})
+
+	// Check for Caddy namespace migration after Docker containers have been synced to the store.
+	// This is a one-time migration for existing deployments from pre-namespace versions.
+	errGroup.Go(func() error {
+		// Wait a moment for the initial container sync to complete before checking for migration.
+		time.Sleep(500 * time.Millisecond)
+
+		if err := cc.migrateCaddyNamespace(ctx, apiAddr); err != nil {
+			slog.Error("Failed to migrate Caddy to system namespace.", "err", err)
+		}
+		return nil
 	})
 
 	// Handle machine changes in the cluster. Handling machine and endpoint changes should be done
@@ -439,6 +454,63 @@ func (cc *clusterController) configurePeers(machines []*pb.MachineInfo) error {
 		return fmt.Errorf("configure network peers: %w", err)
 	}
 	return nil
+}
+
+// migrateCaddyNamespace checks if Caddy exists only in the default namespace and automatically migrates it.
+// This is a one-time migration for existing deployments from pre-namespace versions.
+func (cc *clusterController) migrateCaddyNamespace(ctx context.Context, apiAddr string) error {
+	// List all containers named "caddy"
+	opts := store.ListOptions{
+		ServiceIDOrName: store.ServiceIDOrNameOptions{Name: "caddy"},
+	}
+	containers, err := cc.store.ListContainers(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("check for Caddy service: %w", err)
+	}
+
+	if len(containers) == 0 {
+		// No Caddy service found
+		return nil
+	}
+
+	// Check which namespaces Caddy containers are in
+	hasSystemNamespace := false
+	hasDefaultNamespace := false
+
+	for _, ctr := range containers {
+		ns := ctr.Container.Config.Labels[api.LabelNamespace]
+		if ns == "" {
+			ns = api.DefaultNamespace
+		}
+		switch ns {
+		case api.SystemNamespace:
+			hasSystemNamespace = true
+		case api.DefaultNamespace:
+			hasDefaultNamespace = true
+		}
+	}
+
+	// Only migrate if Caddy exists in default but not in system namespace
+	// This ensures we don't interfere with user's custom caddy services
+	if hasDefaultNamespace && !hasSystemNamespace {
+		slog.Info("Detected Caddy service in default namespace from pre-namespace deployment. " +
+			"Starting automatic migration to system namespace.")
+
+		// Execute the migration by deploying Caddy to the system namespace
+		if err := cc.executeCaddyMigration(ctx, apiAddr); err != nil {
+			return fmt.Errorf("execute Caddy migration: %w", err)
+		}
+
+		slog.Info("Successfully migrated Caddy to system namespace.")
+	}
+
+	return nil
+}
+
+// executeCaddyMigration performs the actual Caddy migration by deploying it to the system namespace.
+// This will create new containers with the correct namespace label and remove the old ones via rolling update.
+func (cc *clusterController) executeCaddyMigration(ctx context.Context, apiAddr string) error {
+	return migrate.MigrateCaddyToSystemNamespace(ctx, apiAddr)
 }
 
 // Cleanup cleans up the cluster resources such as the WireGuard network, iptables rules, Docker network and containers.

@@ -17,6 +17,7 @@ uc service rm SERVICE [SERVICE...] [flags]
 ## Options
 
 ```
+      --namespace string   Namespace of the service(s) (optional).
   -h, --help   help for rm
 ```
 
@@ -32,4 +33,3 @@ uc service rm SERVICE [SERVICE...] [flags]
 ## See also
 
 * [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
-

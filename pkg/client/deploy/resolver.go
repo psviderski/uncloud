@@ -38,6 +38,10 @@ func (r *ServiceSpecResolver) Resolve(spec api.ServiceSpec) (api.ServiceSpec, er
 }
 
 func (r *ServiceSpecResolver) applyDefaults(spec *api.ServiceSpec) error {
+	if spec.Namespace == "" {
+		spec.Namespace = api.DefaultNamespace
+	}
+
 	if spec.Mode == "" {
 		spec.Mode = api.ServiceModeReplicated
 	}
