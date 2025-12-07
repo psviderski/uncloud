@@ -71,6 +71,7 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 				Protocol:      api.ProtocolTCP,
 				Mode:          api.PortModeHost,
 			},
+			// Needed for HTTP/3 (QUIC)
 			{
 				PublishedPort: 443,
 				ContainerPort: 443,
