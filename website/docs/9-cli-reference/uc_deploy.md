@@ -17,6 +17,7 @@ uc deploy [FLAGS] [SERVICE...] [flags]
       --no-build                Do not build new images before deploying services.
       --no-cache                Do not use cache when building images.
   -p, --profile strings         One or more Compose profiles to enable.
+      --namespace string        Namespace for this deployment (overrides x-namespace). Defaults to 'default'.
       --recreate                Recreate containers even if their configuration and image haven't changed.
   -y, --yes                     Auto-confirm deployment plan. Should be explicitly set when running non-interactively,
                                 e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
@@ -34,4 +35,3 @@ uc deploy [FLAGS] [SERVICE...] [flags]
 ## See also
 
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
-

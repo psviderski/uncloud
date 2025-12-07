@@ -1,6 +1,16 @@
 # Internal DNS
 
-Services can be addressed on the internal WireGuard network by service name, service ID, or a machine-scoped service name:
+Services can be addressed on the internal WireGuard network by service name, service ID, or a machine-scoped service
+name.
+
+## Namespaces and DNS
+- Lookups are automatically scoped to the namespace of the caller. A container in the `prod` namespace querying
+  `api.internal` only receives IPs for `prod` instances; it will not see `staging` instances of the same service name.
+- The same scoping applies to all supported record forms (service name, service ID, and machine-scoped names).
+- When running `nslookup` directly on the host, the resolver uses the `default` namespace because there is no container
+  IP to derive a namespace from.
+
+The examples below assume the caller is in the same namespace as the service being resolved.
 
 ## Service name
 ```
