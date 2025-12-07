@@ -12,6 +12,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const (
@@ -205,6 +206,7 @@ func ensureNamespaceFilterChain() error {
 
 // UpdateNamespaceFilterRules rebuilds DROP rules to isolate namespaces from each other.
 // Uses iptables-restore for atomic updates to avoid any window where isolation rules are missing.
+// The system namespace (api.SystemNamespace) is exempt from isolation and can communicate with all namespaces.
 func UpdateNamespaceFilterRules(namespaces []string) error {
 	var b strings.Builder
 	b.WriteString("*filter\n")
@@ -213,7 +215,12 @@ func UpdateNamespaceFilterRules(namespaces []string) error {
 	// Flush existing rules in this chain.
 	fmt.Fprintf(&b, "-F %s\n", UncloudNamespaceFilterChain)
 	// Add isolation rules for each namespace pair.
+	// The system namespace is exempt - it can initiate connections to any namespace,
+	// and return traffic is allowed via connection tracking.
 	for _, src := range namespaces {
+		if src == api.SystemNamespace {
+			continue // System namespace can reach all other namespaces
+		}
 		for _, dst := range namespaces {
 			if src == dst {
 				continue

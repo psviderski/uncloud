@@ -8,6 +8,10 @@ import (
 const (
 	// DefaultNamespace is the default namespace for services when not explicitly specified.
 	DefaultNamespace = "default"
+	// SystemNamespace is the privileged namespace for infrastructure services (e.g., Caddy).
+	// Services in this namespace can communicate with all other namespaces and are exempt from
+	// namespace isolation rules.
+	SystemNamespace = "uncloud-system"
 )
 
 var (
