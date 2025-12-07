@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"os/exec"
 	"strconv"
 	"strings"
 

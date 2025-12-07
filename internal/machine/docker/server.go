@@ -193,6 +193,12 @@ func (s *Server) StartContainer(ctx context.Context, req *pb.StartContainerReque
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	// Update namespace isolation after starting - the container will have an IP at this point.
+	// This ensures that even if the IP wasn't available immediately after creation, it gets added now.
+	if err := s.updateNamespaceIsolation(ctx, req.Id, ""); err != nil {
+		slog.Warn("Failed to update namespace isolation after container start.", "err", err, "id", req.Id)
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -721,6 +727,7 @@ func (s *Server) updateNamespaceIsolation(ctx context.Context, containerID strin
 	ctr := api.Container{InspectResponse: inspect}
 	ip := ctr.UncloudNetworkIP()
 	if !ip.IsValid() {
+		slog.Debug("Container does not have an IP on the uncloud network yet, skipping namespace isolation update.", "id", containerID)
 		return nil
 	}
 
