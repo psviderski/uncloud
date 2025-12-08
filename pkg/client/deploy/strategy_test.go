@@ -585,3 +585,43 @@ func TestRollingStrategy_Plan_RequiresClusterState(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cluster state must be provided")
 }
+
+func TestRollingStrategy_planGlobal_WithPlacementConstraints(t *testing.T) {
+	t.Parallel()
+
+	t.Run("global service with x-machine deploys only to specified machines", func(t *testing.T) {
+		// Cluster has 3 machines, but we only want to deploy to 2 of them using x-machine
+		state := newTestClusterState(
+			newTestMachine("m1", "node1", 4, 8),
+			newTestMachine("m2", "node2", 4, 8),
+			newTestMachine("m3", "node3", 4, 8),
+		)
+
+		spec := api.ServiceSpec{
+			Name: "test-service",
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "nginx:latest",
+			},
+			Placement: api.Placement{
+				Machines: []string{"node1", "node2"}, // x-machine constraint: only deploy to node1 and node2
+			},
+		}
+
+		strategy := &RollingStrategy{}
+		plan, err := strategy.Plan(state, nil, spec)
+
+		// This should succeed - global with x-machine should deploy to all machines in the constraint list
+		require.NoError(t, err, "global service with x-machine should succeed when all specified machines are eligible")
+
+		// Should have 2 RunContainerOperations (one per machine in the constraint)
+		counts := countOperationsByType(plan.Operations)
+		assert.Equal(t, 2, counts["run"], "should run containers on both specified machines")
+
+		// Verify containers are scheduled on the correct machines
+		machineIDs := getMachineIDsFromRunOps(plan.Operations)
+		assert.Contains(t, machineIDs, "m1", "should deploy to node1")
+		assert.Contains(t, machineIDs, "m2", "should deploy to node2")
+		assert.NotContains(t, machineIDs, "m3", "should not deploy to node3")
+	})
+}

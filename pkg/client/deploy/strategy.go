@@ -205,11 +205,17 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 		return plan, err
 	}
 
-	// Global mode requires all machines to satisfy the constraints.
-	if len(availableMachines) != len(s.state.Machines) {
+	// Global mode requires all target machines to satisfy the constraints.
+	// If placement constraints specify machines, use that count; otherwise use all cluster machines.
+	targetMachineCount := len(s.state.Machines)
+	if len(spec.Placement.Machines) > 0 {
+		targetMachineCount = len(spec.Placement.Machines)
+	}
+
+	if len(availableMachines) != targetMachineCount {
 		return plan, fmt.Errorf(
 			"global service '%s' requires all machines to satisfy constraints, but only %d of %d machines are eligible",
-			spec.Name, len(availableMachines), len(s.state.Machines),
+			spec.Name, len(availableMachines), targetMachineCount,
 		)
 	}
 
