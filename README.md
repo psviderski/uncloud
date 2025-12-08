@@ -337,6 +337,10 @@ These companies and projects are helping Uncloud with their generous sponsorship
 
 ## ❤️ Contributors
 
+<a href="https://trendshift.io/repositories/14069">
+    <img alt="Trendshift" src="https://trendshift.io/api/badge/repositories/14069" />
+</a>
+
 Thank you [@cedws](https://github.com/cedws) for being the first contributor to Uncloud! 🎉
 
 <a href="https://github.com/psviderski/uncloud/graphs/contributors">
