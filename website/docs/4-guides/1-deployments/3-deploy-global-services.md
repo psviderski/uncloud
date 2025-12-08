@@ -58,8 +58,8 @@ The default mode is `replicated`, where you specify the number of replicas.
 
 | Mode                   | Replicas                                      | Placement                                                           |
 |------------------------|-----------------------------------------------|---------------------------------------------------------------------|
-| `replicated` (default) | You specify with `scale` or `deploy.replicas` | Uncloud evenly spreads replicas across all machines or `x-machines` |
-| `global`               | Always one per machine                        | One replica on each machine or each `x-machines` machine            |
+| `replicated` (default) | You specify with `scale` or `deploy.replicas` | Spreads across eligible machines or `x-machines` (balances by load when reservations set; round-robins when not) |
+| `global`               | Always one per machine                        | One replica on each eligible machine or each `x-machines` machine; fails if any required machine is ineligible |
 
 ## See also
 

@@ -2,10 +2,8 @@ package deploy
 
 import (
 	"fmt"
-	"math/rand/v2"
 	"slices"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
@@ -65,21 +63,6 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 	}
 
 	sched := scheduler.NewServiceScheduler(s.state, spec)
-	// TODO: return a detailed report on required constraints and which ones are satisfied?
-	availableMachines, err := sched.EligibleMachines()
-	if err != nil {
-		return plan, err
-	}
-
-	var matchedMachines []*pb.MachineInfo
-	for _, m := range availableMachines {
-		matchedMachines = append(matchedMachines, m.Info)
-	}
-
-	// Randomise the order of machines to avoid always deploying to the same machines first.
-	rand.Shuffle(len(matchedMachines), func(i, j int) {
-		matchedMachines[i], matchedMachines[j] = matchedMachines[j], matchedMachines[i]
-	})
 
 	// Organise existing containers by machine.
 	containersOnMachine := make(map[string][]api.ServiceContainer)
@@ -119,44 +102,40 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		for _, c := range svc.Containers {
 			containersOnMachine[c.MachineID] = append(containersOnMachine[c.MachineID], c.Container)
 		}
-
-		// Sort machines such that machines with the most up-to-date containers are first, followed by machines with
-		// existing containers, and finally machines without containers.
-		slices.SortFunc(matchedMachines, func(m1, m2 *pb.MachineInfo) int {
-			if upToDateContainersOnMachine[m1.Id] > 0 && upToDateContainersOnMachine[m2.Id] > 0 {
-				return upToDateContainersOnMachine[m2.Id] - upToDateContainersOnMachine[m1.Id]
-			}
-			if upToDateContainersOnMachine[m1.Id] > 0 {
-				return -1
-			}
-			if upToDateContainersOnMachine[m2.Id] > 0 {
-				return 1
-			}
-			return len(containersOnMachine[m2.Id]) - len(containersOnMachine[m1.Id])
-		})
 	}
 
-	// Spread the containers across the available machines evenly using a simple round-robin approach, starting with
-	// machines that already have containers and prioritising machines with containers that match the desired spec.
+	// Set existing container counts on machines for the scheduler's spread ranking.
+	for _, m := range s.state.Machines {
+		m.ExistingContainers = len(containersOnMachine[m.Info.Id])
+	}
+
+	// Schedule containers across eligible machines using the heap-based scheduler.
 	for i := 0; i < int(spec.Replicas); i++ {
-		m := matchedMachines[i%len(matchedMachines)]
-		containers := containersOnMachine[m.Id]
+		// Get the best eligible machine for this container (accounts for resources and spreading).
+		m, err := sched.ScheduleContainer()
+		if err != nil {
+			return plan, fmt.Errorf("cannot schedule replica %d of service '%s': %w", i+1, spec.Name, err)
+		}
+
+		containers := containersOnMachine[m.Info.Id]
 
 		if len(containers) == 0 {
-			// No more existing containers on this machine, create a new one.
+			// No existing containers on this machine, create a new one.
 			plan.Operations = append(plan.Operations, &RunContainerOperation{
 				ServiceID: plan.ServiceID,
 				Spec:      spec,
-				MachineID: m.Id,
+				MachineID: m.Info.Id,
 			})
 			continue
 		}
 
 		ctr := containers[0]
-		containersOnMachine[m.Id] = containers[1:]
+		containersOnMachine[m.Info.Id] = containers[1:]
 
 		if status, ok := containerSpecStatuses[ctr.ID]; ok { // Contains statuses for only running containers.
 			if status == ContainerUpToDate {
+				sched.UnscheduleContainer(m)
+				// Container is already up-to-date, no changes needed.
 				continue
 			}
 			// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
@@ -167,7 +146,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 				plan.Operations = append(plan.Operations, &StopContainerOperation{
 					ServiceID:   plan.ServiceID,
 					ContainerID: ctr.ID,
-					MachineID:   m.Id,
+					MachineID:   m.Info.Id,
 				})
 			}
 		}
@@ -176,12 +155,12 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		plan.Operations = append(plan.Operations, &RunContainerOperation{
 			ServiceID: plan.ServiceID,
 			Spec:      spec,
-			MachineID: m.Id,
+			MachineID: m.Info.Id,
 		})
 
 		// Remove the old container.
 		plan.Operations = append(plan.Operations, &RemoveContainerOperation{
-			MachineID: m.Id,
+			MachineID: m.Info.Id,
 			Container: ctr,
 		})
 	}
@@ -224,6 +203,14 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 	availableMachines, err := sched.EligibleMachines()
 	if err != nil {
 		return plan, err
+	}
+
+	// Global mode requires all machines to satisfy the constraints.
+	if len(availableMachines) != len(s.state.Machines) {
+		return plan, fmt.Errorf(
+			"global service '%s' requires all machines to satisfy constraints, but only %d of %d machines are eligible",
+			spec.Name, len(availableMachines), len(s.state.Machines),
+		)
 	}
 
 	for _, m := range availableMachines {

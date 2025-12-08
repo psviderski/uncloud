@@ -144,6 +144,10 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 			}
 		}
 		if service.Deploy.Resources.Reservations != nil {
+			if service.Deploy.Resources.Reservations.NanoCPUs > 0 {
+				// NanoCPUs is actually a CPU fraction, not nanocores.
+				resources.CPUReservation = int64(service.Deploy.Resources.Reservations.NanoCPUs * 1e9)
+			}
 			if service.Deploy.Resources.Reservations.MemoryBytes > 0 {
 				resources.MemoryReservation = int64(service.Deploy.Resources.Reservations.MemoryBytes)
 			}
