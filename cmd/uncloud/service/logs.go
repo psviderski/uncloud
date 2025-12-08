@@ -21,13 +21,13 @@ import (
 )
 
 type logsOptions struct {
-	files    []string
-	follow   bool
-	tail     string
-	since    string
-	until    string
-	utc      bool
-	machines []string
+	files     []string
+	follow    bool
+	tail      string
+	since     string
+	until     string
+	utc       bool
+	machines  []string
 	namespace string
 }
 
@@ -93,7 +93,6 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
 			return fmt.Errorf("invalid namespace: %w", err)
 		}
-		ctx = client.WithNamespace(ctx, opts.namespace)
 	}
 
 	// Parse tail option.
@@ -124,7 +123,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 	machineIDsSet := mapset.NewSet[string]()
 	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceNames))
 	for _, serviceName := range serviceNames {
-		svc, ch, err := c.ServiceLogs(ctx, serviceName, logsOpts)
+		svc, ch, err := c.ServiceLogs(ctx, serviceName, opts.namespace, logsOpts)
 		if err != nil {
 			return fmt.Errorf("stream logs for service '%s': %w", serviceName, err)
 		}

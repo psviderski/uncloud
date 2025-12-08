@@ -166,6 +166,19 @@ func (c *ServiceContainer) ServiceMode() string {
 	return c.Config.Labels[LabelServiceMode]
 }
 
+// Namespace returns the namespace this container belongs to.
+func (c *ServiceContainer) Namespace() string {
+	if c.ServiceSpec.Namespace != "" {
+		return c.ServiceSpec.Namespace
+	}
+	// Fallback to label for containers loaded without ServiceSpec.
+	ns := c.Config.Labels[LabelNamespace]
+	if ns == "" {
+		return DefaultNamespace
+	}
+	return ns
+}
+
 // ServicePorts returns the ports this container publishes as part of its service.
 func (c *ServiceContainer) ServicePorts() ([]PortSpec, error) {
 	encoded, ok := c.Config.Labels[LabelServicePorts]

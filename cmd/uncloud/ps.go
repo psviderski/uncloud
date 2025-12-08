@@ -61,7 +61,7 @@ making it easy to see the distribution and status of containers across the clust
 
 type containerInfo struct {
 	serviceName string
-	namespace  string
+	namespace   string
 	machineName string
 	id          string
 	name        string
@@ -90,10 +90,7 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		Type(spinner.MiniDot).
 		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
 		ActionWithErr(func(ctx context.Context) error {
-			if opts.namespace != "" {
-				ctx = client.WithNamespace(ctx, opts.namespace)
-			}
-			containers, err = collectContainers(ctx, cl)
+			containers, err = collectContainers(ctx, cl, opts.namespace)
 			return err
 		}).
 		Run()
@@ -190,7 +187,7 @@ func printContainers(containers []containerInfo) error {
 	return nil
 }
 
-func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
+func collectContainers(ctx context.Context, cli *client.Client, namespace string) ([]containerInfo, error) {
 	listCtx, machines, err := cli.ProxyMachinesContext(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("proxy machines context: %w", err)
@@ -243,6 +240,14 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 		for _, ctr := range msc.Containers {
 			if ctr.Container.State == nil || ctr.Container.Config == nil {
 				continue
+			}
+
+			// Filter by namespace if specified.
+			if namespace != "" {
+				ns := namespaceFromLabels(ctr.Container.Config.Labels)
+				if ns != namespace {
+					continue
+				}
 			}
 
 			status, err := ctr.Container.HumanState()

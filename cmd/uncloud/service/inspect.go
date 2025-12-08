@@ -11,12 +11,11 @@ import (
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type inspectOptions struct {
-	service string
+	service   string
 	namespace string
 }
 
@@ -41,7 +40,6 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
 			return fmt.Errorf("invalid namespace: %w", err)
 		}
-		ctx = client.WithNamespace(ctx, opts.namespace)
 	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
@@ -49,7 +47,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	}
 	defer client.Close()
 
-	svc, err := client.InspectService(ctx, opts.service)
+	svc, err := client.InspectService(ctx, opts.service, opts.namespace)
 	if err != nil {
 		return fmt.Errorf("inspect service: %w", err)
 	}

@@ -45,7 +45,7 @@ func TestComposeDeployment(t *testing.T) {
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		expectedSpec := api.ServiceSpec{
@@ -99,7 +99,7 @@ func TestComposeDeployment(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify web service.
-		webSvc, err := cli.InspectService(ctx, "test-compose-multi-web")
+		webSvc, err := cli.InspectService(ctx, "test-compose-multi-web", "")
 		require.NoError(t, err)
 		expectedWebSpec := api.ServiceSpec{
 			Name: "test-compose-multi-web",
@@ -124,7 +124,7 @@ func TestComposeDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, webSvc, expectedWebSpec)
 
 		// Verify api service.
-		apiSvc, err := cli.InspectService(ctx, "test-compose-multi-api")
+		apiSvc, err := cli.InspectService(ctx, "test-compose-multi-api", "")
 		require.NoError(t, err)
 		expectedApiSpec := api.ServiceSpec{
 			Name: "test-compose-multi-api",
@@ -141,7 +141,7 @@ func TestComposeDeployment(t *testing.T) {
 		assertServiceMatchesSpec(t, apiSvc, expectedApiSpec)
 
 		// Verify worker service.
-		workerSvc, err := cli.InspectService(ctx, "test-compose-multi-worker")
+		workerSvc, err := cli.InspectService(ctx, "test-compose-multi-worker", "")
 		require.NoError(t, err)
 		expectedWorkerSpec := api.ServiceSpec{
 			Name: "test-compose-multi-worker",
@@ -183,15 +183,15 @@ func TestComposeDeployment(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify services match the expected specs after recreate.
-		webSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-web")
+		webSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-web", "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, webSvcAfter, expectedWebSpec)
 
-		apiSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-api")
+		apiSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-api", "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, apiSvcAfter, expectedApiSpec)
 
-		workerSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-worker")
+		workerSvcAfter, err := cli.InspectService(ctx, "test-compose-multi-worker", "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, workerSvcAfter, expectedWorkerSpec)
 
@@ -264,7 +264,7 @@ func TestComposeDeployment(t *testing.T) {
 		assert.Equal(t, c.Machines[2].ID, data2Volume.MachineID,
 			"data2 volume must be on machine #2 as service3 shares both data2 and external volumes")
 
-		service1, err := cli.InspectService(ctx, "test-compose-volumes-service1")
+		service1, err := cli.InspectService(ctx, "test-compose-volumes-service1", "")
 		require.NoError(t, err)
 
 		expectedSpec1 := api.ServiceSpec{
@@ -304,7 +304,7 @@ func TestComposeDeployment(t *testing.T) {
 		assert.Equal(t, service1Machines.ToSlice(), []string{data1Volume.MachineID},
 			"service1 should be on the same machine as data1 volume")
 
-		service2, err := cli.InspectService(ctx, "test-compose-volumes-service2")
+		service2, err := cli.InspectService(ctx, "test-compose-volumes-service2", "")
 		require.NoError(t, err)
 
 		expectedSpec2 := api.ServiceSpec{
@@ -337,7 +337,7 @@ func TestComposeDeployment(t *testing.T) {
 		assert.Equal(t, service2Machines.ToSlice(), []string{data2Volume.MachineID},
 			"service2 replicas should be on the same machine as data2 volume")
 
-		service3, err := cli.InspectService(ctx, "test-compose-volumes-service3")
+		service3, err := cli.InspectService(ctx, "test-compose-volumes-service3", "")
 		require.NoError(t, err)
 
 		expectedSpec3 := api.ServiceSpec{
@@ -408,7 +408,7 @@ func TestComposeDeployment(t *testing.T) {
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		expectedSpec := api.ServiceSpec{
@@ -461,7 +461,7 @@ func TestComposeDeployment(t *testing.T) {
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		expectedSpec := api.ServiceSpec{
@@ -509,7 +509,7 @@ func TestComposeDeployment(t *testing.T) {
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		expectedSpec := api.ServiceSpec{

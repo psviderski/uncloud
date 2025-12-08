@@ -10,7 +10,6 @@ import (
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -26,23 +25,22 @@ func NewListCommand() *cobra.Command {
 				if err := api.ValidateNamespaceName(ns); err != nil {
 					return fmt.Errorf("invalid namespace: %w", err)
 				}
-				cmd.SetContext(client.WithNamespace(cmd.Context(), ns))
 			}
-			return list(cmd.Context(), uncli)
+			return list(cmd.Context(), uncli, ns)
 		},
 	}
 	cmd.Flags().String("namespace", "", "Filter services by namespace (optional).")
 	return cmd
 }
 
-func list(ctx context.Context, uncli *cli.CLI) error {
+func list(ctx context.Context, uncli *cli.CLI, namespace string) error {
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer client.Close()
 
-	services, err := client.ListServices(ctx)
+	services, err := client.ListServices(ctx, namespace)
 	if err != nil {
 		return fmt.Errorf("list services: %w", err)
 	}

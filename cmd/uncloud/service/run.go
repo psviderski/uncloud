@@ -12,7 +12,6 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
 )
@@ -122,7 +121,6 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
 			return fmt.Errorf("invalid namespace: %w", err)
 		}
-		ctx = client.WithNamespace(ctx, opts.namespace)
 	}
 	spec, err := prepareServiceSpec(opts)
 	if err != nil {
@@ -148,7 +146,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return err
 	}
 
-	svc, err := clusterClient.InspectService(ctx, resp.ID)
+	svc, err := clusterClient.InspectService(ctx, resp.ID, opts.namespace)
 	if err != nil {
 		return fmt.Errorf("inspect service: %w", err)
 	}

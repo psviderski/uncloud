@@ -478,11 +478,7 @@ func (cc *clusterController) migrateCaddyNamespace(ctx context.Context, apiAddr 
 	hasDefaultNamespace := false
 
 	for _, ctr := range containers {
-		ns := ctr.Container.Config.Labels[api.LabelNamespace]
-		if ns == "" {
-			ns = api.DefaultNamespace
-		}
-		switch ns {
+		switch ctr.Container.Namespace() {
 		case api.SystemNamespace:
 			hasSystemNamespace = true
 		case api.DefaultNamespace:

@@ -213,7 +213,7 @@ func printPlan(ctx context.Context, cli *client.Client, plan deploy.SequenceOper
 			continue
 		}
 
-		svc, err := cli.InspectService(ctx, svcPlan.ServiceID)
+		svc, err := cli.InspectService(ctx, svcPlan.ServiceID, "")
 		if err != nil && !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect service: %w", err)
 		}

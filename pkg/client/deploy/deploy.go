@@ -109,7 +109,7 @@ func (d *Deployment) Validate(ctx context.Context) error {
 	}
 
 	if d.Service == nil {
-		svc, err := d.cli.InspectService(ctx, d.Spec.Name)
+		svc, err := d.cli.InspectService(ctx, d.Spec.Name, d.Spec.Namespace)
 		if err == nil {
 			d.Service = &svc
 		} else if !errors.Is(err, api.ErrNotFound) {

@@ -14,11 +14,9 @@ const (
 	SystemNamespace = "uncloud-system"
 )
 
-var (
-	// NamespaceNameRegexp validates namespace names: lowercase alphanumeric with hyphens, starting and ending with alphanumeric.
-	// Max 63 chars (DNS label limit).
-	NamespaceNameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
-)
+// NamespaceNameRegexp validates namespace names: lowercase alphanumeric with hyphens, starting and ending with alphanumeric.
+// Max 63 chars (DNS label limit).
+var NamespaceNameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 // ValidateNamespaceName validates a namespace name according to DNS label rules.
 func ValidateNamespaceName(name string) error {

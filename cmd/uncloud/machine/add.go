@@ -137,7 +137,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	// issues accessing the Machine API of existing machines in the cluster.
 	// See the issue for more details: https://github.com/psviderski/uncloud/issues/65.
 	caddyImage := ""
-	caddySvc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
+	caddySvc, err := clusterClient.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace)
 	if err != nil {
 		if !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect caddy service: %w", err)

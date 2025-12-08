@@ -8,7 +8,6 @@ import (
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -88,7 +87,6 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
 			return fmt.Errorf("invalid namespace: %w", err)
 		}
-		ctx = client.WithNamespace(ctx, opts.namespace)
 	}
 	if !opts.detach {
 		// Check if we're trying to attach to a TTY from a non-TTY client, e.g.
@@ -120,7 +118,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		execConfig.AttachStderr = true
 	}
 
-	exitCode, err := client.ExecContainer(ctx, serviceName, opts.containerId, execConfig)
+	exitCode, err := client.ExecContainer(ctx, serviceName, opts.namespace, opts.containerId, execConfig)
 	if err != nil {
 		return fmt.Errorf("exec container: %w", err)
 	}

@@ -57,7 +57,7 @@ func reserve(ctx context.Context, uncli *cli.CLI, opts reserveOptions) error {
 	fmt.Printf("Reserved cluster domain: %s\n", domain.Name)
 
 	// Update cluster domain records in Uncloud DNS to point to machines running caddy service if it has been deployed.
-	if _, err = clusterClient.InspectService(ctx, client.CaddyServiceName); err != nil {
+	if _, err = clusterClient.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace); err != nil {
 		if errors.Is(err, api.ErrNotFound) {
 			fmt.Println("Deploy the Caddy reverse proxy service ('uc caddy deploy') to enable internet access " +
 				"to your services via the reserved or your custom domain.")

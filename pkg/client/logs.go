@@ -17,9 +17,9 @@ import (
 // It uses a low watermark algorithm to ensure proper ordering across multiple machines.
 // Heartbeat entries from the server advance the watermark to enable timely emission of buffered logs.
 func (cli *Client) ServiceLogs(
-	ctx context.Context, serviceNameOrID string, opts api.ServiceLogsOptions,
+	ctx context.Context, serviceNameOrID string, namespace string, opts api.ServiceLogsOptions,
 ) (api.Service, <-chan api.ServiceLogEntry, error) {
-	svc, err := cli.InspectService(ctx, serviceNameOrID)
+	svc, err := cli.InspectService(ctx, serviceNameOrID, namespace)
 	if err != nil {
 		return svc, nil, fmt.Errorf("inspect service: %w", err)
 	}

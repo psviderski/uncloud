@@ -15,7 +15,7 @@ import (
 // resolverMaps holds DNS resolution data that must be updated atomically.
 type resolverMaps struct {
 	serviceIPs   map[string]map[string][]netip.Addr // namespace -> service name -> IPs
-	containerIPs map[netip.Addr]string               // IP -> namespace
+	containerIPs map[netip.Addr]string              // IP -> namespace
 }
 
 // ClusterResolver implements Resolver by tracking containers in the cluster and resolving service names
@@ -101,10 +101,7 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 			continue
 		}
 
-		namespace := ctr.Config.Labels[api.LabelNamespace]
-		if namespace == "" {
-			namespace = api.DefaultNamespace
-		}
+		namespace := ctr.Namespace()
 		if newServiceIPs[namespace] == nil {
 			newServiceIPs[namespace] = make(map[string][]netip.Addr)
 		}

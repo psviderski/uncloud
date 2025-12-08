@@ -380,11 +380,7 @@ type Service struct {
 func (s Service) Namespace() string {
 	namespaces := make(map[string]struct{})
 	for _, mc := range s.Containers {
-		ns := mc.Container.Config.Labels[LabelNamespace]
-		if ns == "" {
-			ns = DefaultNamespace
-		}
-		namespaces[ns] = struct{}{}
+		namespaces[mc.Container.Namespace()] = struct{}{}
 	}
 
 	if len(namespaces) == 1 {
