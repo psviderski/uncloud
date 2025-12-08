@@ -249,7 +249,7 @@ func dockerVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig, volume
 	}
 
 	if !volume.External {
-		if volume.Driver != "" {
+		if volume.Driver != "" || len(volume.DriverOpts) > 0 {
 			spec.VolumeOptions.Driver = &mount.Driver{
 				Name:    volume.Driver,
 				Options: volume.DriverOpts,
