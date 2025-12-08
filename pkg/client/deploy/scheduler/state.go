@@ -18,6 +18,32 @@ type Machine struct {
 	Info             *pb.MachineInfo
 	Volumes          []volume.Volume
 	ScheduledVolumes []api.VolumeSpec
+	// ExistingContainers is the number of containers already running on this machine (for ranking).
+	ExistingContainers int
+	// ScheduledCPU tracks CPU nanocores reserved by containers scheduled during this planning session.
+	ScheduledCPU int64
+	// ScheduledMemory tracks memory bytes reserved by containers scheduled during this planning session.
+	ScheduledMemory int64
+	// ScheduledContainers tracks the number of containers scheduled on this machine during this planning session.
+	ScheduledContainers int
+}
+
+// AvailableCPU returns the available CPU nanocores on the machine after accounting for
+// both running containers and containers scheduled during this planning session.
+func (m *Machine) AvailableCPU() int64 {
+	return m.Info.TotalCpuNanos - m.Info.ReservedCpuNanos - m.ScheduledCPU
+}
+
+// AvailableMemory returns the available memory bytes on the machine after accounting for
+// both running containers and containers scheduled during this planning session.
+func (m *Machine) AvailableMemory() int64 {
+	return m.Info.TotalMemoryBytes - m.Info.ReservedMemoryBytes - m.ScheduledMemory
+}
+
+// ReserveResources reserves the given CPU and memory for a container scheduled on this machine.
+func (m *Machine) ReserveResources(cpu, memory int64) {
+	m.ScheduledCPU += cpu
+	m.ScheduledMemory += memory
 }
 
 type Client interface {
