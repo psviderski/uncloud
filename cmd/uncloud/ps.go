@@ -243,11 +243,8 @@ func collectContainers(ctx context.Context, cli *client.Client, namespace string
 			}
 
 			// Filter by namespace if specified.
-			if namespace != "" {
-				ns := namespaceFromLabels(ctr.Container.Config.Labels)
-				if ns != namespace {
-					continue
-				}
+			if namespace != "" && ctr.Namespace() != namespace {
+				continue
 			}
 
 			status, err := ctr.Container.HumanState()
@@ -273,7 +270,7 @@ func collectContainers(ctx context.Context, cli *client.Client, namespace string
 
 			info := containerInfo{
 				serviceName: ctr.ServiceName(),
-				namespace:   displayNamespace(namespaceFromLabels(ctr.Container.Config.Labels)),
+				namespace:   ctr.Namespace(),
 				machineName: machineName,
 				id:          ctr.Container.ID,
 				name:        ctr.Container.Name,

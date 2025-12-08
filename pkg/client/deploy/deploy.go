@@ -112,7 +112,9 @@ func (d *Deployment) Validate(ctx context.Context) error {
 		svc, err := d.cli.InspectService(ctx, d.Spec.Name, d.Spec.Namespace)
 		if err == nil {
 			d.Service = &svc
-		} else if !errors.Is(err, api.ErrNotFound) {
+		} else if !errors.Is(err, api.ErrNotFound) && !errors.Is(err, api.ErrNamespaceMismatch) {
+			// ErrNamespaceMismatch means a service with this name exists in another namespace,
+			// which is fine - we can create a new one in the target namespace.
 			return fmt.Errorf("inspect service: %w", err)
 		}
 	}

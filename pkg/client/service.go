@@ -27,12 +27,13 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 	}
 
 	if spec.Name != "" {
-		// Optimistically check if a service with the specified name already exists.
+		// Optimistically check if a service with the specified name already exists in this namespace.
 		_, err := cli.InspectService(ctx, spec.Name, spec.Namespace)
 		if err == nil {
-			return resp, fmt.Errorf("service with name '%s' already exists", spec.Name)
+			return resp, fmt.Errorf("service with name '%s' already exists in namespace '%s'", spec.Name, spec.Namespace)
 		}
-		if !errors.Is(err, api.ErrNotFound) {
+		// ErrNotFound or ErrNamespaceMismatch both mean we can proceed - no conflict in this namespace.
+		if !errors.Is(err, api.ErrNotFound) && !errors.Is(err, api.ErrNamespaceMismatch) {
 			return resp, fmt.Errorf("inspect service: %w", err)
 		}
 	}
@@ -171,7 +172,7 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string, namespac
 			// Retry without namespace to see if the name exists elsewhere.
 			svcAny, errAny := cli.InspectService(ctx, nameOrID, "")
 			if errAny == nil && svcAny.Name != "" {
-				return svc, fmt.Errorf("service '%s' exists but not in namespace '%s'", nameOrID, namespace)
+				return svc, fmt.Errorf("%w: service '%s' exists but not in namespace '%s'", api.ErrNamespaceMismatch, nameOrID, namespace)
 			}
 		}
 		return svc, api.ErrNotFound
@@ -410,6 +411,10 @@ func (cli *Client) ListServices(ctx context.Context, namespace string) ([]api.Se
 
 		for _, ctr := range mc.Containers {
 			if _, ok := servicesByID[ctr.ServiceID()]; ok {
+				continue
+			}
+			// Skip containers that don't match the namespace filter.
+			if namespace != "" && ctr.Namespace() != namespace {
 				continue
 			}
 

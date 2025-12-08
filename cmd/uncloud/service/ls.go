@@ -86,7 +86,7 @@ func list(ctx context.Context, uncli *cli.CLI, namespace string) error {
 			}
 		}
 		if _, err = fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\n",
-			s.Name, displayNamespace(s.Namespace()), s.Mode, len(s.Containers), images, endpoints); err != nil {
+			s.Name, s.Namespace(), s.Mode, len(s.Containers), images, endpoints); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}

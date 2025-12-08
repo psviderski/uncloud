@@ -63,7 +63,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 
 	fmt.Printf("Service ID: %s\n", svc.ID)
 	fmt.Printf("Name:       %s\n", svc.Name)
-	fmt.Printf("Namespace:  %s\n", displayNamespace(svc.Namespace()))
+	fmt.Printf("Namespace:  %s\n", svc.Namespace())
 	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 
