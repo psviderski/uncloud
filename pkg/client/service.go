@@ -275,7 +275,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 
 // StopService stops all containers on all machines that belong to the specified service.
 // The id parameter can be either a service ID or name.
-func (cli *Client) StopService(ctx context.Context, id string) error {
+func (cli *Client) StopService(ctx context.Context, id string, opts container.StopOptions) error {
 	svc, err := cli.InspectService(ctx, id)
 	if err != nil {
 		return err
@@ -291,7 +291,7 @@ func (cli *Client) StopService(ctx context.Context, id string) error {
 		go func() {
 			defer wg.Done()
 
-			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, container.StopOptions{})
+			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, opts)
 			if err != nil {
 				errCh <- fmt.Errorf("stop container '%s': %w", mc.Container.ID, err)
 			}

@@ -6,12 +6,15 @@ import (
 	"fmt"
 
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
 )
 
 type stopOptions struct {
 	services []string
+	signal   string
+	timeout  int
 }
 
 func NewStopCommand() *cobra.Command {
@@ -27,6 +30,8 @@ func NewStopCommand() *cobra.Command {
 			return stop(cmd.Context(), uncli, opts)
 		},
 	}
+	cmd.Flags().StringVarP(&opts.signal, "signal", "s", "", "Signal to send to the container")
+	cmd.Flags().IntVarP(&opts.timeout, "timeout", "t", 0, "Seconds to wait before killing the container")
 	return cmd
 }
 
@@ -37,9 +42,16 @@ func stop(ctx context.Context, uncli *cli.CLI, opts stopOptions) error {
 	}
 	defer client.Close()
 
+	stopOpts := container.StopOptions{
+		Signal: opts.signal,
+	}
+	if opts.timeout != 0 {
+		stopOpts.Timeout = &opts.timeout
+	}
+
 	for _, s := range opts.services {
 		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-			if err = client.StopService(ctx, s); err != nil {
+			if err = client.StopService(ctx, s, stopOpts); err != nil {
 				return fmt.Errorf("stop service '%s': %w", s, err)
 			}
 			return nil
