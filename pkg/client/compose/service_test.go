@@ -586,6 +586,114 @@ services:
 	}
 }
 
+func TestServiceSpecFromCompose_VolumeDriverOpts(t *testing.T) {
+	tests := []struct {
+		name           string
+		composeYAML    string
+		expectedVolume api.VolumeSpec
+	}{
+		{
+			name: "volume with driver_opts only (no driver specified)",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    volumes:
+      - nfsmount:/data/nfs
+volumes:
+  nfsmount:
+    driver_opts:
+      type: "nfs"
+      o: "addr=192.168.1.100,nolock,soft"
+      device: ":/mnt/share"
+`,
+			expectedVolume: api.VolumeSpec{
+				Name: "nfsmount",
+				Type: api.VolumeTypeVolume,
+				VolumeOptions: &api.VolumeOptions{
+					Name: "nfsmount",
+					Driver: &mount.Driver{
+						Options: map[string]string{
+							"type":   "nfs",
+							"o":      "addr=192.168.1.100,nolock,soft",
+							"device": ":/mnt/share",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "volume with driver and driver_opts",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    volumes:
+      - nfsmount:/data/nfs
+volumes:
+  nfsmount:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=192.168.1.100,nolock,soft"
+      device: ":/mnt/share"
+`,
+			expectedVolume: api.VolumeSpec{
+				Name: "nfsmount",
+				Type: api.VolumeTypeVolume,
+				VolumeOptions: &api.VolumeOptions{
+					Name: "nfsmount",
+					Driver: &mount.Driver{
+						Name: "local",
+						Options: map[string]string{
+							"type":   "nfs",
+							"o":      "addr=192.168.1.100,nolock,soft",
+							"device": ":/mnt/share",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "external volume ignores driver_opts",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    volumes:
+      - extvolume:/data
+volumes:
+  extvolume:
+    external: true
+`,
+			expectedVolume: api.VolumeSpec{
+				Name: "extvolume",
+				Type: api.VolumeTypeVolume,
+				VolumeOptions: &api.VolumeOptions{
+					Name: "extvolume",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "test")
+			require.NoError(t, err)
+
+			require.Len(t, spec.Volumes, 1, "expected exactly one volume")
+			actualVolume := spec.Volumes[0]
+
+			cmpOpts := cmp.Options{cmpopts.EquateEmpty()}
+			assert.True(t, cmp.Equal(actualVolume, tt.expectedVolume, cmpOpts...),
+				"Volume mismatch:\n%s", cmp.Diff(actualVolume, tt.expectedVolume, cmpOpts...))
+		})
+	}
+}
+
 func TestServiceSpecFromCompose_XMachinesPlacement(t *testing.T) {
 	tests := []struct {
 		name        string
