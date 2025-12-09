@@ -162,7 +162,7 @@ func TestPortSpec_Validate(t *testing.T) {
 			wantErr: "invalid mode: 'invalid'",
 		},
 		{
-			name: "hostname with tcp protocol for SNI routing",
+			name: "hostname with tcp protocol",
 			spec: PortSpec{
 				Hostname:      "app.example.com",
 				ContainerPort: 8080,
@@ -646,7 +646,7 @@ func TestParsePortSpec(t *testing.T) {
 			wantErr: "invalid hostname 'app': must be a valid domain name containing at least one dot",
 		},
 		{
-			name: "hostname with tcp protocol for SNI routing",
+			name: "hostname with tcp protocol",
 			port: "app.example.com:8080/tcp",
 			expected: PortSpec{
 				Hostname:      "app.example.com",

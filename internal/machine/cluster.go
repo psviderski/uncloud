@@ -20,8 +20,8 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/firewall"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/proxy"
 	"github.com/psviderski/uncloud/internal/machine/store"
-	"github.com/psviderski/uncloud/internal/machine/tcpproxy"
 	"github.com/psviderski/unregistry"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -43,7 +43,7 @@ type clusterController struct {
 	// dockerReady is signalled when Docker is configured and ready for containers.
 	dockerReady     chan<- struct{}
 	caddyconfigCtrl *caddyconfig.Controller
-	tcpproxyCtrl    *tcpproxy.Controller
+	proxyCtrl       *proxy.Controller
 
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
 	dnsServer   *dns.Server
@@ -74,9 +74,8 @@ func newClusterController(
 	}
 	endpointChanges := wgnet.WatchEndpoints()
 
-	// Create TCP proxy and its controller.
-	tcpProxy := tcpproxy.NewProxy(slog.Default())
-	tcpproxyCtrl := tcpproxy.NewController(tcpProxy, store)
+	// Create proxy controller for TCP/UDP ingress.
+	proxyCtrl := proxy.NewController(store, slog.Default())
 
 	return &clusterController{
 		state:           state,
@@ -88,7 +87,7 @@ func newClusterController(
 		dockerCtrl:      docker.NewController(state.ID, dockerService, store),
 		dockerReady:     dockerReady,
 		caddyconfigCtrl: caddyfileCtrl,
-		tcpproxyCtrl:    tcpproxyCtrl,
+		proxyCtrl:       proxyCtrl,
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
 		unregistry:      unregistry,
@@ -223,9 +222,9 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	})
 
 	errGroup.Go(func() error {
-		slog.Info("Starting TCP proxy controller.")
-		if err := cc.tcpproxyCtrl.Run(ctx); err != nil {
-			return fmt.Errorf("tcp proxy controller failed: %w", err)
+		slog.Info("Starting proxy controller.")
+		if err := cc.proxyCtrl.Run(ctx); err != nil {
+			return fmt.Errorf("proxy controller failed: %w", err)
 		}
 		return nil
 	})

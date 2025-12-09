@@ -145,8 +145,8 @@ func (s *ServiceSpec) Validate() error {
 
 	for _, p := range s.Ports {
 		if (p.Mode == "" || p.Mode == PortModeIngress) &&
-			p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS && p.Protocol != ProtocolTCP {
-			return fmt.Errorf("unsupported protocol for ingress port %d: %s (supported: http, https, tcp)", p.ContainerPort, p.Protocol)
+			p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS && p.Protocol != ProtocolTCP && p.Protocol != ProtocolUDP {
+			return fmt.Errorf("unsupported protocol for ingress port %d: %s (supported: http, https, tcp, udp)", p.ContainerPort, p.Protocol)
 		}
 	}
 

@@ -41,8 +41,21 @@ extension:
 - `container_port`: The port number within the container that's listening for traffic.
 - `protocol` (optional): `http` or `https` (default: `https`)
 
-**TCP/UDP** ports can only be exposed in host mode, which binds the container port directly to the host machine's
-network interface(s). This is useful for non-HTTP services that need direct port access (bypasses Caddy):
+**TCP/UDP** ports can be exposed in two ways:
+
+**Ingress mode** (default) routes traffic through a built-in proxy that load balances across all healthy containers in
+the cluster:
+
+```
+[published_port:]container_port/protocol
+```
+
+- `published_port` (optional): The port to expose on all machines. If omitted, a random port from range 30000-39999 is
+  automatically allocated.
+- `container_port`: The port number within the container that's listening for traffic.
+- `protocol`: `tcp` or `udp` (required for TCP/UDP ingress)
+
+**Host mode** binds the container port directly to a specific machine's network interface. Use `@host` suffix:
 
 ```
 [host_ip:]host_port:container_port[/protocol]@host
@@ -57,6 +70,8 @@ network interface(s). This is useful for non-HTTP services that need direct port
 |------------------------------|--------------------------------------------------------------------------------------|
 | `8000/http`                  | Publish port 8000 as HTTP via Caddy using hostname `<service-name>.<cluster-domain>` |
 | `app.example.com:8080/https` | Publish port 8080 as HTTPS via Caddy using hostname `app.example.com`                |
+| `5432/tcp`                   | Publish TCP port 5432 via ingress proxy (auto-allocated published port)              |
+| `35000:5432/tcp`             | Publish TCP port 5432 on published port 35000 via ingress proxy                      |
 | `127.0.0.1:5432:5432@host`   | Bind TCP port 5432 to host port 5432 on loopback interface only                      |
 | `53:5353/udp@host`           | Bind UDP port 5353 to host port 53 on all network interfaces                         |
 

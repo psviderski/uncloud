@@ -221,7 +221,6 @@ func ParsePortSpec(port string) (PortSpec, error) {
 
 	if spec.Hostname != "" {
 		// If hostname is specified and no protocol, default to HTTPS for HTTP-like behavior.
-		// TCP with hostname is also valid for SNI-based routing.
 		if specifiedProtocol == "" {
 			spec.Protocol = ProtocolHTTPS
 		}
