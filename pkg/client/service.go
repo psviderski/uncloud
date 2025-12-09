@@ -273,6 +273,80 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 	return err
 }
 
+// StopService stops all containers on all machines that belong to the specified service.
+// The id parameter can be either a service ID or name.
+func (cli *Client) StopService(ctx context.Context, id string, opts container.StopOptions) error {
+	svc, err := cli.InspectService(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	wg := sync.WaitGroup{}
+	errCh := make(chan error)
+
+	// Stop all containers on all machines that belong to the service.
+	for _, mc := range svc.Containers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, opts)
+			if err != nil {
+				errCh <- fmt.Errorf("stop container '%s': %w", mc.Container.ID, err)
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	err = nil
+	for e := range errCh {
+		err = errors.Join(err, e)
+	}
+	return err
+}
+
+// StartService starts all containers on all machines that belong to the specified service.
+// The id parameter can be either a service ID or name.
+func (cli *Client) StartService(ctx context.Context, id string) error {
+	svc, err := cli.InspectService(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	wg := sync.WaitGroup{}
+	errCh := make(chan error)
+
+	// Start all containers on all machines that belong to the service.
+	for _, mc := range svc.Containers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			err := cli.StartContainer(ctx, svc.ID, mc.Container.ID)
+			if err != nil {
+				errCh <- fmt.Errorf("start container '%s': %w", mc.Container.ID, err)
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	err = nil
+	for e := range errCh {
+		err = errors.Join(err, e)
+	}
+	return err
+}
+
 // ListServices returns a list of all services and their containers.
 func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	machines, err := cli.ListMachines(ctx, nil)

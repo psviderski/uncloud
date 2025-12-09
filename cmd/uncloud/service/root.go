@@ -18,6 +18,8 @@ func NewRootCommand() *cobra.Command {
 		NewRmCommand(),
 		NewRunCommand(),
 		NewScaleCommand(),
+		NewStopCommand(),
+		NewStartCommand(),
 	)
 	return cmd
 }

@@ -48,6 +48,8 @@ type ServiceClient interface {
 	RunService(ctx context.Context, spec ServiceSpec) (RunServiceResponse, error)
 	InspectService(ctx context.Context, id string) (Service, error)
 	RemoveService(ctx context.Context, id string) error
+	StopService(ctx context.Context, id string, opts container.StopOptions) error
+	StartService(ctx context.Context, id string) error
 }
 
 type VolumeClient interface {
