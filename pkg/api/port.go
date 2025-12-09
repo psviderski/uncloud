@@ -59,6 +59,12 @@ func (p *PortSpec) Validate() error {
 			if err := validateHostname(p.Hostname); err != nil {
 				return fmt.Errorf("invalid hostname '%s': %w", p.Hostname, err)
 			}
+			// Hostname is only meaningful for HTTP/HTTPS protocols where Caddy uses it for routing.
+			// TCP/UDP proxies don't use SNI or hostname-based routing.
+			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
+				return fmt.Errorf("hostname cannot be specified with protocol '%s', only with '%s' or '%s'",
+					p.Protocol, ProtocolHTTP, ProtocolHTTPS)
+			}
 		}
 	case PortModeHost:
 		if p.PublishedPort == 0 {

@@ -169,16 +169,17 @@ func TestPortSpec_Validate(t *testing.T) {
 				Protocol:      ProtocolTCP,
 				Mode:          PortModeIngress,
 			},
+			wantErr: "hostname cannot be specified with protocol 'tcp'",
 		},
 		{
-			name: "hostname with tcp protocol and published port",
+			name: "hostname with udp protocol",
 			spec: PortSpec{
-				Hostname:      "db.example.com",
-				PublishedPort: 5432,
-				ContainerPort: 5432,
-				Protocol:      ProtocolTCP,
+				Hostname:      "app.example.com",
+				ContainerPort: 8080,
+				Protocol:      ProtocolUDP,
 				Mode:          PortModeIngress,
 			},
+			wantErr: "hostname cannot be specified with protocol 'udp'",
 		},
 		{
 			name: "invalid hostname",
@@ -333,27 +334,6 @@ func TestPortSpec_String(t *testing.T) {
 				Mode:          PortModeIngress,
 			},
 			expected: "app.example.com:6443:8080/http",
-		},
-		{
-			name: "hostname and container port tcp",
-			spec: PortSpec{
-				Hostname:      "db.example.com",
-				ContainerPort: 5432,
-				Protocol:      ProtocolTCP,
-				Mode:          PortModeIngress,
-			},
-			expected: "db.example.com:5432/tcp",
-		},
-		{
-			name: "hostname and published and container port tcp",
-			spec: PortSpec{
-				Hostname:      "db.example.com",
-				PublishedPort: 35432,
-				ContainerPort: 5432,
-				Protocol:      ProtocolTCP,
-				Mode:          PortModeIngress,
-			},
-			expected: "db.example.com:35432:5432/tcp",
 		},
 
 		// Host mode.
@@ -646,27 +626,15 @@ func TestParsePortSpec(t *testing.T) {
 			wantErr: "invalid hostname 'app': must be a valid domain name containing at least one dot",
 		},
 		{
-			name: "hostname with tcp protocol",
-			port: "app.example.com:8080/tcp",
-			expected: PortSpec{
-				Hostname:      "app.example.com",
-				ContainerPort: 8080,
-				Protocol:      ProtocolTCP,
-				Mode:          PortModeIngress,
-			},
+			name:    "hostname with tcp protocol",
+			port:    "app.example.com:8080/tcp",
+			wantErr: "hostname cannot be specified with protocol 'tcp'",
 		},
 		{
-			name: "hostname with tcp and published port",
-			port: "db.example.com:5433:5432/tcp",
-			expected: PortSpec{
-				Hostname:      "db.example.com",
-				PublishedPort: 5433,
-				ContainerPort: 5432,
-				Protocol:      ProtocolTCP,
-				Mode:          PortModeIngress,
-			},
+			name:    "hostname with udp protocol",
+			port:    "app.example.com:8080/udp",
+			wantErr: "hostname cannot be specified with protocol 'udp'",
 		},
-
 		{
 			name:    "missing published port in host mode",
 			port:    "8080@host",
