@@ -16,6 +16,7 @@ type execCliOptions struct {
 	interactive bool
 	noTty       bool
 	containerId string
+	namespace   string
 }
 
 var DEFAULT_COMMAND = []string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"}
@@ -72,6 +73,7 @@ If the service has multiple replicas and no container ID is specified, the comma
 	execCmd.Flags().StringVar(&opts.containerId, "container", "",
 		"ID of the container to exec into. Accepts full ID or a unique prefix "+
 			"(default is the random container of the service)")
+	execCmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service (optional).")
 
 	// This tells Cobra that all flags must come before positional arguments, so that
 	// commands with their own flags can be handled correctly.
@@ -81,6 +83,11 @@ If the service has multiple replicas and no container ID is specified, the comma
 }
 
 func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execCliOptions) error {
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+	}
 	if !opts.detach {
 		// Check if we're trying to attach to a TTY from a non-TTY client, e.g.
 		// when doing an 'cmd | uc exec ...'
@@ -111,7 +118,7 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		execConfig.AttachStderr = true
 	}
 
-	exitCode, err := client.ExecContainer(ctx, serviceName, opts.containerId, execConfig)
+	exitCode, err := client.ExecContainer(ctx, serviceName, opts.namespace, opts.containerId, execConfig)
 	if err != nil {
 		return fmt.Errorf("exec container: %w", err)
 	}

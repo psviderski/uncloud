@@ -47,12 +47,12 @@ func TestDeployment(t *testing.T) {
 
 		name := "" // auto-generated and updated
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
-			_, err = cli.InspectService(ctx, name)
+			_, err = cli.InspectService(ctx, name, "")
 			require.ErrorIs(t, err, api.ErrNotFound)
 		})
 
@@ -80,7 +80,7 @@ func TestDeployment(t *testing.T) {
 		name = plan.ServiceName
 		spec.Name = name // update spec to match the service and assert with assertServiceMatchesSpec
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -115,7 +115,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, specWithPort)
 
@@ -155,7 +155,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, specWithPortAndInit)
 
@@ -178,7 +178,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		containers = serviceContainerIDs(svc)
@@ -190,7 +190,7 @@ func TestDeployment(t *testing.T) {
 
 		name := "test-global-deployment-machine-placement"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -212,7 +212,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -234,7 +234,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, specWithInit)
 
@@ -255,7 +255,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, specWithInit)
 		assert.Len(t, svc.Containers, 3)
@@ -270,7 +270,7 @@ func TestDeployment(t *testing.T) {
 
 	t.Run("caddy", func(t *testing.T) {
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, client.CaddyServiceName)
+			err := cli.RemoveService(ctx, client.CaddyServiceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -282,7 +282,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
+		svc, err := cli.InspectService(ctx, client.CaddyServiceName, "")
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 3)
 		assertServiceMatchesSpec(t, svc, deployment.Spec)
@@ -299,7 +299,7 @@ func TestDeployment(t *testing.T) {
 
 	t.Run("caddy with machine placement", func(t *testing.T) {
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, client.CaddyServiceName)
+			err := cli.RemoveService(ctx, client.CaddyServiceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -315,7 +315,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, client.CaddyServiceName)
+		svc, err := cli.InspectService(ctx, client.CaddyServiceName, "")
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 1)
 		assertServiceMatchesSpec(t, svc, deployment.Spec)
@@ -330,7 +330,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, client.CaddyServiceName)
+		svc, err = cli.InspectService(ctx, client.CaddyServiceName, "")
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 3)
 		assertServiceMatchesSpec(t, svc, deployment.Spec)
@@ -346,11 +346,11 @@ func TestDeployment(t *testing.T) {
 	t.Run("caddy and service with custom configs", func(t *testing.T) {
 		name := "test-custom-caddy-config"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
-			err = cli.RemoveService(ctx, client.CaddyServiceName)
+			err = cli.RemoveService(ctx, client.CaddyServiceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -377,7 +377,7 @@ func TestDeployment(t *testing.T) {
 		_, err := deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -407,7 +407,7 @@ myapp.example.com {
 		_, err = caddyDeployment.Run(ctx)
 		require.NoError(t, err)
 
-		caddySvc, err := cli.InspectService(ctx, client.CaddyServiceName)
+		caddySvc, err := cli.InspectService(ctx, client.CaddyServiceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, caddySvc, caddyDeployment.Spec)
 
@@ -447,7 +447,7 @@ myapp.example.com {
 		// Now deploy a service with invalid Caddyfile that references missing cert files and check it isn't included.
 		invalidServiceName := "test-invalid-caddy-config"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, invalidServiceName)
+			err := cli.RemoveService(ctx, invalidServiceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -470,7 +470,7 @@ myapp.example.com {
 		_, err = invalidDeployment.Run(ctx)
 		require.NoError(t, err)
 
-		invalidSvc, err := cli.InspectService(ctx, invalidServiceName)
+		invalidSvc, err := cli.InspectService(ctx, invalidServiceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, invalidSvc, invalidSpec)
 
@@ -489,7 +489,7 @@ myapp.example.com {
 
 		name := "test-replicated-deployment"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -520,7 +520,7 @@ myapp.example.com {
 		assert.Equal(t, plan, runPlan)
 
 		// Verify service was created with correct settings.
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -542,7 +542,7 @@ myapp.example.com {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, updatedSpec)
 
@@ -569,7 +569,7 @@ myapp.example.com {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, threeReplicaSpec)
 
@@ -594,7 +594,7 @@ myapp.example.com {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, fourReplicaSpec)
 
@@ -622,7 +622,7 @@ myapp.example.com {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		containers = serviceContainerIDs(svc)
@@ -634,7 +634,7 @@ myapp.example.com {
 
 		name := "test-replicated-deployment-machine-placement"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -659,7 +659,7 @@ myapp.example.com {
 		require.NoError(t, err)
 
 		// Verify service has 2 containers on machines 0 and 1.
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -677,7 +677,7 @@ myapp.example.com {
 		require.NoError(t, err)
 
 		// Verify service now has containers only on machine 2.
-		svc, err = cli.InspectService(ctx, name)
+		svc, err = cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -757,7 +757,7 @@ myapp.example.com {
 		_, err = d.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -774,7 +774,7 @@ myapp.example.com {
 		serviceName := "test-replicated-with-volume-distributed"
 		volumeName := serviceName
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
@@ -818,7 +818,7 @@ myapp.example.com {
 		_, err = d.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -836,7 +836,7 @@ myapp.example.com {
 		vol2Name := serviceName + "2"
 
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
@@ -900,7 +900,7 @@ myapp.example.com {
 		_, err = d.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -918,7 +918,7 @@ myapp.example.com {
 		vol2Name := serviceName + "2"
 
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
@@ -980,7 +980,7 @@ myapp.example.com {
 		vol2Name := serviceName + "2"
 
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
@@ -1039,7 +1039,7 @@ myapp.example.com {
 		_, err = d.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -1086,7 +1086,7 @@ myapp.example.com {
 		serviceName := "test-global-with-volume-single-machine"
 		volumeName := serviceName
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
@@ -1124,7 +1124,7 @@ myapp.example.com {
 		_, err = d.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -1139,7 +1139,7 @@ myapp.example.com {
 		serviceName := "test-global-with-volume-multi-machine"
 		volumeName := serviceName
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
@@ -1181,7 +1181,7 @@ myapp.example.com {
 		_, err = d.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -1197,7 +1197,7 @@ myapp.example.com {
 		serviceName := "test-list-images-replicated"
 		uniqueImage := "portainer/pause:3.9" // Unique image not used by other tests.
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -1216,7 +1216,7 @@ myapp.example.com {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -1496,12 +1496,12 @@ func TestServiceLifecycle(t *testing.T) {
 
 		name := "1-replica"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 
-			_, err = cli.InspectService(ctx, name)
+			_, err = cli.InspectService(ctx, name, "")
 			require.ErrorIs(t, err, api.ErrNotFound)
 		})
 
@@ -1517,7 +1517,7 @@ func TestServiceLifecycle(t *testing.T) {
 		assert.NotEmpty(t, resp.ID)
 		assert.Equal(t, name, resp.Name)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		assert.Equal(t, resp.ID, svc.ID)
@@ -1525,7 +1525,7 @@ func TestServiceLifecycle(t *testing.T) {
 		assert.Equal(t, api.ServiceModeReplicated, svc.Mode)
 		assert.Len(t, svc.Containers, 1)
 
-		services, err := cli.ListServices(ctx)
+		services, err := cli.ListServices(ctx, "")
 		require.NoError(t, err)
 
 		assert.GreaterOrEqual(t, len(services), 1)
@@ -1546,7 +1546,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		name := "1-replica-ports"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -1583,7 +1583,7 @@ func TestServiceLifecycle(t *testing.T) {
 		resp, err := cli.RunService(ctx, spec)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, resp.ID)
+		svc, err := cli.InspectService(ctx, resp.ID, "")
 		require.NoError(t, err)
 		require.Len(t, svc.Containers, 1)
 		ctr := svc.Containers[0].Container
@@ -1599,7 +1599,7 @@ func TestServiceLifecycle(t *testing.T) {
 		name := "test-3-replicas-volume-auto-created"
 		volumeName := name
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
@@ -1638,7 +1638,7 @@ func TestServiceLifecycle(t *testing.T) {
 		resp, err := cli.RunService(ctx, spec)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, resp.ID)
+		svc, err := cli.InspectService(ctx, resp.ID, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -1657,7 +1657,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		name := "global"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -1675,7 +1675,7 @@ func TestServiceLifecycle(t *testing.T) {
 		assert.NotEmpty(t, resp.ID)
 		assert.Equal(t, name, resp.Name)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		assert.Equal(t, resp.ID, svc.ID)
@@ -1689,7 +1689,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		name := "test-service-logs"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, name)
+			err := cli.RemoveService(ctx, name, "")
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -1714,7 +1714,7 @@ func TestServiceLifecycle(t *testing.T) {
 		_, err := deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
@@ -1723,7 +1723,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		time.Sleep(1 * time.Second) // Wait for containers to produce the logs.
 
-		logsSvc, stream, err := cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{})
+		logsSvc, stream, err := cli.ServiceLogs(ctx, name, "", api.ServiceLogsOptions{})
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, logsSvc, spec)
 
@@ -1765,7 +1765,7 @@ func TestServiceLifecycle(t *testing.T) {
 
 		// Test filter logs by machine ID.
 		machineID := c.Machines[0].ID
-		_, machineStream, err := cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+		_, machineStream, err := cli.ServiceLogs(ctx, name, "", api.ServiceLogsOptions{
 			Machines: []string{machineID},
 		})
 		require.NoError(t, err)
@@ -1788,7 +1788,7 @@ func TestServiceLifecycle(t *testing.T) {
 		assert.Equal(t, []string{stdoutMsg, stderrMsg}, machineLogs)
 
 		// Test non-existent machine filter returns error.
-		_, _, err = cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+		_, _, err = cli.ServiceLogs(ctx, name, "", api.ServiceLogsOptions{
 			Machines: []string{"non-existent-machine"},
 		})
 		require.Error(t, err)

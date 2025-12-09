@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -11,16 +12,30 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const (
-	DockerUserChain   = "DOCKER-USER"
-	UncloudInputChain = "UNCLOUD-INPUT"
+	DockerUserChain             = "DOCKER-USER"
+	UncloudInputChain           = "UNCLOUD-INPUT"
+	UncloudNamespaceFilterChain = "UNCLOUD-NAMESPACE-FILTER"
 )
 
 // ConfigureIptablesChains sets up custom iptables chains and initial firewall rules for Uncloud networking.
 func ConfigureIptablesChains(machineIP netip.Addr) error {
+	// Load br_netfilter module to enable iptables filtering of bridge traffic.
+	// This is required for namespace isolation to work - without it, container-to-container
+	// traffic on the same bridge doesn't traverse iptables.
+	if err := ensureBridgeNetfilter(); err != nil {
+		return fmt.Errorf("ensure bridge netfilter: %w", err)
+	}
+
 	if err := createIptablesChains(); err != nil {
+		return err
+	}
+
+	// Ensure namespace filter chain exists and is empty.
+	if err := ensureNamespaceFilterChain(); err != nil {
 		return err
 	}
 
@@ -174,5 +189,74 @@ func CleanupIptablesChains() error {
 		}
 	}
 
+	return nil
+}
+
+// ensureNamespaceFilterChain ensures the namespace isolation chain exists and is flushed.
+func ensureNamespaceFilterChain() error {
+	ipt := iptables.GetIptable(iptables.IPv4)
+	if _, err := ipt.NewChain(UncloudNamespaceFilterChain, iptables.Filter); err != nil {
+		return fmt.Errorf("create iptables chain '%s': %w", UncloudNamespaceFilterChain, err)
+	}
+	if err := ipt.RawCombinedOutput("-t", string(iptables.Filter), "-F", UncloudNamespaceFilterChain); err != nil {
+		return fmt.Errorf("flush iptables chain '%s': %w", UncloudNamespaceFilterChain, err)
+	}
+	return nil
+}
+
+// UpdateNamespaceFilterRules rebuilds DROP rules to isolate namespaces from each other.
+// Uses iptables-restore for atomic updates to avoid any window where isolation rules are missing.
+// The system namespace (api.SystemNamespace) is exempt from isolation and can communicate with all namespaces.
+func UpdateNamespaceFilterRules(namespaces []string) error {
+	var b strings.Builder
+	b.WriteString("*filter\n")
+	// Create chain if it doesn't exist, or use existing chain.
+	fmt.Fprintf(&b, ":%s - [0:0]\n", UncloudNamespaceFilterChain)
+	// Flush existing rules in this chain.
+	fmt.Fprintf(&b, "-F %s\n", UncloudNamespaceFilterChain)
+	// Add isolation rules for each namespace pair.
+	// The system namespace is exempt - it can initiate connections to any namespace,
+	// and return traffic is allowed via connection tracking.
+	for _, src := range namespaces {
+		if src == api.SystemNamespace {
+			continue // System namespace can reach all other namespaces
+		}
+		for _, dst := range namespaces {
+			if src == dst {
+				continue
+			}
+			fmt.Fprintf(&b, "-A %s -m set --match-set %s%s src -m set --match-set %s%s dst -j DROP\n",
+				UncloudNamespaceFilterChain, IPSetPrefix, src, IPSetPrefix, dst)
+		}
+	}
+	b.WriteString("COMMIT\n")
+
+	// Apply rules atomically using iptables-restore.
+	// The --noflush flag ensures we only modify the chains specified in the input.
+	cmd := exec.Command("iptables-restore", "--noflush")
+	cmd.Stdin = strings.NewReader(b.String())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("apply namespace filter rules: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+
+	return nil
+}
+
+// ensureBridgeNetfilter loads the br_netfilter kernel module and enables iptables filtering
+// for bridge traffic. This is required for namespace isolation rules to take effect.
+func ensureBridgeNetfilter() error {
+	// Load br_netfilter module (idempotent - no error if already loaded)
+	if out, err := exec.Command("modprobe", "br_netfilter").CombinedOutput(); err != nil {
+		return fmt.Errorf("load br_netfilter module: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+
+	// Enable iptables filtering of bridge traffic
+	for _, param := range []string{"net.bridge.bridge-nf-call-iptables", "net.bridge.bridge-nf-call-ip6tables"} {
+		if out, err := exec.Command("sysctl", "-w", param+"=1").CombinedOutput(); err != nil {
+			return fmt.Errorf("set %s: %v: %s", param, err, strings.TrimSpace(string(out)))
+		}
+	}
+
+	slog.Debug("Bridge netfilter enabled for namespace isolation.")
 	return nil
 }

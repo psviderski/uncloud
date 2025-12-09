@@ -37,8 +37,9 @@ var ErrNoReachableMachines = errors.New("no internet-reachable machines running 
 // the internet, then creates DNS records for the cluster domain pointing to those machines. It tests each machine
 // by sending HTTP requests to their public IPs. Only machines that respond correctly with their machine ID are included
 // in the resulting DNS configuration. Returns the created DNS records or an error.
+// Note: serviceID is typically a service ID, not a name, so namespace filtering is not needed.
 func (cli *Client) CreateIngressRecords(ctx context.Context, serviceID string) ([]*pb.DNSRecord, error) {
-	svc, err := cli.InspectService(ctx, serviceID)
+	svc, err := cli.InspectService(ctx, serviceID, "")
 	if err != nil {
 		return nil, fmt.Errorf("inspect service '%s': %w", serviceID, err)
 	}

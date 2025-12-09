@@ -39,6 +39,7 @@ uc service exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
   -d, --detach             Detached mode: run command in the background
   -h, --help               help for exec
   -T, --no-tty             Disable pseudo-TTY allocation. By default 'uc exec' allocates a TTY when connected to a terminal.
+      --namespace string   Namespace of the service (optional).
 ```
 
 ## Options inherited from parent commands
@@ -53,4 +54,3 @@ uc service exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
 ## See also
 
 * [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
-

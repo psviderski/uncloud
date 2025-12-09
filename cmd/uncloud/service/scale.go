@@ -13,8 +13,9 @@ import (
 )
 
 type scaleOptions struct {
-	service  string
-	replicas uint
+	service   string
+	replicas  uint
+	namespace string
 }
 
 func NewScaleCommand() *cobra.Command {
@@ -37,11 +38,17 @@ func NewScaleCommand() *cobra.Command {
 			return scale(cmd.Context(), uncli, opts)
 		},
 	}
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service (optional).")
 
 	return cmd
 }
 
 func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+	}
 	if opts.replicas == 0 {
 		return fmt.Errorf(
 			"scaling to zero replicas is not supported. This would effectively remove the service without preserving "+
@@ -57,7 +64,7 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 	}
 	defer clusterClient.Close()
 
-	svc, err := clusterClient.InspectService(ctx, opts.service)
+	svc, err := clusterClient.InspectService(ctx, opts.service, opts.namespace)
 	if err != nil {
 		return fmt.Errorf("inspect service '%s': %w", opts.service, err)
 	}

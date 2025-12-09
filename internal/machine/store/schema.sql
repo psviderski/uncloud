@@ -24,6 +24,7 @@ CREATE TABLE containers
     machine_id   TEXT NOT NULL DEFAULT '',
     service_id   TEXT AS (json_extract(container, '$.Config.Labels."uncloud.service.id"')),
     service_name TEXT AS (json_extract(container, '$.Config.Labels."uncloud.service.name"')),
+    namespace    TEXT AS (coalesce(json_extract(container, '$.Config.Labels."uncloud.namespace"'), 'default')),
     -- sync_status indicates if the record reflects the actual Docker state of the container.
     sync_status  TEXT NOT NULL DEFAULT '',
     -- updated_at is the last time the record was updated.
@@ -35,3 +36,4 @@ CREATE INDEX idx_machines_name ON machines (name);
 CREATE INDEX idx_containers_machine_id ON containers (machine_id);
 CREATE INDEX idx_containers_service_id ON containers (service_id);
 CREATE INDEX idx_containers_service_name ON containers (service_name);
+CREATE INDEX idx_containers_namespace ON containers (namespace);

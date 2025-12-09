@@ -200,10 +200,11 @@ func toPullProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
 
 // InspectContainer returns the information about the specified container within the service.
 // containerNameOrID can be name, full ID, or ID prefix of the container.
+// Note: This method does not filter by namespace - it matches any namespace.
 func (cli *Client) InspectContainer(
 	ctx context.Context, serviceNameOrID, containerNameOrID string,
 ) (api.MachineServiceContainer, error) {
-	svc, err := cli.InspectService(ctx, serviceNameOrID)
+	svc, err := cli.InspectService(ctx, serviceNameOrID, "")
 	if err != nil {
 		return api.MachineServiceContainer{}, fmt.Errorf("inspect service: %w", err)
 	}
@@ -312,13 +313,13 @@ func (cli *Client) RemoveContainer(
 // ExecContainer executes a command in a container within the service.
 // If containerNameOrID is empty, the first container in the service will be used.
 func (cli *Client) ExecContainer(
-	ctx context.Context, serviceNameOrID, containerNameOrID string, execOpts api.ExecOptions,
+	ctx context.Context, serviceNameOrID, namespace, containerNameOrID string, execOpts api.ExecOptions,
 ) (int, error) {
 	var ctr api.MachineServiceContainer
 
 	if containerNameOrID == "" {
 		// Find the first (random) container in the service
-		service, err := cli.InspectService(ctx, serviceNameOrID)
+		service, err := cli.InspectService(ctx, serviceNameOrID, namespace)
 		if err != nil {
 			return -1, fmt.Errorf("inspect service: %w", err)
 		}

@@ -16,6 +16,7 @@ uc service run IMAGE [COMMAND...] [flags]
                             Format: VAR=value or just VAR to use the value from the local environment.
   -h, --help                help for run
   -m, --machine strings     Placement constraint by machine names, limiting which machines the service can run on. Can be specified multiple times or as a comma-separated list of machine names. (default is any suitable machine)
+      --namespace string    Namespace for this service. Defaults to 'default'.
       --memory bytes        Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.
                             Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)
       --mode string         Replication mode of the service: either 'replicated' (a specified number of containers across the machines) or 'global' (one container on every machine). (default "replicated")
@@ -54,4 +55,3 @@ uc service run IMAGE [COMMAND...] [flags]
 ## See also
 
 * [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
-

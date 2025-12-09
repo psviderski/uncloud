@@ -1827,3 +1827,35 @@ func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 		})
 	}
 }
+
+func TestEvalContainerSpecChange_NamespaceChange(t *testing.T) {
+	t.Parallel()
+
+	current := api.ServiceSpec{
+		Namespace: "prod",
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Namespace: "staging",
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(current, newSpec))
+
+	// Empty namespaces should both default to the same value and remain up-to-date.
+	emptyCurrent := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	emptyNew := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	assert.Equal(t, ContainerUpToDate, EvalContainerSpecChange(emptyCurrent, emptyNew))
+}

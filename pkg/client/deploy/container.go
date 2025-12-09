@@ -27,6 +27,9 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	if current.Name != new.Name {
 		return ContainerNeedsRecreate
 	}
+	if current.Namespace != new.Namespace {
+		return ContainerNeedsRecreate
+	}
 
 	// If pull policy is set to always, the container needs to be recreated.
 	if new.Container.PullPolicy == api.PullPolicyAlways {

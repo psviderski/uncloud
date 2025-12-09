@@ -13,7 +13,7 @@ import (
 func removeServices(t *testing.T, cli api.ServiceClient, names ...string) {
 	ctx := context.Background()
 	for _, name := range names {
-		err := cli.RemoveService(ctx, name)
+		err := cli.RemoveService(ctx, name, "")
 		if !errors.Is(err, api.ErrNotFound) {
 			assert.NoError(t, err)
 		}

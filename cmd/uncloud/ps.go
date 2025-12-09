@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 )
 
@@ -31,7 +32,8 @@ const (
 )
 
 type psOptions struct {
-	sortBy string
+	sortBy    string
+	namespace string
 }
 
 func NewPsCommand() *cobra.Command {
@@ -53,11 +55,13 @@ making it easy to see the distribution and status of containers across the clust
 	}
 	cmd.Flags().StringVarP(&opts.sortBy, "sort", "s", sortByService,
 		"Sort containers by 'service', 'machine' or 'health'")
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Filter containers by service namespace (optional).")
 	return cmd
 }
 
 type containerInfo struct {
 	serviceName string
+	namespace   string
 	machineName string
 	id          string
 	name        string
@@ -67,12 +71,18 @@ type containerInfo struct {
 }
 
 func runPs(cmd *cobra.Command, opts psOptions) error {
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+	}
+
 	uncli := cmd.Context().Value("cli").(*cli.CLI)
-	client, err := uncli.ConnectCluster(cmd.Context())
+	cl, err := uncli.ConnectCluster(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer client.Close()
+	defer cl.Close()
 
 	var containers []containerInfo
 	err = spinner.New().
@@ -80,7 +90,7 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		Type(spinner.MiniDot).
 		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
 		ActionWithErr(func(ctx context.Context) error {
-			containers, err = collectContainers(ctx, client)
+			containers, err = collectContainers(ctx, cl, opts.namespace)
 			return err
 		}).
 		Run()
@@ -142,7 +152,7 @@ func printContainers(containers []containerInfo) error {
 			return lipgloss.NewStyle().PaddingRight(3)
 		})
 
-	t.Headers("SERVICE", "CONTAINER ID", "NAME", "IMAGE", "STATUS", "MACHINE")
+	t.Headers("SERVICE", "NAMESPACE", "CONTAINER ID", "NAME", "IMAGE", "STATUS", "MACHINE")
 
 	for _, ctr := range containers {
 		id := ctr.id
@@ -164,6 +174,7 @@ func printContainers(containers []containerInfo) error {
 
 		t.Row(
 			ctr.serviceName,
+			ctr.namespace,
 			id,
 			ctr.name,
 			ctr.image,
@@ -176,7 +187,7 @@ func printContainers(containers []containerInfo) error {
 	return nil
 }
 
-func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
+func collectContainers(ctx context.Context, cli *client.Client, namespace string) ([]containerInfo, error) {
 	listCtx, machines, err := cli.ProxyMachinesContext(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("proxy machines context: %w", err)
@@ -231,6 +242,11 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 				continue
 			}
 
+			// Filter by namespace if specified.
+			if namespace != "" && ctr.Namespace() != namespace {
+				continue
+			}
+
 			status, err := ctr.Container.HumanState()
 			if err != nil {
 				return nil, fmt.Errorf("get human state for container %s: %w", ctr.Container.ID, err)
@@ -254,6 +270,7 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 
 			info := containerInfo{
 				serviceName: ctr.ServiceName(),
+				namespace:   ctr.Namespace(),
 				machineName: machineName,
 				id:          ctr.Container.ID,
 				name:        ctr.Container.Name,

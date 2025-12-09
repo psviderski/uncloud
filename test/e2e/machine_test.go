@@ -178,14 +178,14 @@ func TestMachineRename(t *testing.T) {
 		require.NoError(t, err)
 
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, serviceName)
+			err := cli.RemoveService(ctx, serviceName, "")
 			if err != nil && !errors.Is(err, api.ErrNotFound) {
 				assert.NoError(t, err)
 			}
 		})
 
 		// Verify service is running on the machine
-		svc, err := cli.InspectService(ctx, serviceName)
+		svc, err := cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 1)
 		assert.Equal(t, targetMachine.Machine.Id, svc.Containers[0].MachineID)
@@ -196,7 +196,7 @@ func TestMachineRename(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify service is still running on the renamed machine
-		svc, err = cli.InspectService(ctx, serviceName)
+		svc, err = cli.InspectService(ctx, serviceName, "")
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 1)
 		assert.Equal(t, targetMachine.Machine.Id, svc.Containers[0].MachineID)

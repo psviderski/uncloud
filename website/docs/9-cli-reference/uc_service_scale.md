@@ -13,6 +13,7 @@ uc service scale SERVICE REPLICAS [flags]
 ## Options
 
 ```
+      --namespace string   Namespace of the service (optional).
   -h, --help   help for scale
 ```
 
@@ -28,4 +29,3 @@ uc service scale SERVICE REPLICAS [flags]
 ## See also
 
 * [uc service](uc_service.md)	 - Manage services in an Uncloud cluster.
-
