@@ -12,9 +12,10 @@ import (
 )
 
 type stopOptions struct {
-	services []string
-	signal   string
-	timeout  int
+	services       []string
+	signal         string
+	timeoutChanged bool
+	timeout        int
 }
 
 func NewStopCommand() *cobra.Command {
@@ -27,6 +28,7 @@ func NewStopCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			opts.services = args
+			opts.timeoutChanged = cmd.Flags().Changed("timeout")
 			return stop(cmd.Context(), uncli, opts)
 		},
 	}
@@ -45,7 +47,7 @@ func stop(ctx context.Context, uncli *cli.CLI, opts stopOptions) error {
 	stopOpts := container.StopOptions{
 		Signal: opts.signal,
 	}
-	if opts.timeout != 0 {
+	if opts.timeoutChanged {
 		stopOpts.Timeout = &opts.timeout
 	}
 
