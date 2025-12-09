@@ -56,9 +56,6 @@ func (p *PortSpec) Validate() error {
 			return fmt.Errorf("host IP cannot be specified in %s mode", PortModeIngress)
 		}
 		if p.Hostname != "" {
-			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
-				return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
-			}
 			if err := validateHostname(p.Hostname); err != nil {
 				return fmt.Errorf("invalid hostname '%s': %w", p.Hostname, err)
 			}
@@ -223,11 +220,10 @@ func ParsePortSpec(port string) (PortSpec, error) {
 	}
 
 	if spec.Hostname != "" {
+		// If hostname is specified and no protocol, default to HTTPS for HTTP-like behavior.
+		// TCP with hostname is also valid for SNI-based routing.
 		if specifiedProtocol == "" {
 			spec.Protocol = ProtocolHTTPS
-		} else if specifiedProtocol != ProtocolHTTP && specifiedProtocol != ProtocolHTTPS {
-			return spec, fmt.Errorf("hostname is only valid with '%s' or '%s' protocols, specified: '%s'",
-				ProtocolHTTP, ProtocolHTTPS, specifiedProtocol)
 		}
 	}
 

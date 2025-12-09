@@ -90,8 +90,8 @@ func NewRunCommand() *cobra.Command {
 			"Examples:\n"+
 			"  -p 8080/https                  Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname\n"+
 			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via reverse proxy with custom hostname\n"+
-			// TODO: add support for publishing L4 tcp/udp ports.
-			//"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via reverse proxy\n"+
+			"  -p 5432/tcp                    Publish TCP port 5432 on a random port (assigned from 30000-39999)\n"+
+			"  -p 35432:5432/tcp              Publish TCP port 5432 on a specific port 35432\n"+
 			"  -p 53:5353/udp@host            Bind UDP port 5353 to host port 53")
 	cmd.Flags().StringVar(&opts.pull, "pull", api.PullPolicyMissing,
 		fmt.Sprintf("Pull image from the registry before running service containers ('%s', '%s', '%s').",
