@@ -294,8 +294,7 @@ func httpUpstreamsFromPorts(containers []api.ServiceContainer) (map[string][]str
 				upstream := net.JoinHostPort(ip.String(), strconv.Itoa(int(port.ContainerPort)))
 				httpsHostUpstreams[port.Hostname] = append(httpsHostUpstreams[port.Hostname], upstream)
 			default:
-				// TCP is handled by the TCP proxy (tcpproxy package), not Caddy.
-				// UDP is not yet supported for ingress routing.
+				// TCP/UDP are handled by the proxy package, not Caddy.
 				continue
 			}
 		}
