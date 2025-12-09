@@ -36,6 +36,13 @@ demo-reset:
 		ssh $$server "AUTO_CONFIRM=true sudo -E uncloud-uninstall"; \
 	done
 
+.PHONY: demo-init
+demo-init:
+	go run ./cmd/uncloud machine init $(FIRST_SERVER)
+	@for server in $(OTHER_SERVERS); do \
+		go run ./cmd/uncloud machine add $$server; \
+	done
+
 .PHONY: ucind-cluster
 ucind-cluster:
 	go run ./cmd/ucind cluster rm && go run ./cmd/ucind cluster create -m $(if $(MACHINES_COUNT),$(MACHINES_COUNT),3)
