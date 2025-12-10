@@ -41,6 +41,29 @@ func NewLogsCommand() *cobra.Command {
 
 If no services are specified, streams logs from all services defined in the Compose file
 (compose.yaml by default or the file(s) specified with --file).`,
+		Example: `  # View recent logs for a service.
+  uc logs web
+
+  # Stream logs in real-time (follow mode).
+  uc logs -f web
+
+  # View logs from multiple services.
+  uc logs web api db
+
+  # View logs from all services in compose.yaml.
+  uc logs
+
+  # Show last 20 lines per replica (default is 100).
+  uc logs -n 20 web
+
+  # Show all logs without line limit.
+  uc logs -n all web
+
+  # View logs from a specific time range.
+  uc logs --since 3h --until 1h30m web
+
+  # View logs only from replicas running on specific machines.
+  uc logs -m machine1,machine2 web api`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return runLogs(cmd.Context(), uncli, args, options)
