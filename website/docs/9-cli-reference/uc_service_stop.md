@@ -1,23 +1,21 @@
-# uc service rm
+# uc service stop
 
-Remove one or more services.
+Stop one or more services.
 
 ## Synopsis
 
-Remove one or more services.
-
-The volumes used by the services are preserved and should be removed separately
-with 'uc volume rm'. Anonymous Docker volumes (automatically created from VOLUME
-directives in image Dockerfiles) are automatically removed with their containers.
+Stop one or more services.
 
 ```
-uc service rm SERVICE [SERVICE...] [flags]
+uc service stop SERVICE [SERVICE...] [flags]
 ```
 
 ## Options
 
 ```
-  -h, --help   help for rm
+  -h, --help            help for stop
+  -s, --signal string   Signal to send to the container
+  -t, --timeout int     Seconds to wait before killing the container
 ```
 
 ## Options inherited from parent commands

@@ -1,23 +1,23 @@
-# uc service rm
+# uc ps
 
-Remove one or more services.
+List all service containers in the cluster
 
 ## Synopsis
 
-Remove one or more services.
+List all service containers across all machines in the cluster.
 
-The volumes used by the services are preserved and should be removed separately
-with 'uc volume rm'. Anonymous Docker volumes (automatically created from VOLUME
-directives in image Dockerfiles) are automatically removed with their containers.
+This command provides a comprehensive overview of all running containers that are part of a service,
+making it easy to see the distribution and status of containers across the cluster.
 
 ```
-uc service rm SERVICE [SERVICE...] [flags]
+uc ps [flags]
 ```
 
 ## Options
 
 ```
-  -h, --help   help for rm
+  -h, --help          help for ps
+  -s, --sort string   Sort containers by 'service', 'machine' or 'health' (default "service")
 ```
 
 ## Options inherited from parent commands
@@ -31,5 +31,5 @@ uc service rm SERVICE [SERVICE...] [flags]
 
 ## See also
 
-* [uc service](uc_service.md)	 - Manage services in the cluster.
+* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 
