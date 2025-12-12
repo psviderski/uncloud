@@ -74,7 +74,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 
 	// Print the list of containers in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "CONTAINER ID\tIMAGE\tCREATED\tSTATUS\tMACHINE"); err != nil {
+	if _, err = fmt.Fprintln(tw, "CONTAINER ID\tIMAGE\tCREATED\tSTATUS\tIP ADDRESS\tMACHINE"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 
@@ -91,13 +91,21 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 			return fmt.Errorf("get human state: %w", err)
 		}
 
+		ip := ctr.Container.UncloudNetworkIP()
+		ipStr := ""
+		// The container might not have an IP if it's not running or uses the host network.
+		if ip.IsValid() {
+			ipStr = ip.String()
+		}
+
 		_, err = fmt.Fprintf(
 			tw,
-			"%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			stringid.TruncateID(ctr.Container.ID),
 			ctr.Container.Config.Image,
 			created,
 			state,
+			ipStr,
 			machine,
 		)
 		if err != nil {

@@ -71,6 +71,7 @@ type containerInfo struct {
 	status      string
 	highlight   containerHighlight
 	created     time.Time
+	ip          string
 }
 
 func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
@@ -142,7 +143,7 @@ func printContainers(containers []containerInfo) error {
 			return lipgloss.NewStyle().PaddingRight(3)
 		})
 
-	t.Headers("SERVICE", "CONTAINER ID", "CONTAINER NAME", "IMAGE", "CREATED", "STATUS", "MACHINE")
+	t.Headers("SERVICE", "CONTAINER ID", "CONTAINER NAME", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
 
 	for _, ctr := range containers {
 		id := ctr.id
@@ -171,6 +172,7 @@ func printContainers(containers []containerInfo) error {
 			ctr.image,
 			created,
 			statusStyle.Render(ctr.status),
+			ctr.ip,
 			ctr.machineName,
 		)
 	}
@@ -257,6 +259,13 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 
 			created, _ := time.Parse(time.RFC3339Nano, ctr.Container.Created)
 
+			ip := ctr.Container.UncloudNetworkIP()
+			ipStr := ""
+			// The container might not have an IP if it's not running or uses the host network.
+			if ip.IsValid() {
+				ipStr = ip.String()
+			}
+
 			info := containerInfo{
 				serviceName: ctr.ServiceName(),
 				machineName: machineName,
@@ -266,6 +275,7 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 				status:      status,
 				highlight:   highlight,
 				created:     created,
+				ip:          ipStr,
 			}
 			containers = append(containers, info)
 		}
