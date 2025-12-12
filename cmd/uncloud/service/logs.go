@@ -30,7 +30,7 @@ type logsOptions struct {
 	machines []string
 }
 
-func NewLogsCommand() *cobra.Command {
+func NewLogsCommand(groupID string) *cobra.Command {
 	var options logsOptions
 
 	cmd := &cobra.Command{
@@ -68,6 +68,7 @@ If no services are specified, streams logs from all services defined in the Comp
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return runLogs(cmd.Context(), uncli, args, options)
 		},
+		GroupID: groupID,
 	}
 
 	cmd.Flags().StringSliceVar(&options.files, "file", nil,

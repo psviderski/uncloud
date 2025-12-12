@@ -107,6 +107,11 @@ func main() {
 		}
 	})
 
+	cmd.AddGroup(&cobra.Group{
+		ID:    "service",
+		Title: "Deploy and manage services:",
+	})
+
 	cmd.AddCommand(
 		NewBuildCommand(),
 		NewDeployCommand(),
@@ -119,13 +124,15 @@ func main() {
 		image.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
-		service.NewExecCommand(),
-		service.NewInspectCommand(),
-		service.NewListCommand(),
-		service.NewLogsCommand(),
-		service.NewRmCommand(),
-		service.NewRunCommand(),
-		service.NewScaleCommand(),
+		service.NewExecCommand("service"),
+		service.NewInspectCommand("service"),
+		service.NewListCommand("service"),
+		service.NewLogsCommand("service"),
+		service.NewRmCommand("service"),
+		service.NewRunCommand("service"),
+		service.NewScaleCommand("service"),
+		service.NewStartCommand("service"),
+		service.NewStopCommand("service"),
 		volume.NewRootCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())

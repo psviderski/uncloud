@@ -49,6 +49,7 @@ to cluster machines or --push-registry to upload them to external registries.`,
 
 			return runBuild(cmd.Context(), uncli, opts)
 		},
+		GroupID: "service",
 	}
 
 	cmd.Flags().StringArrayVar(&opts.BuildArgs, "build-arg", nil,

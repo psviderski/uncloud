@@ -20,12 +20,12 @@ type execCliOptions struct {
 
 var DEFAULT_COMMAND = []string{"sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash || exec sh"}
 
-func NewExecCommand() *cobra.Command {
+func NewExecCommand(groupID string) *cobra.Command {
 	opts := execCliOptions{}
 
 	execCmd := &cobra.Command{
 		Use:   "exec [OPTIONS] SERVICE [COMMAND ARGS...]",
-		Short: "Execute a command in a running service container",
+		Short: "Execute a command in a running service container.",
 		Long: `Execute a command (interactive shell by default) in a running container within a service.
 If the service has multiple replicas and no container ID is specified, the command will be executed in a random container.
 	`,
@@ -54,6 +54,7 @@ If the service has multiple replicas and no container ID is specified, the comma
 			}
 			return runExec(cmd.Context(), uncli, serviceName, command, opts)
 		},
+		GroupID: groupID,
 	}
 
 	execCmd.Flags().BoolVarP(&opts.detach, "detach", "d", false, "Detached mode: run command in the background")

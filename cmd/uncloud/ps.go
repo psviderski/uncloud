@@ -38,7 +38,7 @@ func NewPsCommand() *cobra.Command {
 	opts := psOptions{}
 	cmd := &cobra.Command{
 		Use:   "ps",
-		Short: "List all service containers in the cluster",
+		Short: "List all service containers.",
 		Long: `List all service containers across all machines in the cluster.
 
 This command provides a comprehensive overview of all running containers that are part of a service,
@@ -50,6 +50,7 @@ making it easy to see the distribution and status of containers across the clust
 			}
 			return runPs(cmd, opts)
 		},
+		GroupID: "service",
 	}
 	cmd.Flags().StringVarP(&opts.sortBy, "sort", "s", sortByService,
 		"Sort containers by 'service', 'machine' or 'health'")

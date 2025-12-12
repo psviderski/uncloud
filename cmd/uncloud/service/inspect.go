@@ -17,7 +17,7 @@ type inspectOptions struct {
 	service string
 }
 
-func NewInspectCommand() *cobra.Command {
+func NewInspectCommand(groupID string) *cobra.Command {
 	opts := inspectOptions{}
 	cmd := &cobra.Command{
 		Use:   "inspect SERVICE",
@@ -28,6 +28,7 @@ func NewInspectCommand() *cobra.Command {
 			opts.service = args[0]
 			return inspect(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
 	return cmd
 }

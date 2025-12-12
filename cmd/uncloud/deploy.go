@@ -42,6 +42,7 @@ func NewDeployCommand() *cobra.Command {
 
 			return runDeploy(cmd.Context(), uncli, opts)
 		},
+		GroupID: "service",
 	}
 
 	cmd.Flags().StringArrayVar(&opts.BuildServicesOptions.BuildArgs, "build-arg", nil,

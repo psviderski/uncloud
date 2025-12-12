@@ -13,7 +13,7 @@ type rmOptions struct {
 	services []string
 }
 
-func NewRmCommand() *cobra.Command {
+func NewRmCommand(groupID string) *cobra.Command {
 	opts := rmOptions{}
 	cmd := &cobra.Command{
 		Use:     "rm SERVICE [SERVICE...]",
@@ -30,6 +30,7 @@ directives in image Dockerfiles) are automatically removed with their containers
 			opts.services = args
 			return rm(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
 	return cmd
 }

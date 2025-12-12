@@ -14,7 +14,7 @@ type startOptions struct {
 	services []string
 }
 
-func NewStartCommand() *cobra.Command {
+func NewStartCommand(groupID string) *cobra.Command {
 	opts := startOptions{}
 	cmd := &cobra.Command{
 		Use:   "start SERVICE [SERVICE...]",
@@ -26,6 +26,7 @@ func NewStartCommand() *cobra.Command {
 			opts.services = args
 			return start(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
 	return cmd
 }

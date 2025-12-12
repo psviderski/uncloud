@@ -18,7 +18,7 @@ type stopOptions struct {
 	timeout        int
 }
 
-func NewStopCommand() *cobra.Command {
+func NewStopCommand(groupID string) *cobra.Command {
 	opts := stopOptions{}
 	cmd := &cobra.Command{
 		Use:   "stop SERVICE [SERVICE...]",
@@ -31,6 +31,7 @@ func NewStopCommand() *cobra.Command {
 			opts.timeoutChanged = cmd.Flags().Changed("timeout")
 			return stop(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
 	cmd.Flags().StringVarP(&opts.signal, "signal", "s", "", "Signal to send to the container")
 	cmd.Flags().IntVarP(&opts.timeout, "timeout", "t", 0, "Seconds to wait before killing the container")

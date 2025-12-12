@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewListCommand() *cobra.Command {
+func NewListCommand(groupID string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
@@ -22,6 +22,7 @@ func NewListCommand() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return list(cmd.Context(), uncli)
 		},
+		GroupID: groupID,
 	}
 	return cmd
 }

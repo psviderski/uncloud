@@ -36,7 +36,7 @@ type runOptions struct {
 	volumes           []string
 }
 
-func NewRunCommand() *cobra.Command {
+func NewRunCommand(groupID string) *cobra.Command {
 	opts := runOptions{}
 
 	cmd := &cobra.Command{
@@ -54,6 +54,7 @@ func NewRunCommand() *cobra.Command {
 
 			return run(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
 
 	cmd.Flags().StringVar(&opts.caddyfile, "caddyfile", "",
