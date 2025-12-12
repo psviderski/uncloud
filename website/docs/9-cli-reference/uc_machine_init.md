@@ -27,7 +27,7 @@ uc machine init [USER@HOST:PORT] [flags]
   # Initialise with a non-root user and custom SSH port and key.
   uc machine init ubuntu@<your-server-ip>:2222 -i ~/.ssh/mykey
 
-  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.cluster.uncloud.run).
+  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.uncld.dev).
   # You can deploy Caddy with 'uc caddy deploy' and reserve a domain with 'uc dns reserve' later.
   uc machine init root@<your-server-ip> --no-caddy --no-dns
 ```

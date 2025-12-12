@@ -69,7 +69,7 @@ Talos [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/).
 
 ### Managed DNS service (optional)
 
-Uncloud can provide **managed DNS records** like `<service-name>.<cluster-id>.cluster.uncloud.run` for your public
+Uncloud can provide **managed DNS records** like `<service-name>.<cluster-id>.uncld.dev` for your public
 services through free [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service. You can deploy a service and
 instantly access it from anywhere with a proper DNS name and HTTPS without any manual DNS configuration. This makes
 self-hosting much more accessible and simplifies the process of adding your own domain later.
