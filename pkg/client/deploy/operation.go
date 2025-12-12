@@ -64,13 +64,18 @@ func (o *RunContainerOperation) String() string {
 
 // StopContainerOperation stops a container on a specific machine.
 type StopContainerOperation struct {
-	ServiceID   string
-	ContainerID string
-	MachineID   string
+	ServiceID       string
+	ContainerID     string
+	MachineID       string
+	StopGracePeriod *int
 }
 
 func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error {
-	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, container.StopOptions{}); err != nil {
+	opts := container.StopOptions{}
+	if o.StopGracePeriod != nil {
+		opts.Timeout = o.StopGracePeriod
+	}
+	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, opts); err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
 	return nil
@@ -89,12 +94,17 @@ func (o *StopContainerOperation) String() string {
 
 // RemoveContainerOperation stops and removes a container from a specific machine.
 type RemoveContainerOperation struct {
-	MachineID string
-	Container api.ServiceContainer
+	MachineID       string
+	Container       api.ServiceContainer
+	StopGracePeriod *int
 }
 
 func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) error {
-	if err := cli.StopContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.StopOptions{}); err != nil {
+	opts := container.StopOptions{}
+	if o.StopGracePeriod != nil {
+		opts.Timeout = o.StopGracePeriod
+	}
+	if err := cli.StopContainer(ctx, o.Container.ServiceID(), o.Container.ID, opts); err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
 	if err := cli.RemoveContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.RemoveOptions{
