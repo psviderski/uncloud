@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"text/tabwriter"
 	"time"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -59,18 +61,26 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 
+	// Parse created times for sorting and display.
+	createdTimes := make(map[string]time.Time, len(svc.Containers))
+	for _, ctr := range svc.Containers {
+		createdTimes[ctr.Container.ID], _ = time.Parse(time.RFC3339Nano, ctr.Container.Created)
+	}
+
+	// Sort containers by created time (newest first).
+	slices.SortFunc(svc.Containers, func(a, b api.MachineServiceContainer) int {
+		return createdTimes[b.Container.ID].Compare(createdTimes[a.Container.ID])
+	})
+
 	// Print the list of containers in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	if _, err = fmt.Fprintln(tw, "CONTAINER ID\tIMAGE\tCREATED\tSTATUS\tMACHINE"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 
+	now := time.Now().UTC()
 	for _, ctr := range svc.Containers {
-		createdAt, err := time.Parse(time.RFC3339Nano, ctr.Container.Created)
-		if err != nil {
-			return fmt.Errorf("parse created time: %w", err)
-		}
-		created := units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
+		created := units.HumanDuration(now.Sub(createdTimes[ctr.Container.ID])) + " ago"
 
 		machine := machinesNamesByID[ctr.MachineID]
 		if machine == "" {
