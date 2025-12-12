@@ -47,6 +47,7 @@ type MachineClient interface {
 type ServiceClient interface {
 	RunService(ctx context.Context, spec ServiceSpec) (RunServiceResponse, error)
 	InspectService(ctx context.Context, id string) (Service, error)
+	ListServices(ctx context.Context) ([]Service, error)
 	RemoveService(ctx context.Context, id string) error
 	StopService(ctx context.Context, id string, opts container.StopOptions) error
 	StartService(ctx context.Context, id string) error

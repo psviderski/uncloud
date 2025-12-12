@@ -22,5 +22,8 @@ When you [publish a service port](2-publishing-services.md), Uncloud automatical
 3. Route traffic to the **healthy** service container(s).
 4. Load balance across healthy replicas if there are multiple.
 
+For non-HTTP services (TCP/UDP), Uncloud runs a built-in proxy on each machine that load balances traffic across
+healthy containers in the cluster.
+
 For advanced use cases, Uncloud allows to customise the Caddy config using the `x-caddy` extension in Compose files.
 See [Custom Caddy configuration](2-publishing-services.md#custom-caddy-configuration) for details.

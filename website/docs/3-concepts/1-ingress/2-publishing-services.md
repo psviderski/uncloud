@@ -29,34 +29,56 @@ securely over HTTPS.
 
 ## Ingress vs host mode
 
-**HTTP/HTTPS** ports are exposed via Caddy using the following format for the `-p/--publish` flag and `x-ports`
-extension:
+There are two ways to expose ports: **ingress mode** and **host mode**.
+
+### Ingress mode (default)
+
+Ingress mode routes traffic through a load-balancing proxy that runs on every machine. Traffic to any machine is
+automatically forwarded to healthy containers, regardless of which machine they run on.
+
+**HTTP/HTTPS** uses Caddy with automatic TLS certificates:
 
 ```
 [hostname:]container_port[/protocol]
 ```
 
-- `hostname` (optional): The domain name to use for accessing the service. If omitted and a cluster domain is reserved,
+- `hostname` (optional): The domain name for accessing the service. If omitted and a cluster domain is reserved,
   `<service-name>.<cluster-domain>` is used.
-- `container_port`: The port number within the container that's listening for traffic.
+- `container_port`: The port number within the container.
 - `protocol` (optional): `http` or `https` (default: `https`)
 
-**TCP/UDP** ports can only be exposed in host mode, which binds the container port directly to the host machine's
-network interface(s). This is useful for non-HTTP services that need direct port access (bypasses Caddy):
+**TCP/UDP** uses a built-in proxy:
+
+```
+[published_port:]container_port/protocol
+```
+
+- `published_port` (optional): The port to expose on all machines. If omitted, a random port from 30000-39999 is
+  allocated.
+- `container_port`: The port number within the container.
+- `protocol`: `tcp` or `udp`
+
+### Host mode
+
+Host mode binds the container port directly to a specific machine's network interface. Use the `@host` suffix:
 
 ```
 [host_ip:]host_port:container_port[/protocol]@host
 ```
 
 - `host_ip` (optional): The IP address on the host to bind to. If omitted, binds to all interfaces.
-- `host_port`: The port number on the host to bind to.
-- `container_port`: The port number within the container that's listening for traffic.
+- `host_port`: The port number on the host.
+- `container_port`: The port number within the container.
 - `protocol` (optional): `tcp` or `udp` (default: `tcp`)
 
 | Port value                   | Description                                                                          |
 |------------------------------|--------------------------------------------------------------------------------------|
 | `8000/http`                  | Publish port 8000 as HTTP via Caddy using hostname `<service-name>.<cluster-domain>` |
 | `app.example.com:8080/https` | Publish port 8080 as HTTPS via Caddy using hostname `app.example.com`                |
+| `5432/tcp`                   | Publish TCP port 5432 via ingress proxy (auto-allocated published port)              |
+| `35000:5432/tcp`             | Publish TCP port 5432 on published port 35000 via ingress proxy                      |
+| `5353/udp`                   | Publish UDP port 5353 via ingress proxy (auto-allocated published port)              |
+| `53:5353/udp`                | Publish UDP port 5353 on published port 53 via ingress proxy                         |
 | `127.0.0.1:5432:5432@host`   | Bind TCP port 5432 to host port 5432 on loopback interface only                      |
 | `53:5353/udp@host`           | Bind UDP port 5353 to host port 53 on all network interfaces                         |
 
@@ -115,8 +137,8 @@ features.
 
 :::info note
 
-You cannot use `x-caddy` with `http` or `https` ports in `x-ports`. `tcp` and `udp` ports in host mode are allowed
-though.
+You cannot use `x-caddy` with `http` or `https` ports in `x-ports`. `tcp` and `udp` ports are allowed though, since
+they are handled by a separate proxy.
 
 :::
 
