@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 
 	"github.com/psviderski/uncloud/internal/cli"
@@ -44,16 +46,19 @@ func NewPsCommand() *cobra.Command {
 This command provides a comprehensive overview of all running containers that are part of a service,
 making it easy to see the distribution and status of containers across the cluster.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+
 			if opts.sortBy != sortByService && opts.sortBy != sortByMachine && opts.sortBy != sortByHealth {
 				return fmt.Errorf("invalid value for --sort: %q, must be one of '%s', '%s' or '%s'", opts.sortBy,
 					sortByService, sortByMachine, sortByHealth)
 			}
-			return runPs(cmd, opts)
+
+			return runPs(cmd.Context(), uncli, opts)
 		},
 		GroupID: "service",
 	}
 	cmd.Flags().StringVarP(&opts.sortBy, "sort", "s", sortByService,
-		"Sort containers by 'service', 'machine' or 'health'")
+		"Sort containers by 'service', 'machine', or 'health'.")
 	return cmd
 }
 
@@ -65,15 +70,15 @@ type containerInfo struct {
 	image       string
 	status      string
 	highlight   containerHighlight
+	created     time.Time
 }
 
-func runPs(cmd *cobra.Command, opts psOptions) error {
-	uncli := cmd.Context().Value("cli").(*cli.CLI)
-	client, err := uncli.ConnectCluster(cmd.Context())
+func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer client.Close()
+	defer clusterClient.Close()
 
 	var containers []containerInfo
 	err = spinner.New().
@@ -81,7 +86,7 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		Type(spinner.MiniDot).
 		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
 		ActionWithErr(func(ctx context.Context) error {
-			containers, err = collectContainers(ctx, client)
+			containers, err = collectContainers(ctx, clusterClient)
 			return err
 		}).
 		Run()
@@ -89,7 +94,7 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		return fmt.Errorf("collect containers: %w", err)
 	}
 
-	// Sort the containers based on the sorting option
+	// Sort the containers based on the sorting option.
 	sort.SliceStable(containers, func(i, j int) bool {
 		a, b := containers[i], containers[j]
 		switch opts.sortBy {
@@ -99,9 +104,6 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 			}
 			if a.serviceName != b.serviceName {
 				return a.serviceName < b.serviceName
-			}
-			if a.machineName != b.machineName {
-				return a.machineName < b.machineName
 			}
 		case sortByMachine:
 			if a.machineName != b.machineName {
@@ -114,12 +116,9 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 			if a.serviceName != b.serviceName {
 				return a.serviceName < b.serviceName
 			}
-			if a.machineName != b.machineName {
-				return a.machineName < b.machineName
-			}
 		}
-		// Final tie-breaker
-		return a.name < b.name
+		// Fallback to creation time (newest first).
+		return a.created.After(b.created)
 	})
 
 	return printContainers(containers)
@@ -143,13 +142,15 @@ func printContainers(containers []containerInfo) error {
 			return lipgloss.NewStyle().PaddingRight(3)
 		})
 
-	t.Headers("SERVICE", "CONTAINER ID", "NAME", "IMAGE", "STATUS", "MACHINE")
+	t.Headers("SERVICE", "CONTAINER ID", "CONTAINER NAME", "IMAGE", "CREATED", "STATUS", "MACHINE")
 
 	for _, ctr := range containers {
 		id := ctr.id
 		if len(id) > 12 {
 			id = id[:12]
 		}
+
+		created := units.HumanDuration(time.Now().UTC().Sub(ctr.created)) + " ago"
 
 		var statusStyle lipgloss.Style
 		switch ctr.highlight {
@@ -168,6 +169,7 @@ func printContainers(containers []containerInfo) error {
 			id,
 			ctr.name,
 			ctr.image,
+			created,
 			statusStyle.Render(ctr.status),
 			ctr.machineName,
 		)
@@ -253,6 +255,8 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 				highlight = highlightWarning
 			}
 
+			created, _ := time.Parse(time.RFC3339Nano, ctr.Container.Created)
+
 			info := containerInfo{
 				serviceName: ctr.ServiceName(),
 				machineName: machineName,
@@ -261,6 +265,7 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 				image:       ctr.Container.Config.Image,
 				status:      status,
 				highlight:   highlight,
+				created:     created,
 			}
 			containers = append(containers, info)
 		}
