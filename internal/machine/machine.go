@@ -290,7 +290,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		NetworkReady:        m.IsNetworkReady,
 		WaitForNetworkReady: m.WaitForNetworkReady,
 	})
-	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir))
+	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir, DefaultCaddyAdminSockPath))
 	m.localMachineServer = newGRPCServer(m, c, m.dockerServer, caddyServer)
 
 	if m.Initialised() {
