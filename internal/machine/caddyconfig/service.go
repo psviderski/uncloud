@@ -72,46 +72,81 @@ func (s *Service) GetUpstreams(ctx context.Context) (map[string][]UpstreamStatus
 	result := make(map[string][]UpstreamStatus)
 
 	for _, server := range config.Apps.HTTP.Servers {
-		for _, route := range server.Routes {
-			var hosts []string
-			for _, m := range route.Match {
-				hosts = append(hosts, m.Host...)
-			}
-
-			for _, h := range route.Handle {
-				if h.Handler != "reverse_proxy" {
-					continue
-				}
-				for _, u := range h.Upstreams {
-					if st, ok := statusMap[u.Dial]; ok {
-						for _, host := range hosts {
-							result[host] = append(result[host], st)
-						}
-					}
-				}
-			}
-		}
+		collectUpstreams(server.Routes, nil, statusMap, result)
 	}
 
 	return result, nil
 }
 
+func collectUpstreams(routes []caddyRoute, parentHosts []string, statusMap map[string]UpstreamStatus, result map[string][]UpstreamStatus) {
+	for _, route := range routes {
+		// Calculate the hosts for this route.
+		var currentHosts []string
+		for _, m := range route.Match {
+			currentHosts = append(currentHosts, m.Host...)
+		}
+
+		effectiveHosts := parentHosts
+		if len(currentHosts) > 0 {
+			if len(parentHosts) > 0 {
+				// Intersection of hosts.
+				var intersection []string
+				for _, h1 := range parentHosts {
+					for _, h2 := range currentHosts {
+						if h1 == h2 {
+							intersection = append(intersection, h1)
+						}
+					}
+				}
+				effectiveHosts = intersection
+			} else {
+				effectiveHosts = currentHosts
+			}
+		}
+
+		for _, h := range route.Handle {
+			if h.Handler == "reverse_proxy" {
+				for _, u := range h.Upstreams {
+					if st, ok := statusMap[u.Dial]; ok {
+						for _, host := range effectiveHosts {
+							result[host] = append(result[host], st)
+						}
+					}
+				}
+			} else if h.Handler == "subroute" {
+				collectUpstreams(h.Routes, effectiveHosts, statusMap, result)
+			}
+		}
+	}
+}
+
 type caddyConfig struct {
 	Apps struct {
 		HTTP struct {
-			Servers map[string]struct {
-				Routes []struct {
-					Match []struct {
-						Host []string `json:"host"`
-					} `json:"match"`
-					Handle []struct {
-						Handler   string `json:"handler"`
-						Upstreams []struct {
-							Dial string `json:"dial"`
-						} `json:"upstreams"`
-					} `json:"handle"`
-				} `json:"routes"`
-			} `json:"servers"`
+			Servers map[string]caddyServer `json:"servers"`
 		} `json:"http"`
 	} `json:"apps"`
+}
+
+type caddyServer struct {
+	Routes []caddyRoute `json:"routes"`
+}
+
+type caddyRoute struct {
+	Match  []caddyMatch  `json:"match"`
+	Handle []caddyHandle `json:"handle"`
+}
+
+type caddyMatch struct {
+	Host []string `json:"host"`
+}
+
+type caddyHandle struct {
+	Handler   string          `json:"handler"`
+	Routes    []caddyRoute    `json:"routes"`    // For subroute
+	Upstreams []caddyUpstream `json:"upstreams"` // For reverse_proxy
+}
+
+type caddyUpstream struct {
+	Dial string `json:"dial"`
 }

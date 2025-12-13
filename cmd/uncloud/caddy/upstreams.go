@@ -10,7 +10,6 @@ import (
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -46,7 +45,7 @@ func runUpstreams(ctx context.Context, uncli *cli.CLI, opts upstreamsOptions) er
 
 	if opts.machine != "" {
 		// If a specific machine is requested, use it to get the Caddy upstreams.
-		ctx, _, err = api.ProxyMachinesContext(ctx, clusterClient, []string{opts.machine})
+		ctx, _, err = clusterClient.ProxyMachinesContext(ctx, []string{opts.machine})
 		if err != nil {
 			return err
 		}
