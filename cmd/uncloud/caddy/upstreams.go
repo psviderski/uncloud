@@ -66,14 +66,8 @@ func runUpstreams(ctx context.Context, uncli *cli.CLI, opts upstreamsOptions) er
 	for _, host := range resp.Hosts {
 		var upstreamsStrs []string
 		for _, u := range host.Upstreams {
-			statusIcon := "✅"
-			if u.Status != "healthy" {
-				statusIcon = "❌"
-			}
-
-			// Format: 10.210.0.4:80 (✅ healthy, reqs: 0, fails: 0)
-			s := fmt.Sprintf("%s (%s %s, reqs: %d, fails: %d)",
-				u.Address, statusIcon, u.Status, u.NumRequests, u.Fails)
+			s := fmt.Sprintf("%s (%s, reqs: %d, fails: %d)",
+				u.Address, u.Status, u.NumRequests, u.Fails)
 			upstreamsStrs = append(upstreamsStrs, s)
 		}
 		fmt.Fprintf(w, "%s\t%s\n", host.Host, strings.Join(upstreamsStrs, ", "))
