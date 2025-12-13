@@ -22,7 +22,12 @@ func NewRootCommand() *cobra.Command {
 	return cmd
 }
 
+type showOptions struct {
+	machine string
+}
+
 func newShowCommand() *cobra.Command {
+	opts := showOptions{}
 	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "Show WireGuard configuration for the current machine",
@@ -38,12 +43,21 @@ func newShowCommand() *cobra.Command {
 			}
 			defer client.Close()
 
+			if opts.machine != "" {
+				// Proxy requests to the specified machine.
+				ctx, _, err = client.ProxyMachinesContext(ctx, []string{opts.machine})
+				if err != nil {
+					return err
+				}
+			}
+
 			resp, err := client.MachineClient.GetWireGuardDevice(ctx, nil)
 			if err != nil {
 				return err
 			}
 
 			machines, err := client.ListMachines(ctx, nil)
+
 			if err != nil {
 				return fmt.Errorf("list machines: %w", err)
 			}
@@ -54,7 +68,7 @@ func newShowCommand() *cobra.Command {
 			}
 
 			// Fetch the machine's name for more descriptive output
-			inspectResp, err := client.Inspect(cmd.Context(), nil)
+			inspectResp, err := client.Inspect(ctx, nil)
 			if err == nil {
 				fmt.Printf("Machine Name:         %s\n", inspectResp.Name)
 			}
@@ -98,5 +112,6 @@ func newShowCommand() *cobra.Command {
 			return tw.Flush()
 		},
 	}
+	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "", "Name or ID of the machine to show configuration for")
 	return cmd
 }
