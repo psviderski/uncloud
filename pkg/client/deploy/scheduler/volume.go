@@ -83,7 +83,10 @@ func NewVolumeScheduler(state *ClusterState, specs []api.ServiceSpec) (*VolumeSc
 			if spec, ok := volumeSpecs[vol.Name]; ok {
 				if !spec.MatchesDockerVolume(vol) {
 					return nil, fmt.Errorf("volume '%s' specification does not match the existing volume "+
-						"on machine '%s'", vol.Name, machine.Info.Name)
+						"on machine '%s'. Use a different volume name or adjust the volume options to match "+
+						"the existing volume. You can also remove the existing volume from the machine(s) with "+
+						"'uc volume rm' (WARNING: the data will be lost) and run the deployment again to create "+
+						"a new volume with the correct specification", vol.Name, machine.Info.Name)
 				}
 
 				if _, setInitialised := existingVolumeMachines[vol.Name]; !setInitialised {

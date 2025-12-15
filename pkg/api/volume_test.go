@@ -9,6 +9,8 @@ import (
 )
 
 func TestVolumeSpec_MatchesDockerVolume(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		spec     VolumeSpec
@@ -56,6 +58,78 @@ func TestVolumeSpec_MatchesDockerVolume(t *testing.T) {
 				},
 			},
 			expected: true,
+		},
+		{
+			name: "non-match with different driver options",
+			spec: VolumeSpec{
+				Type: VolumeTypeVolume,
+				VolumeOptions: &VolumeOptions{
+					Driver: &mount.Driver{
+						Name: "local",
+						Options: map[string]string{
+							"foo": "baz",
+						},
+					},
+				},
+			},
+			vol: volume.Volume{
+				Driver: "local",
+				Options: map[string]string{
+					"foo": "bar",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "non-match with different driver name",
+			spec: VolumeSpec{
+				Type: VolumeTypeVolume,
+				VolumeOptions: &VolumeOptions{
+					Driver: &mount.Driver{
+						Name: "custom",
+						Options: map[string]string{
+							"foo": "bar",
+						},
+					},
+				},
+			},
+			vol: volume.Volume{
+				Driver: "local",
+				Options: map[string]string{
+					"foo": "bar",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "match external volume without driver by name only",
+			spec: VolumeSpec{
+				Name: "external",
+				Type: VolumeTypeVolume,
+			},
+			vol: volume.Volume{
+				Name:   "external",
+				Driver: "local",
+				Options: map[string]string{
+					"foo": "bar",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "non-match external volume by name",
+			spec: VolumeSpec{
+				Name: "unknown",
+				Type: VolumeTypeVolume,
+			},
+			vol: volume.Volume{
+				Name:   "external",
+				Driver: "local",
+				Options: map[string]string{
+					"foo": "bar",
+				},
+			},
+			expected: false,
 		},
 	}
 
