@@ -171,7 +171,7 @@ func (cli *CLI) InitCluster(ctx context.Context, opts InitClusterOptions) (*clie
 		return cli.initRemoteMachine(ctx, opts)
 	}
 	// TODO: implement local machine initialisation
-	return nil, fmt.Errorf("local machine initialisation is not implemented yet")
+	return nil, fmt.Errorf("local machine initialisation is not implemented yet. Please specify a remote machine")
 }
 
 func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) (*client.Client, error) {
@@ -246,9 +246,17 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		MachineID:  resp.Machine.Id,
 	}
 	if opts.RemoteMachine.UseSSHCLI {
-		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSHCLI = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	} else {
-		connCfg.SSH = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSH = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {
@@ -415,9 +423,17 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		MachineID:  addResp.Machine.Id,
 	}
 	if opts.RemoteMachine.UseSSHCLI {
-		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSHCLI = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	} else {
-		connCfg.SSH = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSH = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {

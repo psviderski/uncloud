@@ -33,7 +33,7 @@ type initOptions struct {
 func NewInitCommand() *cobra.Command {
 	opts := initOptions{}
 	cmd := &cobra.Command{
-		Use:   "init [USER@HOST:PORT]",
+		Use:   "init [schema://]USER@HOST[:PORT]",
 		Short: "Initialise a new cluster with a remote machine as the first member.",
 		Long: `Initialise a new cluster by setting up a remote machine as the first member.
 This command creates a new context in your Uncloud config to manage the cluster.
@@ -128,6 +128,11 @@ Connection methods:
 }
 
 func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, opts initOptions) error {
+	if uncli.Config == nil {
+		// Config is nil when connecting directly to a remote machine (--connect) without using Uncloud config.
+		return fmt.Errorf("do not specify --connect when initialising a new cluster")
+	}
+
 	netPrefix, err := netip.ParsePrefix(opts.network)
 	if err != nil {
 		return fmt.Errorf("parse network CIDR: %w", err)

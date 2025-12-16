@@ -40,8 +40,8 @@ func main() {
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "connect", "UNCLOUD_CONNECT")
-			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
 			cli.BindEnvToFlag(cmd, "context", "UNCLOUD_CONTEXT")
+			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
 
 			var conn *config.MachineConnection
 			if opts.connect != "" {
