@@ -44,8 +44,8 @@ type ClusterClient interface {
 	GetDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	ReleaseDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	CreateDomainRecords(ctx context.Context, in *CreateDomainRecordsRequest, opts ...grpc.CallOption) (*CreateDomainRecordsResponse, error)
-	AddMachineLabels(ctx context.Context, in *MachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
-	RemoveMachineLabels(ctx context.Context, in *MachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
+	AddMachineLabels(ctx context.Context, in *AddMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
+	RemoveMachineLabels(ctx context.Context, in *RemoveMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
 }
 
 type clusterClient struct {
@@ -136,7 +136,7 @@ func (c *clusterClient) CreateDomainRecords(ctx context.Context, in *CreateDomai
 	return out, nil
 }
 
-func (c *clusterClient) AddMachineLabels(ctx context.Context, in *MachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
+func (c *clusterClient) AddMachineLabels(ctx context.Context, in *AddMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateMachineResponse)
 	err := c.cc.Invoke(ctx, Cluster_AddMachineLabels_FullMethodName, in, out, cOpts...)
@@ -146,7 +146,7 @@ func (c *clusterClient) AddMachineLabels(ctx context.Context, in *MachineLabelsR
 	return out, nil
 }
 
-func (c *clusterClient) RemoveMachineLabels(ctx context.Context, in *MachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
+func (c *clusterClient) RemoveMachineLabels(ctx context.Context, in *RemoveMachineLabelsRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateMachineResponse)
 	err := c.cc.Invoke(ctx, Cluster_RemoveMachineLabels_FullMethodName, in, out, cOpts...)
@@ -168,8 +168,8 @@ type ClusterServer interface {
 	GetDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	ReleaseDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	CreateDomainRecords(context.Context, *CreateDomainRecordsRequest) (*CreateDomainRecordsResponse, error)
-	AddMachineLabels(context.Context, *MachineLabelsRequest) (*UpdateMachineResponse, error)
-	RemoveMachineLabels(context.Context, *MachineLabelsRequest) (*UpdateMachineResponse, error)
+	AddMachineLabels(context.Context, *AddMachineLabelsRequest) (*UpdateMachineResponse, error)
+	RemoveMachineLabels(context.Context, *RemoveMachineLabelsRequest) (*UpdateMachineResponse, error)
 	mustEmbedUnimplementedClusterServer()
 }
 
@@ -204,10 +204,10 @@ func (UnimplementedClusterServer) ReleaseDomain(context.Context, *emptypb.Empty)
 func (UnimplementedClusterServer) CreateDomainRecords(context.Context, *CreateDomainRecordsRequest) (*CreateDomainRecordsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDomainRecords not implemented")
 }
-func (UnimplementedClusterServer) AddMachineLabels(context.Context, *MachineLabelsRequest) (*UpdateMachineResponse, error) {
+func (UnimplementedClusterServer) AddMachineLabels(context.Context, *AddMachineLabelsRequest) (*UpdateMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddMachineLabels not implemented")
 }
-func (UnimplementedClusterServer) RemoveMachineLabels(context.Context, *MachineLabelsRequest) (*UpdateMachineResponse, error) {
+func (UnimplementedClusterServer) RemoveMachineLabels(context.Context, *RemoveMachineLabelsRequest) (*UpdateMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveMachineLabels not implemented")
 }
 func (UnimplementedClusterServer) mustEmbedUnimplementedClusterServer() {}
@@ -376,7 +376,7 @@ func _Cluster_CreateDomainRecords_Handler(srv interface{}, ctx context.Context, 
 }
 
 func _Cluster_AddMachineLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MachineLabelsRequest)
+	in := new(AddMachineLabelsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -388,13 +388,13 @@ func _Cluster_AddMachineLabels_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: Cluster_AddMachineLabels_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterServer).AddMachineLabels(ctx, req.(*MachineLabelsRequest))
+		return srv.(ClusterServer).AddMachineLabels(ctx, req.(*AddMachineLabelsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Cluster_RemoveMachineLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MachineLabelsRequest)
+	in := new(RemoveMachineLabelsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -406,7 +406,7 @@ func _Cluster_RemoveMachineLabels_Handler(srv interface{}, ctx context.Context, 
 		FullMethod: Cluster_RemoveMachineLabels_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterServer).RemoveMachineLabels(ctx, req.(*MachineLabelsRequest))
+		return srv.(ClusterServer).RemoveMachineLabels(ctx, req.(*RemoveMachineLabelsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

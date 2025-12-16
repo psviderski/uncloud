@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/netip"
 	"time"
 
@@ -282,7 +283,7 @@ func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 }
 
 // AddMachineLabels adds labels to a machine.
-func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.MachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.AddMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
 		return nil, err
 	}
@@ -298,21 +299,11 @@ func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.MachineLabelsReq
 		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
 	}
 
-	// Use a map to prevent duplicates
-	existingLabels := make(map[string]struct{})
-	for _, label := range machine.Labels {
-		existingLabels[label] = struct{}{}
-	}
-	for _, label := range req.Labels {
-		existingLabels[label] = struct{}{}
+	if machine.Labels == nil {
+		machine.Labels = make(map[string]string)
 	}
 
-	// Convert back to a slice
-	newLabels := make([]string, 0, len(existingLabels))
-	for label := range existingLabels {
-		newLabels = append(newLabels, label)
-	}
-	machine.Labels = newLabels
+	maps.Copy(machine.Labels, req.Labels)
 
 	if err = c.store.UpdateMachine(ctx, machine); err != nil {
 		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
@@ -323,7 +314,7 @@ func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.MachineLabelsReq
 }
 
 // RemoveMachineLabels removes labels from a machine.
-func (c *Cluster) RemoveMachineLabels(ctx context.Context, req *pb.MachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+func (c *Cluster) RemoveMachineLabels(ctx context.Context, req *pb.RemoveMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
 	if err := c.checkInitialised(ctx); err != nil {
 		return nil, err
 	}
@@ -339,19 +330,9 @@ func (c *Cluster) RemoveMachineLabels(ctx context.Context, req *pb.MachineLabels
 		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
 	}
 
-	// Use a map for efficient removal
-	labelsToRemove := make(map[string]struct{})
 	for _, label := range req.Labels {
-		labelsToRemove[label] = struct{}{}
+		delete(machine.Labels, label)
 	}
-
-	var updatedLabels []string
-	for _, label := range machine.Labels {
-		if _, found := labelsToRemove[label]; !found {
-			updatedLabels = append(updatedLabels, label)
-		}
-	}
-	machine.Labels = updatedLabels
 
 	if err = c.store.UpdateMachine(ctx, machine); err != nil {
 		return nil, status.Errorf(codes.Internal, "update machine: %v", err)

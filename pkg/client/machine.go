@@ -101,13 +101,13 @@ func (cli *Client) RenameMachine(ctx context.Context, nameOrID, newName string) 
 }
 
 // AddMachineLabels adds labels to a machine.
-func (cli *Client) AddMachineLabels(ctx context.Context, nameOrID string, labels []string) (*pb.MachineInfo, error) {
+func (cli *Client) AddMachineLabels(ctx context.Context, nameOrID string, labels map[string]string) (*pb.MachineInfo, error) {
 	machine, err := cli.InspectMachine(ctx, nameOrID)
 	if err != nil {
 		return nil, err
 	}
 
-	req := &pb.MachineLabelsRequest{
+	req := &pb.AddMachineLabelsRequest{
 		MachineId: machine.Machine.Id,
 		Labels:    labels,
 	}
@@ -126,7 +126,7 @@ func (cli *Client) RemoveMachineLabels(ctx context.Context, nameOrID string, lab
 		return nil, err
 	}
 
-	req := &pb.MachineLabelsRequest{
+	req := &pb.RemoveMachineLabelsRequest{
 		MachineId: machine.Machine.Id,
 		Labels:    labels,
 	}
@@ -139,7 +139,7 @@ func (cli *Client) RemoveMachineLabels(ctx context.Context, nameOrID string, lab
 }
 
 // GetMachineLabels returns the labels for a machine.
-func (cli *Client) GetMachineLabels(ctx context.Context, nameOrID string) ([]string, error) {
+func (cli *Client) GetMachineLabels(ctx context.Context, nameOrID string) (map[string]string, error) {
 	machine, err := cli.InspectMachine(ctx, nameOrID)
 	if err != nil {
 		return nil, err

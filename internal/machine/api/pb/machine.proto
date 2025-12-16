@@ -25,7 +25,7 @@ message MachineInfo {
   string name = 2;
   NetworkConfig network = 3;
   IP public_ip = 4;
-  repeated string labels = 5;
+  map<string, string> labels = 5;
 }
 
 message NetworkConfig {
