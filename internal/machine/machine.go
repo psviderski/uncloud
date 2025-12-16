@@ -738,6 +738,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	// Update the machine state with the new cluster configuration.
 	m.state.ID = addResp.Machine.Id
 	m.state.Name = addResp.Machine.Name
+	m.state.Labels = addResp.Machine.Labels
 	m.state.Network = &network.Config{
 		Subnet:       subnet,
 		ManagementIP: manageIP,
@@ -786,6 +787,7 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 	manageIP, _ := req.Machine.Network.ManagementIp.ToAddr()
 	m.state.ID = req.Machine.Id
 	m.state.Name = req.Machine.Name
+	m.state.Labels = req.Machine.Labels
 	m.state.Network = &network.Config{
 		Subnet:       subnet,
 		ManagementIP: manageIP,
@@ -866,8 +868,9 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 
 func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
 	return &pb.MachineInfo{
-		Id:   m.state.ID,
-		Name: m.state.Name,
+		Id:     m.state.ID,
+		Name:   m.state.Name,
+		Labels: m.state.Labels,
 		Network: &pb.NetworkConfig{
 			Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
 			ManagementIp: pb.NewIP(m.state.Network.ManagementIP),

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/netip"
 	"time"
 
@@ -279,6 +280,66 @@ func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 
 	resp := &pb.UpdateMachineResponse{Machine: updatedMachine}
 	return resp, nil
+}
+
+// AddMachineLabels adds labels to a machine.
+func (c *Cluster) AddMachineLabels(ctx context.Context, req *pb.AddMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+	if req.MachineId == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_id not set")
+	}
+
+	machine, err := c.store.GetMachine(ctx, req.MachineId)
+	if err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
+	}
+
+	if machine.Labels == nil {
+		machine.Labels = make(map[string]string)
+	}
+
+	maps.Copy(machine.Labels, req.Labels)
+
+	if err = c.store.UpdateMachine(ctx, machine); err != nil {
+		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
+	}
+
+	slog.Info("Labels added to machine.", "id", machine.Id, "labels", req.Labels)
+	return &pb.UpdateMachineResponse{Machine: machine}, nil
+}
+
+// RemoveMachineLabels removes labels from a machine.
+func (c *Cluster) RemoveMachineLabels(ctx context.Context, req *pb.RemoveMachineLabelsRequest) (*pb.UpdateMachineResponse, error) {
+	if err := c.checkInitialised(ctx); err != nil {
+		return nil, err
+	}
+	if req.MachineId == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_id not set")
+	}
+
+	machine, err := c.store.GetMachine(ctx, req.MachineId)
+	if err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.MachineId)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get machine: %v", err)
+	}
+
+	for _, label := range req.Labels {
+		delete(machine.Labels, label)
+	}
+
+	if err = c.store.UpdateMachine(ctx, machine); err != nil {
+		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
+	}
+
+	slog.Info("Labels removed from machine.", "id", machine.Id, "labels", req.Labels)
+	return &pb.UpdateMachineResponse{Machine: machine}, nil
 }
 
 // ListMachines lists all machines in the cluster including their membership states.
