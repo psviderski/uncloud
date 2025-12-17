@@ -27,6 +27,7 @@ type addOptions struct {
 	publicIP  string
 	sshKey    string
 	version   string
+	yes       bool
 }
 
 func NewAddCommand() *cobra.Command {
@@ -41,6 +42,8 @@ Connection methods:
   ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
+
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			// Determine if SSH CLI needs to be used and strip scheme
@@ -88,6 +91,9 @@ Connection methods:
 		&opts.version, "version", "latest",
 		"Version of the Uncloud daemon to install on the machine.",
 	)
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
+		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
+			"Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	return cmd
 }
@@ -113,6 +119,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
+		AutoConfirm:   opts.yes,
 	})
 	if err != nil {
 		return err

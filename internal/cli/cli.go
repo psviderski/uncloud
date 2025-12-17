@@ -162,6 +162,7 @@ type InitClusterOptions struct {
 	RemoteMachine *RemoteMachine
 	SkipInstall   bool
 	Version       string
+	AutoConfirm   bool
 }
 
 // InitCluster initialises a new cluster on a remote machine and returns a client to interact with the cluster.
@@ -197,7 +198,12 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		return nil, fmt.Errorf("inspect machine: %w", err)
 	}
 	if minfo.Id != "" {
-		if err = promptResetMachine(ctx, machineClient.MachineClient); err != nil {
+		if !opts.AutoConfirm {
+			if err = promptResetMachine(); err != nil {
+				return nil, err
+			}
+		}
+		if err = resetAndWaitMachine(ctx, machineClient.MachineClient); err != nil {
 			return nil, err
 		}
 	}
@@ -297,6 +303,7 @@ type AddMachineOptions struct {
 	RemoteMachine *RemoteMachine
 	SkipInstall   bool
 	Version       string
+	AutoConfirm   bool
 }
 
 // AddMachine provisions a remote machine and adds it to the cluster. It returns a cluster client and a machine client.
@@ -342,7 +349,12 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 			return nil, nil, fmt.Errorf("machine is already a member of this cluster (%s)", minfo.Name)
 		}
 
-		if err = promptResetMachine(ctx, machineClient.MachineClient); err != nil {
+		if !opts.AutoConfirm {
+			if err = promptResetMachine(); err != nil {
+				return nil, nil, err
+			}
+		}
+		if err = resetAndWaitMachine(ctx, machineClient.MachineClient); err != nil {
 			return nil, nil, err
 		}
 	}

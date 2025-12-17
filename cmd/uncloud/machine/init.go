@@ -28,6 +28,7 @@ type initOptions struct {
 	sshKey      string
 	version     string
 	context     string
+	yes         bool
 }
 
 func NewInitCommand() *cobra.Command {
@@ -56,6 +57,8 @@ Connection methods:
 		// TODO: support initialising a cluster on the local machine.
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
+
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			var remoteMachine *cli.RemoteMachine
@@ -82,6 +85,11 @@ Connection methods:
 			return initCluster(cmd.Context(), uncli, remoteMachine, opts)
 		},
 	}
+
+	cmd.Flags().StringVarP(
+		&opts.context, "context", "c", cli.DefaultContextName,
+		"Name of the new context to be created in the Uncloud config to manage the cluster.",
+	)
 	cmd.Flags().StringVar(&opts.dnsEndpoint, "dns-endpoint", dns.DefaultUncloudDNSAPIEndpoint,
 		"API endpoint for the Uncloud DNS service.")
 	cmd.Flags().StringVarP(
@@ -119,10 +127,9 @@ Connection methods:
 		&opts.version, "version", "latest",
 		"Version of the Uncloud daemon to install on the machine.",
 	)
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", cli.DefaultContextName,
-		"Name of the new context to be created in the Uncloud config to manage the cluster.",
-	)
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
+		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
+			"Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	return cmd
 }
@@ -159,6 +166,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
+		AutoConfirm:   opts.yes,
 	})
 	if err != nil {
 		return err
