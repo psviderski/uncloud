@@ -116,17 +116,27 @@ func (s *Store) GetMachine(ctx context.Context, machineID string) (*pb.MachineIn
 }
 
 func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
-	rows, err := s.corro.QueryContext(ctx, "SELECT info FROM machines ORDER BY name")
+	rows, err := s.corro.QueryContext(ctx, "SELECT id, info FROM machines ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	var machines []*pb.MachineInfo
+	skipped := 0
+
 	for rows.Next() {
-		var mJSON string
-		if err = rows.Scan(&mJSON); err != nil {
+		var id, mJSON string
+		if err = rows.Scan(&id, &mJSON); err != nil {
 			return nil, err
+		}
+
+		// Skip machines with empty JSON data. This can happen during partial replication
+		// when cr-sqlite has created the row but the info column hasn't been synced yet.
+		if mJSON == "" || mJSON == "{}" {
+			slog.Debug("Skipping machine with empty data in the store (partial replication?).", "id", id)
+			skipped++
+			continue
 		}
 
 		protojsonParser := protojson.UnmarshalOptions{DiscardUnknown: true}
@@ -141,6 +151,12 @@ func (s *Store) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
 		}
 		machines = append(machines, &m)
 	}
+
+	if skipped > 0 {
+		slog.Warn("Listing machines from the store skipped empty records (possibly due to partial replication).",
+			"skipped", skipped, "valid", len(machines))
+	}
+
 	return machines, nil
 }
 
@@ -186,24 +202,41 @@ func (s *Store) DeleteMachine(ctx context.Context, id string) error {
 // SubscribeMachines returns a list of machines and a channel that signals changes to the list. The channel doesn't
 // receive any values, it just signals when a machine has been added, updated, or deleted in the database.
 func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-chan struct{}, error) {
-	sub, err := s.corro.SubscribeContext(ctx, "SELECT info FROM machines ORDER BY name", nil, false)
+	sub, err := s.corro.SubscribeContext(ctx, "SELECT id, info FROM machines ORDER BY name", nil, false)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	rows := sub.Rows()
 	var machines []*pb.MachineInfo
+	skipped := 0
+
 	for rows.Next() {
-		var mJSON string
-		if err = rows.Scan(&mJSON); err != nil {
+		var id, mJSON string
+		if err = rows.Scan(&id, &mJSON); err != nil {
 			return nil, nil, err
 		}
+
+		// Skip machines with empty JSON data. This can happen during partial replication
+		// when cr-sqlite has created the row but the info column hasn't been synced yet.
+		if mJSON == "" || mJSON == "{}" {
+			slog.Debug("Skipping machine with empty data in the store (partial replication?).", "id", id)
+			skipped++
+			continue
+		}
+
 		var m pb.MachineInfo
 		if err = protojson.Unmarshal([]byte(mJSON), &m); err != nil {
 			return nil, nil, fmt.Errorf("unmarshal machine info: %w", err)
 		}
 		machines = append(machines, &m)
 	}
+
+	if skipped > 0 {
+		slog.Warn("Machine subscription skipped empty records in the store (possibly due to partial replication).",
+			"skipped", skipped, "valid", len(machines))
+	}
+
 	events, err := sub.Changes()
 	if err != nil {
 		return nil, nil, fmt.Errorf("get subscription changes: %w", err)

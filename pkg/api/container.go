@@ -135,6 +135,10 @@ func (c *Container) UnmarshalJSON(data []byte) error {
 	}
 
 	*c = Container(temp)
+	if c.ContainerJSONBase == nil {
+		return fmt.Errorf("container data is missing mandatory base fields: %s", data)
+	}
+
 	c.Name = strings.TrimPrefix(c.Name, "/")
 
 	return nil

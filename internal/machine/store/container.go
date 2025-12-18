@@ -82,7 +82,7 @@ func (s *Store) CreateOrUpdateContainer(ctx context.Context, ctr api.ServiceCont
 
 // ListContainers returns a list of container records from the store database that match the given options.
 func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]ContainerRecord, error) {
-	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers").
+	q := sq.Select("id", "container", "machine_id", "sync_status", "updated_at").From("containers").
 		Where(sq.Eq{"sync_status": SyncStatusSynced})
 
 	if len(opts.MachineIDs) > 0 {
@@ -112,12 +112,21 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]Contain
 	defer rows.Close()
 
 	var containers []ContainerRecord
-	var cJSON, machineID, syncStatus, updatedAtStr string
+	var id, cJSON, machineID, syncStatus, updatedAtStr string
 	var updatedAt time.Time
+	skipped := 0
 
 	for rows.Next() {
-		if err = rows.Scan(&cJSON, &machineID, &syncStatus, &updatedAtStr); err != nil {
+		if err = rows.Scan(&id, &cJSON, &machineID, &syncStatus, &updatedAtStr); err != nil {
 			return nil, fmt.Errorf("scan container record: %w", err)
+		}
+
+		// Skip containers with empty JSON data. This can happen during partial replication
+		// when cr-sqlite has created the row but the container column hasn't been synced yet.
+		if cJSON == "" || cJSON == "{}" {
+			slog.Debug("Skipping container with empty data in the store (partial replication?).", "id", id)
+			skipped++
+			continue
 		}
 
 		var c api.ServiceContainer
@@ -133,6 +142,11 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]Contain
 			SyncStatus: syncStatus,
 			UpdatedAt:  updatedAt,
 		})
+	}
+
+	if skipped > 0 {
+		slog.Warn("Listing containers from the store skipped empty records (possibly due to partial replication).",
+			"skipped", skipped, "valid", len(containers))
 	}
 
 	return containers, nil
@@ -166,7 +180,7 @@ func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error 
 // receive any values, it just signals when a container(s) has been added, updated, or deleted in the database.
 func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-chan struct{}, error) {
 	// TODO: figure out whether we need sync_status at all (not used at the moment).
-	q := sq.Select("container", "machine_id", "sync_status", "updated_at").From("containers").
+	q := sq.Select("id", "container", "machine_id", "sync_status", "updated_at").From("containers").
 		Where(sq.Eq{"sync_status": SyncStatusSynced})
 	query, args, err := q.ToSql()
 	if err != nil {
@@ -179,13 +193,22 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 	}
 
 	var containers []ContainerRecord
-	var cJSON, updatedAtStr string
+	var id, cJSON, updatedAtStr string
+	skipped := 0
 
 	rows := sub.Rows()
 	for rows.Next() {
 		var cr ContainerRecord
-		if err = rows.Scan(&cJSON, &cr.MachineID, &cr.SyncStatus, &updatedAtStr); err != nil {
+		if err = rows.Scan(&id, &cJSON, &cr.MachineID, &cr.SyncStatus, &updatedAtStr); err != nil {
 			return nil, nil, err
+		}
+
+		// Skip containers with empty JSON data. This can happen during partial replication
+		// when cr-sqlite has created the row but the container column hasn't been synced yet.
+		if cJSON == "" || cJSON == "{}" {
+			slog.Debug("Skipping container with empty data in the store (partial replication?).", "id", id)
+			skipped++
+			continue
 		}
 
 		if err = json.Unmarshal([]byte(cJSON), &cr.Container); err != nil {
@@ -196,6 +219,12 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 		}
 		containers = append(containers, cr)
 	}
+
+	if skipped > 0 {
+		slog.Warn("Container subscription skipped empty records in the store (possibly due to partial replication).",
+			"skipped", skipped, "valid", len(containers))
+	}
+
 	events, err := sub.Changes()
 	if err != nil {
 		return nil, nil, fmt.Errorf("get subscription changes: %w", err)
