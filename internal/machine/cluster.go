@@ -123,6 +123,35 @@ func (cc *clusterController) Run(ctx context.Context) error {
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
+	// Start the WireGuard control loop before waiting for store sync. This ensures endpoint rotation happens
+	// while waiting, allowing Corrosion to connect to peers.
+	errGroup.Go(func() error {
+		if err := cc.wgnet.Run(ctx); err != nil {
+			return fmt.Errorf("WireGuard network failed: %w", err)
+		}
+		return nil
+	})
+
+	// Watch for WireGuard peer endpoint changes and update the machine state accordingly.
+	errGroup.Go(func() error {
+		cc.handleEndpointChanges(ctx)
+		return nil
+	})
+
+	// Wait for the store database to sync to the minimum version before starting store-dependent components.
+	// This prevents issues with using partially replicated data when the machine just joined the cluster,
+	// e.g., an empty machine list causing WireGuard peer misconfiguration.
+	cc.waitStoreSync(ctx)
+
+	// Check if waitStoreSync exited because the context was cancelled. Return early in that case.
+	if ctx.Err() != nil {
+		err := errGroup.Wait()
+		if corroErr := cc.stopCorrosion(); corroErr != nil {
+			err = errors.Join(err, corroErr)
+		}
+		return err
+	}
+
 	// Start the network API server. Assume the management IP can't be changed when the network is running.
 	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
 	listener, err := net.Listen("tcp", apiAddr)
@@ -169,44 +198,6 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// Watch for WireGuard peer endpoint changes and update the machine state accordingly.
-	errGroup.Go(func() error {
-		for {
-			select {
-			case e, ok := <-cc.endpointChanges:
-				if !ok {
-					// The channel was closed, stop watching for changes.
-					cc.endpointChanges = nil
-					return nil
-				}
-
-				cc.state.mu.Lock()
-				for i := range cc.state.Network.Peers {
-					if cc.state.Network.Peers[i].PublicKey.Equal(e.PublicKey) {
-						cc.state.Network.Peers[i].Endpoint = &e.Endpoint
-						break
-					}
-				}
-				if err := cc.state.Save(); err != nil {
-					slog.Error("Failed to save machine state.", "err", err)
-				}
-				cc.state.mu.Unlock()
-
-				slog.Debug("Preserved endpoint change in the machine state.",
-					"public_key", e.PublicKey, "endpoint", e.Endpoint)
-			case <-ctx.Done():
-				return nil
-			}
-		}
-	})
-
-	errGroup.Go(func() error {
-		if err := cc.wgnet.Run(ctx); err != nil {
-			return fmt.Errorf("WireGuard network failed: %w", err)
-		}
-		return nil
-	})
-
 	errGroup.Go(func() error {
 		slog.Info("Starting caddyconfig controller.")
 		if err := cc.caddyconfigCtrl.Run(ctx); err != nil {
@@ -225,8 +216,9 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		})
 	}
 
-	// Wait for the context to be done and stop the network API server.
+	// Wait for the context to be done and stop all servers and controllers.
 	<-ctx.Done()
+
 	slog.Info("Stopping network API server.")
 	// TODO: implement timeout for graceful shutdown.
 	cc.server.GracefulStop()
@@ -248,17 +240,25 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	// Wait for all controllers to finish.
 	err = errGroup.Wait()
 
-	// It's safe to stop the Corrosion service after the controllers depending on it and API server are stopped.
-	// Use a new context with a timeout as the current context is already canceled.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if corroErr := cc.corroService.Stop(ctx); corroErr != nil {
-		err = errors.Join(err, fmt.Errorf("stop corrosion service: %w", corroErr))
-	} else {
-		slog.Info("Corrosion service stopped.")
+	// Stop Corrosion after all controllers depending on it and API server are stopped.
+	if corroErr := cc.stopCorrosion(); corroErr != nil {
+		err = errors.Join(err, corroErr)
 	}
 
 	return err
+}
+
+// stopCorrosion stops the Corrosion service with a timeout.
+func (cc *clusterController) stopCorrosion() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := cc.corroService.Stop(ctx); err != nil {
+		return fmt.Errorf("stop corrosion service: %w", err)
+	}
+	slog.Info("Corrosion service stopped.")
+
+	return nil
 }
 
 // ensureDockerNetwork ensures that the Docker network is configured and ready for containers.
@@ -279,6 +279,95 @@ func (cc *clusterController) ensureDockerNetwork(ctx context.Context) error {
 	close(cc.dockerReady)
 
 	return nil
+}
+
+// handleEndpointChanges watches for WireGuard peer endpoint changes and persists them to the machine state.
+func (cc *clusterController) handleEndpointChanges(ctx context.Context) {
+	for {
+		select {
+		case e, ok := <-cc.endpointChanges:
+			if !ok {
+				// The channel was closed, stop watching for changes.
+				cc.endpointChanges = nil
+				return
+			}
+
+			cc.state.mu.Lock()
+			for i := range cc.state.Network.Peers {
+				if cc.state.Network.Peers[i].PublicKey.Equal(e.PublicKey) {
+					cc.state.Network.Peers[i].Endpoint = &e.Endpoint
+					break
+				}
+			}
+			if err := cc.state.Save(); err != nil {
+				slog.Error("Failed to save machine state.", "err", err)
+			}
+			cc.state.mu.Unlock()
+
+			slog.Debug("Preserved endpoint change in the machine state.",
+				"public_key", e.PublicKey, "endpoint", e.Endpoint)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// waitStoreSync waits for the store database to sync to the minimum required DB version if set in the machine state.
+// Blocks until synced or context is cancelled.
+func (cc *clusterController) waitStoreSync(ctx context.Context) {
+	minVersion := cc.state.MinStoreDBVersion
+	if minVersion == 0 {
+		return
+	}
+
+	slog.Info("Waiting for the cluster store to sync.", "min_version", minVersion)
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	var (
+		lastVersion    int64
+		lastLogTime    time.Time
+		lastErrLogTime time.Time
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			version, err := cc.store.DBVersion(ctx)
+			if err != nil {
+				// Log errors at most once every 5 seconds.
+				if time.Since(lastErrLogTime) >= 5*time.Second {
+					slog.Error("Failed to get the cluster store DB version, retrying.", "err", err)
+					lastErrLogTime = time.Now()
+				}
+				continue
+			}
+
+			if version >= minVersion {
+				slog.Info("Cluster store completed the initial sync.", "version", version, "min_version", minVersion)
+
+				// Clear MinStoreDBVersion so next restart doesn't wait for sync.
+				cc.state.mu.Lock()
+				cc.state.MinStoreDBVersion = 0
+				if err := cc.state.Save(); err != nil {
+					slog.Error("Failed to save machine state after the initial cluster store sync.", "err", err)
+				}
+				cc.state.mu.Unlock()
+
+				return
+			}
+
+			// Log progress only once a second.
+			if version != lastVersion && time.Since(lastLogTime) >= 1*time.Second {
+				slog.Info("Syncing cluster store.", "version", version, "min_version", minVersion)
+				lastLogTime = time.Now()
+				lastVersion = version
+			}
+		}
+	}
 }
 
 // syncDockerContainers watches local Docker containers and syncs them to the cluster store.
