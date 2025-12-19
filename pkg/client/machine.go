@@ -13,6 +13,7 @@ import (
 )
 
 func (cli *Client) InspectMachine(ctx context.Context, nameOrID string) (*pb.MachineMember, error) {
+	// TODO: refactor to use MachineClient.InspectMachine.
 	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, err

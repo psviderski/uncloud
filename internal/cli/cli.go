@@ -333,6 +333,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	}()
 
 	// Check if the machine is already initialised as a cluster member and prompt the user to reset it first.
+	// TODO: refactor to use client.InspectMachine.
 	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("inspect machine: %w", err)
@@ -405,6 +406,18 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		return nil, nil, fmt.Errorf("add machine to cluster (context '%s'): %w", contextName, err)
 	}
 
+	// Get the current store DB version from the cluster to pass to the join request.
+	var storeDBVersion int64
+	inspectResp, err := c.MachineClient.InspectMachine(ctx, &emptypb.Empty{})
+	if err != nil {
+		// TODO(lhf): remove Unimplemented check when v0.17.0 is released.
+		if status.Convert(err).Code() != codes.Unimplemented {
+			return nil, nil, fmt.Errorf("inspect current cluster machine: %w", err)
+		}
+	} else {
+		storeDBVersion = inspectResp.Machines[0].StoreDbVersion
+	}
+
 	// Get the most up-to-date list of other machines in the cluster to include them in the join request.
 	machines, err := c.ListMachines(ctx, nil)
 	if err != nil {
@@ -419,8 +432,9 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 
 	// Configure the remote machine to join the cluster.
 	joinReq := &pb.JoinClusterRequest{
-		Machine:       addResp.Machine,
-		OtherMachines: otherMachines,
+		Machine:           addResp.Machine,
+		OtherMachines:     otherMachines,
+		MinStoreDbVersion: storeDBVersion,
 	}
 	if _, err = machineClient.JoinCluster(ctx, joinReq); err != nil {
 		return nil, nil, fmt.Errorf("join cluster: %w", err)
