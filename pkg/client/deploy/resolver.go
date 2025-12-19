@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/distribution/reference"
@@ -9,9 +10,19 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
+const (
+	// TCPPortRangeMin is the minimum port number for random TCP port allocation.
+	TCPPortRangeMin = 30000
+	// TCPPortRangeMax is the maximum port number for random TCP port allocation.
+	TCPPortRangeMax = 39999
+)
+
 // ServiceSpecResolver transforms user-provided service specs into deployment-ready form.
 type ServiceSpecResolver struct {
 	ClusterDomain string
+	// UsedTCPPorts is a set of TCP ports already in use by other services. Used to avoid conflicts
+	// when allocating random ports for TCP ingress.
+	UsedTCPPorts map[uint16]struct{}
 }
 
 // Resolve transforms a service spec into its fully resolved form ready for deployment.
@@ -26,6 +37,7 @@ func (r *ServiceSpecResolver) Resolve(spec api.ServiceSpec) (api.ServiceSpec, er
 		r.applyDefaults,
 		r.resolveServiceName,
 		r.expandIngressPorts,
+		r.allocateTCPPorts,
 	}
 
 	for _, step := range steps {
@@ -101,6 +113,66 @@ func (r *ServiceSpecResolver) expandIngressPorts(spec *api.ServiceSpec) error {
 	}
 
 	return nil
+}
+
+// allocateTCPPorts assigns random published ports to TCP ingress ports that don't have one specified.
+func (r *ServiceSpecResolver) allocateTCPPorts(spec *api.ServiceSpec) error {
+	for i, port := range spec.Ports {
+		// Only handle TCP ingress ports without a published port.
+		if port.Protocol != api.ProtocolTCP {
+			continue
+		}
+		if port.Mode != "" && port.Mode != api.PortModeIngress {
+			continue
+		}
+		if port.PublishedPort != 0 {
+			// User specified a port, use it as-is.
+			continue
+		}
+
+		// Allocate a random port from the range.
+		allocatedPort, err := r.allocateRandomPort()
+		if err != nil {
+			return fmt.Errorf("allocate TCP port for container port %d: %w", port.ContainerPort, err)
+		}
+		spec.Ports[i].PublishedPort = allocatedPort
+	}
+	return nil
+}
+
+// allocateRandomPort picks a random available port from the TCP port range.
+func (r *ServiceSpecResolver) allocateRandomPort() (uint16, error) {
+	rangeSize := TCPPortRangeMax - TCPPortRangeMin + 1
+
+	// If no used ports map, initialize it.
+	if r.UsedTCPPorts == nil {
+		r.UsedTCPPorts = make(map[uint16]struct{})
+	}
+
+	// Check if we've exhausted the range.
+	if len(r.UsedTCPPorts) >= rangeSize {
+		return 0, fmt.Errorf("no available TCP ports in range %d-%d", TCPPortRangeMin, TCPPortRangeMax)
+	}
+
+	// Try random ports until we find an available one.
+	// With 10,000 ports in the range, collisions should be rare.
+	for attempts := 0; attempts < 100; attempts++ {
+		port := uint16(TCPPortRangeMin + rand.IntN(rangeSize))
+		if _, used := r.UsedTCPPorts[port]; !used {
+			r.UsedTCPPorts[port] = struct{}{}
+			return port, nil
+		}
+	}
+
+	// Fallback: linear scan for an available port.
+	for port := uint16(TCPPortRangeMin); port <= TCPPortRangeMax; port++ {
+		if _, used := r.UsedTCPPorts[port]; !used {
+			r.UsedTCPPorts[port] = struct{}{}
+			return port, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no available TCP ports in range %d-%d", TCPPortRangeMin, TCPPortRangeMax)
 }
 
 func GenerateServiceName(image string) (string, error) {

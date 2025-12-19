@@ -162,14 +162,24 @@ func TestPortSpec_Validate(t *testing.T) {
 			wantErr: "invalid mode: 'invalid'",
 		},
 		{
-			name: "hostname with non-http protocol",
+			name: "hostname with tcp protocol",
 			spec: PortSpec{
 				Hostname:      "app.example.com",
 				ContainerPort: 8080,
 				Protocol:      ProtocolTCP,
 				Mode:          PortModeIngress,
 			},
-			wantErr: "hostname is only valid with 'http' or 'https' protocols",
+			wantErr: "hostname cannot be specified with protocol 'tcp'",
+		},
+		{
+			name: "hostname with udp protocol",
+			spec: PortSpec{
+				Hostname:      "app.example.com",
+				ContainerPort: 8080,
+				Protocol:      ProtocolUDP,
+				Mode:          PortModeIngress,
+			},
+			wantErr: "hostname cannot be specified with protocol 'udp'",
 		},
 		{
 			name: "invalid hostname",
@@ -618,9 +628,13 @@ func TestParsePortSpec(t *testing.T) {
 		{
 			name:    "hostname with tcp protocol",
 			port:    "app.example.com:8080/tcp",
-			wantErr: "hostname is only valid with 'http' or 'https' protocols",
+			wantErr: "hostname cannot be specified with protocol 'tcp'",
 		},
-
+		{
+			name:    "hostname with udp protocol",
+			port:    "app.example.com:8080/udp",
+			wantErr: "hostname cannot be specified with protocol 'udp'",
+		},
 		{
 			name:    "missing published port in host mode",
 			port:    "8080@host",
