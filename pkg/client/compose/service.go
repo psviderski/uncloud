@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
@@ -77,6 +78,11 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Name:    service.Logging.Driver,
 			Options: service.Logging.Options,
 		}
+	}
+
+	if service.StopGracePeriod != nil {
+		seconds := int(time.Duration(*service.StopGracePeriod).Seconds())
+		spec.StopGracePeriod = &seconds
 	}
 
 	if service.Scale != nil {
