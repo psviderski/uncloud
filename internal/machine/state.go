@@ -69,7 +69,7 @@ func (c *State) Encode() ([]byte, error) {
 	return data, nil
 }
 
-// Save writes the state data to the file at the given path.
+// Save atomically writes the state data to the file at the configured path.
 func (c *State) Save() error {
 	if c.path == "" {
 		return fmt.Errorf("state path not set")
@@ -83,5 +83,37 @@ func (c *State) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(c.path, data, 0o600)
+
+	// Write to a temporary file and rename for atomic save. CreateTemp creates a file with mode 0o600.
+	tmpFile, err := os.CreateTemp(dir, ".machine.json.*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Clean up temp file on error.
+	defer func() {
+		if err != nil {
+			os.Remove(tmpPath)
+		}
+	}()
+
+	if _, err = tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	// Without fsync, the data may only be in the OS buffer cache. If the system crashes before the OS flushes
+	// it to disk, the file could be empty or corrupted even after rename.
+	if err = tmpFile.Sync(); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("sync temp file: %w", err)
+	}
+	if err = tmpFile.Close(); err != nil {
+		return fmt.Errorf("close temp file: %w", err)
+	}
+	if err = os.Rename(tmpPath, c.path); err != nil {
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+
+	return nil
 }
