@@ -56,6 +56,25 @@ func (s *Store) Delete(ctx context.Context, key string) error {
 	return err
 }
 
+// DBVersion returns the current cr-sqlite database version (Lamport timestamp).
+func (s *Store) DBVersion(ctx context.Context) (int64, error) {
+	rows, err := s.corro.QueryContext(ctx, "SELECT crsql_db_version()")
+	if err != nil {
+		return 0, fmt.Errorf("query crsql_db_version(): %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return 0, fmt.Errorf("no result from crsql_db_version()")
+	}
+
+	var version int64
+	if err = rows.Scan(&version); err != nil {
+		return 0, fmt.Errorf("scan db version: %w", err)
+	}
+	return version, nil
+}
+
 func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {
 	mJSON, err := protojson.Marshal(m)
 	if err != nil {

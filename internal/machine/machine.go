@@ -792,6 +792,7 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		PrivateKey:   m.state.Network.PrivateKey,
 		PublicKey:    m.state.Network.PublicKey,
 	}
+	m.state.MinStoreDBVersion = req.MinStoreDbVersion
 
 	// Build a peers config from other cluster machines.
 	m.state.Network.Peers = make([]network.PeerConfig, 0, len(req.OtherMachines))
@@ -864,6 +865,7 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 	return &pb.TokenResponse{Token: tokenStr}, nil
 }
 
+// Deprecated: use InspectMachine instead.
 func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
 	return &pb.MachineInfo{
 		Id:   m.state.ID,
@@ -872,6 +874,31 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 			Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
 			ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
 			PublicKey:    m.state.Network.PublicKey,
+		},
+	}, nil
+}
+
+func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.InspectMachineResponse, error) {
+	dbVersion, err := m.store.DBVersion(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get database version of the cluster store: %v", err)
+	}
+
+	return &pb.InspectMachineResponse{
+		Machines: []*pb.MachineDetails{
+			{
+				// Metadata is injected by the gRPC proxy.
+				Machine: &pb.MachineInfo{
+					Id:   m.state.ID,
+					Name: m.state.Name,
+					Network: &pb.NetworkConfig{
+						Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
+						ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
+						PublicKey:    m.state.Network.PublicKey,
+					},
+				},
+				StoreDbVersion: dbVersion,
+			},
 		},
 	}, nil
 }
