@@ -240,11 +240,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 
 	// Remove all containers on all machines that belong to the service.
 	for _, mc := range svc.Containers {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, container.StopOptions{})
 			if err != nil {
 				errCh <- fmt.Errorf("stop container '%s': %w", mc.Container.ID, err)
@@ -258,7 +254,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 			if err != nil && !errors.Is(err, api.ErrNotFound) {
 				errCh <- fmt.Errorf("remove container '%s': %w", mc.Container.ID, err)
 			}
-		}()
+		})
 	}
 
 	go func() {
@@ -286,16 +282,12 @@ func (cli *Client) StopService(ctx context.Context, id string, opts container.St
 
 	// Stop all containers on all machines that belong to the service.
 	for _, mc := range svc.Containers {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, opts)
 			if err != nil {
 				errCh <- fmt.Errorf("stop container '%s': %w", mc.Container.ID, err)
 			}
-		}()
+		})
 	}
 
 	go func() {
@@ -323,16 +315,12 @@ func (cli *Client) StartService(ctx context.Context, id string) error {
 
 	// Start all containers on all machines that belong to the service.
 	for _, mc := range svc.Containers {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			err := cli.StartContainer(ctx, svc.ID, mc.Container.ID)
 			if err != nil {
 				errCh <- fmt.Errorf("start container '%s': %w", mc.Container.ID, err)
 			}
-		}()
+		})
 	}
 
 	go func() {
