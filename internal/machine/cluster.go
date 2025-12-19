@@ -320,7 +320,7 @@ func (cc *clusterController) waitStoreSync(ctx context.Context) {
 		return
 	}
 
-	slog.Info("Waiting for the cluster store to sync.", "min_version", minVersion)
+	slog.Info("Waiting for the initial cluster store sync.", "min_version", minVersion)
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -429,6 +429,7 @@ func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
 
 		// The machine store may be empty when a machine first joins the cluster, before store synchronization
 		// completes. Skip configuration now and apply it when the store changes are received.
+		// TODO: remove this check after releasing 0.17.0 and assuming cluster machines wait for store sync on join.
 		if len(machines) > 0 {
 			slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
 			if err = cc.configurePeers(machines); err != nil {
