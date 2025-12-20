@@ -258,19 +258,20 @@ func (c *AdminClient) ClusterMembershipStates(latest bool) ([]ClusterMembershipS
 	return states, parseErr
 }
 
-type RTTStats struct {
+type MemberRTTStats struct {
+	Addr    netip.AddrPort
 	Average float64
 	StdDev  float64
 }
 
 // ClusterMemberRTTs returns the average and standard deviation of round-trip times to each cluster member.
-func (c *AdminClient) ClusterMemberRTTs() (map[netip.AddrPort]RTTStats, error) {
+func (c *AdminClient) ClusterMemberRTTs() ([]MemberRTTStats, error) {
 	respCh, err := c.SendCommand([]byte("{\"Cluster\":\"Members\"}"))
 	if err != nil {
 		return nil, err
 	}
 
-	stats := make(map[netip.AddrPort]RTTStats)
+	var stats []MemberRTTStats
 	var parseErr error
 
 	for r := range respCh {
@@ -301,10 +302,11 @@ func (c *AdminClient) ClusterMemberRTTs() (map[netip.AddrPort]RTTStats, error) {
 		}
 		stdDev := math.Sqrt(varianceSum / float64(len(rtts)))
 
-		stats[addr] = RTTStats{
+		stats = append(stats, MemberRTTStats{
+			Addr:    addr,
 			Average: avg,
 			StdDev:  stdDev,
-		}
+		})
 	}
 
 	return stats, parseErr
