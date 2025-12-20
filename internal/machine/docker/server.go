@@ -564,6 +564,15 @@ func (s *Server) CreateServiceContainer(
 		},
 		User: spec.Container.User,
 	}
+	if spec.Container.Healthcheck != nil {
+		config.Healthcheck = &container.HealthConfig{
+			Test:        spec.Container.Healthcheck.Test,
+			Interval:    spec.Container.Healthcheck.Interval,
+			Timeout:     spec.Container.Healthcheck.Timeout,
+			Retries:     spec.Container.Healthcheck.Retries,
+			StartPeriod: spec.Container.Healthcheck.StartPeriod,
+		}
+	}
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
 	}

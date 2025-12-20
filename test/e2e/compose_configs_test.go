@@ -39,7 +39,7 @@ func TestComposeConfigs(t *testing.T) {
 
 		plan, err := deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service deployment")
+		assert.Equal(t, 1, plan.OperationCount(), "Expected 1 service deployment")
 
 		err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestComposeConfigs(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 0, "Expected no new operations after configs deployment")
+		assert.Equal(t, 0, plan.OperationCount(), "Expected no new operations after configs deployment")
 
 		// Verify the config files are actually created in the container and contain expected content
 		containerName := svc.Containers[0].Container.Name

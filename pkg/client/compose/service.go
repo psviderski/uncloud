@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
@@ -82,6 +83,11 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		}
 	}
 
+	// Map HealthCheck if specified and not disabled
+	if service.HealthCheck != nil && !service.HealthCheck.Disable {
+		spec.Container.Healthcheck = healthcheckFromCompose(service.HealthCheck)
+	}
+
 	if service.Scale != nil {
 		spec.Replicas = uint(*service.Scale)
 	}
@@ -118,6 +124,32 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	spec.Container.ConfigMounts = configMounts
 
 	return spec, nil
+}
+
+// healthcheckFromCompose converts a compose HealthCheckConfig to api.HealthcheckConfig.
+func healthcheckFromCompose(hc *types.HealthCheckConfig) *api.HealthcheckConfig {
+	if hc == nil {
+		return nil
+	}
+
+	config := &api.HealthcheckConfig{
+		Test: hc.Test,
+	}
+
+	if hc.Interval != nil {
+		config.Interval = time.Duration(*hc.Interval)
+	}
+	if hc.Timeout != nil {
+		config.Timeout = time.Duration(*hc.Timeout)
+	}
+	if hc.Retries != nil {
+		config.Retries = int(*hc.Retries)
+	}
+	if hc.StartPeriod != nil {
+		config.StartPeriod = time.Duration(*hc.StartPeriod)
+	}
+
+	return config
 }
 
 func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {

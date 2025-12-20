@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
@@ -40,7 +41,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Equal(t, 1, plan.OperationCount(), "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -93,7 +94,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 3, "Expected 3 services to deploy")
+		assert.Equal(t, 3, plan.OperationCount(), "Expected 3 services to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -168,7 +169,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		redeployPlan, err := redeploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, redeployPlan.Operations, 0, "Expected no operations - deployment should be up to date")
+		assert.Equal(t, 0, redeployPlan.OperationCount(), "Expected no operations - deployment should be up to date")
 
 		// Deploy with ForceRecreate - should recreate all service containers.
 		strategy := &deploy.RollingStrategy{ForceRecreate: true}
@@ -177,7 +178,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		recreatePlan, err := recreateDeploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, recreatePlan.Operations, 3, "Expected 3 services to be recreated")
+		assert.Equal(t, 3, recreatePlan.OperationCount(), "Expected 3 services to be recreated")
 
 		err = recreateDeploy.Run(ctx)
 		require.NoError(t, err)
@@ -242,7 +243,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 5, "Expected 2 volumes creation and 3 services to deploy")
+		assert.Equal(t, 5, plan.OperationCount(), "Expected 2 volumes creation and 3 services to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -384,7 +385,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 0, "Expected no new operations after deployment")
+		assert.Equal(t, 0, plan.OperationCount(), "Expected no new operations after deployment")
 	})
 
 	t.Run("x-machines placement constraint", func(t *testing.T) {
@@ -403,7 +404,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Equal(t, 1, plan.OperationCount(), "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -456,7 +457,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Equal(t, 1, plan.OperationCount(), "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -504,7 +505,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Equal(t, 1, plan.OperationCount(), "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -534,6 +535,83 @@ func TestComposeDeployment(t *testing.T) {
 			"Service containers should be on machines 1 and 3 from comma-separated list")
 	})
 
+	t.Run("depends_on service_healthy condition", func(t *testing.T) {
+		t.Parallel()
+
+		serviceNames := []string{
+			"test-depends-db",
+			"test-depends-app",
+		}
+		t.Cleanup(func() {
+			removeServices(t, cli, serviceNames...)
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-depends-on.yaml"})
+		require.NoError(t, err)
+
+		deployment, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deployment.Plan(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 2, plan.OperationCount(), "Expected 2 services to deploy")
+
+		// Run deployment in background - it will block until app starts (waiting for db health).
+		deployDone := make(chan error, 1)
+		go func() {
+			deployDone <- deployment.Run(ctx)
+		}()
+
+		// Wait for db service to be running (but not yet healthy).
+		var dbSvc api.Service
+		for i := 0; i < 30; i++ {
+			dbSvc, err = cli.InspectService(ctx, "test-depends-db")
+			if err == nil && len(dbSvc.Containers) > 0 && dbSvc.Containers[0].Container.State.Running {
+				break
+			}
+			time.Sleep(time.Second)
+		}
+		require.NoError(t, err, "db service not found")
+		require.NotEmpty(t, dbSvc.Containers, "db service has no containers")
+
+		// Record the time before triggering health.
+		healthTriggerTime := time.Now()
+
+		// Trigger health by creating the file directly in db container.
+		_, err = cli.ExecContainer(ctx, "test-depends-db", "",
+			api.ExecOptions{Command: []string{"touch", "/tmp/healthy"}})
+		require.NoError(t, err, "failed to trigger health")
+
+		// Wait for deployment to complete.
+		select {
+		case err = <-deployDone:
+			require.NoError(t, err)
+		case <-time.After(60 * time.Second):
+			t.Fatal("deployment timed out")
+		}
+
+		// Verify db service is healthy.
+		dbSvc, err = cli.InspectService(ctx, "test-depends-db")
+		require.NoError(t, err)
+		assert.Len(t, dbSvc.Containers, 1)
+		dbContainer := dbSvc.Containers[0].Container
+		assert.True(t, dbContainer.Healthy(), "db container should be healthy")
+
+		// Verify app service is running.
+		appSvc, err := cli.InspectService(ctx, "test-depends-app")
+		require.NoError(t, err)
+		assert.Len(t, appSvc.Containers, 1)
+		appContainer := appSvc.Containers[0].Container
+		assert.True(t, appContainer.State.Running, "app container should be running")
+
+		// Verify ordering: app started AFTER we triggered the health check.
+		appStarted, err := time.Parse(time.RFC3339Nano, appContainer.State.StartedAt)
+		require.NoError(t, err)
+		assert.True(t, appStarted.After(healthTriggerTime),
+			"app should start after health was triggered: triggered at %s, app started at %s",
+			healthTriggerTime.Format(time.RFC3339Nano), appContainer.State.StartedAt)
+	})
+
 	// Catches regression: https://github.com/psviderski/uncloud/issues/176
 	t.Run("plan new deployment with volumes and recreate strategy", func(t *testing.T) {
 		t.Parallel()
@@ -556,6 +634,6 @@ volumes:
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 
-		assert.Len(t, plan.Operations, 2, "Expected 1 volume creation and 1 service to deploy")
+		assert.Equal(t, 2, plan.OperationCount(), "Expected 1 volume creation and 1 service to deploy")
 	})
 }

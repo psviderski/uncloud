@@ -1,0 +1,18 @@
+services:
+  # DB service with manual healthcheck trigger
+  test-depends-db:
+    image: busybox
+    command: ["sleep", "infinity"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/healthy"]
+      interval: 1s
+      timeout: 5s
+      retries: 60
+      start_period: 0s
+
+  # App that waits for db to be healthy
+  test-depends-app:
+    image: portainer/pause:3.9
+    depends_on:
+      test-depends-db:
+        condition: service_healthy

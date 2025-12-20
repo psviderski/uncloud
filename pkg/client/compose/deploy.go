@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/graph"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -16,9 +17,140 @@ import (
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
+const (
+	ConditionStarted               = "service_started"
+	ConditionHealthy               = "service_healthy"
+	ConditionCompletedSuccessfully = "service_completed_successfully"
+
+	defaultHealthTimeout = 5 * time.Minute
+)
+
 type Client interface {
 	api.DNSClient
 	deploy.Client
+}
+
+// Plan represents a deployment plan for a compose project.
+// It contains volume operations, per-service deployment plans, and the information
+// needed to execute them in dependency order with health check waiting.
+type Plan struct {
+	VolumeOps    []*deploy.CreateVolumeOperation
+	ServicePlans map[string]*deploy.Plan // keyed by service name
+	project      *types.Project          // for dependency graph traversal
+	client       Client                  // for execution and health checks
+}
+
+// Execute runs the deployment plan, creating volumes first, then deploying services
+// in dependency order with health check waiting between dependent services.
+func (p *Plan) Execute(ctx context.Context) error {
+	// Create volumes first - they must exist before containers can mount them.
+	for _, op := range p.VolumeOps {
+		if err := op.Execute(ctx, p.client); err != nil {
+			return fmt.Errorf("create volume: %w", err)
+		}
+	}
+
+	// Deploy services in dependency order with parallelism.
+	// graph.InDependencyOrder runs visitors concurrently for services at the same dependency level.
+	return graph.InDependencyOrder(ctx, p.project,
+		func(ctx context.Context, name string, _ types.ServiceConfig) error {
+			plan, ok := p.ServicePlans[name]
+			if !ok || len(plan.Operations) == 0 {
+				return nil // no-op / up-to-date
+			}
+
+			if err := plan.Execute(ctx, p.client); err != nil {
+				return err
+			}
+
+			// Wait based on the strictest condition any dependent requires.
+			condition := p.getDependentCondition(name)
+			return p.waitForCondition(ctx, name, condition)
+		})
+}
+
+// OperationCount returns the total number of operations in the plan.
+func (p *Plan) OperationCount() int {
+	count := len(p.VolumeOps)
+	for _, plan := range p.ServicePlans {
+		count += len(plan.Operations)
+	}
+	return count
+}
+
+// getDependentCondition returns the strictest condition any dependent service requires.
+// Priority: service_completed_successfully > service_healthy > service_started
+func (p *Plan) getDependentCondition(serviceName string) string {
+	condition := ""
+	for _, svc := range p.project.Services {
+		if dep, ok := svc.DependsOn[serviceName]; ok {
+			switch dep.Condition {
+			case ConditionCompletedSuccessfully:
+				return ConditionCompletedSuccessfully
+			case ConditionHealthy:
+				condition = ConditionHealthy
+			case ConditionStarted, "":
+				if condition == "" {
+					condition = ConditionStarted
+				}
+			}
+		}
+	}
+	return condition
+}
+
+// waitForCondition waits for the service to reach the required condition.
+func (p *Plan) waitForCondition(ctx context.Context, serviceName, condition string) error {
+	switch condition {
+	case ConditionStarted, "":
+		// Service is already started, no need to wait.
+		return nil
+	case ConditionHealthy:
+		return p.waitForServiceHealthy(ctx, serviceName)
+	case ConditionCompletedSuccessfully:
+		// TODO: service_completed_successfully requires restart policy support to work properly.
+		// Currently all containers use restart: unless-stopped, so they restart immediately after exiting.
+		return fmt.Errorf("depends_on condition 'service_completed_successfully' is not yet supported")
+	default:
+		return nil
+	}
+}
+
+// waitForServiceHealthy polls until all containers for the service are healthy.
+func (p *Plan) waitForServiceHealthy(ctx context.Context, serviceName string) error {
+	deadline := time.Now().Add(defaultHealthTimeout)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		service, err := p.client.InspectService(ctx, serviceName)
+		if err != nil {
+			return fmt.Errorf("inspect service '%s': %w", serviceName, err)
+		}
+
+		allHealthy := true
+		for _, mc := range service.Containers {
+			if !mc.Container.Healthy() {
+				allHealthy = false
+				break
+			}
+		}
+
+		if allHealthy && len(service.Containers) > 0 {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for service '%s' to become healthy", serviceName)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			// Continue polling
+		}
+	}
 }
 
 type Deployment struct {
@@ -27,7 +159,7 @@ type Deployment struct {
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
-	plan         *deploy.SequenceOperation
+	plan         *Plan
 }
 
 func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
@@ -58,11 +190,10 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 	}, nil
 }
 
-func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error) {
+func (d *Deployment) Plan(ctx context.Context) (*Plan, error) {
 	if d.plan != nil {
-		return *d.plan, nil
+		return d.plan, nil
 	}
-	plan := deploy.SequenceOperation{}
 
 	// Generate service specs for all services in the project.
 	var serviceSpecs []api.ServiceSpec
@@ -80,36 +211,35 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 			return nil
 		})
 	if err != nil {
-		return plan, err
+		return nil, err
 	}
 
 	// Check external volumes and plan the creation of missing volumes before deploying services.
 	// Updates the cluster state (d.state) with the scheduled volumes.
 	volumeOps, err := d.planVolumes(serviceSpecs)
 	if err != nil {
-		return plan, err
-	}
-	for _, op := range volumeOps {
-		plan.Operations = append(plan.Operations, op)
+		return nil, err
 	}
 
+	// Create deployment plans for each service.
+	servicePlans := make(map[string]*deploy.Plan)
 	for _, spec := range serviceSpecs {
-		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
 		// Pass the updated cluster state with the scheduled volumes to the deployment.
 		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
 		servicePlan, err := deployment.Plan(ctx)
 		if err != nil {
-			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
+			return nil, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
 		}
-
-		// Skip no-op (up-to-date) service plans.
-		if len(servicePlan.Operations) > 0 {
-			plan.Operations = append(plan.Operations, &servicePlan)
-		}
+		servicePlans[spec.Name] = &servicePlan
 	}
 
-	d.plan = &plan
-	return plan, nil
+	d.plan = &Plan{
+		VolumeOps:    volumeOps,
+		ServicePlans: servicePlans,
+		project:      d.Project,
+		client:       d.Client,
+	}
+	return d.plan, nil
 }
 
 // ServiceSpec returns the service specification for the given compose service that is ready for deployment.
@@ -195,6 +325,5 @@ func (d *Deployment) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create plan: %w", err)
 	}
-
-	return plan.Execute(ctx, d.Client)
+	return plan.Execute(ctx)
 }
