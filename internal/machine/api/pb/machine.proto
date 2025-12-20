@@ -21,6 +21,7 @@ service Machine {
   rpc Reset(ResetRequest) returns (google.protobuf.Empty);
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
+  rpc ListMachineRTTs(google.protobuf.Empty) returns (ListMachineRTTsResponse);
 }
 
 message MachineInfo {
@@ -104,4 +105,20 @@ message InspectServiceRequest {
 
 message InspectServiceResponse {
   Service service = 1;
+}
+
+message ListMachineRTTsResponse {
+  // Must contain only one repeated messages field to allow broadcasting ListMachineRTTs requests to multiple machines.
+  repeated MachineRTTs machines = 1;
+}
+
+message MachineRTTs {
+  // The ID of the machine that reported these RTTs.
+  string machine_id = 1;
+  map<string, RTTStats> rtts = 2; // key is peer machine ID
+}
+
+message RTTStats {
+  double average = 1;
+  double std_dev = 2;
 }
