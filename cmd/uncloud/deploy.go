@@ -162,7 +162,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return fmt.Errorf("plan deployment: %w", err)
 	}
 
-	if len(plan.Operations) == 0 {
+	if plan.OperationCount() == 0 {
 		fmt.Println("Services are up to date.")
 		return nil
 	}
@@ -191,19 +191,23 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		if err := plan.Execute(ctx, clusterClient); err != nil {
+		if err := plan.Execute(ctx); err != nil {
 			return fmt.Errorf("deploy services: %w", err)
 		}
 		return nil
 	}, uncli.ProgressOut(), "Deploying services")
 }
 
-func printPlan(ctx context.Context, cli *client.Client, plan deploy.SequenceOperation) error {
-	for _, op := range plan.Operations {
-		svcPlan, ok := op.(*deploy.Plan)
-		if !ok {
-			fmt.Println("- " + op.Format(nil))
-			continue
+func printPlan(ctx context.Context, cli *client.Client, plan *compose.Plan) error {
+	// Print volume operations first.
+	for _, op := range plan.VolumeOps {
+		fmt.Println("- " + op.Format(nil))
+	}
+
+	// Print service plans.
+	for _, svcPlan := range plan.ServicePlans {
+		if len(svcPlan.Operations) == 0 {
+			continue // skip no-op services
 		}
 
 		svc, err := cli.InspectService(ctx, svcPlan.ServiceID)
