@@ -25,7 +25,7 @@ type uncloudDNSDomain struct {
 }
 
 func (c *Cluster) ReserveDomain(ctx context.Context, req *pb.ReserveDomainRequest) (*pb.Domain, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +64,7 @@ func (c *Cluster) ReserveDomain(ctx context.Context, req *pb.ReserveDomainReques
 }
 
 func (c *Cluster) GetDomain(ctx context.Context, _ *emptypb.Empty) (*pb.Domain, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 
@@ -95,7 +95,7 @@ func (c *Cluster) storedDomain(ctx context.Context) (uncloudDNSDomain, error) {
 }
 
 func (c *Cluster) ReleaseDomain(ctx context.Context, _ *emptypb.Empty) (*pb.Domain, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 
@@ -115,7 +115,7 @@ func (c *Cluster) ReleaseDomain(ctx context.Context, _ *emptypb.Empty) (*pb.Doma
 func (c *Cluster) CreateDomainRecords(
 	ctx context.Context, req *pb.CreateDomainRecordsRequest,
 ) (*pb.CreateDomainRecordsResponse, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 

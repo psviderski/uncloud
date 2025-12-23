@@ -174,10 +174,13 @@ type Machine struct {
 	state  *State
 	// started is closed when the machine is ready to serve requests on the local API server.
 	started chan struct{}
-	// initialised is signalled when the machine is configured as a member of a cluster.
+	// initialised is closed when the machine is configured as a member of a cluster.
 	initialised chan struct{}
-	// networkReady is signalled when the Docker network is configured and ready for containers.
+	// networkReady is closed when the Docker network is configured and ready for containers.
 	networkReady chan struct{}
+	// clusterReady is closed when the cluster controller has finished starting all components
+	// and the machine is ready to serve cluster requests.
+	clusterReady chan struct{}
 	// resetting is true when the machine is being reset.
 	resetting bool
 	// stop cancels the Run method context to stop the machine gracefully.
@@ -246,7 +249,10 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion admin client: %w", err)
 	}
-	c := cluster.NewCluster(corroStore, corroAdmin)
+
+	initialised := make(chan struct{})
+	clusterReady := make(chan struct{})
+	c := cluster.NewCluster(corroStore, corroAdmin, initialised, clusterReady)
 
 	// Init dependencies for a gRPC Docker server that proxies requests to the local Docker daemon.
 	dbFilePath := filepath.Join(config.DataDir, DBFileName)
@@ -269,8 +275,9 @@ func NewMachine(config *Config) (*Machine, error) {
 		config:           *config,
 		state:            state,
 		started:          make(chan struct{}),
-		initialised:      make(chan struct{}, 1),
+		initialised:      initialised,
 		networkReady:     make(chan struct{}),
+		clusterReady:     clusterReady,
 		store:            corroStore,
 		cluster:          c,
 		dockerService:    dockerService,
@@ -294,7 +301,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	m.localMachineServer = newGRPCServer(m, c, m.dockerServer, caddyServer)
 
 	if m.Initialised() {
-		m.initialised <- struct{}{}
+		close(m.initialised)
 	}
 
 	return m, nil
@@ -475,6 +482,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.config.CorrosionService,
 				m.dockerService,
 				m.networkReady,
+				m.clusterReady,
 				caddyconfigCtrl,
 				dnsServer,
 				dnsResolver,
@@ -722,7 +730,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		addReq.PublicIp = pb.NewIP(publicIP)
 	}
 
-	addResp, err := m.cluster.AddMachine(ctx, addReq)
+	addResp, err := m.cluster.AddMachineWithoutReadyCheck(ctx, addReq)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "add machine to cluster: %v", err)
 	}
@@ -749,7 +757,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	}
 	slog.Info("Cluster initialised with machine.", "id", m.state.ID, "machine", m.state.Name)
 	// Signal that the machine is initialised as a member of a cluster.
-	m.initialised <- struct{}{}
+	close(m.initialised)
 
 	resp := &pb.InitClusterResponse{
 		Machine: addResp.Machine,
@@ -831,7 +839,7 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		"peers", len(m.state.Network.Peers),
 	)
 	// Signal that the machine is initialised as a member of a cluster.
-	m.initialised <- struct{}{}
+	close(m.initialised)
 
 	return &emptypb.Empty{}, nil
 }

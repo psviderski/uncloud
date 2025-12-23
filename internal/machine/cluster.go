@@ -40,7 +40,9 @@ type clusterController struct {
 	corroService corroservice.Service
 	dockerCtrl   *docker.Controller
 	// dockerReady is signalled when Docker is configured and ready for containers.
-	dockerReady     chan<- struct{}
+	dockerReady chan<- struct{}
+	// clusterReady is signalled when the cluster controller has finished initializing all components.
+	clusterReady    chan<- struct{}
 	caddyconfigCtrl *caddyconfig.Controller
 
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
@@ -60,6 +62,7 @@ func newClusterController(
 	corroService corroservice.Service,
 	dockerService *docker.Service,
 	dockerReady chan<- struct{},
+	clusterReady chan<- struct{},
 	caddyfileCtrl *caddyconfig.Controller,
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
@@ -81,6 +84,7 @@ func newClusterController(
 		corroService:    corroService,
 		dockerCtrl:      docker.NewController(state.ID, dockerService, store),
 		dockerReady:     dockerReady,
+		clusterReady:    clusterReady,
 		caddyconfigCtrl: caddyfileCtrl,
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
@@ -138,20 +142,6 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// Wait for the store database to sync to the minimum version before starting store-dependent components.
-	// This prevents issues with using partially replicated data when the machine just joined the cluster,
-	// e.g., an empty machine list causing WireGuard peer misconfiguration.
-	cc.waitStoreSync(ctx)
-
-	// Check if waitStoreSync exited because the context was cancelled. Return early in that case.
-	if ctx.Err() != nil {
-		err := errGroup.Wait()
-		if corroErr := cc.stopCorrosion(); corroErr != nil {
-			err = errors.Join(err, corroErr)
-		}
-		return err
-	}
-
 	// Start the network API server. Assume the management IP can't be changed when the network is running.
 	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
 	listener, err := net.Listen("tcp", apiAddr)
@@ -165,6 +155,22 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		}
 		return nil
 	})
+
+	// Wait for the store database to sync to the minimum version before starting store-dependent components.
+	// This prevents issues with using partially replicated data when the machine just joined the cluster,
+	// e.g., an empty machine list causing WireGuard peer misconfiguration.
+	cc.waitStoreSync(ctx)
+
+	// Check if waitStoreSync exited because the context was cancelled. Return early in that case.
+	if ctx.Err() != nil {
+		cc.stopAPIServer()
+
+		err := errGroup.Wait()
+		if corroErr := cc.stopCorrosion(); corroErr != nil {
+			err = errors.Join(err, corroErr)
+		}
+		return err
+	}
 
 	errGroup.Go(func() error {
 		slog.Info("Starting embedded DNS resolver.")
@@ -216,13 +222,13 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		})
 	}
 
+	// Signal that the cluster controller has finished starting all components.
+	close(cc.clusterReady)
+	slog.Info("Cluster controller finished starting all components.")
 	// Wait for the context to be done and stop all servers and controllers.
 	<-ctx.Done()
 
-	slog.Info("Stopping network API server.")
-	// TODO: implement timeout for graceful shutdown.
-	cc.server.GracefulStop()
-	slog.Info("Network API server stopped.")
+	cc.stopAPIServer()
 
 	// Stop the unregistry server with a timeout if it was started.
 	if cc.unregistry != nil {
@@ -246,6 +252,29 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	}
 
 	return err
+}
+
+// stopAPIServer gracefully stops the network API server with a timeout.
+func (cc *clusterController) stopAPIServer() {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	stopped := make(chan struct{})
+	go func() {
+		slog.Info("Stopping network API server.")
+		cc.server.GracefulStop()
+		close(stopped)
+	}()
+
+	select {
+	case <-ctx.Done():
+		slog.Warn("Network API server graceful stop timed out, forcing stop.", "timeout", timeout)
+		cc.server.Stop()
+	case <-stopped:
+	}
+
+	slog.Info("Network API server stopped.")
 }
 
 // stopCorrosion stops the Corrosion service with a timeout.
