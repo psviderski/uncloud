@@ -119,16 +119,15 @@ func (p *Provisioner) CreateCluster(ctx context.Context, name string, opts Creat
 func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error {
 	// Init a new cluster on the first machine.
 	initMachine := machines[0]
-
-	if err := WaitMachineReady(ctx, initMachine, 30*time.Second); err != nil {
-		return fmt.Errorf("wait for machine %q to be ready: %w", initMachine.Name, err)
-	}
-
 	initClient, err := initMachine.Connect(ctx)
 	if err != nil {
 		return fmt.Errorf("create machine client over TCP '%s': %w", initMachine.APIAddress, err)
 	}
 	defer initClient.Close()
+
+	if err := initClient.WaitMachineReady(ctx, 30*time.Second); err != nil {
+		return fmt.Errorf("wait for machine %q to be ready: %w", initMachine.Name, err)
+	}
 
 	req := &pb.InitClusterRequest{
 		MachineName: initMachine.Name,
@@ -138,20 +137,32 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 	if err != nil {
 		return fmt.Errorf("init cluster: %w", err)
 	}
+
 	fmt.Printf("Cluster %q initialised with machine %q\n", initMachine.ClusterName, initResp.Machine.Name)
+	fmt.Printf("Waiting for cluster to be ready...")
+	if err = initClient.WaitClusterReady(ctx, 30*time.Second); err != nil {
+		return fmt.Errorf("wait for cluster to be ready: %w", err)
+	}
+	fmt.Println(" done.")
+
+	// Get the current store DB version from the init machine to pass to the join requests.
+	inspectResp, err := initClient.MachineClient.InspectMachine(ctx, &emptypb.Empty{})
+	if err != nil {
+		return fmt.Errorf("inspect init machine: %w", err)
+	}
 
 	// Join the rest of the machines to the cluster.
 	for _, m := range machines[1:] {
-		if err = WaitMachineReady(ctx, m, 30*time.Second); err != nil {
-			return fmt.Errorf("wait for machine %q to be ready: %w", m.Name, err)
-		}
-
 		cli, err := m.Connect(ctx)
 		if err != nil {
 			return fmt.Errorf("create machine client over TCP '%s': %w", m.APIAddress, err)
 		}
 		//goland:noinspection GoDeferInLoop
 		defer cli.Close()
+
+		if err := cli.WaitMachineReady(ctx, 30*time.Second); err != nil {
+			return fmt.Errorf("wait for machine %q to be ready: %w", m.Name, err)
+		}
 
 		tokenResp, err := cli.Token(ctx, &emptypb.Empty{})
 		if err != nil {
@@ -181,8 +192,9 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 
 		// Configure the machine to join the cluster.
 		joinReq := &pb.JoinClusterRequest{
-			Machine:       addResp.Machine,
-			OtherMachines: []*pb.MachineInfo{initResp.Machine},
+			Machine:           addResp.Machine,
+			OtherMachines:     []*pb.MachineInfo{initResp.Machine},
+			MinStoreDbVersion: inspectResp.Machines[0].StoreDbVersion,
 		}
 		if _, err = cli.JoinCluster(ctx, joinReq); err != nil {
 			return fmt.Errorf("join cluster: %w", err)
@@ -256,15 +268,15 @@ func (p *Provisioner) InspectCluster(ctx context.Context, name string) (Cluster,
 // WaitClusterReady waits for all machines in the cluster to be ready and UP.
 func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout time.Duration) error {
 	firstMachine := c.Machines[0]
-	if err := WaitMachineReady(ctx, firstMachine, timeout); err != nil {
-		return fmt.Errorf("wait for machine '%s' to be ready: %w", firstMachine.Name, err)
-	}
-
 	cli, err := firstMachine.Connect(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to machine over TCP '%s': %w", firstMachine.APIAddress, err)
 	}
 	defer cli.Close()
+
+	if err = cli.WaitClusterReady(ctx, timeout); err != nil {
+		return fmt.Errorf("wait for cluster to be ready: %w", err)
+	}
 
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(100*time.Millisecond),
@@ -289,7 +301,25 @@ func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout t
 		}
 		return nil
 	}
-	return backoff.Retry(checkMachinesUp, boff)
+	if err = backoff.Retry(checkMachinesUp, boff); err != nil {
+		return err
+	}
+
+	// Wait for each machine to sync the cluster store and be ready to serve cluster requests.
+	for _, m := range c.Machines[1:] {
+		mcli, err := m.Connect(ctx)
+		if err != nil {
+			return fmt.Errorf("connect to machine over TCP '%s': %w", m.APIAddress, err)
+		}
+		//goland:noinspection GoDeferInLoop
+		defer mcli.Close()
+
+		if err = mcli.WaitClusterReady(ctx, timeout); err != nil {
+			return fmt.Errorf("wait for cluster to be ready on machine '%s': %w", m.Name, err)
+		}
+	}
+
+	return nil
 }
 
 func (p *Provisioner) RemoveCluster(ctx context.Context, name string) error {

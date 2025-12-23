@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
@@ -99,4 +101,47 @@ func (cli *Client) RenameMachine(ctx context.Context, nameOrID, newName string) 
 	}
 
 	return cli.UpdateMachine(ctx, req)
+}
+
+// WaitMachineReady waits for the machine API on the connected machine to respond.
+func (cli *Client) WaitMachineReady(ctx context.Context, timeout time.Duration) error {
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxElapsedTime(timeout),
+	), ctx)
+
+	inspect := func() error {
+		if _, err := cli.Inspect(ctx, &emptypb.Empty{}); err != nil {
+			return fmt.Errorf("inspect machine: %w", err)
+		}
+		return nil
+	}
+	return backoff.Retry(inspect, boff)
+}
+
+// WaitClusterReady waits for the connected machine to be ready to server cluster requests.
+func (cli *Client) WaitClusterReady(ctx context.Context, timeout time.Duration) error {
+	// Backoff is not really needed here as the default service config for the gRPC client is already
+	// doing retries with backoff for Unavailable errors. However, it's still convenient to use backoff
+	// to control the overall timeout for the operation.
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(1*time.Second),
+		backoff.WithMaxElapsedTime(timeout),
+	), ctx)
+
+	listMachines := func() error {
+		_, err := cli.ListMachines(ctx, nil)
+		if err != nil {
+			if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+				// Machine is not ready yet, retry.
+				return err
+			}
+			// Other non-Unavailable errors should not be retried.
+			return backoff.Permanent(err)
+		}
+		return nil
+	}
+	return backoff.Retry(listMachines, boff)
 }

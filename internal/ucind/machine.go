@@ -9,7 +9,6 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
@@ -17,7 +16,6 @@ import (
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/connector"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (
@@ -193,27 +191,4 @@ func randomMachineName() (string, error) {
 		return "", fmt.Errorf("generate random suffix: %w", err)
 	}
 	return "machine-" + suffix, nil
-}
-
-// WaitMachineReady waits for the machine API to respond.
-func WaitMachineReady(ctx context.Context, m Machine, timeout time.Duration) error {
-	cli, err := m.Connect(ctx)
-	if err != nil {
-		return fmt.Errorf("connect to machine over TCP '%s': %w", m.APIAddress, err)
-	}
-	defer cli.Close()
-
-	boff := backoff.WithContext(backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(100*time.Millisecond),
-		backoff.WithMaxInterval(10*time.Second),
-		backoff.WithMaxElapsedTime(timeout),
-	), ctx)
-
-	inspect := func() error {
-		if _, err := cli.Inspect(ctx, &emptypb.Empty{}); err != nil {
-			return fmt.Errorf("inspect machine: %w", err)
-		}
-		return nil
-	}
-	return backoff.Retry(inspect, boff)
 }
