@@ -80,6 +80,8 @@ func (b *RemoteBackend) GetConnection(ctx context.Context, _ string) (context.Co
 	backoffConfig.MaxDelay = 15 * time.Second
 
 	var err error
+	// This client keeps retrying connection in the background indefinitely even after the first connection fails
+	// and the Unavailable error is returned to the caller.
 	b.conn, err = grpc.NewClient(
 		b.target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -88,7 +90,7 @@ func (b *RemoteBackend) GetConnection(ctx context.Context, _ string) (context.Co
 			// Not published as a constant in gRPC library.
 			// See: https://github.com/grpc/grpc-go/blob/d5dee5fdbdeb52f6ea10b37b2cc7ce37814642d7/clientconn.go#L55-L56
 			// Each connection attempt can take up to MinConnectTimeout.
-			MinConnectTimeout: 20 * time.Second,
+			MinConnectTimeout: 10 * time.Second,
 		}),
 		grpc.WithDefaultCallOptions(
 			grpc.ForceCodecV2(proxy.Codec()),
