@@ -134,7 +134,9 @@ func (cli *Client) WaitClusterReady(ctx context.Context, timeout time.Duration) 
 	listMachines := func() error {
 		_, err := cli.ListMachines(ctx, nil)
 		if err != nil {
-			if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+			if s, ok := status.FromError(err); ok &&
+				// TODO: remove FailedPrecondition after releading 0.17.
+				(s.Code() == codes.Unavailable || s.Code() == codes.FailedPrecondition) {
 				// Machine is not ready yet, retry.
 				return err
 			}
