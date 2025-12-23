@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+	"time"
 
+	"github.com/charmbracelet/huh/spinner"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
@@ -173,14 +176,27 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	}
 	defer client.Close()
 
+	// Since the cluster API needs a few moments to become ready after cluster initialisation,
+	// we keep the user informed during this wait. We wait here even if no Caddy or DNS is requested
+	// as the cluster needs to be ready so that commands such as 'uc machine ls' work immediately after init.
+	err = spinner.New().
+		Title(" Waiting for the cluster to be ready...").
+		Type(spinner.MiniDot).
+		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
+		TitleStyle(lipgloss.NewStyle()).
+		ActionWithErr(func(ctx context.Context) error {
+			return client.WaitClusterReady(ctx, 1*time.Minute)
+		}).
+		Run()
+	if err != nil {
+		return fmt.Errorf("wait for cluster to be ready: %w", err)
+	}
+	fmt.Println("Cluster is ready.")
+
 	if opts.noCaddy && opts.noDNS {
 		return nil
 	}
 
-	// Deploy the Caddy service to the initialised machine.
-	// The creation of a deployment plan talks to cluster API. Since the API needs a few moments to become available
-	// after cluster initialisation, we keep the user informed during this wait.
-	fmt.Println("Waiting for the machine to be ready...")
 	fmt.Println()
 
 	if !opts.noDNS {
