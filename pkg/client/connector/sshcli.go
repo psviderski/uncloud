@@ -90,6 +90,7 @@ func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error)
 	grpcConn, err := grpc.NewClient(
 		"passthrough:///", // Dummy target since we're using a custom dialer.
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultServiceConfig(defaultServiceConfig),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			return c.conn, nil
 		}),

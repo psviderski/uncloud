@@ -66,6 +66,7 @@ func (c *WireGuardConnector) Connect(ctx context.Context) (*grpc.ClientConn, err
 	conn, err := grpc.NewClient(
 		machineAPIAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultServiceConfig(defaultServiceConfig),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return c.tun.DialContext(ctx, "tcp", addr)
 		}),
