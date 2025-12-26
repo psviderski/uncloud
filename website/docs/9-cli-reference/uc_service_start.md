@@ -4,7 +4,10 @@ Start one or more services.
 
 ## Synopsis
 
-Start one or more services.
+Start one or more previously stopped services.
+
+Starts all containers of the specified service(s) across all machines in the cluster.
+Services can be specified by name or ID.
 
 ```
 uc service start SERVICE [SERVICE...] [flags]

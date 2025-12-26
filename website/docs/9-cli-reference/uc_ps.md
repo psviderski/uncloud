@@ -1,6 +1,6 @@
 # uc ps
 
-List all service containers in the cluster
+List all service containers.
 
 ## Synopsis
 
@@ -17,7 +17,7 @@ uc ps [flags]
 
 ```
   -h, --help          help for ps
-  -s, --sort string   Sort containers by 'service', 'machine' or 'health' (default "service")
+  -s, --sort string   Sort containers by 'service', 'machine', or 'health'. (default "service")
 ```
 
 ## Options inherited from parent commands

@@ -19,17 +19,19 @@ A CLI tool for managing Uncloud resources such as machines, services, and volume
 * [uc ctx](uc_ctx.md)	 - Switch between different cluster contexts. Contains subcommands to manage contexts.
 * [uc deploy](uc_deploy.md)	 - Deploy services from a Compose file.
 * [uc dns](uc_dns.md)	 - Manage cluster domain in Uncloud DNS.
-* [uc exec](uc_exec.md)	 - Execute a command in a running service container
+* [uc exec](uc_exec.md)	 - Execute a command in a running service container.
 * [uc image](uc_image.md)	 - Manage images on machines in the cluster.
 * [uc images](uc_images.md)	 - List images on machines in the cluster.
 * [uc inspect](uc_inspect.md)	 - Display detailed information on a service.
 * [uc logs](uc_logs.md)	 - View service logs.
 * [uc ls](uc_ls.md)	 - List services.
 * [uc machine](uc_machine.md)	 - Manage machines in the cluster.
-* [uc ps](uc_ps.md)	 - List all service containers in the cluster
+* [uc ps](uc_ps.md)	 - List all service containers.
 * [uc rm](uc_rm.md)	 - Remove one or more services.
 * [uc run](uc_run.md)	 - Run a service.
 * [uc scale](uc_scale.md)	 - Scale a replicated service by changing the number of replicas.
 * [uc service](uc_service.md)	 - Manage services in the cluster.
+* [uc start](uc_start.md)	 - Start one or more services.
+* [uc stop](uc_stop.md)	 - Stop one or more services.
 * [uc volume](uc_volume.md)	 - Manage volumes in the cluster.
 

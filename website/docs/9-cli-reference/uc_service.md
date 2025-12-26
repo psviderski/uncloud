@@ -20,7 +20,7 @@ Manage services in the cluster.
 ## See also
 
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
-* [uc service exec](uc_service_exec.md)	 - Execute a command in a running service container
+* [uc service exec](uc_service_exec.md)	 - Execute a command in a running service container.
 * [uc service inspect](uc_service_inspect.md)	 - Display detailed information on a service.
 * [uc service logs](uc_service_logs.md)	 - View service logs.
 * [uc service ls](uc_service_ls.md)	 - List services.

@@ -12,7 +12,7 @@ Connection methods:
   ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)
 
 ```
-uc machine init [USER@HOST:PORT] [flags]
+uc machine init [schema://]USER@HOST[:PORT] [flags]
 ```
 
 ## Examples
@@ -46,6 +46,8 @@ uc machine init [USER@HOST:PORT] [flags]
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
       --version string        Version of the Uncloud daemon to install on the machine. (default "latest")
+  -y, --yes                   Auto-confirm prompts (e.g., resetting an already initialised machine).
+                              Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
 
 ## Options inherited from parent commands

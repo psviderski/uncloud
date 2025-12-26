@@ -4,7 +4,10 @@ Stop one or more services.
 
 ## Synopsis
 
-Stop one or more services.
+Stop one or more running services.
+
+Gracefully stops all containers of the specified service(s) across all machines in the cluster.
+Services can be specified by name or ID. Stopped services can be restarted with 'uc start'.
 
 ```
 uc service stop SERVICE [SERVICE...] [flags]
@@ -14,8 +17,10 @@ uc service stop SERVICE [SERVICE...] [flags]
 
 ```
   -h, --help            help for stop
-  -s, --signal string   Signal to send to the container
-  -t, --timeout int     Seconds to wait before killing the container
+  -s, --signal string   Signal to send to each container's main process.
+                        Can be a signal name (SIGTERM, SIGINT, SIGHUP, etc.) or a number. (default SIGTERM)
+  -t, --timeout int     Seconds to wait for each container to stop gracefully before forcibly killing it with SIGKILL.
+                        Use -1 to wait indefinitely. (default 10)
 ```
 
 ## Options inherited from parent commands

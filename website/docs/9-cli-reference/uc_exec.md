@@ -1,6 +1,6 @@
 # uc exec
 
-Execute a command in a running service container
+Execute a command in a running service container.
 
 ## Synopsis
 
