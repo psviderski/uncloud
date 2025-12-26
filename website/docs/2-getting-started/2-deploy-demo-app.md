@@ -4,6 +4,14 @@ In this guide, we'll deploy [Excalidraw](https://excalidraw.com) — a popular s
 Linux server. You'll learn the **basics of Uncloud** and see how simple it is to **run web apps** on your own
 infrastructure with secure internet access.
 
+:::info NOTE
+To give you a chance to play with Uncloud without even leaving your browser or needing your own servers, we're providing interactive tutorials and playgrounds on the [iximiuz Labs](https://labs.iximiuz.com/) platform.
+
+You can follow [this tutorial](https://labs.iximiuz.com/tutorials/uncloud-create-cluster-ebebf72b) which walks you through creating a new cluster with two machines and then deploying a simple web service to it.
+
+You can also launch the [Uncloud playground](https://labs.iximiuz.com/playgrounds/uncloud-cluster-64523f7c) where you can play with an already initialized Uncloud cluster.
+:::
+
 ## Prerequisites
 
 Before you begin, you'll need:
