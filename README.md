@@ -281,6 +281,16 @@ using the CLI or directly over SSH. They all have the complete cluster state and
 machine is a full backup of your control plane.
 </details>
 
+## 🧪 Interactive tutorials
+
+To give you a chance to play with Uncloud without even leaving your browser, we're providing interactive tutorials and playgrounds on the [iximiuz Labs](https://labs.iximiuz.com/) platform.
+
+Available tutorials:
+
+1. [Setting up a new Uncloud cluster](https://labs.iximiuz.com/tutorials/uncloud-create-cluster-ebebf72b) - the tutorial walks you through creating a new cluster with two machines and then deploying a simple web service to it.
+
+You can also launch the [Uncloud playground](https://labs.iximiuz.com/playgrounds/uncloud-cluster-64523f7c) where you can play with an already initialized Uncloud cluster.
+
 ## 🏗 Project status
 
 Uncloud is currently in active development and is **not ready for production use**. Features may change significantly
