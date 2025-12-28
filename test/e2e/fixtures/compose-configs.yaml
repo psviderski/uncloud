@@ -11,6 +11,10 @@ services:
         uid: "1000"
         gid: "1000"
         mode: 0600
+      # Writing a config to a new, non-existent directory
+      - source: from-file
+        target: /etc/new-dir/config-from-file.conf
+        mode: 0644
     deploy:
       replicas: 1
 configs:
