@@ -801,14 +801,17 @@ func (s *Server) injectConfigs(ctx context.Context, containerID string, configs 
 }
 
 // copyContentToContainer copies content directly to a file in the container using Docker's CopyToContainer API.
+// It will create any intermediate directories in the target path that don't exist.
 func (s *Server) copyContentToContainer(ctx context.Context, containerID string, content []byte, targetPath string, uid *uint64, gid *uint64, fileMode os.FileMode) error {
-	// Create a tar archive containing the file
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 
-	// Create tar header
+	// Trim leading slash(es) to avoid double slashes in the tar path
+	tarPath := strings.TrimPrefix(targetPath, "/")
+
+	// Create tar header with full path
 	header := &tar.Header{
-		Name:     filepath.Base(targetPath),
+		Name:     tarPath,
 		Size:     int64(len(content)),
 		Mode:     int64(fileMode),
 		ModTime:  time.Now(),
@@ -834,16 +837,12 @@ func (s *Server) copyContentToContainer(ctx context.Context, containerID string,
 		return fmt.Errorf("close tar writer: %w", err)
 	}
 
-	// Copy the tar archive to the container
-	targetDir := filepath.Dir(targetPath)
-	if targetDir == "." {
-		targetDir = "/"
-	}
-
+	// Always extract to root. The tar archive contains the full path, so tar will
+	// automatically create any intermediate directories that don't exist in the container.
 	if err := s.client.CopyToContainer(
 		ctx,
 		containerID,
-		targetDir,
+		"/",
 		&buf,
 		container.CopyToContainerOptions{CopyUIDGID: true},
 	); err != nil {

@@ -66,6 +66,11 @@ func TestComposeConfigs(t *testing.T) {
 						Gid:           "1000",
 						Mode:          func() *os.FileMode { m := os.FileMode(0o600); return &m }(),
 					},
+					{
+						ConfigName:    "from-file",
+						ContainerPath: "/etc/new-dir/config-from-file.conf",
+						Mode:          func() *os.FileMode { m := os.FileMode(0o644); return &m }(),
+					},
 				},
 			},
 			Configs: []api.ConfigSpec{
@@ -110,5 +115,14 @@ func TestComposeConfigs(t *testing.T) {
 			userId:      1000,
 			groupId:     1000,
 		}, configContentSecond)
+
+		configContentThird, err := readFileInfoInContainer(t, cli, name, containerName, "/etc/new-dir/config-from-file.conf")
+		require.NoError(t, err)
+		assert.Equal(t, fileInfo{
+			permissions: 0o644,
+			content:     "this is file config\n",
+			userId:      0,
+			groupId:     0,
+		}, configContentThird, "Same config should be mountable to multiple paths, including nested directories")
 	})
 }

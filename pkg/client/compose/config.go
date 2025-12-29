@@ -13,18 +13,27 @@ import (
 func configSpecsFromCompose(
 	configs types.Configs, serviceConfigs []types.ServiceConfigObjConfig, workingDir string,
 ) ([]api.ConfigSpec, []api.ConfigMount, error) {
-	var configSpecs []api.ConfigSpec
 	var configMounts []api.ConfigMount
 
+	// Temporary map to hold config specs
+	configSpecsMap := make(map[string]api.ConfigSpec)
+
+	// We iterate over all service config objects (config mounts)
 	for _, serviceConfig := range serviceConfigs {
 		var spec api.ConfigSpec
 
-		if projectConfig, exists := configs[serviceConfig.Source]; exists {
-			if projectConfig.External {
-				return nil, nil, fmt.Errorf("external configs are not supported: %s",
-					serviceConfig.Source)
-			}
+		projectConfig, exists := configs[serviceConfig.Source]
+		if !exists {
+			return nil, nil, fmt.Errorf("config '%s' not found in project configs", serviceConfig.Source)
+		}
 
+		if projectConfig.External {
+			return nil, nil, fmt.Errorf("external configs are not supported: %s",
+				serviceConfig.Source)
+		}
+
+		spec, exists = configSpecsMap[serviceConfig.Source]
+		if !exists {
 			spec = api.ConfigSpec{
 				Name:    serviceConfig.Source,
 				Content: []byte(projectConfig.Content),
@@ -44,11 +53,9 @@ func configSpecsFromCompose(
 				}
 				spec.Content = fileContent
 			}
-		} else {
-			return nil, nil, fmt.Errorf("config '%s' not found in project configs", serviceConfig.Source)
-		}
 
-		configSpecs = append(configSpecs, spec)
+			configSpecsMap[serviceConfig.Source] = spec
+		}
 
 		// Create config mount
 		target := serviceConfig.Target
@@ -69,6 +76,12 @@ func configSpecsFromCompose(
 		}
 
 		configMounts = append(configMounts, mount)
+	}
+
+	var configSpecs []api.ConfigSpec
+	// Convert config spec map to slice
+	for _, spec := range configSpecsMap {
+		configSpecs = append(configSpecs, spec)
 	}
 
 	return configSpecs, configMounts, nil
