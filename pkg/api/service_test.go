@@ -207,7 +207,7 @@ func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 }
 
 func TestContainerSpec_Clone(t *testing.T) {
-	mode := os.FileMode(0644)
+	mode := os.FileMode(0o644)
 	original := ContainerSpec{
 		Command:    []string{"sh", "-c", "echo hello"},
 		Entrypoint: []string{"/bin/bash"},
@@ -246,14 +246,15 @@ func TestContainerSpec_Clone(t *testing.T) {
 	assert.True(t, original.Equals(cloned))
 
 	// Verify deep copy by modifying the original
-	original.Command[0] = "modified"
-	original.Entrypoint[0] = "modified"
-	original.Env["FOO"] = "modified"
-	original.LogDriver.Options["max-size"] = "modified"
-	original.Volumes[0] = "modified"
-	original.VolumeMounts[0].ContainerPath = "modified"
-	original.ConfigMounts[0].ContainerPath = "modified"
-	*original.ConfigMounts[0].Mode = 0755 // Modify the Mode pointer value
+	stringModified := "modified"
+	original.Command[0] = stringModified
+	original.Entrypoint[0] = stringModified
+	original.Env["FOO"] = stringModified
+	original.LogDriver.Options["max-size"] = stringModified
+	original.Volumes[0] = stringModified
+	original.VolumeMounts[0].ContainerPath = stringModified
+	original.ConfigMounts[0].ContainerPath = stringModified
+	*original.ConfigMounts[0].Mode = 0o755 // Modify the Mode pointer value
 
 	assert.False(t, original.Equals(cloned))
 	// Assert cloned values are unchanged
@@ -277,5 +278,5 @@ func TestContainerSpec_Clone(t *testing.T) {
 	assert.Equal(t, "/data", cloned.VolumeMounts[0].ContainerPath)
 	assert.Equal(t, "/etc/config", cloned.ConfigMounts[0].ContainerPath)
 	assert.NotNil(t, cloned.ConfigMounts[0].Mode)
-	assert.Equal(t, os.FileMode(0644), *cloned.ConfigMounts[0].Mode, "Mode should be deep copied")
+	assert.Equal(t, os.FileMode(0o644), *cloned.ConfigMounts[0].Mode, "Mode should be deep copied")
 }
