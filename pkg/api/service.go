@@ -290,11 +290,17 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 	orig := s.SetDefaults()
 	spec = spec.SetDefaults()
 
+	// Volumes
 	slices.Sort(orig.Volumes)
 	slices.Sort(spec.Volumes)
 
+	// Volume mounts
 	sortVolumeMounts(orig.VolumeMounts)
 	sortVolumeMounts(spec.VolumeMounts)
+
+	// Config mounts
+	sortConfigMounts(orig.ConfigMounts)
+	sortConfigMounts(spec.ConfigMounts)
 
 	return cmp.Equal(orig, spec, cmpopts.EquateEmpty())
 }
@@ -317,6 +323,12 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		}
 		spec.LogDriver = &logDriver
 	}
+	if s.Env != nil {
+		spec.Env = make(EnvVars, len(s.Env))
+		for k, v := range s.Env {
+			spec.Env[k] = v
+		}
+	}
 	if s.Volumes != nil {
 		spec.Volumes = make([]string, len(s.Volumes))
 		copy(spec.Volumes, s.Volumes)
@@ -324,6 +336,12 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	if s.VolumeMounts != nil {
 		spec.VolumeMounts = make([]VolumeMount, len(s.VolumeMounts))
 		copy(spec.VolumeMounts, s.VolumeMounts)
+	}
+	if s.ConfigMounts != nil {
+		spec.ConfigMounts = make([]ConfigMount, len(s.ConfigMounts))
+		for i, cm := range s.ConfigMounts {
+			spec.ConfigMounts[i] = cm.Clone()
+		}
 	}
 
 	return spec
