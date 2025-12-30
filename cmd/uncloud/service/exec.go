@@ -59,7 +59,7 @@ If the service has multiple replicas and no container ID is specified, the comma
 
 	execCmd.Flags().BoolVarP(&opts.detach, "detach", "d", false, "Detached mode: run command in the background")
 
-	execCmd.Flags().BoolVarP(&opts.noTty, "no-tty", "T", !cli.IsStdoutTerminal(),
+	execCmd.Flags().BoolVarP(&opts.noTty, "no-tty", "T", false,
 		"Disable pseudo-TTY allocation. By default 'uc exec' allocates a TTY when connected to a terminal.")
 
 	// Keep "-i" and "-t" flags hidden for compatibility with docker exec
@@ -82,6 +82,11 @@ If the service has multiple replicas and no container ID is specified, the comma
 }
 
 func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execCliOptions) error {
+	// Disable TTY allocation if not connected to a terminal
+	if !cli.IsStdoutTerminal() {
+		opts.noTty = true
+	}
+
 	if !opts.detach {
 		// Check if we're trying to attach to a TTY from a non-TTY client, e.g.
 		// when doing an 'cmd | uc exec ...'
