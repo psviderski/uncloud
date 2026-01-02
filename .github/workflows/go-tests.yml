@@ -36,6 +36,12 @@ jobs:
           git diff --exit-code ||
             (echo "go.mod or go.sum has changed. Please run 'go mod tidy' and commit the changes." && exit 1)
 
+      - name: Generate docs
+        run: |
+          make cli-docs
+          git diff --exit-code ||
+            (echo "Documentation is out of date. Please run 'make cli-docs' and commit the changes." && exit 1)
+
       - name: Run tests
         run: |
           make ucind-image
