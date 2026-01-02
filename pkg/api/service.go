@@ -59,6 +59,9 @@ type ServiceSpec struct {
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
+	// StopGracePeriod is the time in seconds to wait after sending SIGTERM before sending SIGKILL
+	// when stopping a container. nil means use Docker default (10 seconds).
+	StopGracePeriod *int `json:",omitempty"`
 	// Volumes is list of data volumes that can be mounted into the container.
 	Volumes []VolumeSpec
 	// Configs is list of configuration objects that can be mounted into the container.

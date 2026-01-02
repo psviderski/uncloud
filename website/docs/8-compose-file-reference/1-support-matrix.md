@@ -32,6 +32,7 @@ The following table shows the support status for main Compose features:
 | `pull_policy`      | ✅ Supported        | `always`, `missing`, `never`                                                          |
 | `secrets`          | ❌ Not supported    | Use configs or environment variables                                                  |
 | `security_opt`     | ❌ Not supported    |                                                                                       |
+| `stop_grace_period`| ✅ Supported        | Time to wait after SIGTERM before SIGKILL                                             |
 | `storage_opt`      | ❌ Not supported    |                                                                                       |
 | `user`             | ✅ Supported        | Set container user                                                                    |
 | `volumes`          | ✅ Supported        | Named volumes, bind mounts, tmpfs                                                     |
