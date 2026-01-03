@@ -46,7 +46,8 @@ This document provides comprehensive information about the Uncloud project for A
 2. **Daemon (`uncloudd`)** - Machine daemon running on each node
 3. **Corrosion** - Distributed SQLite database for cluster state (Fly.io project)
 4. **Caddy** - Reverse proxy for HTTPS termination and routing
-5. **WireGuard** - Secure mesh networking between machines
+5. **TCP/UDP Proxy** - Load balancing proxy for non-HTTP ingress traffic
+6. **WireGuard** - Secure mesh networking between machines
 
 ### Network Architecture
 
@@ -54,6 +55,7 @@ This document provides comprehensive information about the Uncloud project for A
 - Containers get cluster-unique IPs for direct communication
 - Automatic peer discovery and key management
 - NAT traversal for machines behind firewalls
+- TCP/UDP ingress via built-in proxy with multi-backend load balancing
 
 ### State Management
 
@@ -76,6 +78,7 @@ This document provides comprehensive information about the Uncloud project for A
 
   - `cli/`: Command-line interface logic
   - `machine/`: Machine lifecycle and state management
+  - `machine/proxy/`: TCP/UDP proxy with load balancing for ingress traffic
   - `daemon/`: Daemon implementation and gRPC services
   - `dns/`: Internal DNS server for service discovery
 

@@ -20,6 +20,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/firewall"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/proxy"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/unregistry"
 	"golang.org/x/sync/errgroup"
@@ -44,6 +45,7 @@ type clusterController struct {
 	// clusterReady is signalled when the cluster controller has finished initializing all components.
 	clusterReady    chan<- struct{}
 	caddyconfigCtrl *caddyconfig.Controller
+	proxyCtrl       *proxy.Controller
 
 	// dnsServer is the embedded internal DNS server for the cluster listening on the machine IP.
 	dnsServer   *dns.Server
@@ -75,6 +77,9 @@ func newClusterController(
 	}
 	endpointChanges := wgnet.WatchEndpoints()
 
+	// Create proxy controller for TCP/UDP ingress.
+	proxyCtrl := proxy.NewController(store, slog.Default())
+
 	return &clusterController{
 		state:           state,
 		store:           store,
@@ -86,6 +91,7 @@ func newClusterController(
 		dockerReady:     dockerReady,
 		clusterReady:    clusterReady,
 		caddyconfigCtrl: caddyfileCtrl,
+		proxyCtrl:       proxyCtrl,
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
 		unregistry:      unregistry,
@@ -208,6 +214,14 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		slog.Info("Starting caddyconfig controller.")
 		if err := cc.caddyconfigCtrl.Run(ctx); err != nil {
 			return fmt.Errorf("caddyconfig controller failed: %w", err)
+		}
+		return nil
+	})
+
+	errGroup.Go(func() error {
+		slog.Info("Starting proxy controller.")
+		if err := cc.proxyCtrl.Run(ctx); err != nil {
+			return fmt.Errorf("proxy controller failed: %w", err)
 		}
 		return nil
 	})
