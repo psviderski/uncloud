@@ -28,6 +28,7 @@ const (
 	Machine_InspectMachine_FullMethodName     = "/api.Machine/InspectMachine"
 	Machine_Reset_FullMethodName              = "/api.Machine/Reset"
 	Machine_InspectService_FullMethodName     = "/api.Machine/InspectService"
+	Machine_GetWireGuardDevice_FullMethodName = "/api.Machine/GetWireGuardDevice"
 )
 
 // MachineClient is the client API for Machine service.
@@ -46,6 +47,7 @@ type MachineClient interface {
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
+	GetWireGuardDevice(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWireGuardDeviceResponse, error)
 }
 
 type machineClient struct {
@@ -136,6 +138,16 @@ func (c *machineClient) InspectService(ctx context.Context, in *InspectServiceRe
 	return out, nil
 }
 
+func (c *machineClient) GetWireGuardDevice(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWireGuardDeviceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetWireGuardDeviceResponse)
+	err := c.cc.Invoke(ctx, Machine_GetWireGuardDevice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MachineServer is the server API for Machine service.
 // All implementations must embed UnimplementedMachineServer
 // for forward compatibility.
@@ -152,6 +164,7 @@ type MachineServer interface {
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(context.Context, *ResetRequest) (*emptypb.Empty, error)
 	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
+	GetWireGuardDevice(context.Context, *emptypb.Empty) (*GetWireGuardDeviceResponse, error)
 	mustEmbedUnimplementedMachineServer()
 }
 
@@ -185,6 +198,9 @@ func (UnimplementedMachineServer) Reset(context.Context, *ResetRequest) (*emptyp
 }
 func (UnimplementedMachineServer) InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectService not implemented")
+}
+func (UnimplementedMachineServer) GetWireGuardDevice(context.Context, *emptypb.Empty) (*GetWireGuardDeviceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWireGuardDevice not implemented")
 }
 func (UnimplementedMachineServer) mustEmbedUnimplementedMachineServer() {}
 func (UnimplementedMachineServer) testEmbeddedByValue()                 {}
@@ -351,6 +367,24 @@ func _Machine_InspectService_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_GetWireGuardDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).GetWireGuardDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_GetWireGuardDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).GetWireGuardDevice(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Machine_ServiceDesc is the grpc.ServiceDesc for Machine service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -389,6 +423,10 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InspectService",
 			Handler:    _Machine_InspectService_Handler,
+		},
+		{
+			MethodName: "GetWireGuardDevice",
+			Handler:    _Machine_GetWireGuardDevice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
