@@ -605,6 +605,8 @@ func (s *Server) CreateServiceContainer(
 		}
 	}
 	hostConfig := &container.HostConfig{
+		CapAdd:       spec.Container.CapAdd,
+		CapDrop:      spec.Container.CapDrop,
 		Binds:        spec.Container.Volumes,
 		Init:         spec.Container.Init,
 		Mounts:       mounts,

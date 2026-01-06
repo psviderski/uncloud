@@ -43,6 +43,8 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
+			CapAdd:     service.CapAdd,
+			CapDrop:    service.CapDrop,
 			Command:    service.Command,
 			Entrypoint: service.Entrypoint,
 			Env:        env,

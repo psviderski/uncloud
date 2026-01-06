@@ -9,6 +9,44 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestEvalContainerSpecChange_ContainerCapAdd(t *testing.T) {
+	t.Parallel()
+
+	currentSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:  "nginx:latest",
+			CapAdd: []string{"NET_ADMIN"},
+		},
+	}
+
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(currentSpec, newSpec))
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
+}
+
+func TestEvalContainerSpecChange_ContainerCapDrop(t *testing.T) {
+	t.Parallel()
+
+	currentSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:   "nginx:latest",
+			CapDrop: []string{"ALL"},
+		},
+	}
+
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(currentSpec, newSpec))
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
+}
+
 func TestEvalContainerSpecChange_ContainerResources(t *testing.T) {
 	t.Parallel()
 
