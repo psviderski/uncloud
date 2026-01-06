@@ -19,6 +19,8 @@ services:
     privileged: true
     pull_policy: always
     scale: 3
+    sysctls:
+      - net.ipv4.ip_forward=1
     user: nginx:nginx
     volumes:
       - /etc/passwd:/host/etc/passwd:ro

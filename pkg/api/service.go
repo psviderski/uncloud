@@ -243,6 +243,8 @@ type ContainerSpec struct {
 	PullPolicy string
 	// Resource allocation for the container.
 	Resources ContainerResources
+	// Namespaced kernel parameters to be set in container
+	Sysctls map[string]string
 	// User overrides the default user of the image used to run the container. Format: user|UID[:group|GID].
 	User string
 	// VolumeMounts specifies how volumes are mounted into the container filesystem.
@@ -341,6 +343,12 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		spec.ConfigMounts = make([]ConfigMount, len(s.ConfigMounts))
 		for i, cm := range s.ConfigMounts {
 			spec.ConfigMounts[i] = cm.Clone()
+		}
+	}
+	if s.Sysctls != nil {
+		spec.Sysctls = make(map[string]string, len(s.Sysctls))
+		for k, v := range s.Sysctls {
+			spec.Sysctls[k] = v
 		}
 	}
 

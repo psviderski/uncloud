@@ -123,6 +123,9 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							Memory:            100 * units.MiB,
 							MemoryReservation: 50 * units.MiB,
 						},
+						Sysctls: map[string]string{
+							"net.ipv4.ip_forward": "1",
+						},
 						User: "nginx:nginx",
 						VolumeMounts: []api.VolumeMount{
 							{

@@ -51,6 +51,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Privileged: service.Privileged,
 			PullPolicy: pullPolicy,
 			Resources:  resourcesFromCompose(service),
+			Sysctls:    service.Sysctls,
 			User:       service.User,
 		},
 		Name: serviceName,
