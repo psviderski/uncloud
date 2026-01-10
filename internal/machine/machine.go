@@ -50,55 +50,6 @@ const (
 	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
 )
 
-func (m *Machine) GetWireGuardDevice(ctx context.Context, req *emptypb.Empty) (*pb.GetWireGuardDeviceResponse, error) {
-	deviceName := network.WireGuardInterfaceName
-
-	wg, err := wgctrl.New()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create wireguard client: %w", err)
-	}
-	defer wg.Close()
-
-	dev, err := wg.Device(deviceName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get wireguard device %q: %w", deviceName, err)
-	}
-
-	peers := make([]*pb.WireGuardPeer, len(dev.Peers))
-	for i, p := range dev.Peers {
-		var lastHandshake *timestamppb.Timestamp
-		if !p.LastHandshakeTime.IsZero() {
-			lastHandshake = timestamppb.New(p.LastHandshakeTime)
-		}
-
-		allowedIPs := make([]string, len(p.AllowedIPs))
-		for j, ip := range p.AllowedIPs {
-			allowedIPs[j] = ip.String()
-		}
-
-		var endpoint string
-		if p.Endpoint != nil {
-			endpoint = p.Endpoint.String()
-		}
-
-		peers[i] = &pb.WireGuardPeer{
-			PublicKey:         p.PublicKey.String(),
-			Endpoint:          endpoint,
-			LastHandshakeTime: lastHandshake,
-			ReceiveBytes:      p.ReceiveBytes,
-			TransmitBytes:     p.TransmitBytes,
-			AllowedIps:        allowedIPs,
-		}
-	}
-
-	return &pb.GetWireGuardDeviceResponse{
-		Name:       dev.Name,
-		PublicKey:  dev.PublicKey.String(),
-		ListenPort: int32(dev.ListenPort),
-		Peers:      peers,
-	}, nil
-}
-
 type Config struct {
 	// DataDir is the directory where the machine stores its persistent state. Default is /var/lib/uncloud.
 	DataDir         string
@@ -993,6 +944,58 @@ func (m *Machine) WaitForNetworkReady(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
+func (m *Machine) InspectWireGuardNetwork(
+	_ context.Context, _ *emptypb.Empty,
+) (*pb.InspectWireGuardNetworkResponse, error) {
+	deviceName := network.WireGuardInterfaceName
+
+	wg, err := wgctrl.New()
+	if err != nil {
+		return nil, fmt.Errorf("create WireGuard client: %w", err)
+	}
+	defer wg.Close()
+
+	dev, err := wg.Device(deviceName)
+	if err != nil {
+		return nil, fmt.Errorf("get WireGuard device '%s': %w", deviceName, err)
+	}
+
+	peers := make([]*pb.WireGuardPeer, len(dev.Peers))
+	for i, p := range dev.Peers {
+		var lastHandshake *timestamppb.Timestamp
+		if !p.LastHandshakeTime.IsZero() {
+			lastHandshake = timestamppb.New(p.LastHandshakeTime)
+		}
+
+		allowedIPs := make([]string, len(p.AllowedIPs))
+		for j, ip := range p.AllowedIPs {
+			allowedIPs[j] = ip.String()
+		}
+
+		var endpoint string
+		if p.Endpoint != nil {
+			endpoint = p.Endpoint.String()
+		}
+
+		peers[i] = &pb.WireGuardPeer{
+			PublicKey:         p.PublicKey[:],
+			Endpoint:          endpoint,
+			LastHandshakeTime: lastHandshake,
+			ReceiveBytes:      p.ReceiveBytes,
+			TransmitBytes:     p.TransmitBytes,
+			AllowedIps:        allowedIPs,
+		}
+	}
+
+	return &pb.InspectWireGuardNetworkResponse{
+		InterfaceName: dev.Name,
+		PublicKey:     dev.PublicKey[:],
+		ListenPort:    int32(dev.ListenPort),
+		Peers:         peers,
+	}, nil
 }
 
 // Reset restores the machine to a clean state, scheduling a graceful shutdown and removing all cluster-related

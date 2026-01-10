@@ -18,12 +18,12 @@ service Machine {
   rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
   // InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
   rpc InspectMachine(google.protobuf.Empty) returns (InspectMachineResponse);
+  // InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
+  rpc InspectWireGuardNetwork(google.protobuf.Empty) returns (InspectWireGuardNetworkResponse);
   // Reset restores the machine to a clean state, removing all cluster-related configuration and data.
   rpc Reset(ResetRequest) returns (google.protobuf.Empty);
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
-
-  rpc GetWireGuardDevice(google.protobuf.Empty) returns (GetWireGuardDeviceResponse);
 }
 
 message MachineInfo {
@@ -109,15 +109,15 @@ message InspectServiceResponse {
   Service service = 1;
 }
 
-message GetWireGuardDeviceResponse {
-  string name = 1;
-  string public_key = 2;
+message InspectWireGuardNetworkResponse {
+  string interface_name = 1;
+  bytes public_key = 2;
   int32 listen_port = 3;
   repeated WireGuardPeer peers = 4;
 }
 
 message WireGuardPeer {
-  string public_key = 1;
+  bytes public_key = 1;
   string endpoint = 2;
   google.protobuf.Timestamp last_handshake_time = 3;
   int64 receive_bytes = 4;
