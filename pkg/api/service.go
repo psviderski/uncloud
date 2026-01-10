@@ -362,7 +362,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		for k, v := range s.Sysctls {
 			spec.Sysctls[k] = v
 		}
-  }
+	}
 	return spec
 }
 
