@@ -623,6 +623,7 @@ func (s *Server) CreateServiceContainer(
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyUnlessStopped,
 		},
+		Sysctls: spec.Container.Sysctls,
 	}
 
 	// Configure the container to use the internal DNS server if it's available.

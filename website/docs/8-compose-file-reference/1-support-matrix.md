@@ -35,6 +35,7 @@ The following table shows the support status for main Compose features:
 | `secrets`          | ❌ Not supported    | Use configs or environment variables                                                           |
 | `security_opt`     | ❌ Not supported    |                                                                                                |
 | `storage_opt`      | ❌ Not supported    |                                                                                                |
+| `sysctls`          | ✅ Supported        | Namespaced kernel parameters                                                                   |
 | `user`             | ✅ Supported        | Set container user                                                                             |
 | `volumes`          | ✅ Supported        | Named volumes, bind mounts, tmpfs                                                              |
 | **Deploy**         |                    |                                                                                                |

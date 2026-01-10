@@ -232,6 +232,9 @@ func TestContainerSpec_Clone(t *testing.T) {
 			Memory:            2345,
 			MemoryReservation: 3456,
 		},
+		Sysctls: map[string]string{
+			"net.ipv4.ip_forward": "1",
+		},
 		User:    "1000:1000",
 		Volumes: []string{"/data", "/config"},
 		VolumeMounts: []VolumeMount{
@@ -259,6 +262,7 @@ func TestContainerSpec_Clone(t *testing.T) {
 	original.VolumeMounts[0].ContainerPath = stringModified
 	original.ConfigMounts[0].ContainerPath = stringModified
 	*original.ConfigMounts[0].Mode = 0o755 // Modify the Mode pointer value
+	original.Sysctls["net.ipv4.ip_forward"] = stringModified
 
 	assert.False(t, original.Equals(cloned))
 	// Assert cloned values are unchanged
@@ -285,4 +289,5 @@ func TestContainerSpec_Clone(t *testing.T) {
 	assert.Equal(t, "/etc/config", cloned.ConfigMounts[0].ContainerPath)
 	assert.NotNil(t, cloned.ConfigMounts[0].Mode)
 	assert.Equal(t, os.FileMode(0o644), *cloned.ConfigMounts[0].Mode, "Mode should be deep copied")
+	assert.Equal(t, "1", cloned.Sysctls["net.ipv4.ip_forward"])
 }
