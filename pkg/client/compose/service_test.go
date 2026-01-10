@@ -100,6 +100,8 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					Name: "test",
 					Mode: api.ServiceModeReplicated,
 					Container: api.ContainerSpec{
+						CapAdd:     []string{"NET_ADMIN"},
+						CapDrop:    []string{"ALL"},
 						Command:    []string{"nginx", "updated", "command"},
 						Entrypoint: []string{"/updated-docker-entrypoint.sh"},
 						Env: map[string]string{

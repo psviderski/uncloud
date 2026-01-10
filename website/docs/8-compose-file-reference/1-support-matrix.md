@@ -7,6 +7,8 @@ The following table shows the support status for main Compose features:
 |--------------------|--------------------|---------------------------------------------------------------------------------------|
 | **Services**       |                    |                                                                                       |
 | `build`            | ⚠️ Limited         | Build context and Dockerfile                                                          |
+| `cap_add`          | ✅ Supported        | Additional kernel capabilities                                                        |
+| `cap_drop`         | ✅ Supported        | Which capabilities to drop                                                            |
 | `command`          | ✅ Supported        | Override container command                                                            |
 | `configs`          | ✅ Supported        | File-based and inline configs                                                         |
 | `cpus`             | ✅ Supported        | CPU limit                                                                             |

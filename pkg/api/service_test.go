@@ -209,6 +209,8 @@ func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 func TestContainerSpec_Clone(t *testing.T) {
 	mode := os.FileMode(0o644)
 	original := ContainerSpec{
+		CapAdd:     []string{"NET_ADMIN"},
+		CapDrop:    []string{"ALL"},
 		Command:    []string{"sh", "-c", "echo hello"},
 		Entrypoint: []string{"/bin/bash"},
 		Env: EnvVars{
@@ -247,6 +249,8 @@ func TestContainerSpec_Clone(t *testing.T) {
 
 	// Verify deep copy by modifying the original
 	stringModified := "modified"
+	original.CapAdd[0] = stringModified
+	original.CapDrop[0] = stringModified
 	original.Command[0] = stringModified
 	original.Entrypoint[0] = stringModified
 	original.Env["FOO"] = stringModified
@@ -258,6 +262,8 @@ func TestContainerSpec_Clone(t *testing.T) {
 
 	assert.False(t, original.Equals(cloned))
 	// Assert cloned values are unchanged
+	assert.Equal(t, "NET_ADMIN", cloned.CapAdd[0])
+	assert.Equal(t, "ALL", cloned.CapDrop[0])
 	assert.Equal(t, "sh", cloned.Command[0])
 	assert.Equal(t, "/bin/bash", cloned.Entrypoint[0])
 	assert.Equal(t, "bar", cloned.Env["FOO"])
