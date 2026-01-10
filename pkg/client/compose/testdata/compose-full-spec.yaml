@@ -1,5 +1,9 @@
 services:
   test:
+    cap_add:
+      - NET_ADMIN
+    cap_drop:
+      - ALL
     command: ["nginx", "updated", "command"]
     cpus: 0.5
     entrypoint: ["/updated-docker-entrypoint.sh"]

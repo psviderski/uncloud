@@ -225,6 +225,10 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 // ContainerSpec defines the desired state of a container in a service.
 // ATTENTION: after changing this struct, verify if deploy.EvalContainerSpecChange needs to be updated.
 type ContainerSpec struct {
+	// Specifies which additional capabilities should be added for the container.
+	CapAdd []string
+	// Specifies which capabilities should be dropped from the container.
+	CapDrop []string
 	// Command overrides the default CMD of the image to be executed when running a container.
 	Command []string
 	// Entrypoint overrides the default ENTRYPOINT of the image.
@@ -310,6 +314,14 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 func (s *ContainerSpec) Clone() ContainerSpec {
 	spec := *s
 
+	if s.CapAdd != nil {
+		spec.CapAdd = make([]string, len(s.CapAdd))
+		copy(spec.CapAdd, s.CapAdd)
+	}
+	if s.CapDrop != nil {
+		spec.CapDrop = make([]string, len(s.CapDrop))
+		copy(spec.CapDrop, s.CapDrop)
+	}
 	if s.Command != nil {
 		spec.Command = make([]string, len(s.Command))
 		copy(spec.Command, s.Command)
@@ -350,8 +362,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		for k, v := range s.Sysctls {
 			spec.Sysctls[k] = v
 		}
-	}
-
+  }
 	return spec
 }
 
