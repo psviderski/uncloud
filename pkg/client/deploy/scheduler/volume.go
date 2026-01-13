@@ -158,12 +158,21 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 		return nil, err
 	}
 
-	// Schedule each missing volume on one of its eligible machines.
+	// Schedule each missing volume on eligible machines.
+	// For global services: schedule on ALL eligible machines.
+	// For replicated services: schedule on ONE eligible machine.
 	scheduledVolumes := make(map[string][]api.VolumeSpec)
 	for missingVolumeName, missingVolumeSpec := range s.volumeSpecs {
 		// Skip volumes that already exist on machines.
 		if _, ok := s.existingVolumeMachines[missingVolumeName]; ok {
 			continue
+		}
+
+		// Check for invalid configuration: volume shared between global and replicated services.
+		if s.isVolumeSharedBetweenGlobalAndReplicated(missingVolumeName) {
+			return nil, fmt.Errorf("volume '%s' cannot be shared between global and replicated services: "+
+				"global services require the volume on all machines while replicated services require "+
+				"co-location with the volume", missingVolumeName)
 		}
 
 		serviceNames := s.volumeServices[missingVolumeName]
@@ -177,22 +186,32 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 			return nil, fmt.Errorf("bug detected: no eligible machines for volume '%s'", missingVolumeName)
 		}
 
-		// Choose the first machine in the sorted eligible machines to schedule the volume on.
 		// Sort the eligible machines to ensure deterministic behavior.
 		sortedEligibleMachines := eligibleMachines.ToSlice()
 		slices.Sort(sortedEligibleMachines)
-		machineID := sortedEligibleMachines[0]
-		// Update constraints for all services that use this volume to be placed on the selected machine.
-		for _, serviceName := range serviceNames {
-			serviceEligibleMachines[serviceName] = mapset.NewSet(machineID)
-		}
-		placedVolumes[missingVolumeName] = struct{}{}
-		scheduledVolumes[machineID] = append(scheduledVolumes[machineID], missingVolumeSpec)
 
-		// Propagate the updated constraints.
-		if err := s.propagateConstraintsUntilConvergence(serviceEligibleMachines, placedVolumes); err != nil {
-			return nil, fmt.Errorf("unexpected error while propagating constraints after "+
-				"scheduling volume '%s' on machine '%s': %w", missingVolumeName, machineID, err)
+		if s.isVolumeForGlobalService(missingVolumeName) {
+			// Global service: schedule volume on ALL eligible machines.
+			for _, machineID := range sortedEligibleMachines {
+				scheduledVolumes[machineID] = append(scheduledVolumes[machineID], missingVolumeSpec)
+			}
+			// Mark volume as placed - no constraint propagation needed since volume will be on all machines.
+			placedVolumes[missingVolumeName] = struct{}{}
+		} else {
+			// Replicated service: schedule volume on ONE machine (first in sorted order).
+			machineID := sortedEligibleMachines[0]
+			// Update constraints for all services that use this volume to be placed on the selected machine.
+			for _, serviceName := range serviceNames {
+				serviceEligibleMachines[serviceName] = mapset.NewSet(machineID)
+			}
+			placedVolumes[missingVolumeName] = struct{}{}
+			scheduledVolumes[machineID] = append(scheduledVolumes[machineID], missingVolumeSpec)
+
+			// Propagate the updated constraints.
+			if err := s.propagateConstraintsUntilConvergence(serviceEligibleMachines, placedVolumes); err != nil {
+				return nil, fmt.Errorf("unexpected error while propagating constraints after "+
+					"scheduling volume '%s' on machine '%s': %w", missingVolumeName, machineID, err)
+			}
 		}
 	}
 
@@ -297,4 +316,43 @@ func (s *VolumeScheduler) propagateConstraintsUntilConvergence(
 	}
 
 	return nil
+}
+
+// isVolumeForGlobalService returns true if any service using this volume is a global service.
+func (s *VolumeScheduler) isVolumeForGlobalService(volumeName string) bool {
+	serviceNames := s.volumeServices[volumeName]
+	for _, serviceName := range serviceNames {
+		for _, spec := range s.serviceSpecs {
+			if spec.Name == serviceName && spec.Mode == api.ServiceModeGlobal {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isVolumeSharedBetweenGlobalAndReplicated returns true if a volume is used by both
+// global and replicated services, which is an invalid configuration.
+func (s *VolumeScheduler) isVolumeSharedBetweenGlobalAndReplicated(volumeName string) bool {
+	serviceNames := s.volumeServices[volumeName]
+	hasGlobal := false
+	hasReplicated := false
+
+	for _, serviceName := range serviceNames {
+		for _, spec := range s.serviceSpecs {
+			if spec.Name == serviceName {
+				mode := spec.Mode
+				if mode == "" {
+					mode = api.ServiceModeReplicated
+				}
+				if mode == api.ServiceModeGlobal {
+					hasGlobal = true
+				} else {
+					hasReplicated = true
+				}
+			}
+		}
+	}
+
+	return hasGlobal && hasReplicated
 }

@@ -558,4 +558,45 @@ volumes:
 
 		assert.Len(t, plan.Operations, 2, "Expected 1 volume creation and 1 service to deploy")
 	})
+
+	t.Run("global service auto-creates volumes on all machines", func(t *testing.T) {
+		t.Parallel()
+
+		serviceName := "test-compose-global-volume"
+		volumeName := serviceName
+		t.Cleanup(func() {
+			removeServices(t, cli, serviceName)
+			for _, machine := range c.Machines {
+				_ = cli.RemoveVolume(ctx, machine.Name, volumeName, false)
+			}
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-global-volume.yaml"})
+		require.NoError(t, err)
+
+		deployment, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		err = deployment.Run(ctx)
+		require.NoError(t, err, "Global deployment should auto-create volumes on all machines")
+
+		// Verify volumes were created on all machines.
+		volumes, err := cli.ListVolumes(ctx, &api.VolumeFilter{Names: []string{volumeName}})
+		require.NoError(t, err)
+		assert.Len(t, volumes, len(c.Machines), "Volume should be created on all machines")
+
+		// Verify containers are running on all machines.
+		svc, err := cli.InspectService(ctx, serviceName)
+		require.NoError(t, err)
+		assert.Equal(t, api.ServiceModeGlobal, svc.Mode)
+		assert.Len(t, svc.Containers, len(c.Machines), "Container should be running on all machines")
+
+		machines := serviceMachines(svc)
+		expectedMachines := make([]string, len(c.Machines))
+		for i, m := range c.Machines {
+			expectedMachines[i] = m.ID
+		}
+		assert.ElementsMatch(t, machines.ToSlice(), expectedMachines,
+			"Containers should be distributed across all machines")
+	})
 }
