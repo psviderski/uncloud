@@ -20,3 +20,9 @@ type ContainerResources struct {
 	// Device reservations/requests for access to things like GPUs
 	DeviceReservations []container.DeviceRequest
 }
+
+type Ulimit struct {
+	Name string
+	Soft int64
+	Hard int64
+}

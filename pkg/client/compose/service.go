@@ -54,6 +54,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			PullPolicy: pullPolicy,
 			Resources:  resourcesFromCompose(service),
 			Sysctls:    service.Sysctls,
+			Ulimits:    ulimitsFromCompose(service.Ulimits),
 			User:       service.User,
 		},
 		Name: serviceName,
@@ -291,6 +292,39 @@ func tmpfsVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig) api.Vol
 	}
 
 	return spec
+}
+
+func ulimitsFromCompose(ulimits map[string]*types.UlimitsConfig) []api.Ulimit {
+	if len(ulimits) == 0 {
+		return nil
+	}
+
+	var res []api.Ulimit
+	for name, u := range ulimits {
+		soft := u.Soft
+		hard := u.Hard
+		if u.Single != 0 {
+			if soft == 0 {
+				soft = u.Single
+			}
+			if hard == 0 {
+				hard = u.Single
+			}
+		}
+
+		res = append(res, api.Ulimit{
+			Name: name,
+			Soft: int64(soft),
+			Hard: int64(hard),
+		})
+	}
+
+	// Sort by name to ensure deterministic order (map iteration is random).
+	slices.SortFunc(res, func(a, b api.Ulimit) int {
+		return slices.Compare([]byte(a.Name), []byte(b.Name))
+	})
+
+	return res
 }
 
 // validateServicesExtensions validates extension combinations across all services in the project.
