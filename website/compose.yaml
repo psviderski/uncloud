@@ -20,3 +20,6 @@ services:
           log
       }
     scale: 2
+    x-machines:
+      - uc-prod-us2
+      - uc-prod-ap1
