@@ -33,6 +33,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
+	"github.com/docker/go-units"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -617,6 +618,7 @@ func (s *Server) CreateServiceContainer(
 			Memory:            spec.Container.Resources.Memory,
 			MemoryReservation: spec.Container.Resources.MemoryReservation,
 			DeviceRequests:    spec.Container.Resources.DeviceReservations,
+			Ulimits:           toDockerUlimits(spec.Container.Resources.Ulimits),
 		},
 		// Restart service containers if they exit or a machine restarts unless they are explicitly stopped.
 		// For one-off containers and batch jobs we plan to use a different service type/mode.
@@ -875,6 +877,23 @@ func toDockerBindOptions(opts *api.BindOptions) *mount.BindOptions {
 	}
 
 	return dockerOpts
+}
+
+func toDockerUlimits(ulimits map[string]api.Ulimit) []*units.Ulimit {
+	if len(ulimits) == 0 {
+		return nil
+	}
+
+	dockerUlimits := make([]*units.Ulimit, 0, len(ulimits))
+	for name, u := range ulimits {
+		dockerUlimits = append(dockerUlimits, &units.Ulimit{
+			Name: name,
+			Soft: u.Soft,
+			Hard: u.Hard,
+		})
+	}
+
+	return dockerUlimits
 }
 
 // verifyDockerVolumesExist checks if the Docker named volumes referenced in the mounts exist on the machine.

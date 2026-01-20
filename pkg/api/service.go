@@ -363,6 +363,9 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 			spec.Sysctls[k] = v
 		}
 	}
+	if s.Resources.Ulimits != nil {
+		spec.Resources.Ulimits = maps.Clone(s.Resources.Ulimits)
+	}
 	return spec
 }
 

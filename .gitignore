@@ -39,3 +39,4 @@ node_modules/
 
 # VS Code
 .vscode
+.devcontainer/

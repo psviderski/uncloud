@@ -699,6 +699,94 @@ volumes:
 	}
 }
 
+func TestServiceSpecFromCompose_Ulimits(t *testing.T) {
+	tests := []struct {
+		name        string
+		composeYAML string
+		expected    map[string]api.Ulimit
+	}{
+		{
+			name: "single ulimit with soft and hard limits",
+			composeYAML: `
+services:
+  db:
+    image: postgres
+    ulimits:
+      nofile:
+        soft: 20000
+        hard: 40000
+`,
+			expected: map[string]api.Ulimit{
+				"nofile": {
+					Soft: 20000,
+					Hard: 40000,
+				},
+			},
+		},
+		{
+			name: "single ulimit with single value (soft=hard)",
+			composeYAML: `
+services:
+  db:
+    image: postgres
+    ulimits:
+      nproc: 65535
+`,
+			expected: map[string]api.Ulimit{
+				"nproc": {
+					Soft: 65535,
+					Hard: 65535,
+				},
+			},
+		},
+		{
+			name: "multiple ulimits",
+			composeYAML: `
+services:
+  db:
+    image: postgres
+    ulimits:
+      nofile:
+        soft: 20000
+        hard: 40000
+      nproc: 65535
+`,
+			expected: map[string]api.Ulimit{
+				"nofile": {
+					Soft: 20000,
+					Hard: 40000,
+				},
+				"nproc": {
+					Soft: 65535,
+					Hard: 65535,
+				},
+			},
+		},
+		{
+			name: "empty ulimits",
+			composeYAML: `
+services:
+  db:
+    image: postgres
+    ulimits: {}
+`,
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "db")
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, spec.Container.Resources.Ulimits)
+		})
+	}
+}
+
 func TestServiceSpecFromCompose_XMachinesPlacement(t *testing.T) {
 	tests := []struct {
 		name        string
