@@ -251,8 +251,6 @@ type ContainerSpec struct {
 	Sysctls map[string]string
 	// User overrides the default user of the image used to run the container. Format: user|UID[:group|GID].
 	User string
-	// Ulimits defines the resource limits for the container.
-	Ulimits []Ulimit
 	// VolumeMounts specifies how volumes are mounted into the container filesystem.
 	// Each mount references a volume defined in ServiceSpec.Volumes.
 	VolumeMounts []VolumeMount
@@ -310,10 +308,6 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 	sortConfigMounts(orig.ConfigMounts)
 	sortConfigMounts(spec.ConfigMounts)
 
-	// Ulimits
-	sortUlimits(orig.Ulimits)
-	sortUlimits(spec.Ulimits)
-
 	return cmp.Equal(orig, spec, cmpopts.EquateEmpty())
 }
 
@@ -369,9 +363,8 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 			spec.Sysctls[k] = v
 		}
 	}
-	if s.Ulimits != nil {
-		spec.Ulimits = make([]Ulimit, len(s.Ulimits))
-		copy(spec.Ulimits, s.Ulimits)
+	if s.Resources.Ulimits != nil {
+		spec.Resources.Ulimits = maps.Clone(s.Resources.Ulimits)
 	}
 	return spec
 }
@@ -506,10 +499,4 @@ func machineContainerFromProto(sc *pb.Service_Container) (MachineServiceContaine
 		MachineID: sc.MachineId,
 		Container: ServiceContainer{Container: c},
 	}, nil
-}
-
-func sortUlimits(ulimits []Ulimit) {
-	slices.SortFunc(ulimits, func(a, b Ulimit) int {
-		return strings.Compare(a.Name, b.Name)
-	})
 }

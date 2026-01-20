@@ -703,7 +703,7 @@ func TestServiceSpecFromCompose_Ulimits(t *testing.T) {
 	tests := []struct {
 		name        string
 		composeYAML string
-		expected    []api.Ulimit
+		expected    map[string]api.Ulimit
 	}{
 		{
 			name: "single ulimit with soft and hard limits",
@@ -716,9 +716,8 @@ services:
         soft: 20000
         hard: 40000
 `,
-			expected: []api.Ulimit{
-				{
-					Name: "nofile",
+			expected: map[string]api.Ulimit{
+				"nofile": {
 					Soft: 20000,
 					Hard: 40000,
 				},
@@ -733,9 +732,8 @@ services:
     ulimits:
       nproc: 65535
 `,
-			expected: []api.Ulimit{
-				{
-					Name: "nproc",
+			expected: map[string]api.Ulimit{
+				"nproc": {
 					Soft: 65535,
 					Hard: 65535,
 				},
@@ -753,14 +751,12 @@ services:
         hard: 40000
       nproc: 65535
 `,
-			expected: []api.Ulimit{
-				{
-					Name: "nofile",
+			expected: map[string]api.Ulimit{
+				"nofile": {
 					Soft: 20000,
 					Hard: 40000,
 				},
-				{
-					Name: "nproc",
+				"nproc": {
 					Soft: 65535,
 					Hard: 65535,
 				},
@@ -786,15 +782,7 @@ services:
 			spec, err := ServiceSpecFromCompose(project, "db")
 			require.NoError(t, err)
 
-			// Sort expected and actual ulimits by name for comparison
-			slices.SortFunc(tt.expected, func(a, b api.Ulimit) int {
-				return strings.Compare(a.Name, b.Name)
-			})
-			slices.SortFunc(spec.Container.Ulimits, func(a, b api.Ulimit) int {
-				return strings.Compare(a.Name, b.Name)
-			})
-
-			assert.Equal(t, tt.expected, spec.Container.Ulimits)
+			assert.Equal(t, tt.expected, spec.Container.Resources.Ulimits)
 		})
 	}
 }

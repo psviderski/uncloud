@@ -54,7 +54,6 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			PullPolicy: pullPolicy,
 			Resources:  resourcesFromCompose(service),
 			Sysctls:    service.Sysctls,
-			Ulimits:    ulimitsFromCompose(service.Ulimits),
 			User:       service.User,
 		},
 		Name: serviceName,
@@ -126,6 +125,7 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 		CPU:               int64(service.CPUS * 1e9),
 		Memory:            int64(service.MemLimit),
 		MemoryReservation: int64(service.MemReservation),
+		Ulimits:           ulimitsFromCompose(service.Ulimits),
 	}
 
 	// Convert GPU device requests from compose format, appending "gpu" capability.
@@ -294,12 +294,12 @@ func tmpfsVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig) api.Vol
 	return spec
 }
 
-func ulimitsFromCompose(ulimits map[string]*types.UlimitsConfig) []api.Ulimit {
+func ulimitsFromCompose(ulimits map[string]*types.UlimitsConfig) map[string]api.Ulimit {
 	if len(ulimits) == 0 {
 		return nil
 	}
 
-	var res []api.Ulimit
+	res := make(map[string]api.Ulimit, len(ulimits))
 	for name, u := range ulimits {
 		soft := u.Soft
 		hard := u.Hard
@@ -312,17 +312,11 @@ func ulimitsFromCompose(ulimits map[string]*types.UlimitsConfig) []api.Ulimit {
 			}
 		}
 
-		res = append(res, api.Ulimit{
-			Name: name,
+		res[name] = api.Ulimit{
 			Soft: int64(soft),
 			Hard: int64(hard),
-		})
+		}
 	}
-
-	// Sort by name to ensure deterministic order (map iteration is random).
-	slices.SortFunc(res, func(a, b api.Ulimit) int {
-		return slices.Compare([]byte(a.Name), []byte(b.Name))
-	})
 
 	return res
 }

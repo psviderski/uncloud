@@ -19,10 +19,11 @@ type ContainerResources struct {
 	MemoryReservation int64
 	// Device reservations/requests for access to things like GPUs
 	DeviceReservations []container.DeviceRequest
+	// Ulimits defines the resource limits for the container.
+	Ulimits map[string]Ulimit
 }
 
 type Ulimit struct {
-	Name string
 	Soft int64
 	Hard int64
 }

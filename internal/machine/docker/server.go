@@ -618,7 +618,7 @@ func (s *Server) CreateServiceContainer(
 			Memory:            spec.Container.Resources.Memory,
 			MemoryReservation: spec.Container.Resources.MemoryReservation,
 			DeviceRequests:    spec.Container.Resources.DeviceReservations,
-			Ulimits:           toDockerUlimits(spec.Container.Ulimits),
+			Ulimits:           toDockerUlimits(spec.Container.Resources.Ulimits),
 		},
 		// Restart service containers if they exit or a machine restarts unless they are explicitly stopped.
 		// For one-off containers and batch jobs we plan to use a different service type/mode.
@@ -879,15 +879,15 @@ func toDockerBindOptions(opts *api.BindOptions) *mount.BindOptions {
 	return dockerOpts
 }
 
-func toDockerUlimits(ulimits []api.Ulimit) []*units.Ulimit {
+func toDockerUlimits(ulimits map[string]api.Ulimit) []*units.Ulimit {
 	if len(ulimits) == 0 {
 		return nil
 	}
 
-	var dockerUlimits []*units.Ulimit
-	for _, u := range ulimits {
+	dockerUlimits := make([]*units.Ulimit, 0, len(ulimits))
+	for name, u := range ulimits {
 		dockerUlimits = append(dockerUlimits, &units.Ulimit{
-			Name: u.Name,
+			Name: name,
 			Soft: u.Soft,
 			Hard: u.Hard,
 		})
