@@ -63,6 +63,12 @@ type ServiceSpec struct {
 	Volumes []VolumeSpec
 	// Configs is list of configuration objects that can be mounted into the container.
 	Configs []ConfigSpec
+	// Labels are user-defined metadata applied to service containers (from service.labels in Compose).
+	// System labels (prefixed with "uncloud.") are managed separately and take precedence.
+	Labels map[string]string `json:",omitempty"`
+	// DeployLabels are service-level metadata (from deploy.labels in Compose).
+	// These can be updated without recreating containers.
+	DeployLabels map[string]string `json:",omitempty"`
 }
 
 // CaddyConfig returns the Caddy reverse proxy configuration for the service or an empty string if it's not defined.
@@ -217,6 +223,13 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 		for i, v := range s.Volumes {
 			spec.Volumes[i] = v.Clone()
 		}
+	}
+
+	if s.Labels != nil {
+		spec.Labels = maps.Clone(s.Labels)
+	}
+	if s.DeployLabels != nil {
+		spec.DeployLabels = maps.Clone(s.DeployLabels)
 	}
 
 	return spec

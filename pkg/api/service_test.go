@@ -206,6 +206,61 @@ func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 	}
 }
 
+func TestServiceSpec_Clone_Labels(t *testing.T) {
+	original := ServiceSpec{
+		Name: "test",
+		Container: ContainerSpec{
+			Image: "nginx:latest",
+		},
+		Labels: map[string]string{
+			"app":     "test",
+			"version": "1.0",
+		},
+		DeployLabels: map[string]string{
+			"deploy_id": "abc123",
+			"env":       "prod",
+		},
+	}
+
+	cloned := original.Clone()
+
+	// Verify the cloned values match the original
+	assert.Equal(t, original.Labels, cloned.Labels)
+	assert.Equal(t, original.DeployLabels, cloned.DeployLabels)
+
+	// Modify the original to verify deep copy
+	stringModified := "modified"
+	original.Labels["app"] = stringModified
+	original.Labels["new_key"] = "new_value"
+	original.DeployLabels["deploy_id"] = stringModified
+	original.DeployLabels["new_deploy_key"] = "new_value"
+
+	// Assert cloned values are unchanged
+	assert.Equal(t, "test", cloned.Labels["app"])
+	assert.Equal(t, "1.0", cloned.Labels["version"])
+	assert.NotContains(t, cloned.Labels, "new_key")
+	assert.Equal(t, "abc123", cloned.DeployLabels["deploy_id"])
+	assert.Equal(t, "prod", cloned.DeployLabels["env"])
+	assert.NotContains(t, cloned.DeployLabels, "new_deploy_key")
+}
+
+func TestServiceSpec_Clone_NilLabels(t *testing.T) {
+	original := ServiceSpec{
+		Name: "test",
+		Container: ContainerSpec{
+			Image: "nginx:latest",
+		},
+		Labels:       nil,
+		DeployLabels: nil,
+	}
+
+	cloned := original.Clone()
+
+	// Verify nil labels remain nil after cloning
+	assert.Nil(t, cloned.Labels)
+	assert.Nil(t, cloned.DeployLabels)
+}
+
 func TestContainerSpec_Clone(t *testing.T) {
 	mode := os.FileMode(0o644)
 	original := ContainerSpec{
