@@ -82,18 +82,20 @@ type ServerOptions struct {
 
 // NewServer creates a new Docker gRPC server with the provided Docker service.
 func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, machineID func() string, opts ServerOptions) *Server {
-	s := &Server{
-		client:        service.Client,
-		service:       service,
-		db:            db,
-		internalDNSIP: internalDNSIP,
-		machineID:     machineID,
+	return &Server{
+		client:              service.Client,
+		service:             service,
+		db:                  db,
+		internalDNSIP:       internalDNSIP,
+		machineID:           machineID,
+		networkReady:        opts.NetworkReady,
+		waitForNetworkReady: opts.WaitForNetworkReady,
 	}
+}
 
-	s.networkReady = opts.NetworkReady
-	s.waitForNetworkReady = opts.WaitForNetworkReady
-
-	// Best-effort rebuild of namespace isolation on startup.
+// Start begins background tasks for namespace isolation and migrations.
+// Must be called after NewServer, typically after the server is fully wired up.
+func (s *Server) Start() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -104,14 +106,20 @@ func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, m
 				return
 			}
 		}
+
+		// Migrate local Caddy containers from default to system namespace if needed.
+		// This is a one-time migration for existing deployments from pre-namespace versions.
+		if err := s.migrateLocalCaddyNamespace(ctx); err != nil {
+			slog.Warn("Failed to migrate local Caddy to system namespace.", "err", err)
+		}
+
+		// Reconcile namespace isolation rules after any migrations.
 		if err := s.reconcileNamespaceIsolation(ctx); err != nil {
 			slog.Warn("Failed to reconcile namespace isolation on startup.", "err", err)
 		} else {
 			slog.Debug("Namespace isolation reconciled successfully on startup.")
 		}
 	}()
-
-	return s
 }
 
 // CreateContainer creates a new container based on the given configuration.
@@ -744,14 +752,14 @@ func (s *Server) updateNamespaceIsolation(ctx context.Context, containerID strin
 		namespace = api.DefaultNamespace
 	}
 
-	if err := firewall.CreateNamespaceIPSet(namespace); err != nil {
+	if err := firewall.CreateNamespaceIPSet(ctx, namespace); err != nil {
 		return err
 	}
-	if err := firewall.AddIPToNamespace(ip, namespace); err != nil {
+	if err := firewall.AddIPToNamespace(ctx, ip, namespace); err != nil {
 		return err
 	}
 
-	namespaces, err := firewall.ListNamespaces()
+	namespaces, err := firewall.ListNamespaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -763,7 +771,7 @@ func (s *Server) cleanupNamespaceIsolation(ctx context.Context, containerID stri
 	inspect, err := s.client.ContainerInspect(ctx, containerID)
 	if err != nil {
 		// If the container is already gone, nothing to clean up.
-		if client.IsErrNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("inspect container: %w", err)
@@ -782,11 +790,11 @@ func (s *Server) cleanupNamespaceIsolation(ctx context.Context, containerID stri
 		}
 	}
 
-	if err := firewall.RemoveIPFromNamespace(ip, namespace); err != nil {
+	if err := firewall.RemoveIPFromNamespace(ctx, ip, namespace); err != nil {
 		return err
 	}
 
-	namespaces, err := firewall.ListNamespaces()
+	namespaces, err := firewall.ListNamespaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -811,13 +819,13 @@ func (s *Server) reconcileNamespaceIsolation(ctx context.Context) error {
 		if ns == "" {
 			ns = api.DefaultNamespace
 		}
-		if err := firewall.CreateNamespaceIPSet(ns); err != nil {
+		if err := firewall.CreateNamespaceIPSet(ctx, ns); err != nil {
 			return err
 		}
 		inspect, err := s.client.ContainerInspect(ctx, c.ID)
 		if err != nil {
 			// Skip missing containers; they may be exiting.
-			if client.IsErrNotFound(err) {
+			if errdefs.IsNotFound(err) {
 				continue
 			}
 			return fmt.Errorf("inspect container %s: %w", c.ID, err)
@@ -827,7 +835,7 @@ func (s *Server) reconcileNamespaceIsolation(ctx context.Context) error {
 		if !ip.IsValid() {
 			continue
 		}
-		if err := firewall.AddIPToNamespace(ip, ns); err != nil {
+		if err := firewall.AddIPToNamespace(ctx, ip, ns); err != nil {
 			return err
 		}
 		nsSet[ns] = struct{}{}

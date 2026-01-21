@@ -1,6 +1,7 @@
 package firewall
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 	"os/exec"
@@ -13,8 +14,8 @@ const ipsetBinary = "ipset"
 const IPSetPrefix = "uncloud-namespace-"
 
 // CreateNamespaceIPSet ensures an ipset exists for the given namespace.
-func CreateNamespaceIPSet(namespace string) error {
-	cmd := exec.Command(ipsetBinary, "create", IPSetPrefix+namespace, "hash:ip", "family", "inet", "-exist")
+func CreateNamespaceIPSet(ctx context.Context, namespace string) error {
+	cmd := exec.CommandContext(ctx, ipsetBinary, "create", IPSetPrefix+namespace, "hash:ip", "family", "inet", "-exist")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("create ipset %s: %v: %s", namespace, err, strings.TrimSpace(string(out)))
 	}
@@ -22,8 +23,8 @@ func CreateNamespaceIPSet(namespace string) error {
 }
 
 // AddIPToNamespace adds an IP to the namespace ipset.
-func AddIPToNamespace(ip netip.Addr, namespace string) error {
-	cmd := exec.Command(ipsetBinary, "add", IPSetPrefix+namespace, ip.String(), "-exist")
+func AddIPToNamespace(ctx context.Context, ip netip.Addr, namespace string) error {
+	cmd := exec.CommandContext(ctx, ipsetBinary, "add", IPSetPrefix+namespace, ip.String(), "-exist")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("add ip %s to namespace %s: %v: %s", ip, namespace, err, strings.TrimSpace(string(out)))
 	}
@@ -31,8 +32,8 @@ func AddIPToNamespace(ip netip.Addr, namespace string) error {
 }
 
 // RemoveIPFromNamespace removes an IP from the namespace ipset.
-func RemoveIPFromNamespace(ip netip.Addr, namespace string) error {
-	cmd := exec.Command(ipsetBinary, "del", IPSetPrefix+namespace, ip.String(), "-exist")
+func RemoveIPFromNamespace(ctx context.Context, ip netip.Addr, namespace string) error {
+	cmd := exec.CommandContext(ctx, ipsetBinary, "del", IPSetPrefix+namespace, ip.String(), "-exist")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("remove ip %s from namespace %s: %v: %s", ip, namespace, err, strings.TrimSpace(string(out)))
 	}
@@ -40,8 +41,8 @@ func RemoveIPFromNamespace(ip netip.Addr, namespace string) error {
 }
 
 // ListNamespaces returns the namespaces for which ipsets exist.
-func ListNamespaces() ([]string, error) {
-	cmd := exec.Command(ipsetBinary, "list", "-name")
+func ListNamespaces(ctx context.Context) ([]string, error) {
+	cmd := exec.CommandContext(ctx, ipsetBinary, "list", "-name")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("list ipsets: %v: %s", err, strings.TrimSpace(string(out)))
