@@ -335,10 +335,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	}
 	if s.Healthcheck != nil {
 		hc := *s.Healthcheck
-		if s.Healthcheck.Test != nil {
-			hc.Test = make([]string, len(s.Healthcheck.Test))
-			copy(hc.Test, s.Healthcheck.Test)
-		}
+		hc.Test = slices.Clone(s.Healthcheck.Test)
 		spec.Healthcheck = &hc
 	}
 	if s.LogDriver != nil {

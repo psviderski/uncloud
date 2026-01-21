@@ -75,22 +75,22 @@ func (p *Plan) OperationCount() int {
 // getDependentCondition returns the strictest condition any dependent service requires.
 // Priority: service_completed_successfully > service_healthy > service_started
 func (p *Plan) getDependentCondition(serviceName string) string {
-	condition := ""
+	strictest := ""
 	for _, svc := range p.project.Services {
-		if dep, ok := svc.DependsOn[serviceName]; ok {
-			switch dep.Condition {
-			case types.ServiceConditionCompletedSuccessfully:
-				return types.ServiceConditionCompletedSuccessfully
-			case types.ServiceConditionHealthy:
-				condition = types.ServiceConditionHealthy
-			case types.ServiceConditionStarted, "":
-				if condition == "" {
-					condition = types.ServiceConditionStarted
-				}
-			}
+		dep, ok := svc.DependsOn[serviceName]
+		if !ok {
+			continue
 		}
+		switch dep.Condition {
+		case types.ServiceConditionCompletedSuccessfully:
+			// Highest priority - return immediately.
+			return types.ServiceConditionCompletedSuccessfully
+		case types.ServiceConditionHealthy:
+			strictest = types.ServiceConditionHealthy
+		}
+		// service_started and empty string require no waiting, so we ignore them.
 	}
-	return condition
+	return strictest
 }
 
 // waitForCondition waits for the service to reach the required condition.
@@ -122,15 +122,7 @@ func (p *Plan) waitForServiceHealthy(ctx context.Context, serviceName string) er
 			return fmt.Errorf("inspect service '%s': %w", serviceName, err)
 		}
 
-		allHealthy := true
-		for _, mc := range service.Containers {
-			if !mc.Container.Healthy() {
-				allHealthy = false
-				break
-			}
-		}
-
-		if allHealthy && len(service.Containers) > 0 {
+		if allContainersHealthy(service.Containers) {
 			return nil
 		}
 
@@ -142,9 +134,21 @@ func (p *Plan) waitForServiceHealthy(ctx context.Context, serviceName string) er
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			// Continue polling
 		}
 	}
+}
+
+// allContainersHealthy returns true if all containers in the list are healthy.
+func allContainersHealthy(containers []api.MachineServiceContainer) bool {
+	if len(containers) == 0 {
+		return false
+	}
+	for _, mc := range containers {
+		if !mc.Container.Healthy() {
+			return false
+		}
+	}
+	return true
 }
 
 type Deployment struct {

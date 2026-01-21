@@ -128,14 +128,9 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 // healthcheckFromCompose converts a compose HealthCheckConfig to api.HealthcheckConfig.
 func healthcheckFromCompose(hc *types.HealthCheckConfig) *api.HealthcheckConfig {
-	if hc == nil {
-		return nil
-	}
-
 	config := &api.HealthcheckConfig{
 		Test: hc.Test,
 	}
-
 	if hc.Interval != nil {
 		config.Interval = time.Duration(*hc.Interval)
 	}
@@ -148,7 +143,6 @@ func healthcheckFromCompose(hc *types.HealthCheckConfig) *api.HealthcheckConfig 
 	if hc.StartPeriod != nil {
 		config.StartPeriod = time.Duration(*hc.StartPeriod)
 	}
-
 	return config
 }
 
