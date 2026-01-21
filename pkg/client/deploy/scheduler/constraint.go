@@ -65,12 +65,9 @@ type PlacementConstraint struct {
 }
 
 func (c *PlacementConstraint) Evaluate(machine *Machine) bool {
-	for _, nameOrID := range c.Machines {
-		if machine.Info.Id == nameOrID || machine.Info.Name == nameOrID {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(c.Machines, func(nameOrID string) bool {
+		return machine.Info.Id == nameOrID || machine.Info.Name == nameOrID
+	})
 }
 
 func (c *PlacementConstraint) Description() string {
@@ -85,52 +82,52 @@ type VolumesConstraint struct {
 }
 
 // Evaluate determines if a machine has all the required volumes.
-// Returns true if all required volumes exist or scheduled on the machine or if there are no required volumes.
+// Returns true if all required volumes exist or are scheduled on the machine, or if there are no required volumes.
 func (c *VolumesConstraint) Evaluate(machine *Machine) bool {
-	if len(c.Volumes) == 0 {
-		return true
-	}
-
 	for _, v := range c.Volumes {
 		if v.Type != api.VolumeTypeVolume {
 			continue
 		}
-
-		// Check if the required volume already exists on the machine.
-		if slices.ContainsFunc(machine.Volumes, func(vol volume.Volume) bool {
-			if v.DockerVolumeName() == vol.Name {
-				return v.MatchesDockerVolume(vol)
-			}
-			return false
-		}) {
-			continue
-		}
-
-		// Check if the required volume has been scheduled on the machine. The driver names and options must match.
-		if !slices.ContainsFunc(machine.ScheduledVolumes, func(scheduled api.VolumeSpec) bool {
-			if v.DockerVolumeName() != scheduled.DockerVolumeName() {
-				return false
-			}
-
-			// The volume spec with an empty driver can mount the volume that matches the name no matter the driver.
-			if v.VolumeOptions.Driver == nil {
-				return true
-			}
-
-			// If the driver is specified in the spec, the spec's driver and options must match the volume's driver
-			// and options to successfully mount the volume.
-			scheduled = scheduled.SetDefaults()
-			scheduledDriver := scheduled.VolumeOptions.Driver
-			if scheduledDriver == nil {
-				scheduledDriver = &mount.Driver{Name: api.VolumeDriverLocal}
-			}
-			return reflect.DeepEqual(v.VolumeOptions.Driver, scheduledDriver)
-		}) {
+		if !c.volumeExistsOrScheduled(v, machine) {
 			return false
 		}
 	}
-
 	return true
+}
+
+// volumeExistsOrScheduled checks if a required volume exists or is scheduled on the machine.
+func (c *VolumesConstraint) volumeExistsOrScheduled(v api.VolumeSpec, machine *Machine) bool {
+	// Check if the required volume already exists on the machine.
+	if slices.ContainsFunc(machine.Volumes, func(vol volume.Volume) bool {
+		return v.DockerVolumeName() == vol.Name && v.MatchesDockerVolume(vol)
+	}) {
+		return true
+	}
+
+	// Check if the required volume has been scheduled on the machine.
+	return slices.ContainsFunc(machine.ScheduledVolumes, func(scheduled api.VolumeSpec) bool {
+		return c.scheduledVolumeMatches(v, scheduled)
+	})
+}
+
+// scheduledVolumeMatches checks if a scheduled volume matches the required volume spec.
+func (c *VolumesConstraint) scheduledVolumeMatches(required, scheduled api.VolumeSpec) bool {
+	if required.DockerVolumeName() != scheduled.DockerVolumeName() {
+		return false
+	}
+
+	// A volume spec with no driver specified can mount any volume that matches by name.
+	if required.VolumeOptions == nil || required.VolumeOptions.Driver == nil {
+		return true
+	}
+
+	// If a driver is specified, the driver and options must match for the mount to succeed.
+	scheduled = scheduled.SetDefaults()
+	scheduledDriver := scheduled.VolumeOptions.Driver
+	if scheduledDriver == nil {
+		scheduledDriver = &mount.Driver{Name: api.VolumeDriverLocal}
+	}
+	return reflect.DeepEqual(required.VolumeOptions.Driver, scheduledDriver)
 }
 
 func (c *VolumesConstraint) Description() string {

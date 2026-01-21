@@ -186,6 +186,7 @@ func (h *machineHeap) Pop() any {
 	old := h.machines
 	n := len(old)
 	m := old[n-1]
-	h.machines = old[0 : n-1]
+	old[n-1] = nil
+	h.machines = old[:n-1]
 	return m
 }

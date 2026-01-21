@@ -66,7 +66,7 @@ func NewRunCommand(groupID string) *cobra.Command {
 		"Maximum number of CPU cores a service container can use. Fractional values are allowed: "+
 			"0.5 for half a core or 2.25 for two and a quarter cores.")
 	cmd.Flags().Var(&opts.cpuReservation, "reserve-cpu",
-		"Minimum CPU cores to reserve for placement (nanocores). Fractional values are allowed, e.g. 0.5 for half a core.")
+		"Minimum CPU cores to reserve for placement. Fractional values are allowed, e.g. 0.5 for half a core.")
 	cmd.Flags().StringVar(&opts.entrypoint, "entrypoint", "",
 		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it.")
 	cmd.Flags().StringSliceVarP(&opts.env, "env", "e", nil,

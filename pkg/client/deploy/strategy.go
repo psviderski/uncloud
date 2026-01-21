@@ -66,7 +66,6 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 
 	// Organise existing containers by machine.
 	containersOnMachine := make(map[string][]api.ServiceContainer)
-	upToDateContainersOnMachine := make(map[string]int)
 	containerSpecStatuses := make(map[string]ContainerSpecStatus)
 	if svc != nil {
 		for _, c := range svc.Containers {
@@ -82,10 +81,6 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 				status = EvalContainerSpecChange(c.Container.ServiceSpec, spec)
 			}
 			containerSpecStatuses[c.Container.ID] = status
-
-			if status == ContainerUpToDate {
-				upToDateContainersOnMachine[c.MachineID] += 1
-			}
 		}
 
 		// Sort containers such that running containers with the desired spec are first.
