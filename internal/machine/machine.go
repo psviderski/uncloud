@@ -33,10 +33,12 @@ import (
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
+	"golang.zx2c4.com/wireguard/wgctrl"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -174,10 +176,13 @@ type Machine struct {
 	state  *State
 	// started is closed when the machine is ready to serve requests on the local API server.
 	started chan struct{}
-	// initialised is signalled when the machine is configured as a member of a cluster.
+	// initialised is closed when the machine is configured as a member of a cluster.
 	initialised chan struct{}
-	// networkReady is signalled when the Docker network is configured and ready for containers.
+	// networkReady is closed when the Docker network is configured and ready for containers.
 	networkReady chan struct{}
+	// clusterReady is closed when the cluster controller has finished starting all components
+	// and the machine is ready to serve cluster requests.
+	clusterReady chan struct{}
 	// resetting is true when the machine is being reset.
 	resetting bool
 	// stop cancels the Run method context to stop the machine gracefully.
@@ -246,7 +251,10 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion admin client: %w", err)
 	}
-	c := cluster.NewCluster(corroStore, corroAdmin)
+
+	initialised := make(chan struct{})
+	clusterReady := make(chan struct{})
+	c := cluster.NewCluster(corroStore, corroAdmin, initialised, clusterReady)
 
 	// Init dependencies for a gRPC Docker server that proxies requests to the local Docker daemon.
 	dbFilePath := filepath.Join(config.DataDir, DBFileName)
@@ -269,8 +277,9 @@ func NewMachine(config *Config) (*Machine, error) {
 		config:           *config,
 		state:            state,
 		started:          make(chan struct{}),
-		initialised:      make(chan struct{}, 1),
+		initialised:      initialised,
 		networkReady:     make(chan struct{}),
+		clusterReady:     clusterReady,
 		store:            corroStore,
 		cluster:          c,
 		dockerService:    dockerService,
@@ -294,7 +303,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	m.localMachineServer = newGRPCServer(m, c, m.dockerServer, caddyServer)
 
 	if m.Initialised() {
-		m.initialised <- struct{}{}
+		close(m.initialised)
 	}
 
 	return m, nil
@@ -475,6 +484,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.config.CorrosionService,
 				m.dockerService,
 				m.networkReady,
+				m.clusterReady,
 				caddyconfigCtrl,
 				dnsServer,
 				dnsResolver,
@@ -722,7 +732,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		addReq.PublicIp = pb.NewIP(publicIP)
 	}
 
-	addResp, err := m.cluster.AddMachine(ctx, addReq)
+	addResp, err := m.cluster.AddMachineWithoutReadyCheck(ctx, addReq)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "add machine to cluster: %v", err)
 	}
@@ -749,7 +759,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	}
 	slog.Info("Cluster initialised with machine.", "id", m.state.ID, "machine", m.state.Name)
 	// Signal that the machine is initialised as a member of a cluster.
-	m.initialised <- struct{}{}
+	close(m.initialised)
 
 	resp := &pb.InitClusterResponse{
 		Machine: addResp.Machine,
@@ -792,6 +802,7 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		PrivateKey:   m.state.Network.PrivateKey,
 		PublicKey:    m.state.Network.PublicKey,
 	}
+	m.state.MinStoreDBVersion = req.MinStoreDbVersion
 
 	// Build a peers config from other cluster machines.
 	m.state.Network.Peers = make([]network.PeerConfig, 0, len(req.OtherMachines))
@@ -830,7 +841,7 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		"peers", len(m.state.Network.Peers),
 	)
 	// Signal that the machine is initialised as a member of a cluster.
-	m.initialised <- struct{}{}
+	close(m.initialised)
 
 	return &emptypb.Empty{}, nil
 }
@@ -864,6 +875,7 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 	return &pb.TokenResponse{Token: tokenStr}, nil
 }
 
+// Deprecated: use InspectMachine instead.
 func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
 	return &pb.MachineInfo{
 		Id:   m.state.ID,
@@ -872,6 +884,31 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 			Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
 			ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
 			PublicKey:    m.state.Network.PublicKey,
+		},
+	}, nil
+}
+
+func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.InspectMachineResponse, error) {
+	dbVersion, err := m.store.DBVersion(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get database version of the cluster store: %v", err)
+	}
+
+	return &pb.InspectMachineResponse{
+		Machines: []*pb.MachineDetails{
+			{
+				// Metadata is injected by the gRPC proxy.
+				Machine: &pb.MachineInfo{
+					Id:   m.state.ID,
+					Name: m.state.Name,
+					Network: &pb.NetworkConfig{
+						Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
+						ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
+						PublicKey:    m.state.Network.PublicKey,
+					},
+				},
+				StoreDbVersion: dbVersion,
+			},
 		},
 	}, nil
 }
@@ -907,6 +944,58 @@ func (m *Machine) WaitForNetworkReady(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
+func (m *Machine) InspectWireGuardNetwork(
+	_ context.Context, _ *emptypb.Empty,
+) (*pb.InspectWireGuardNetworkResponse, error) {
+	deviceName := network.WireGuardInterfaceName
+
+	wg, err := wgctrl.New()
+	if err != nil {
+		return nil, fmt.Errorf("create WireGuard client: %w", err)
+	}
+	defer wg.Close()
+
+	dev, err := wg.Device(deviceName)
+	if err != nil {
+		return nil, fmt.Errorf("get WireGuard device '%s': %w", deviceName, err)
+	}
+
+	peers := make([]*pb.WireGuardPeer, len(dev.Peers))
+	for i, p := range dev.Peers {
+		var lastHandshake *timestamppb.Timestamp
+		if !p.LastHandshakeTime.IsZero() {
+			lastHandshake = timestamppb.New(p.LastHandshakeTime)
+		}
+
+		allowedIPs := make([]string, len(p.AllowedIPs))
+		for j, ip := range p.AllowedIPs {
+			allowedIPs[j] = ip.String()
+		}
+
+		var endpoint string
+		if p.Endpoint != nil {
+			endpoint = p.Endpoint.String()
+		}
+
+		peers[i] = &pb.WireGuardPeer{
+			PublicKey:         p.PublicKey[:],
+			Endpoint:          endpoint,
+			LastHandshakeTime: lastHandshake,
+			ReceiveBytes:      p.ReceiveBytes,
+			TransmitBytes:     p.TransmitBytes,
+			AllowedIps:        allowedIPs,
+		}
+	}
+
+	return &pb.InspectWireGuardNetworkResponse{
+		InterfaceName: dev.Name,
+		PublicKey:     dev.PublicKey[:],
+		ListenPort:    int32(dev.ListenPort),
+		Peers:         peers,
+	}, nil
 }
 
 // Reset restores the machine to a clean state, scheduling a graceful shutdown and removing all cluster-related

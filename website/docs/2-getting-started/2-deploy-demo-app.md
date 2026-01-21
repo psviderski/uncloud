@@ -4,6 +4,14 @@ In this guide, we'll deploy [Excalidraw](https://excalidraw.com) — a popular s
 Linux server. You'll learn the **basics of Uncloud** and see how simple it is to **run web apps** on your own
 infrastructure with secure internet access.
 
+:::info NOTE
+To give you a chance to play with Uncloud without even leaving your browser or needing your own servers, we're providing interactive tutorials and playgrounds on the [iximiuz Labs](https://labs.iximiuz.com/) platform.
+
+You can follow [this tutorial](https://labs.iximiuz.com/tutorials/uncloud-create-cluster-ebebf72b) which walks you through creating a new cluster with two machines and then deploying a simple web service to it.
+
+You can also launch the [Uncloud playground](https://labs.iximiuz.com/playgrounds/uncloud-cluster-64523f7c) where you can play with an already initialized Uncloud cluster.
+:::
+
 ## Prerequisites
 
 Before you begin, you'll need:
@@ -45,7 +53,7 @@ This command will:
 - Install the Uncloud daemon on your server
 - Create a Docker network for Uncloud-managed containers
 - Deploy [Caddy](https://caddyserver.com/) as your reverse proxy listening on host ports 80 and 443
-- Reserve a free `xxxxxx.cluster.uncloud.run` subdomain via the Uncloud managed DNS service and point it to your
+- Reserve a free `xxxxxx.uncld.dev` subdomain via the Uncloud managed DNS service and point it to your
   server's IP
 
 All in about a minute!
@@ -144,7 +152,7 @@ Cluster initialised with machine 'machine-dc3c' and saved as context 'default' i
 Current cluster context is now 'default'.
 Waiting for the machine to be ready...
 
-Reserved cluster domain: 7za6s7.cluster.uncloud.run
+Reserved cluster domain: 7za6s7.uncld.dev
 [+] Deploying service caddy 7/2
  ✔ Container caddy-d7uk on machine-dc3c     Started                                            6.1s
    ✔ Image caddy:2.10.0 on machine-dc3c       Pulled                                           3.7s
@@ -154,7 +162,7 @@ Updating cluster domain records in Uncloud DNS to point to machines running cadd
  ✔ Machine machine-dc3c (157.180.72.195)  Reachable                                            0.7s
 
 DNS records updated to use only the internet-reachable machines running caddy service:
-  *.7za6s7.cluster.uncloud.run  A → 157.180.72.195
+  *.7za6s7.uncld.dev  A → 157.180.72.195
 ```
 
 </details>
@@ -177,7 +185,7 @@ You'll see the progress of the deployment and the public URL where you can acces
    ✔ Image excalidraw/excalidraw on machine-dc3c  Pulled                    4.7s
 
 excalidraw endpoints:
- • https://excalidraw.7za6s7.cluster.uncloud.run → :80
+ • https://excalidraw.7za6s7.uncld.dev → :80
 ```
 
 ## Verify your deployment
@@ -209,7 +217,7 @@ uc ls
 ```
 NAME         MODE         REPLICAS   ENDPOINTS
 caddy        global       1
-excalidraw   replicated   1          https://excalidraw.7za6s7.cluster.uncloud.run → :80
+excalidraw   replicated   1          https://excalidraw.7za6s7.uncld.dev → :80
 ```
 
 You can see `caddy` service listed here. That's your reverse proxy, running as a regular Uncloud service.
@@ -266,15 +274,15 @@ We've successfully converted our deployment created with `uc run` to a Compose f
 
 ## Use your own domain
 
-Want to use your own domain, for example, `excalidraw.example.com` instead of `excalidraw.7za6s7.cluster.uncloud.run`?
+Want to use your own domain, for example, `excalidraw.example.com` instead of `excalidraw.7za6s7.uncld.dev`?
 
 Add a CNAME record `excalidraw.example.com` in your DNS provider (Cloudflare, Namecheap, etc.) pointing to
-`excalidraw.7za6s7.cluster.uncloud.run`. Alternatively, you can add an A record pointing to your server's IP.
+`excalidraw.7za6s7.uncld.dev`. Alternatively, you can add an A record pointing to your server's IP.
 
 :::info note
 
 These instructions set up your own domain **in addition to** the Uncloud managed DNS name
-`excalidraw.7za6s7.cluster.uncloud.run`.
+`excalidraw.7za6s7.uncld.dev`.
 
 If you want to avoid the managed service altogether, add `--no-dns` to your `uc machine init` command, and point an A
 DNS record to your server(s)'s IP(s).

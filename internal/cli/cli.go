@@ -162,6 +162,7 @@ type InitClusterOptions struct {
 	RemoteMachine *RemoteMachine
 	SkipInstall   bool
 	Version       string
+	AutoConfirm   bool
 }
 
 // InitCluster initialises a new cluster on a remote machine and returns a client to interact with the cluster.
@@ -171,7 +172,7 @@ func (cli *CLI) InitCluster(ctx context.Context, opts InitClusterOptions) (*clie
 		return cli.initRemoteMachine(ctx, opts)
 	}
 	// TODO: implement local machine initialisation
-	return nil, fmt.Errorf("local machine initialisation is not implemented yet")
+	return nil, fmt.Errorf("local machine initialisation is not implemented yet. Please specify a remote machine")
 }
 
 func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) (*client.Client, error) {
@@ -197,7 +198,12 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		return nil, fmt.Errorf("inspect machine: %w", err)
 	}
 	if minfo.Id != "" {
-		if err = promptResetMachine(ctx, machineClient.MachineClient); err != nil {
+		if !opts.AutoConfirm {
+			if err = promptResetMachine(); err != nil {
+				return nil, err
+			}
+		}
+		if err = resetAndWaitMachine(ctx, machineClient.MachineClient); err != nil {
 			return nil, err
 		}
 	}
@@ -246,9 +252,17 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		MachineID:  resp.Machine.Id,
 	}
 	if opts.RemoteMachine.UseSSHCLI {
-		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSHCLI = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	} else {
-		connCfg.SSH = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSH = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {
@@ -289,6 +303,7 @@ type AddMachineOptions struct {
 	RemoteMachine *RemoteMachine
 	SkipInstall   bool
 	Version       string
+	AutoConfirm   bool
 }
 
 // AddMachine provisions a remote machine and adds it to the cluster. It returns a cluster client and a machine client.
@@ -318,6 +333,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	}()
 
 	// Check if the machine is already initialised as a cluster member and prompt the user to reset it first.
+	// TODO: refactor to use client.InspectMachine.
 	minfo, err := machineClient.Inspect(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("inspect machine: %w", err)
@@ -334,7 +350,12 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 			return nil, nil, fmt.Errorf("machine is already a member of this cluster (%s)", minfo.Name)
 		}
 
-		if err = promptResetMachine(ctx, machineClient.MachineClient); err != nil {
+		if !opts.AutoConfirm {
+			if err = promptResetMachine(); err != nil {
+				return nil, nil, err
+			}
+		}
+		if err = resetAndWaitMachine(ctx, machineClient.MachineClient); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -385,6 +406,18 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		return nil, nil, fmt.Errorf("add machine to cluster (context '%s'): %w", contextName, err)
 	}
 
+	// Get the current store DB version from the cluster to pass to the join request.
+	var storeDBVersion int64
+	inspectResp, err := c.MachineClient.InspectMachine(ctx, &emptypb.Empty{})
+	if err != nil {
+		// TODO(lhf): remove Unimplemented check when v0.17.0 is released.
+		if status.Convert(err).Code() != codes.Unimplemented {
+			return nil, nil, fmt.Errorf("inspect current cluster machine: %w", err)
+		}
+	} else {
+		storeDBVersion = inspectResp.Machines[0].StoreDbVersion
+	}
+
 	// Get the most up-to-date list of other machines in the cluster to include them in the join request.
 	machines, err := c.ListMachines(ctx, nil)
 	if err != nil {
@@ -399,8 +432,9 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 
 	// Configure the remote machine to join the cluster.
 	joinReq := &pb.JoinClusterRequest{
-		Machine:       addResp.Machine,
-		OtherMachines: otherMachines,
+		Machine:           addResp.Machine,
+		OtherMachines:     otherMachines,
+		MinStoreDbVersion: storeDBVersion,
 	}
 	if _, err = machineClient.JoinCluster(ctx, joinReq); err != nil {
 		return nil, nil, fmt.Errorf("join cluster: %w", err)
@@ -415,9 +449,17 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		MachineID:  addResp.Machine.Id,
 	}
 	if opts.RemoteMachine.UseSSHCLI {
-		connCfg.SSHCLI = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSHCLI = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	} else {
-		connCfg.SSH = config.NewSSHDestination(opts.RemoteMachine.User, opts.RemoteMachine.Host, opts.RemoteMachine.Port)
+		connCfg.SSH = config.NewSSHDestination(
+			opts.RemoteMachine.User,
+			opts.RemoteMachine.Host,
+			opts.RemoteMachine.Port,
+		)
 	}
 	cli.Config.Contexts[contextName].Connections = append(cli.Config.Contexts[contextName].Connections, connCfg)
 	if err = cli.Config.Save(); err != nil {

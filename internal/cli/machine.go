@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -86,7 +87,13 @@ func provisionMachine(ctx context.Context, exec sshexec.Executor, version string
 	return nil
 }
 
-func promptResetMachine(ctx context.Context, machineClient pb.MachineClient) error {
+func promptResetMachine() error {
+	if !IsStdinTerminal() {
+		return errors.New("the remote machine is already initialised as a cluster member; " +
+			"cannot ask to confirm reset in non-interactive mode, " +
+			"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
+	}
+
 	var confirm bool
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -110,10 +117,15 @@ func promptResetMachine(ctx context.Context, machineClient pb.MachineClient) err
 		return fmt.Errorf("remote machine is already initialised as a cluster member")
 	}
 
+	return nil
+}
+
+func resetAndWaitMachine(ctx context.Context, machineClient pb.MachineClient) error {
 	if _, err := machineClient.Reset(ctx, &pb.ResetRequest{}); err != nil {
 		return fmt.Errorf("reset remote machine: %w. You can also manually run 'uncloud-uninstall' "+
 			"on the remote machine to fully uninstall Uncloud from it", err)
 	}
+
 	fmt.Println("Resetting the remote machine...")
 	if err := waitMachineReady(ctx, machineClient, 1*time.Minute); err != nil {
 		return fmt.Errorf("wait for machine to be ready after reset: %w", err)

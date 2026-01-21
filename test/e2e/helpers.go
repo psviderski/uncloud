@@ -71,7 +71,6 @@ func readFileInfoInContainer(t *testing.T, cli *client.Client, serviceNameOrID, 
 
 	// Parse permissions
 	permissions := strings.TrimSpace(permOutput)
-	fmt.Printf("Permissions output: %s\n", permissions)
 
 	// Parse three numbers: permissions, uid, gid
 	var permissionsOctal, uid, gid int

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./website/landing/images/logo-title.svg#gh-light-mode-only" alt="Uncloud logo"/>
   <img src="./website/landing/images/logo-title-dark.svg#gh-dark-mode-only" alt="Uncloud logo"/>
-  <p><strong>▸ Docker simplicity. Multi-machine power ◂</strong></p>
+  <p><strong>▸ Deploy and scale containerised apps across servers without Swarm or Kubernetes overhead ◂</strong></p>
 
   <p>
     <a href="https://uncloud.run/docs"><img src="https://img.shields.io/badge/Docs-blue.svg?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
@@ -42,7 +42,7 @@ complexity of Kubernetes.
 * **No control plane**: Fully decentralised design eliminates single points of failure and reduces operational overhead.
 * **Imperative over declarative**: Favoring imperative operations over state reconciliation simplifies both the mental
   model and troubleshooting.
-* **Managed DNS**: Automatic DNS records `*.<id>.cluster.uncloud.run` for services with public access via managed
+* **Managed DNS**: Automatic DNS records `*.xxxxxx.uncld.dev` for services with public access via managed
   [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service.
 * **Automatic HTTPS**: Built-in Caddy reverse proxy handles TLS certificate provisioning and renewal using Let's
   Encrypt.
@@ -282,6 +282,16 @@ sync that lets machines work together. Want to check on things or make changes? 
 using the CLI or directly over SSH. They all have the complete cluster state and can control everything. It's like each
 machine is a full backup of your control plane.
 </details>
+
+## 🧪 Interactive tutorials
+
+To give you a chance to play with Uncloud without even leaving your browser, we're providing interactive tutorials and playgrounds on the [iximiuz Labs](https://labs.iximiuz.com/) platform.
+
+Available tutorials:
+
+1. [Setting up a new Uncloud cluster](https://labs.iximiuz.com/tutorials/uncloud-create-cluster-ebebf72b) - the tutorial walks you through creating a new cluster with two machines and then deploying a simple web service to it.
+
+You can also launch the [Uncloud playground](https://labs.iximiuz.com/playgrounds/uncloud-cluster-64523f7c) where you can play with an already initialized Uncloud cluster.
 
 ## 🏗 Project status
 

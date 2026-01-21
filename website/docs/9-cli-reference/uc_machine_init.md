@@ -12,7 +12,7 @@ Connection methods:
   ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)
 
 ```
-uc machine init [USER@HOST:PORT] [flags]
+uc machine init [schema://]USER@HOST[:PORT] [flags]
 ```
 
 ## Examples
@@ -27,7 +27,7 @@ uc machine init [USER@HOST:PORT] [flags]
   # Initialise with a non-root user and custom SSH port and key.
   uc machine init ubuntu@<your-server-ip>:2222 -i ~/.ssh/mykey
 
-  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.cluster.uncloud.run).
+  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.uncld.dev).
   # You can deploy Caddy with 'uc caddy deploy' and reserve a domain with 'uc dns reserve' later.
   uc machine init root@<your-server-ip> --no-caddy --no-dns
 ```
@@ -46,17 +46,19 @@ uc machine init [USER@HOST:PORT] [flags]
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
       --version string        Version of the Uncloud daemon to install on the machine. (default "latest")
+  -y, --yes                   Auto-confirm prompts (e.g., resetting an already initialised machine).
+                              Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
 
 ## Options inherited from parent commands
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 
 ## See also
 
-* [uc machine](uc_machine.md)	 - Manage machines in an Uncloud cluster.
+* [uc machine](uc_machine.md)	 - Manage machines in the cluster.
 

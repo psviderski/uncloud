@@ -20,13 +20,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Machine_CheckPrerequisites_FullMethodName = "/api.Machine/CheckPrerequisites"
-	Machine_InitCluster_FullMethodName        = "/api.Machine/InitCluster"
-	Machine_JoinCluster_FullMethodName        = "/api.Machine/JoinCluster"
-	Machine_Token_FullMethodName              = "/api.Machine/Token"
-	Machine_Inspect_FullMethodName            = "/api.Machine/Inspect"
-	Machine_Reset_FullMethodName              = "/api.Machine/Reset"
-	Machine_InspectService_FullMethodName     = "/api.Machine/InspectService"
+	Machine_CheckPrerequisites_FullMethodName      = "/api.Machine/CheckPrerequisites"
+	Machine_InitCluster_FullMethodName             = "/api.Machine/InitCluster"
+	Machine_JoinCluster_FullMethodName             = "/api.Machine/JoinCluster"
+	Machine_Token_FullMethodName                   = "/api.Machine/Token"
+	Machine_Inspect_FullMethodName                 = "/api.Machine/Inspect"
+	Machine_InspectMachine_FullMethodName          = "/api.Machine/InspectMachine"
+	Machine_InspectWireGuardNetwork_FullMethodName = "/api.Machine/InspectWireGuardNetwork"
+	Machine_Reset_FullMethodName                   = "/api.Machine/Reset"
+	Machine_InspectService_FullMethodName          = "/api.Machine/InspectService"
 )
 
 // MachineClient is the client API for Machine service.
@@ -38,7 +40,12 @@ type MachineClient interface {
 	InitCluster(ctx context.Context, in *InitClusterRequest, opts ...grpc.CallOption) (*InitClusterResponse, error)
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error)
+	// Deprecated: use InspectMachine instead.
 	Inspect(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MachineInfo, error)
+	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
+	InspectMachine(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectMachineResponse, error)
+	// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
+	InspectWireGuardNetwork(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectWireGuardNetworkResponse, error)
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
@@ -102,6 +109,26 @@ func (c *machineClient) Inspect(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
+func (c *machineClient) InspectMachine(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectMachineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InspectMachineResponse)
+	err := c.cc.Invoke(ctx, Machine_InspectMachine_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *machineClient) InspectWireGuardNetwork(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectWireGuardNetworkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InspectWireGuardNetworkResponse)
+	err := c.cc.Invoke(ctx, Machine_InspectWireGuardNetwork_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *machineClient) Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -131,7 +158,12 @@ type MachineServer interface {
 	InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error)
 	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
 	Token(context.Context, *emptypb.Empty) (*TokenResponse, error)
+	// Deprecated: use InspectMachine instead.
 	Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error)
+	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
+	InspectMachine(context.Context, *emptypb.Empty) (*InspectMachineResponse, error)
+	// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
+	InspectWireGuardNetwork(context.Context, *emptypb.Empty) (*InspectWireGuardNetworkResponse, error)
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(context.Context, *ResetRequest) (*emptypb.Empty, error)
 	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
@@ -159,6 +191,12 @@ func (UnimplementedMachineServer) Token(context.Context, *emptypb.Empty) (*Token
 }
 func (UnimplementedMachineServer) Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Inspect not implemented")
+}
+func (UnimplementedMachineServer) InspectMachine(context.Context, *emptypb.Empty) (*InspectMachineResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectMachine not implemented")
+}
+func (UnimplementedMachineServer) InspectWireGuardNetwork(context.Context, *emptypb.Empty) (*InspectWireGuardNetworkResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectWireGuardNetwork not implemented")
 }
 func (UnimplementedMachineServer) Reset(context.Context, *ResetRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Reset not implemented")
@@ -277,6 +315,42 @@ func _Machine_Inspect_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_InspectMachine_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).InspectMachine(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_InspectMachine_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).InspectMachine(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Machine_InspectWireGuardNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).InspectWireGuardNetwork(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_InspectWireGuardNetwork_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).InspectWireGuardNetwork(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Machine_Reset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResetRequest)
 	if err := dec(in); err != nil {
@@ -339,6 +413,14 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Inspect",
 			Handler:    _Machine_Inspect_Handler,
+		},
+		{
+			MethodName: "InspectMachine",
+			Handler:    _Machine_InspectMachine_Handler,
+		},
+		{
+			MethodName: "InspectWireGuardNetwork",
+			Handler:    _Machine_InspectWireGuardNetwork_Handler,
 		},
 		{
 			MethodName: "Reset",

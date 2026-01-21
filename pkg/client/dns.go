@@ -62,14 +62,11 @@ func (cli *Client) CreateIngressRecords(ctx context.Context, serviceID string) (
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			if err = verifyCaddyReachable(ctx, m.Machine); err == nil {
 				reachableMachines <- m.Machine
 			}
-		}()
+		})
 	}
 
 	go func() {

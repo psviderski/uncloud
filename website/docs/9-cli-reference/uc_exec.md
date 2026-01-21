@@ -1,6 +1,6 @@
 # uc exec
 
-Execute a command in a running service container
+Execute a command in a running service container.
 
 ## Synopsis
 
@@ -38,6 +38,7 @@ uc exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
       --container string   ID of the container to exec into. Accepts full ID or a unique prefix (default is the random container of the service)
   -d, --detach             Detached mode: run command in the background
   -h, --help               help for exec
+      --namespace string   Namespace of the service (optional).
   -T, --no-tty             Disable pseudo-TTY allocation. By default 'uc exec' allocates a TTY when connected to a terminal.
 ```
 
@@ -45,7 +46,7 @@ uc exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
   -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```

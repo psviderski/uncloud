@@ -11,15 +11,15 @@ func NewRootCommand() *cobra.Command {
 		Short:   "Manage services in the cluster.",
 	}
 	cmd.AddCommand(
-		NewExecCommand(),
-		NewInspectCommand(),
-		NewListCommand(),
-		NewLogsCommand(),
-		NewRmCommand(),
-		NewRunCommand(),
-		NewScaleCommand(),
-		NewStopCommand(),
-		NewStartCommand(),
+		NewExecCommand(""),
+		NewInspectCommand(""),
+		NewListCommand(""),
+		NewLogsCommand(""),
+		NewRmCommand(""),
+		NewRunCommand(""),
+		NewScaleCommand(""),
+		NewStartCommand(""),
+		NewStopCommand(""),
 	)
 	return cmd
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"text/tabwriter"
 	"time"
 
@@ -19,7 +20,7 @@ type inspectOptions struct {
 	namespace string
 }
 
-func NewInspectCommand() *cobra.Command {
+func NewInspectCommand(groupID string) *cobra.Command {
 	opts := inspectOptions{}
 	cmd := &cobra.Command{
 		Use:   "inspect SERVICE",
@@ -30,6 +31,7 @@ func NewInspectCommand() *cobra.Command {
 			opts.service = args[0]
 			return inspect(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
 	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service (optional).")
 	return cmd
@@ -67,18 +69,26 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 
+	// Parse created times for sorting and display.
+	createdTimes := make(map[string]time.Time, len(svc.Containers))
+	for _, ctr := range svc.Containers {
+		createdTimes[ctr.Container.ID], _ = time.Parse(time.RFC3339Nano, ctr.Container.Created)
+	}
+
+	// Sort containers by created time (newest first).
+	slices.SortFunc(svc.Containers, func(a, b api.MachineServiceContainer) int {
+		return createdTimes[b.Container.ID].Compare(createdTimes[a.Container.ID])
+	})
+
 	// Print the list of containers in a table format.
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "CONTAINER ID\tIMAGE\tCREATED\tSTATUS\tMACHINE"); err != nil {
+	if _, err = fmt.Fprintln(tw, "CONTAINER ID\tIMAGE\tCREATED\tSTATUS\tIP ADDRESS\tMACHINE"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 
+	now := time.Now().UTC()
 	for _, ctr := range svc.Containers {
-		createdAt, err := time.Parse(time.RFC3339Nano, ctr.Container.Created)
-		if err != nil {
-			return fmt.Errorf("parse created time: %w", err)
-		}
-		created := units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
+		created := units.HumanDuration(now.Sub(createdTimes[ctr.Container.ID])) + " ago"
 
 		machine := machinesNamesByID[ctr.MachineID]
 		if machine == "" {
@@ -89,13 +99,21 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 			return fmt.Errorf("get human state: %w", err)
 		}
 
+		ip := ctr.Container.UncloudNetworkIP()
+		ipStr := ""
+		// The container might not have an IP if it's not running or uses the host network.
+		if ip.IsValid() {
+			ipStr = ip.String()
+		}
+
 		_, err = fmt.Fprintf(
 			tw,
-			"%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			stringid.TruncateID(ctr.Container.ID),
 			ctr.Container.Config.Image,
 			created,
 			state,
+			ipStr,
 			machine,
 		)
 		if err != nil {

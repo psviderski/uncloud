@@ -46,7 +46,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/psviderski/unregistry v0.3.1
+	github.com/psviderski/unregistry v0.4.1
 	github.com/siderolabs/discovery-api v0.1.4
 	github.com/siderolabs/discovery-client v0.1.9
 	github.com/siderolabs/grpc-proxy v0.5.1

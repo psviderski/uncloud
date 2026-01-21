@@ -24,18 +24,20 @@ uc machine add [USER@]HOST[:PORT] [flags]
       --public-ip string   Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string     Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
       --version string     Version of the Uncloud daemon to install on the machine. (default "latest")
+  -y, --yes                Auto-confirm prompts (e.g., resetting an already initialised machine).
+                           Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
 
 ## Options inherited from parent commands
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
   -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 
 ## See also
 
-* [uc machine](uc_machine.md)	 - Manage machines in an Uncloud cluster.
+* [uc machine](uc_machine.md)	 - Manage machines in the cluster.
 

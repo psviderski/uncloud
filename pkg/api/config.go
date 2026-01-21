@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 )
 
@@ -96,6 +97,76 @@ func (c *ConfigMount) Validate() error {
 		return fmt.Errorf("container path must be absolute")
 	}
 	return nil
+}
+
+// Compare compares this ConfigMount with another.
+// Returns:
+//
+//	-1 if c < other
+//	 0 if c == other
+//	+1 if c > other
+func (c *ConfigMount) Compare(other *ConfigMount) int {
+	if c.ConfigName != other.ConfigName {
+		if c.ConfigName < other.ConfigName {
+			return -1
+		}
+		return 1
+	}
+	if c.ContainerPath != other.ContainerPath {
+		if c.ContainerPath < other.ContainerPath {
+			return -1
+		}
+		return 1
+	}
+	if c.Uid != other.Uid {
+		if c.Uid < other.Uid {
+			return -1
+		}
+		return 1
+	}
+	if c.Gid != other.Gid {
+		if c.Gid < other.Gid {
+			return -1
+		}
+		return 1
+	}
+	// Compare Mode (handle nil cases)
+	if c.Mode == nil && other.Mode != nil {
+		return -1
+	}
+	if c.Mode != nil && other.Mode == nil {
+		return 1
+	}
+	if c.Mode != nil && other.Mode != nil {
+		if *c.Mode < *other.Mode {
+			return -1
+		}
+		if *c.Mode > *other.Mode {
+			return 1
+		}
+	}
+	return 0
+}
+
+// Equals compares two ConfigMount instances for equality.
+func (c *ConfigMount) Equals(other *ConfigMount) bool {
+	return c.Compare(other) == 0
+}
+
+func (c *ConfigMount) Clone() ConfigMount {
+	clone := *c
+	if c.Mode != nil {
+		mode := *c.Mode
+		clone.Mode = &mode
+	}
+	return clone
+}
+
+// sortConfigMounts sorts a slice of ConfigMount instances.
+func sortConfigMounts(mounts []ConfigMount) {
+	sort.Slice(mounts, func(i, j int) bool {
+		return mounts[i].Compare(&mounts[j]) < 0
+	})
 }
 
 // ValidateConfigsAndMounts takes config specs and config mounts and validates that all mounts refer to existing specs

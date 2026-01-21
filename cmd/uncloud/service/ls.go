@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewListCommand() *cobra.Command {
+func NewListCommand(groupID string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
@@ -28,6 +28,7 @@ func NewListCommand() *cobra.Command {
 			}
 			return list(cmd.Context(), uncli, ns)
 		},
+		GroupID: groupID,
 	}
 	cmd.Flags().String("namespace", "", "Filter services by namespace (optional).")
 	return cmd

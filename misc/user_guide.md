@@ -22,7 +22,7 @@ Uncloud stores its configuration in `~/.config/uncloud/config.yaml`. If you wish
 
 Begin by initialising the first node in your cluster with `uc machine init [USER@HOST:PORT]`. If you do not have a need for Caddy reverse proxy, you may disable this feature with `--no-caddy`. If you want to avoid using uncloud's managed DNS service, add the `--no-dns` flag.
 
-This command will idempotently install Docker, uncloudd, uncloud-corrosion. If Caddy is enabled, it will set up a reverse proxy. If Uncloud DNS is enabled, it will create a DNS A record for the machine's public IP address under `*.[CLUSTER ID].cluster.uncloud.run`.
+This command will idempotently install Docker, uncloudd, uncloud-corrosion. If Caddy is enabled, it will set up a reverse proxy. If Uncloud DNS is enabled, it will create a DNS A record for the machine's public IP address under `*.[CLUSTER ID].uncld.dev`.
 
 If you wish to uninstall Uncloud and its components, run `uncloud-uninstall`.
 

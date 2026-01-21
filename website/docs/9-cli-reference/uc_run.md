@@ -16,11 +16,11 @@ uc run IMAGE [COMMAND...] [flags]
                             Format: VAR=value or just VAR to use the value from the local environment.
   -h, --help                help for run
   -m, --machine strings     Placement constraint by machine names, limiting which machines the service can run on. Can be specified multiple times or as a comma-separated list of machine names. (default is any suitable machine)
-      --namespace string    Namespace for this service. Defaults to 'default'.
       --memory bytes        Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.
                             Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)
       --mode string         Replication mode of the service: either 'replicated' (a specified number of containers across the machines) or 'global' (one container on every machine). (default "replicated")
   -n, --name string         Assign a name to the service. A random name is generated if not specified.
+      --namespace string    Namespace for this service. Defaults to 'default'.
       --privileged          Give extended privileges to service containers. This is a security risk and should be used with caution.
   -p, --publish strings     Publish a service port to make it accessible outside the cluster. Can be specified multiple times.
                             Format: [hostname:]container_port[/protocol] or [host_ip:]host_port:container_port[/protocol]@host
@@ -47,7 +47,7 @@ uc run IMAGE [COMMAND...] [flags]
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
   -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
@@ -55,3 +55,4 @@ uc run IMAGE [COMMAND...] [flags]
 ## See also
 
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
+

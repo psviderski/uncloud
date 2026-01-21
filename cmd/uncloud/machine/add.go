@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/charmbracelet/huh/spinner"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -16,8 +17,6 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type addOptions struct {
@@ -27,6 +26,7 @@ type addOptions struct {
 	publicIP  string
 	sshKey    string
 	version   string
+	yes       bool
 }
 
 func NewAddCommand() *cobra.Command {
@@ -41,6 +41,8 @@ Connection methods:
   ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
+
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			// Determine if SSH CLI needs to be used and strip scheme
@@ -88,6 +90,9 @@ Connection methods:
 		&opts.version, "version", "latest",
 		"Version of the Uncloud daemon to install on the machine.",
 	)
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
+		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
+			"Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	return cmd
 }
@@ -113,6 +118,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
+		AutoConfirm:   opts.yes,
 	})
 	if err != nil {
 		return err
@@ -124,79 +130,97 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		return nil
 	}
 
-	// Wait for the cluster to be initialised to be able to deploy the Caddy service.
-	fmt.Println("Waiting for the machine to be ready...")
-	fmt.Println()
-	if err = waitClusterInitialised(ctx, machineClient); err != nil {
-		return fmt.Errorf("wait for cluster to be initialised on machine: %w", err)
+	// Wait for the cluster to be initialised on the machine to be able to deploy the Caddy service.
+	err = spinner.New().
+		Title(" Waiting for the machine to join the cluster...").
+		Type(spinner.MiniDot).
+		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
+		TitleStyle(lipgloss.NewStyle()).
+		ActionWithErr(func(ctx context.Context) error {
+			return machineClient.WaitClusterReady(ctx, 5*time.Minute)
+		}).
+		Run()
+	if err != nil {
+		return fmt.Errorf("wait for machine to join the cluster: %w", err)
 	}
+	fmt.Println("Machine joined the cluster.")
 
+	// TODO: scale the existing Caddy service to the new machine instead of running a new deployment
+	//  that may cause a small downtime.
 	// Deploy a Caddy service container to the added machine. If caddy service is already deployed on other machines,
-	// use the deployed image version. Otherwise, use the latest version.
+	// use the deployed image version.
 	// NOTE: We use the cluster client to inspect and scale the Caddy service because the newly added machine may have
 	// issues accessing the Machine API of existing machines in the cluster.
 	// See the issue for more details: https://github.com/psviderski/uncloud/issues/65.
 	caddyImage := ""
 	caddySvc, err := clusterClient.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace)
 	if err != nil {
-		if !errors.Is(err, api.ErrNotFound) {
-			return fmt.Errorf("inspect caddy service: %w", err)
+		if errors.Is(err, api.ErrNotFound) {
+			// Caddy service is not deployed.
+			return nil
 		}
-	} else {
-		caddyImage = caddySvc.Containers[0].Container.Config.Image
-		// Find the latest created container and use its image.
-		var latestCreated time.Time
-		for _, c := range caddySvc.Containers[1:] {
-			created, err := time.Parse(time.RFC3339Nano, c.Container.Created)
-			if err != nil {
-				continue
-			}
-			if created.After(latestCreated) {
-				latestCreated = created
-				caddyImage = c.Container.Config.Image
-			}
+		return fmt.Errorf("inspect caddy service: %w", err)
+	}
+	caddyImage = caddySvc.Containers[0].Container.Config.Image
+	// Find the latest created container and use its image.
+	var latestCreated time.Time
+	for _, c := range caddySvc.Containers[1:] {
+		created, err := time.Parse(time.RFC3339Nano, c.Container.Created)
+		if err != nil {
+			continue
+		}
+		if created.After(latestCreated) {
+			latestCreated = created
+			caddyImage = c.Container.Config.Image
 		}
 	}
 
-	// TODO: scale the existing Caddy service to the new machine instead of running a new deployment
-	//  that may cause a small downtime.
 	d, err := clusterClient.NewCaddyDeployment(caddyImage, "", api.Placement{})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}
 
-	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-		if _, err = d.Run(ctx); err != nil {
-			return fmt.Errorf("deploy caddy: %w", err)
-		}
-		return nil
-	}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s", d.Spec.Name))
+	plan, err := d.Plan(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("plan caddy deployment: %w", err)
+	}
+
+	fmt.Println()
+	if len(plan.Operations) == 0 {
+		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
+	} else {
+		// Initialise a machine and container name resolver to properly format the plan output.
+		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, caddySvc)
+		if err != nil {
+			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
+		}
+
+		fmt.Println("caddy deployment plan:")
+		fmt.Println(plan.Format(resolver))
+		fmt.Println()
+
+		if !opts.yes {
+			confirmed, err := cli.Confirm()
+			if err != nil {
+				return fmt.Errorf("confirm deployment: %w", err)
+			}
+			if !confirmed {
+				fmt.Println("Cancelled. No changes were made.")
+				return nil
+			}
+		}
+
+		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
+			if _, err = d.Run(ctx); err != nil {
+				return fmt.Errorf("deploy caddy: %w", err)
+			}
+			return nil
+		}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s (%s mode)", d.Spec.Name, d.Spec.Mode))
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Println()
 	return caddy.UpdateDomainRecords(ctx, machineClient, uncli.ProgressOut())
-}
-
-func waitClusterInitialised(ctx context.Context, client *client.Client) error {
-	boff := backoff.WithContext(backoff.NewExponentialBackOff(
-		backoff.WithMaxInterval(1*time.Second),
-		backoff.WithMaxElapsedTime(5*time.Minute),
-	), ctx)
-
-	check := func() error {
-		_, err := client.ListMachines(ctx, nil)
-		if err == nil {
-			return nil
-		}
-
-		statusErr := status.Convert(err)
-		if statusErr.Code() == codes.FailedPrecondition {
-			return err
-		}
-		return backoff.Permanent(err)
-	}
-
-	return backoff.Retry(check, boff)
 }

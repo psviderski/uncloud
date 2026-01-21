@@ -25,6 +25,7 @@ func (c *UnixConnector) Connect(_ context.Context) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultServiceConfig(defaultServiceConfig),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create machine API client: %w", err)

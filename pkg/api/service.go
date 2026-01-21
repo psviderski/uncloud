@@ -238,6 +238,10 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 // ContainerSpec defines the desired state of a container in a service.
 // ATTENTION: after changing this struct, verify if deploy.EvalContainerSpecChange needs to be updated.
 type ContainerSpec struct {
+	// Specifies which additional capabilities should be added for the container.
+	CapAdd []string
+	// Specifies which capabilities should be dropped from the container.
+	CapDrop []string
 	// Command overrides the default CMD of the image to be executed when running a container.
 	Command []string
 	// Entrypoint overrides the default ENTRYPOINT of the image.
@@ -256,6 +260,8 @@ type ContainerSpec struct {
 	PullPolicy string
 	// Resource allocation for the container.
 	Resources ContainerResources
+	// Namespaced kernel parameters to be set in container
+	Sysctls map[string]string
 	// User overrides the default user of the image used to run the container. Format: user|UID[:group|GID].
 	User string
 	// VolumeMounts specifies how volumes are mounted into the container filesystem.
@@ -303,11 +309,17 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 	orig := s.SetDefaults()
 	spec = spec.SetDefaults()
 
+	// Volumes
 	slices.Sort(orig.Volumes)
 	slices.Sort(spec.Volumes)
 
+	// Volume mounts
 	sortVolumeMounts(orig.VolumeMounts)
 	sortVolumeMounts(spec.VolumeMounts)
+
+	// Config mounts
+	sortConfigMounts(orig.ConfigMounts)
+	sortConfigMounts(spec.ConfigMounts)
 
 	return cmp.Equal(orig, spec, cmpopts.EquateEmpty())
 }
@@ -315,6 +327,14 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 func (s *ContainerSpec) Clone() ContainerSpec {
 	spec := *s
 
+	if s.CapAdd != nil {
+		spec.CapAdd = make([]string, len(s.CapAdd))
+		copy(spec.CapAdd, s.CapAdd)
+	}
+	if s.CapDrop != nil {
+		spec.CapDrop = make([]string, len(s.CapDrop))
+		copy(spec.CapDrop, s.CapDrop)
+	}
 	if s.Command != nil {
 		spec.Command = make([]string, len(s.Command))
 		copy(spec.Command, s.Command)
@@ -330,6 +350,12 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		}
 		spec.LogDriver = &logDriver
 	}
+	if s.Env != nil {
+		spec.Env = make(EnvVars, len(s.Env))
+		for k, v := range s.Env {
+			spec.Env[k] = v
+		}
+	}
 	if s.Volumes != nil {
 		spec.Volumes = make([]string, len(s.Volumes))
 		copy(spec.Volumes, s.Volumes)
@@ -338,7 +364,21 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		spec.VolumeMounts = make([]VolumeMount, len(s.VolumeMounts))
 		copy(spec.VolumeMounts, s.VolumeMounts)
 	}
-
+	if s.ConfigMounts != nil {
+		spec.ConfigMounts = make([]ConfigMount, len(s.ConfigMounts))
+		for i, cm := range s.ConfigMounts {
+			spec.ConfigMounts[i] = cm.Clone()
+		}
+	}
+	if s.Sysctls != nil {
+		spec.Sysctls = make(map[string]string, len(s.Sysctls))
+		for k, v := range s.Sysctls {
+			spec.Sysctls[k] = v
+		}
+	}
+	if s.Resources.Ulimits != nil {
+		spec.Resources.Ulimits = maps.Clone(s.Resources.Ulimits)
+	}
 	return spec
 }
 

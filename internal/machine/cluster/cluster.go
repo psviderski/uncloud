@@ -26,12 +26,19 @@ type Cluster struct {
 	corroAdmin *corrosion.AdminClient
 	// machineID is the ID of the current machine that is running the cluster service.
 	machineID string
+	// initialised is closed when the machine is configured as a member of a cluster.
+	initialised <-chan struct{}
+	// ready is closed when the cluster controller has finished starting all components
+	// and the machine is ready to serve cluster requests.
+	ready <-chan struct{}
 }
 
-func NewCluster(store *store.Store, corroAdmin *corrosion.AdminClient) *Cluster {
+func NewCluster(store *store.Store, corroAdmin *corrosion.AdminClient, initialised, ready <-chan struct{}) *Cluster {
 	return &Cluster{
-		store:      store,
-		corroAdmin: corroAdmin,
+		store:       store,
+		corroAdmin:  corroAdmin,
+		initialised: initialised,
+		ready:       ready,
 	}
 }
 
@@ -41,67 +48,45 @@ func (c *Cluster) UpdateMachineID(mid string) {
 }
 
 func (c *Cluster) Init(ctx context.Context, network netip.Prefix) error {
-	initialised, err := c.Initialised(ctx)
-	if err != nil {
-		return err
-	}
-	if initialised {
-		return fmt.Errorf("cluster is already initialised")
+	select {
+	case <-c.initialised:
+		return fmt.Errorf("cluster is already initialised on this machine")
+	default:
 	}
 
-	if err = c.store.Put(ctx, "network", network.String()); err != nil {
+	if err := c.store.Put(ctx, "network", network.String()); err != nil {
 		return fmt.Errorf("put network to store: %w", err)
 	}
-	if err = c.store.Put(ctx, "created_at", time.Now().UTC().Format(time.RFC3339)); err != nil {
+	if err := c.store.Put(ctx, "created_at", time.Now().UTC().Format(time.RFC3339)); err != nil {
 		return fmt.Errorf("put created_at to store: %w", err)
 	}
 	return nil
 }
 
-func (c *Cluster) Initialised(ctx context.Context) (bool, error) {
-	var createdAt string
-	if err := c.store.Get(ctx, "created_at", &createdAt); err != nil {
-		if errors.Is(err, store.ErrKeyNotFound) {
-			return false, nil
-		}
-		return false, status.Errorf(codes.Internal, "get created_at from store: %v", err)
+// checkReady checks if the machine is ready to serve cluster requests (store synced, cluster components started).
+func (c *Cluster) checkReady() error {
+	select {
+	case <-c.ready:
+		return nil
+	default:
+		return status.Error(codes.Unavailable, "machine is not ready to serve cluster requests")
 	}
-	return true, nil
-}
-
-func (c *Cluster) checkInitialised(ctx context.Context) error {
-	initialised, err := c.Initialised(ctx)
-	if err != nil {
-		return err
-	}
-	if !initialised {
-		return status.Error(codes.FailedPrecondition, "cluster is not initialised")
-	}
-	return nil
-}
-
-func (c *Cluster) Network(ctx context.Context) (netip.Prefix, error) {
-	if err := c.checkInitialised(ctx); err != nil {
-		return netip.Prefix{}, err
-	}
-
-	var net string
-	if err := c.store.Get(ctx, "network", &net); err != nil {
-		return netip.Prefix{}, status.Errorf(codes.Internal, "get network from store: %v", err)
-	}
-	prefix, err := netip.ParsePrefix(net)
-	if err != nil {
-		return netip.Prefix{}, status.Errorf(codes.Internal, "parse network prefix: %v", err)
-	}
-	return prefix, nil
 }
 
 // AddMachine adds a machine to the cluster.
 func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*pb.AddMachineResponse, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 
+	return c.AddMachineWithoutReadyCheck(ctx, req)
+}
+
+// AddMachineWithoutReadyCheck adds a machine to the cluster without checking if the cluster is ready.
+// This is used internally during cluster initialisation to add the first machine.
+func (c *Cluster) AddMachineWithoutReadyCheck(
+	ctx context.Context, req *pb.AddMachineRequest,
+) (*pb.AddMachineResponse, error) {
 	if req.Network == nil {
 		return nil, status.Error(codes.InvalidArgument, "network not set")
 	}
@@ -162,7 +147,7 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 		manageIP = pb.NewIP(network.ManagementIP(req.Network.PublicKey))
 	}
 	// Allocate a subnet for the machine from the cluster network.
-	clusterNetwork, err := c.Network(ctx)
+	clusterNetwork, err := c.network(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get cluster network: %v", err)
 	}
@@ -198,9 +183,21 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 	return resp, nil
 }
 
+func (c *Cluster) network(ctx context.Context) (netip.Prefix, error) {
+	var net string
+	if err := c.store.Get(ctx, "network", &net); err != nil {
+		return netip.Prefix{}, status.Errorf(codes.Internal, "get network from store: %v", err)
+	}
+	prefix, err := netip.ParsePrefix(net)
+	if err != nil {
+		return netip.Prefix{}, status.Errorf(codes.Internal, "parse network prefix: %v", err)
+	}
+	return prefix, nil
+}
+
 // UpdateMachine updates machine configuration in the cluster.
 func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.UpdateMachineResponse, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 
@@ -283,7 +280,7 @@ func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 
 // ListMachines lists all machines in the cluster including their membership states.
 func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListMachinesResponse, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 
@@ -329,7 +326,7 @@ func (c *Cluster) ListMachines(ctx context.Context, _ *emptypb.Empty) (*pb.ListM
 
 // RemoveMachine removes a machine from the cluster.
 func (c *Cluster) RemoveMachine(ctx context.Context, req *pb.RemoveMachineRequest) (*emptypb.Empty, error) {
-	if err := c.checkInitialised(ctx); err != nil {
+	if err := c.checkReady(); err != nil {
 		return nil, err
 	}
 

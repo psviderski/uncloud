@@ -10,7 +10,7 @@ with [Let's Encrypt](https://letsencrypt.org/), and route requests to your servi
 ## How it works
 
 By default, Caddy runs as a global service `caddy` on every machine in your cluster, listening on the host ports 80
-(HTTP) and 443 (HTTPS).
+(HTTP), 443 (HTTPS), and 443/UDP (HTTP/3).
 
 It's deployed during cluster initialisation (`uc machine init`) unless you use the `--no-caddy` flag.
 See [Managing Caddy](3-managing-caddy.md) for deployment and customisation instructions.

@@ -28,7 +28,7 @@ This document provides comprehensive information about the Uncloud project for A
 - **Docker Compose compatibility**: Uses familiar Docker Compose format
 - **Zero-downtime deployments**: Rolling updates without service interruption
 - **Automatic HTTPS**: Caddy reverse proxy with Let's Encrypt integration
-- **Managed DNS**: Free `*.cluster.uncloud.run` subdomains via Uncloud DNS service
+- **Managed DNS**: Free `*.xxxxxx.uncld.dev` subdomains via Uncloud DNS service
 - **Cross-machine scaling**: Run containers across multiple machines
 
 ### 🔧 Developer Experience

@@ -8,36 +8,50 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
 type stopOptions struct {
-	services       []string
-	signal         string
-	timeoutChanged bool
-	timeout        int
+	services  []string
+	signal    string
+	timeout   int
+	namespace string
 }
 
-func NewStopCommand() *cobra.Command {
+func NewStopCommand(groupID string) *cobra.Command {
 	opts := stopOptions{}
 	cmd := &cobra.Command{
 		Use:   "stop SERVICE [SERVICE...]",
 		Short: "Stop one or more services.",
-		Long:  "Stop one or more services.",
-		Args:  cobra.MinimumNArgs(1),
+		Long: `Stop one or more running services.
+
+Gracefully stops all containers of the specified service(s) across all machines in the cluster.
+Services can be specified by name or ID. Stopped services can be restarted with 'uc start'.`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			opts.services = args
-			opts.timeoutChanged = cmd.Flags().Changed("timeout")
 			return stop(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
-	cmd.Flags().StringVarP(&opts.signal, "signal", "s", "", "Signal to send to the container")
-	cmd.Flags().IntVarP(&opts.timeout, "timeout", "t", 0, "Seconds to wait before killing the container")
+	cmd.Flags().StringVarP(&opts.signal, "signal", "s", "",
+		"Signal to send to each container's main process.\n"+
+			"Can be a signal name (SIGTERM, SIGINT, SIGHUP, etc.) or a number. (default SIGTERM)")
+	cmd.Flags().IntVarP(&opts.timeout, "timeout", "t", 10,
+		"Seconds to wait for each container to stop gracefully before forcibly killing it with SIGKILL.\n"+
+			"Use -1 to wait indefinitely.")
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service(s) (optional).")
 	return cmd
 }
 
 func stop(ctx context.Context, uncli *cli.CLI, opts stopOptions) error {
+	if opts.namespace != "" {
+		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
+			return fmt.Errorf("invalid namespace: %w", err)
+		}
+	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -45,15 +59,13 @@ func stop(ctx context.Context, uncli *cli.CLI, opts stopOptions) error {
 	defer client.Close()
 
 	stopOpts := container.StopOptions{
-		Signal: opts.signal,
-	}
-	if opts.timeoutChanged {
-		stopOpts.Timeout = &opts.timeout
+		Signal:  opts.signal,
+		Timeout: &opts.timeout,
 	}
 
 	for _, s := range opts.services {
 		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-			if err = client.StopService(ctx, s, stopOpts); err != nil {
+			if err = client.StopService(ctx, s, opts.namespace, stopOpts); err != nil {
 				return fmt.Errorf("stop service '%s': %w", s, err)
 			}
 			return nil

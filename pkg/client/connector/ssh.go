@@ -59,6 +59,7 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(
 		"unix://"+sockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultServiceConfig(defaultServiceConfig),
 		grpc.WithContextDialer(
 			func(ctx context.Context, addr string) (net.Conn, error) {
 				addr = strings.TrimPrefix(addr, "unix://")

@@ -14,6 +14,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/machine"
 	"github.com/psviderski/uncloud/cmd/uncloud/service"
 	"github.com/psviderski/uncloud/cmd/uncloud/volume"
+	"github.com/psviderski/uncloud/cmd/uncloud/wg"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -40,8 +41,8 @@ func main() {
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "connect", "UNCLOUD_CONNECT")
-			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
 			cli.BindEnvToFlag(cmd, "context", "UNCLOUD_CONTEXT")
+			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
 
 			var conn *config.MachineConnection
 			if opts.connect != "" {
@@ -107,6 +108,11 @@ func main() {
 		}
 	})
 
+	cmd.AddGroup(&cobra.Group{
+		ID:    "service",
+		Title: "Deploy and manage services:",
+	})
+
 	cmd.AddCommand(
 		NewBuildCommand(),
 		NewDeployCommand(),
@@ -119,14 +125,17 @@ func main() {
 		image.NewRootCommand(),
 		machine.NewRootCommand(),
 		service.NewRootCommand(),
-		service.NewExecCommand(),
-		service.NewInspectCommand(),
-		service.NewListCommand(),
-		service.NewLogsCommand(),
-		service.NewRmCommand(),
-		service.NewRunCommand(),
-		service.NewScaleCommand(),
+		service.NewExecCommand("service"),
+		service.NewInspectCommand("service"),
+		service.NewListCommand("service"),
+		service.NewLogsCommand("service"),
+		service.NewRmCommand("service"),
+		service.NewRunCommand("service"),
+		service.NewScaleCommand("service"),
+		service.NewStartCommand("service"),
+		service.NewStopCommand("service"),
 		volume.NewRootCommand(),
+		wg.NewRootCommand(),
 	)
 	cobra.CheckErr(cmd.Execute())
 }

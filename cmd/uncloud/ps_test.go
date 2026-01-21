@@ -50,6 +50,9 @@ func TestCollectContainers_NilMetadata(t *testing.T) {
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
+		"NetworkSettings": map[string]interface{}{
+			"Networks": map[string]interface{}{},
+		},
 	}
 	containerJSON, err := json.Marshal(containerData)
 	require.NoError(t, err)
@@ -131,6 +134,9 @@ func TestCollectContainers_NilMetadata_MultipleMachines_Error(t *testing.T) {
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
+		},
+		"NetworkSettings": map[string]interface{}{
+			"Networks": map[string]interface{}{},
 		},
 	}
 	containerJSON2, _ := json.Marshal(containerData2)
@@ -215,6 +221,9 @@ func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
+		"NetworkSettings": map[string]interface{}{
+			"Networks": map[string]interface{}{},
+		},
 	}
 	containerJSON1, _ := json.Marshal(containerData1)
 
@@ -228,6 +237,9 @@ func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
+		},
+		"NetworkSettings": map[string]interface{}{
+			"Networks": map[string]interface{}{},
 		},
 	}
 	containerJSON2, _ := json.Marshal(containerData2)
@@ -319,6 +331,9 @@ func TestCollectContainers_NilMetadata_NoMachines(t *testing.T) {
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
+		"NetworkSettings": map[string]interface{}{
+			"Networks": map[string]interface{}{},
+		},
 	}
 	containerJSON, _ := json.Marshal(containerData)
 	serviceSpecJSON, _ := json.Marshal(map[string]interface{}{})
@@ -372,6 +387,9 @@ func TestCollectContainers_MetadataPresent_NotInMapping(t *testing.T) {
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
+		},
+		"NetworkSettings": map[string]interface{}{
+			"Networks": map[string]interface{}{},
 		},
 	}
 	containerJSON, _ := json.Marshal(containerData)

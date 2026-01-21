@@ -5,7 +5,7 @@ Manage cluster domain in Uncloud DNS.
 ## Synopsis
 
 Manage cluster domain in Uncloud DNS.
-DNS commands allow you to reserve or release a unique '\<id>.cluster.uncloud.run' domain for your cluster. When reserved, Caddy service deployments will automatically update DNS records to route traffic to the services in the cluster.
+DNS commands allow you to reserve or release a unique 'xxxxxx.uncld.dev' domain for your cluster. When reserved, Caddy service deployments will automatically update DNS records to route traffic to the services in the cluster.
 
 ## Options
 
@@ -17,7 +17,7 @@ DNS commands allow you to reserve or release a unique '\<id>.cluster.uncloud.run
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], or tcp://host:port
+                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
   -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```

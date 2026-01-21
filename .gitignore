@@ -7,6 +7,8 @@
 *.dll
 *.so
 *.dylib
+/uncloud
+/uncloudd
 
 # OS X
 .DS_Store
@@ -37,3 +39,4 @@ node_modules/
 
 # VS Code
 .vscode
+.devcontainer/

@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 
 	"github.com/psviderski/uncloud/internal/cli"
@@ -40,21 +42,25 @@ func NewPsCommand() *cobra.Command {
 	opts := psOptions{}
 	cmd := &cobra.Command{
 		Use:   "ps",
-		Short: "List all service containers in the cluster",
+		Short: "List all service containers.",
 		Long: `List all service containers across all machines in the cluster.
 
 This command provides a comprehensive overview of all running containers that are part of a service,
 making it easy to see the distribution and status of containers across the cluster.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+
 			if opts.sortBy != sortByService && opts.sortBy != sortByMachine && opts.sortBy != sortByHealth {
 				return fmt.Errorf("invalid value for --sort: %q, must be one of '%s', '%s' or '%s'", opts.sortBy,
 					sortByService, sortByMachine, sortByHealth)
 			}
-			return runPs(cmd, opts)
+
+			return runPs(cmd.Context(), uncli, opts)
 		},
+		GroupID: "service",
 	}
 	cmd.Flags().StringVarP(&opts.sortBy, "sort", "s", sortByService,
-		"Sort containers by 'service', 'machine' or 'health'")
+		"Sort containers by 'service', 'machine', or 'health'.")
 	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Filter containers by service namespace (optional).")
 	return cmd
 }
@@ -68,21 +74,22 @@ type containerInfo struct {
 	image       string
 	status      string
 	highlight   containerHighlight
+	created     time.Time
+	ip          string
 }
 
-func runPs(cmd *cobra.Command, opts psOptions) error {
+func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
 	if opts.namespace != "" {
 		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
 			return fmt.Errorf("invalid namespace: %w", err)
 		}
 	}
 
-	uncli := cmd.Context().Value("cli").(*cli.CLI)
-	cl, err := uncli.ConnectCluster(cmd.Context())
+	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
-	defer cl.Close()
+	defer clusterClient.Close()
 
 	var containers []containerInfo
 	err = spinner.New().
@@ -90,7 +97,7 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		Type(spinner.MiniDot).
 		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
 		ActionWithErr(func(ctx context.Context) error {
-			containers, err = collectContainers(ctx, cl, opts.namespace)
+			containers, err = collectContainers(ctx, clusterClient, opts.namespace)
 			return err
 		}).
 		Run()
@@ -98,7 +105,7 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 		return fmt.Errorf("collect containers: %w", err)
 	}
 
-	// Sort the containers based on the sorting option
+	// Sort the containers based on the sorting option.
 	sort.SliceStable(containers, func(i, j int) bool {
 		a, b := containers[i], containers[j]
 		switch opts.sortBy {
@@ -108,9 +115,6 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 			}
 			if a.serviceName != b.serviceName {
 				return a.serviceName < b.serviceName
-			}
-			if a.machineName != b.machineName {
-				return a.machineName < b.machineName
 			}
 		case sortByMachine:
 			if a.machineName != b.machineName {
@@ -123,12 +127,9 @@ func runPs(cmd *cobra.Command, opts psOptions) error {
 			if a.serviceName != b.serviceName {
 				return a.serviceName < b.serviceName
 			}
-			if a.machineName != b.machineName {
-				return a.machineName < b.machineName
-			}
 		}
-		// Final tie-breaker
-		return a.name < b.name
+		// Fallback to creation time (newest first).
+		return a.created.After(b.created)
 	})
 
 	return printContainers(containers)
@@ -152,13 +153,15 @@ func printContainers(containers []containerInfo) error {
 			return lipgloss.NewStyle().PaddingRight(3)
 		})
 
-	t.Headers("SERVICE", "NAMESPACE", "CONTAINER ID", "NAME", "IMAGE", "STATUS", "MACHINE")
+	t.Headers("SERVICE", "NAMESPACE", "CONTAINER ID", "CONTAINER NAME", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
 
 	for _, ctr := range containers {
 		id := ctr.id
 		if len(id) > 12 {
 			id = id[:12]
 		}
+
+		created := units.HumanDuration(time.Now().UTC().Sub(ctr.created)) + " ago"
 
 		var statusStyle lipgloss.Style
 		switch ctr.highlight {
@@ -178,7 +181,9 @@ func printContainers(containers []containerInfo) error {
 			id,
 			ctr.name,
 			ctr.image,
+			created,
 			statusStyle.Render(ctr.status),
+			ctr.ip,
 			ctr.machineName,
 		)
 	}
@@ -211,18 +216,12 @@ func collectContainers(ctx context.Context, cli *client.Client, namespace string
 
 	var containers []containerInfo
 	for _, msc := range machineContainers {
-		machineName := "unknown"
-
 		// Metadata can be nil if the request was broadcasted to only one machine.
 		if msc.Metadata == nil && len(machineContainers) > 1 {
 			return nil, fmt.Errorf("something went wrong with gRPC proxy: metadata is missing for a machine response")
 		}
-		if msc.Metadata != nil && msc.Metadata.Error != "" {
-			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName,
-				msc.Metadata.Error))
-			continue
-		}
 
+		machineName := "unknown"
 		if msc.Metadata != nil {
 			var ok bool
 			machineName, ok = machinesNamesByIP[msc.Metadata.Machine]
@@ -235,6 +234,12 @@ func collectContainers(ctx context.Context, cli *client.Client, namespace string
 			if len(machines) > 0 {
 				machineName = machines[0].Machine.Name
 			}
+		}
+
+		if msc.Metadata != nil && msc.Metadata.Error != "" {
+			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName,
+				msc.Metadata.Error))
+			continue
 		}
 
 		for _, ctr := range msc.Containers {
@@ -268,6 +273,15 @@ func collectContainers(ctx context.Context, cli *client.Client, namespace string
 				highlight = highlightWarning
 			}
 
+			created, _ := time.Parse(time.RFC3339Nano, ctr.Container.Created)
+
+			ip := ctr.Container.UncloudNetworkIP()
+			ipStr := ""
+			// The container might not have an IP if it's not running or uses the host network.
+			if ip.IsValid() {
+				ipStr = ip.String()
+			}
+
 			info := containerInfo{
 				serviceName: ctr.ServiceName(),
 				namespace:   ctr.Namespace(),
@@ -277,6 +291,8 @@ func collectContainers(ctx context.Context, cli *client.Client, namespace string
 				image:       ctr.Container.Config.Image,
 				status:      status,
 				highlight:   highlight,
+				created:     created,
+				ip:          ipStr,
 			}
 			containers = append(containers, info)
 		}

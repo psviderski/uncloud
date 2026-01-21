@@ -18,7 +18,7 @@ type scaleOptions struct {
 	namespace string
 }
 
-func NewScaleCommand() *cobra.Command {
+func NewScaleCommand(groupID string) *cobra.Command {
 	opts := scaleOptions{}
 	cmd := &cobra.Command{
 		Use:   "scale SERVICE REPLICAS",
@@ -37,6 +37,7 @@ func NewScaleCommand() *cobra.Command {
 
 			return scale(cmd.Context(), uncli, opts)
 		},
+		GroupID: groupID,
 	}
 	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service (optional).")
 

@@ -77,6 +77,147 @@ func TestConfigSpecsFromCompose(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "same source mounted to different targets",
+			configs: types.Configs{
+				"shared-config": types.ConfigObjConfig{
+					File: "testdata/config1.txt",
+				},
+			},
+			serviceConfigs: []types.ServiceConfigObjConfig{
+				{
+					Source: "shared-config",
+					Target: "/app/config.json",
+					UID:    "1000",
+					GID:    "1000",
+				},
+				{
+					Source: "shared-config",
+					Target: "/backup/config.json",
+					UID:    "1001",
+					GID:    "1001",
+				},
+			},
+			expectedSpecs: []api.ConfigSpec{
+				{
+					Name:    "shared-config",
+					Content: []byte("test config content\n"),
+				},
+			},
+			expectedMounts: []api.ConfigMount{
+				{
+					ConfigName:    "shared-config",
+					ContainerPath: "/app/config.json",
+					Uid:           "1000",
+					Gid:           "1000",
+				},
+				{
+					ConfigName:    "shared-config",
+					ContainerPath: "/backup/config.json",
+					Uid:           "1001",
+					Gid:           "1001",
+				},
+			},
+		},
+		{
+			name: "config with default target path",
+			configs: types.Configs{
+				"default-config": types.ConfigObjConfig{
+					Content: "inline config content",
+				},
+			},
+			serviceConfigs: []types.ServiceConfigObjConfig{
+				{
+					Source: "default-config",
+					// No Target specified - should use default
+				},
+			},
+			expectedSpecs: []api.ConfigSpec{
+				{
+					Name:    "default-config",
+					Content: []byte("inline config content"),
+				},
+			},
+			expectedMounts: []api.ConfigMount{
+				{
+					ConfigName:    "default-config",
+					ContainerPath: "/default-config",
+				},
+			},
+		},
+		{
+			name: "config with inline content",
+			configs: types.Configs{
+				"inline-config": types.ConfigObjConfig{
+					Content: "server {\n  listen 80;\n}",
+				},
+			},
+			serviceConfigs: []types.ServiceConfigObjConfig{
+				{
+					Source: "inline-config",
+					Target: "/etc/nginx/sites-available/default",
+					Mode:   func() *types.FileMode { m := types.FileMode(0o755); return &m }(),
+				},
+			},
+			expectedSpecs: []api.ConfigSpec{
+				{
+					Name:    "inline-config",
+					Content: []byte("server {\n  listen 80;\n}"),
+				},
+			},
+			expectedMounts: []api.ConfigMount{
+				{
+					ConfigName:    "inline-config",
+					ContainerPath: "/etc/nginx/sites-available/default",
+					Mode:          func() *os.FileMode { m := os.FileMode(0o755); return &m }(),
+				},
+			},
+		},
+		{
+			name: "config not found error",
+			configs: types.Configs{
+				"existing-config": types.ConfigObjConfig{
+					Content: "some content",
+				},
+			},
+			serviceConfigs: []types.ServiceConfigObjConfig{
+				{
+					Source: "missing-config",
+					Target: "/app/config.json",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "external config error",
+			configs: types.Configs{
+				"external-config": types.ConfigObjConfig{
+					External: true,
+				},
+			},
+			serviceConfigs: []types.ServiceConfigObjConfig{
+				{
+					Source: "external-config",
+					Target: "/app/config.json",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "file not found error",
+			configs: types.Configs{
+				"missing-file-config": types.ConfigObjConfig{
+					File: "testdata/nonexistent.txt",
+				},
+			},
+			serviceConfigs: []types.ServiceConfigObjConfig{
+				{
+					Source: "missing-file-config",
+					Target: "/app/config.json",
+				},
+			},
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {

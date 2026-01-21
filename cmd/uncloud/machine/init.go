@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+	"time"
 
+	"github.com/charmbracelet/huh/spinner"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
@@ -28,12 +31,13 @@ type initOptions struct {
 	sshKey      string
 	version     string
 	context     string
+	yes         bool
 }
 
 func NewInitCommand() *cobra.Command {
 	opts := initOptions{}
 	cmd := &cobra.Command{
-		Use:   "init [USER@HOST:PORT]",
+		Use:   "init [schema://]USER@HOST[:PORT]",
 		Short: "Initialise a new cluster with a remote machine as the first member.",
 		Long: `Initialise a new cluster by setting up a remote machine as the first member.
 This command creates a new context in your Uncloud config to manage the cluster.
@@ -50,12 +54,14 @@ Connection methods:
   # Initialise with a non-root user and custom SSH port and key.
   uc machine init ubuntu@<your-server-ip>:2222 -i ~/.ssh/mykey
 
-  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.cluster.uncloud.run).
+  # Initialise without Caddy (no reverse proxy) and without an automatically managed domain name (xxxxxx.uncld.dev).
   # You can deploy Caddy with 'uc caddy deploy' and reserve a domain with 'uc dns reserve' later.
   uc machine init root@<your-server-ip> --no-caddy --no-dns`,
 		// TODO: support initialising a cluster on the local machine.
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
+
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			var remoteMachine *cli.RemoteMachine
@@ -82,6 +88,11 @@ Connection methods:
 			return initCluster(cmd.Context(), uncli, remoteMachine, opts)
 		},
 	}
+
+	cmd.Flags().StringVarP(
+		&opts.context, "context", "c", cli.DefaultContextName,
+		"Name of the new context to be created in the Uncloud config to manage the cluster.",
+	)
 	cmd.Flags().StringVar(&opts.dnsEndpoint, "dns-endpoint", dns.DefaultUncloudDNSAPIEndpoint,
 		"API endpoint for the Uncloud DNS service.")
 	cmd.Flags().StringVarP(
@@ -119,15 +130,19 @@ Connection methods:
 		&opts.version, "version", "latest",
 		"Version of the Uncloud daemon to install on the machine.",
 	)
-	cmd.Flags().StringVarP(
-		&opts.context, "context", "c", cli.DefaultContextName,
-		"Name of the new context to be created in the Uncloud config to manage the cluster.",
-	)
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
+		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
+			"Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	return cmd
 }
 
 func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, opts initOptions) error {
+	if uncli.Config == nil {
+		// Config is nil when connecting directly to a remote machine (--connect) without using Uncloud config.
+		return fmt.Errorf("do not specify --connect when initialising a new cluster")
+	}
+
 	netPrefix, err := netip.ParsePrefix(opts.network)
 	if err != nil {
 		return fmt.Errorf("parse network CIDR: %w", err)
@@ -154,20 +169,34 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
+		AutoConfirm:   opts.yes,
 	})
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
+	// Since the cluster API needs a few moments to become ready after cluster initialisation,
+	// we keep the user informed during this wait. We wait here even if no Caddy or DNS is requested
+	// as the cluster needs to be ready so that commands such as 'uc machine ls' work immediately after init.
+	err = spinner.New().
+		Title(" Waiting for the cluster to be ready...").
+		Type(spinner.MiniDot).
+		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
+		TitleStyle(lipgloss.NewStyle()).
+		ActionWithErr(func(ctx context.Context) error {
+			return client.WaitClusterReady(ctx, 1*time.Minute)
+		}).
+		Run()
+	if err != nil {
+		return fmt.Errorf("wait for cluster to be ready: %w", err)
+	}
+	fmt.Println("Cluster is ready.")
+
 	if opts.noCaddy && opts.noDNS {
 		return nil
 	}
 
-	// Deploy the Caddy service to the initialised machine.
-	// The creation of a deployment plan talks to cluster API. Since the API needs a few moments to become available
-	// after cluster initialisation, we keep the user informed during this wait.
-	fmt.Println("Waiting for the machine to be ready...")
 	fmt.Println()
 
 	if !opts.noDNS {

@@ -55,7 +55,7 @@ func createTestCluster(
 	})
 
 	if waitReady {
-		require.NoError(t, p.WaitClusterReady(ctx, c, 15*time.Second))
+		require.NoError(t, p.WaitClusterReady(ctx, c, 30*time.Second))
 	}
 
 	return c, p
@@ -73,7 +73,6 @@ func TestClusterLifecycle(t *testing.T) {
 		// Create a client for each machine and wait for it to be ready.
 		clients := make([]*client.Client, len(c.Machines))
 		for i, m := range c.Machines {
-			require.NoError(t, ucind.WaitMachineReady(ctx, m, 5*time.Second))
 			clients[i], err = m.Connect(ctx)
 			require.NoError(t, err)
 			//goland:noinspection GoDeferInLoop
@@ -86,11 +85,10 @@ func TestClusterLifecycle(t *testing.T) {
 			require.Eventually(t, func() bool {
 				machines, err := cli.ListMachines(ctx, nil)
 				if err != nil {
-					// FailedPrecondition "cluster is not initialised" is expected until the store is reconciled.
-					if s, ok := status.FromError(err); ok {
-						if s.Code() == codes.FailedPrecondition {
-							return false
-						}
+					// Unavailable "machine is not ready to serve cluster requests" is expected until
+					// the store is reconciled.
+					if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+						return false
 					}
 					require.NoError(t, err)
 				}

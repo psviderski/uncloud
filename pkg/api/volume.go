@@ -83,6 +83,9 @@ func (v *VolumeSpec) SetDefaults() VolumeSpec {
 		if spec.VolumeOptions.Name == "" {
 			spec.VolumeOptions.Name = spec.Name
 		}
+		if spec.VolumeOptions.Driver != nil && spec.VolumeOptions.Driver.Name == "" {
+			spec.VolumeOptions.Driver.Name = VolumeDriverLocal
+		}
 	}
 	// TODO: set explicit default values for Propagation and Recursive for bind mounts?
 
