@@ -21,10 +21,8 @@ func NewListCommand(groupID string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			ns := cmd.Flag("namespace").Value.String()
-			if ns != "" {
-				if err := api.ValidateNamespaceName(ns); err != nil {
-					return fmt.Errorf("invalid namespace: %w", err)
-				}
+			if err := api.ValidateOptionalNamespace(ns); err != nil {
+				return fmt.Errorf("invalid namespace: %w", err)
 			}
 			return list(cmd.Context(), uncli, ns)
 		},

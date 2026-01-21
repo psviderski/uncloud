@@ -18,7 +18,6 @@ func RemoveIPFromNamespace(ip netip.Addr, namespace string) error {
 	return fmt.Errorf("namespace isolation not supported on this platform")
 }
 func ListNamespaces() ([]string, error) { return nil, fmt.Errorf("namespace isolation not supported on this platform") }
-func FlushAllNamespaceIPSets() error    { return fmt.Errorf("namespace isolation not supported on this platform") }
 func UpdateNamespaceFilterRules(namespaces []string) error {
 	return fmt.Errorf("namespace isolation not supported on this platform")
 }

@@ -120,3 +120,20 @@ func TestDefaultNamespace(t *testing.T) {
 		t.Errorf("DefaultNamespace %q is invalid: %v", DefaultNamespace, err)
 	}
 }
+
+func TestValidateOptionalNamespace(t *testing.T) {
+	// Empty namespace should be valid (means "no filter")
+	if err := ValidateOptionalNamespace(""); err != nil {
+		t.Errorf("ValidateOptionalNamespace(\"\") should return nil, got %v", err)
+	}
+
+	// Valid namespace should still be valid
+	if err := ValidateOptionalNamespace("prod"); err != nil {
+		t.Errorf("ValidateOptionalNamespace(\"prod\") should return nil, got %v", err)
+	}
+
+	// Invalid namespace should still be invalid
+	if err := ValidateOptionalNamespace("Invalid_Namespace"); err == nil {
+		t.Errorf("ValidateOptionalNamespace(\"Invalid_Namespace\") should return error")
+	}
+}

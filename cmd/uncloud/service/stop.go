@@ -47,10 +47,8 @@ Services can be specified by name or ID. Stopped services can be restarted with 
 }
 
 func stop(ctx context.Context, uncli *cli.CLI, opts stopOptions) error {
-	if opts.namespace != "" {
-		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
-			return fmt.Errorf("invalid namespace: %w", err)
-		}
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
 	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {

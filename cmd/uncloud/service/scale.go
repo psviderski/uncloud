@@ -45,10 +45,8 @@ func NewScaleCommand(groupID string) *cobra.Command {
 }
 
 func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
-	if opts.namespace != "" {
-		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
-			return fmt.Errorf("invalid namespace: %w", err)
-		}
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
 	}
 	if opts.replicas == 0 {
 		return fmt.Errorf(

@@ -79,10 +79,8 @@ type containerInfo struct {
 }
 
 func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
-	if opts.namespace != "" {
-		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
-			return fmt.Errorf("invalid namespace: %w", err)
-		}
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
 	}
 
 	clusterClient, err := uncli.ConnectCluster(ctx)

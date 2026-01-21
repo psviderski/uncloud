@@ -89,10 +89,8 @@ func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []
 		opts.noTty = true
 	}
 
-	if opts.namespace != "" {
-		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
-			return fmt.Errorf("invalid namespace: %w", err)
-		}
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
 	}
 	if !opts.detach {
 		// Check if we're trying to attach to a TTY from a non-TTY client, e.g.

@@ -118,10 +118,8 @@ func NewRunCommand(groupID string) *cobra.Command {
 }
 
 func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
-	if opts.namespace != "" {
-		if err := api.ValidateNamespaceName(opts.namespace); err != nil {
-			return fmt.Errorf("invalid namespace: %w", err)
-		}
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
 	}
 	spec, err := prepareServiceSpec(opts)
 	if err != nil {

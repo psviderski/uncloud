@@ -270,7 +270,7 @@ func TestDeployment(t *testing.T) {
 
 	t.Run("caddy", func(t *testing.T) {
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, client.CaddyServiceName, "")
+			err := cli.RemoveService(ctx, client.CaddyServiceName, api.SystemNamespace)
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -282,7 +282,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, client.CaddyServiceName, "")
+		svc, err := cli.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace)
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 3)
 		assertServiceMatchesSpec(t, svc, deployment.Spec)
@@ -299,7 +299,7 @@ func TestDeployment(t *testing.T) {
 
 	t.Run("caddy with machine placement", func(t *testing.T) {
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, client.CaddyServiceName, "")
+			err := cli.RemoveService(ctx, client.CaddyServiceName, api.SystemNamespace)
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -315,7 +315,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, client.CaddyServiceName, "")
+		svc, err := cli.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace)
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 1)
 		assertServiceMatchesSpec(t, svc, deployment.Spec)
@@ -330,7 +330,7 @@ func TestDeployment(t *testing.T) {
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err = cli.InspectService(ctx, client.CaddyServiceName, "")
+		svc, err = cli.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace)
 		require.NoError(t, err)
 		assert.Len(t, svc.Containers, 3)
 		assertServiceMatchesSpec(t, svc, deployment.Spec)
@@ -350,7 +350,7 @@ func TestDeployment(t *testing.T) {
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
-			err = cli.RemoveService(ctx, client.CaddyServiceName, "")
+			err = cli.RemoveService(ctx, client.CaddyServiceName, api.SystemNamespace)
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
@@ -407,7 +407,7 @@ myapp.example.com {
 		_, err = caddyDeployment.Run(ctx)
 		require.NoError(t, err)
 
-		caddySvc, err := cli.InspectService(ctx, client.CaddyServiceName, "")
+		caddySvc, err := cli.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace)
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, caddySvc, caddyDeployment.Spec)
 

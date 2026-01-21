@@ -60,18 +60,3 @@ func ListNamespaces() ([]string, error) {
 	}
 	return namespaces, nil
 }
-
-// FlushAllNamespaceIPSets destroys all ipsets with the Uncloud namespace prefix.
-func FlushAllNamespaceIPSets() error {
-	namespaces, err := ListNamespaces()
-	if err != nil {
-		return err
-	}
-	for _, ns := range namespaces {
-		cmd := exec.Command(ipsetBinary, "destroy", IPSetPrefix+ns)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("destroy ipset %s: %v: %s", ns, err, strings.TrimSpace(string(out)))
-		}
-	}
-	return nil
-}

@@ -19,6 +19,7 @@ const (
 var NamespaceNameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 // ValidateNamespaceName validates a namespace name according to DNS label rules.
+// An empty namespace is considered invalid; use ValidateOptionalNamespace for optional values.
 func ValidateNamespaceName(name string) error {
 	if name == "" {
 		return fmt.Errorf("namespace cannot be empty")
@@ -30,4 +31,13 @@ func ValidateNamespaceName(name string) error {
 		return fmt.Errorf("invalid namespace %q: must be lowercase alphanumeric with hyphens, starting and ending with alphanumeric", name)
 	}
 	return nil
+}
+
+// ValidateOptionalNamespace validates a namespace name if provided, allowing empty values.
+// This is useful for CLI flags where an empty namespace means "no filter" or "use default".
+func ValidateOptionalNamespace(name string) error {
+	if name == "" {
+		return nil
+	}
+	return ValidateNamespaceName(name)
 }
