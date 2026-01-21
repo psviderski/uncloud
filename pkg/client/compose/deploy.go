@@ -17,13 +17,7 @@ import (
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
-const (
-	ConditionStarted               = "service_started"
-	ConditionHealthy               = "service_healthy"
-	ConditionCompletedSuccessfully = "service_completed_successfully"
-
-	defaultHealthTimeout = 5 * time.Minute
-)
+const defaultHealthTimeout = 5 * time.Minute
 
 type Client interface {
 	api.DNSClient
@@ -85,13 +79,13 @@ func (p *Plan) getDependentCondition(serviceName string) string {
 	for _, svc := range p.project.Services {
 		if dep, ok := svc.DependsOn[serviceName]; ok {
 			switch dep.Condition {
-			case ConditionCompletedSuccessfully:
-				return ConditionCompletedSuccessfully
-			case ConditionHealthy:
-				condition = ConditionHealthy
-			case ConditionStarted, "":
+			case types.ServiceConditionCompletedSuccessfully:
+				return types.ServiceConditionCompletedSuccessfully
+			case types.ServiceConditionHealthy:
+				condition = types.ServiceConditionHealthy
+			case types.ServiceConditionStarted, "":
 				if condition == "" {
-					condition = ConditionStarted
+					condition = types.ServiceConditionStarted
 				}
 			}
 		}
@@ -102,12 +96,12 @@ func (p *Plan) getDependentCondition(serviceName string) string {
 // waitForCondition waits for the service to reach the required condition.
 func (p *Plan) waitForCondition(ctx context.Context, serviceName, condition string) error {
 	switch condition {
-	case ConditionStarted, "":
+	case types.ServiceConditionStarted, "":
 		// Service is already started, no need to wait.
 		return nil
-	case ConditionHealthy:
+	case types.ServiceConditionHealthy:
 		return p.waitForServiceHealthy(ctx, serviceName)
-	case ConditionCompletedSuccessfully:
+	case types.ServiceConditionCompletedSuccessfully:
 		// TODO: service_completed_successfully requires restart policy support to work properly.
 		// Currently all containers use restart: unless-stopped, so they restart immediately after exiting.
 		return fmt.Errorf("depends_on condition 'service_completed_successfully' is not yet supported")

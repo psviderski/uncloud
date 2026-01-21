@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -204,8 +206,9 @@ func printPlan(ctx context.Context, cli *client.Client, plan *compose.Plan) erro
 		fmt.Println("- " + op.Format(nil))
 	}
 
-	// Print service plans.
-	for _, svcPlan := range plan.ServicePlans {
+	// Print service plans in sorted order for consistent output.
+	for _, name := range slices.Sorted(maps.Keys(plan.ServicePlans)) {
+		svcPlan := plan.ServicePlans[name]
 		if len(svcPlan.Operations) == 0 {
 			continue // skip no-op services
 		}

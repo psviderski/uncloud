@@ -564,15 +564,10 @@ func TestComposeDeployment(t *testing.T) {
 
 		// Wait for db service to be running (but not yet healthy).
 		var dbSvc api.Service
-		for i := 0; i < 30; i++ {
+		require.Eventually(t, func() bool {
 			dbSvc, err = cli.InspectService(ctx, "test-depends-db")
-			if err == nil && len(dbSvc.Containers) > 0 && dbSvc.Containers[0].Container.State.Running {
-				break
-			}
-			time.Sleep(time.Second)
-		}
-		require.NoError(t, err, "db service not found")
-		require.NotEmpty(t, dbSvc.Containers, "db service has no containers")
+			return err == nil && len(dbSvc.Containers) > 0 && dbSvc.Containers[0].Container.State.Running
+		}, 30*time.Second, time.Second, "db service should be running")
 
 		// Record the time before triggering health.
 		healthTriggerTime := time.Now()

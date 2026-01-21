@@ -403,11 +403,11 @@ type LogDriver struct {
 
 // HealthcheckConfig defines the health check configuration for a container.
 type HealthcheckConfig struct {
-	Test        []string      `json:"test,omitempty"`
-	Interval    time.Duration `json:"interval,omitempty"`
-	Timeout     time.Duration `json:"timeout,omitempty"`
-	Retries     int           `json:"retries,omitempty"`
-	StartPeriod time.Duration `json:"startPeriod,omitempty"`
+	Test        []string      `json:",omitempty"`
+	Interval    time.Duration `json:",omitempty"`
+	Timeout     time.Duration `json:",omitempty"`
+	Retries     int           `json:",omitempty"`
+	StartPeriod time.Duration `json:",omitempty"`
 }
 
 type RunServiceResponse struct {
