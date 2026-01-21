@@ -9,7 +9,8 @@ uc service ls [flags]
 ## Options
 
 ```
-  -h, --help   help for ls
+  -h, --help               help for ls
+      --namespace string   Filter services by namespace (optional).
 ```
 
 ## Options inherited from parent commands

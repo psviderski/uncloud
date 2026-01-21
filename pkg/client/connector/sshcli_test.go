@@ -3,7 +3,7 @@ package connector
 import (
 	"testing"
 
-	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,7 +55,7 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 			config: SSHConnectorConfig{
 				User:     "root",
 				Host:     "example.com",
-				SockPath: machine.DefaultUncloudSockPath,
+				SockPath: constants.DefaultUncloudSockPath,
 			},
 			expected: []string{"-o", "ConnectTimeout=5", "root@example.com", "uncloudd", "dial-stdio"},
 		},

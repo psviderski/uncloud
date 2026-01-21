@@ -13,7 +13,8 @@ uc scale SERVICE REPLICAS [flags]
 ## Options
 
 ```
-  -h, --help   help for scale
+  -h, --help               help for scale
+      --namespace string   Namespace of the service (optional).
 ```
 
 ## Options inherited from parent commands

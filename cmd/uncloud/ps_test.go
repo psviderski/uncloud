@@ -103,7 +103,7 @@ func TestCollectContainers_NilMetadata(t *testing.T) {
 	}
 
 	// Execute
-	containers, err := collectContainers(context.Background(), cli)
+	containers, err := collectContainers(context.Background(), cli, "")
 	require.NoError(t, err)
 
 	// Verify
@@ -201,7 +201,7 @@ func TestCollectContainers_NilMetadata_MultipleMachines_Error(t *testing.T) {
 	}
 
 	// Execute
-	_, err := collectContainers(context.Background(), cli)
+	_, err := collectContainers(context.Background(), cli, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "metadata is missing for a machine response")
 }
@@ -300,7 +300,7 @@ func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
 		ClusterClient: mockCluster,
 	}
 
-	containers, err := collectContainers(context.Background(), cli)
+	containers, err := collectContainers(context.Background(), cli, "")
 	require.NoError(t, err)
 
 	assert.Len(t, containers, 2)
@@ -366,7 +366,7 @@ func TestCollectContainers_NilMetadata_NoMachines(t *testing.T) {
 		ClusterClient: mockCluster,
 	}
 
-	containers, err := collectContainers(context.Background(), cli)
+	containers, err := collectContainers(context.Background(), cli, "")
 	require.NoError(t, err)
 
 	assert.Len(t, containers, 1)
@@ -431,7 +431,7 @@ func TestCollectContainers_MetadataPresent_NotInMapping(t *testing.T) {
 		ClusterClient: mockCluster,
 	}
 
-	containers, err := collectContainers(context.Background(), cli)
+	containers, err := collectContainers(context.Background(), cli, "")
 	require.NoError(t, err)
 
 	assert.Len(t, containers, 1)

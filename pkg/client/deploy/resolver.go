@@ -38,6 +38,10 @@ func (r *ServiceSpecResolver) Resolve(spec api.ServiceSpec) (api.ServiceSpec, er
 }
 
 func (r *ServiceSpecResolver) applyDefaults(spec *api.ServiceSpec) error {
+	if spec.Namespace == "" {
+		spec.Namespace = api.DefaultNamespace
+	}
+
 	if spec.Mode == "" {
 		spec.Mode = api.ServiceModeReplicated
 	}
@@ -81,7 +85,7 @@ func (r *ServiceSpecResolver) expandIngressPorts(spec *api.ServiceSpec) error {
 					port.ContainerPort, port.Protocol)
 			}
 			// Assign the default hostname (service-name.cluster-domain).
-			spec.Ports[i].Hostname = fmt.Sprintf("%s.%s", spec.Name, r.ClusterDomain)
+			spec.Ports[i].Hostname = r.generateHostname(spec.Name, spec.Namespace)
 		} else {
 			if r.ClusterDomain == "" {
 				// When no cluster domain is reserved, use only the provided hostname.
@@ -92,15 +96,26 @@ func (r *ServiceSpecResolver) expandIngressPorts(spec *api.ServiceSpec) error {
 				// If the hostname is already a cluster subdomain, use as is.
 				continue
 			}
-			// For external domains, duplicate the port with a service-name.cluster-domain hostname so the service
+			// For external domains, duplicate the port with a namespace-aware cluster domain hostname so the service
 			// can be accessed via both hostnames.
 			newPort := port
-			newPort.Hostname = fmt.Sprintf("%s.%s", spec.Name, r.ClusterDomain)
+			newPort.Hostname = r.generateHostname(spec.Name, spec.Namespace)
 			spec.Ports = append(spec.Ports, newPort)
 		}
 	}
 
 	return nil
+}
+
+// generateHostname creates a namespace-aware hostname for a service.
+// For services in the default namespace, returns: {serviceName}.{clusterDomain}
+// For services in other namespaces, returns: {serviceName}-{namespace}.{clusterDomain}
+// This ensures unique hostnames for services with the same name in different namespaces.
+func (r *ServiceSpecResolver) generateHostname(serviceName, namespace string) string {
+	if namespace == "" || namespace == api.DefaultNamespace {
+		return fmt.Sprintf("%s.%s", serviceName, r.ClusterDomain)
+	}
+	return fmt.Sprintf("%s-%s.%s", serviceName, namespace, r.ClusterDomain)
 }
 
 func GenerateServiceName(image string) (string, error) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
@@ -26,12 +27,13 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 	}
 
 	if spec.Name != "" {
-		// Optimistically check if a service with the specified name already exists.
-		_, err := cli.InspectService(ctx, spec.Name)
+		// Optimistically check if a service with the specified name already exists in this namespace.
+		_, err := cli.InspectService(ctx, spec.Name, spec.Namespace)
 		if err == nil {
-			return resp, fmt.Errorf("service with name '%s' already exists", spec.Name)
+			return resp, fmt.Errorf("service with name '%s' already exists in namespace '%s'", spec.Name, spec.Namespace)
 		}
-		if !errors.Is(err, api.ErrNotFound) {
+		// ErrNotFound or ErrNamespaceMismatch both mean we can proceed - no conflict in this namespace.
+		if !errors.Is(err, api.ErrNotFound) && !errors.Is(err, api.ErrNamespaceMismatch) {
 			return resp, fmt.Errorf("inspect service: %w", err)
 		}
 	}
@@ -87,7 +89,8 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 
 // InspectService returns detailed information about a service and its containers.
 // The nameOrID parameter can be either a service name or ID.
-func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Service, error) {
+// If namespace is non-empty and nameOrID is a name, only containers in that namespace are matched.
+func (cli *Client) InspectService(ctx context.Context, nameOrID string, namespace string) (api.Service, error) {
 	var svc api.Service
 
 	machines, err := cli.ListMachines(ctx, nil)
@@ -148,6 +151,9 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 
 		for _, ctr := range mc.Containers {
 			if ctr.ServiceID() == nameOrID || ctr.ServiceName() == nameOrID {
+				if namespace != "" && ctr.Namespace() != namespace {
+					continue
+				}
 				containers = append(containers, api.MachineServiceContainer{
 					MachineID: machineID,
 					Container: ctr,
@@ -161,23 +167,41 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	}
 
 	if len(containers) == 0 {
+		// If namespace was specified, check if the service exists in another namespace to provide a better error.
+		if namespace != "" {
+			// Retry without namespace to see if the name exists elsewhere.
+			svcAny, errAny := cli.InspectService(ctx, nameOrID, "")
+			if errAny == nil && svcAny.Name != "" {
+				return svc, fmt.Errorf("%w: service '%s' exists but not in namespace '%s'", api.ErrNamespaceMismatch, nameOrID, namespace)
+			}
+		}
 		return svc, api.ErrNotFound
 	}
 
 	// Containers from different services may share the same service name (distributed and eventually consistent store
 	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
-	// priority over matching by name.
+	// priority over matching by name. If still ambiguous by name, require namespace selection.
 	if foundByID {
 		containers = slices.DeleteFunc(containers, func(mc api.MachineServiceContainer) bool {
 			return mc.Container.ServiceID() != nameOrID
 		})
 	} else {
-		// Matched only by name but there could be multiple services with the same name.
-		serviceID := containers[0].Container.ServiceID()
-		for _, mc := range containers[1:] {
-			if mc.Container.ServiceID() != serviceID {
-				return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
+		// Group by service ID to detect collisions.
+		ids := make(map[string]int)
+		for _, mc := range containers {
+			ids[mc.Container.ServiceID()]++
+		}
+		if len(ids) > 1 {
+			namespaces := make(map[string]struct{})
+			for _, mc := range containers {
+				namespaces[mc.Container.Namespace()] = struct{}{}
 			}
+			var nsList []string
+			for ns := range namespaces {
+				nsList = append(nsList, ns)
+			}
+			slices.Sort(nsList)
+			return svc, fmt.Errorf("multiple services named '%s' found in namespaces: %s (specify --namespace)", nameOrID, strings.Join(nsList, ", "))
 		}
 	}
 
@@ -219,8 +243,9 @@ func (cli *Client) InspectServiceFromStore(ctx context.Context, id string) (api.
 
 // RemoveService removes all containers on all machines that belong to the specified service.
 // The id parameter can be either a service ID or name.
-func (cli *Client) RemoveService(ctx context.Context, id string) error {
-	svc, err := cli.InspectService(ctx, id)
+// If namespace is non-empty, only services in that namespace are matched.
+func (cli *Client) RemoveService(ctx context.Context, id string, namespace string) error {
+	svc, err := cli.InspectService(ctx, id, namespace)
 	if err != nil {
 		return err
 	}
@@ -271,8 +296,8 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 
 // StopService stops all containers on all machines that belong to the specified service.
 // The id parameter can be either a service ID or name.
-func (cli *Client) StopService(ctx context.Context, id string, opts container.StopOptions) error {
-	svc, err := cli.InspectService(ctx, id)
+func (cli *Client) StopService(ctx context.Context, id string, namespace string, opts container.StopOptions) error {
+	svc, err := cli.InspectService(ctx, id, namespace)
 	if err != nil {
 		return err
 	}
@@ -304,8 +329,8 @@ func (cli *Client) StopService(ctx context.Context, id string, opts container.St
 
 // StartService starts all containers on all machines that belong to the specified service.
 // The id parameter can be either a service ID or name.
-func (cli *Client) StartService(ctx context.Context, id string) error {
-	svc, err := cli.InspectService(ctx, id)
+func (cli *Client) StartService(ctx context.Context, id string, namespace string) error {
+	svc, err := cli.InspectService(ctx, id, namespace)
 	if err != nil {
 		return err
 	}
@@ -336,7 +361,8 @@ func (cli *Client) StartService(ctx context.Context, id string) error {
 }
 
 // ListServices returns a list of all services and their containers.
-func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
+// If namespace is non-empty, only services in that namespace are returned.
+func (cli *Client) ListServices(ctx context.Context, namespace string) ([]api.Service, error) {
 	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("list machines: %w", err)
@@ -375,8 +401,12 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 			if _, ok := servicesByID[ctr.ServiceID()]; ok {
 				continue
 			}
+			// Skip containers that don't match the namespace filter.
+			if namespace != "" && ctr.Namespace() != namespace {
+				continue
+			}
 
-			svc, err := cli.InspectService(ctx, ctr.ServiceID())
+			svc, err := cli.InspectService(ctx, ctr.ServiceID(), namespace)
 			if err != nil {
 				if errors.Is(err, api.ErrNotFound) {
 					continue

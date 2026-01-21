@@ -65,7 +65,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 	defer clusterClient.Close()
 
-	svc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
+	svc, err := clusterClient.InspectService(ctx, client.CaddyServiceName, api.SystemNamespace)
 	if err != nil {
 		if !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect caddy service: %w", err)

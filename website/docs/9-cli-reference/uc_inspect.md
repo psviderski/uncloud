@@ -9,7 +9,8 @@ uc inspect SERVICE [flags]
 ## Options
 
 ```
-  -h, --help   help for inspect
+  -h, --help               help for inspect
+      --namespace string   Namespace of the service (optional).
 ```
 
 ## Options inherited from parent commands

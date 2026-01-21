@@ -52,6 +52,8 @@ type ServiceSpec struct {
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
 	Mode string
 	Name string
+	// Namespace defines the network-isolated namespace this service belongs to.
+	Namespace string
 	// Placement defines the placement constraints for the service.
 	Placement Placement
 	// Ports defines what service ports to publish to make the service accessible outside the cluster.
@@ -109,6 +111,9 @@ func (s *ServiceSpec) SetDefaults() ServiceSpec {
 	if spec.Mode == "" {
 		spec.Mode = ServiceModeReplicated
 	}
+	if spec.Namespace == "" {
+		spec.Namespace = DefaultNamespace
+	}
 	// Ensure the replicated service has at least one replica.
 	if spec.Mode == ServiceModeReplicated && spec.Replicas == 0 {
 		spec.Replicas = 1
@@ -125,6 +130,14 @@ func (s *ServiceSpec) SetDefaults() ServiceSpec {
 func (s *ServiceSpec) Validate() error {
 	if err := s.Container.Validate(); err != nil {
 		return err
+	}
+
+	namespace := s.Namespace
+	if namespace == "" {
+		namespace = DefaultNamespace
+	}
+	if err := ValidateNamespaceName(namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
 	}
 
 	switch s.Mode {
@@ -400,6 +413,14 @@ type Service struct {
 	Name       string
 	Mode       string
 	Containers []MachineServiceContainer
+}
+
+// Namespace returns the namespace of the service.
+func (s Service) Namespace() string {
+	if len(s.Containers) == 0 {
+		return DefaultNamespace
+	}
+	return s.Containers[0].Container.Namespace()
 }
 
 type MachineServiceContainer struct {

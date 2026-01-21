@@ -34,6 +34,8 @@ complexity of Kubernetes.
 * **[Unregistry](https://github.com/psviderski/unregistry) integration**: Build and push your Docker images directly to
   your machines without an external registry. It will transfer only the missing layers, making it fast and efficient.
 * **Service discovery**: Built-in DNS server resolves service names to container IPs.
+* **Namespaces**: Isolate groups of services with per-namespace DNS and firewall rules for multi-tenant or multi-env
+  clusters.
 * **Persistent storage**: Run stateful services with Docker volumes managed across machines.
 * **Zero-config private network**: Automatic WireGuard mesh with peer discovery and NAT traversal. Containers get unique
   IPs for direct cross-machine communication.

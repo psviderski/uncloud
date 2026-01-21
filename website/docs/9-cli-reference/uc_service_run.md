@@ -20,6 +20,7 @@ uc service run IMAGE [COMMAND...] [flags]
                             Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)
       --mode string         Replication mode of the service: either 'replicated' (a specified number of containers across the machines) or 'global' (one container on every machine). (default "replicated")
   -n, --name string         Assign a name to the service. A random name is generated if not specified.
+      --namespace string    Namespace for this service. Defaults to 'default'.
       --privileged          Give extended privileges to service containers. This is a security risk and should be used with caution.
   -p, --publish strings     Publish a service port to make it accessible outside the cluster. Can be specified multiple times.
                             Format: [hostname:]container_port[/protocol] or [host_ip:]host_port:container_port[/protocol]@host

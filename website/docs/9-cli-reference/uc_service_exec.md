@@ -38,6 +38,7 @@ uc service exec [OPTIONS] SERVICE [COMMAND ARGS...] [flags]
       --container string   ID of the container to exec into. Accepts full ID or a unique prefix (default is the random container of the service)
   -d, --detach             Detached mode: run command in the background
   -h, --help               help for exec
+      --namespace string   Namespace of the service (optional).
   -T, --no-tty             Disable pseudo-TTY allocation. By default 'uc exec' allocates a TTY when connected to a terminal.
 ```
 

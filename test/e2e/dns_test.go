@@ -27,7 +27,7 @@ func TestInternalDNS(t *testing.T) {
 	// Create a test service with multiple replicas across machines
 	serviceName := "test-dns-service"
 	t.Cleanup(func() {
-		err := cli.RemoveService(ctx, serviceName)
+		err := cli.RemoveService(ctx, serviceName, "")
 		if err != nil && !strings.Contains(err.Error(), "not found") {
 			require.NoError(t, err)
 		}
@@ -49,7 +49,7 @@ func TestInternalDNS(t *testing.T) {
 	// Wait for the service to be deployed
 	var svc api.Service
 	require.Eventually(t, func() bool {
-		svc, err = cli.InspectService(ctx, serviceName)
+		svc, err = cli.InspectService(ctx, serviceName, "")
 		if err != nil {
 			return false
 		}
@@ -68,7 +68,7 @@ func TestInternalDNS(t *testing.T) {
 	// Deploy a single "network-multitool" service to be used for all DNS queries
 	queryServiceName := "dns-query-service"
 	t.Cleanup(func() {
-		err := cli.RemoveService(ctx, queryServiceName)
+		err := cli.RemoveService(ctx, queryServiceName, "")
 		if err != nil && !strings.Contains(err.Error(), "not found") {
 			require.NoError(t, err)
 		}
@@ -91,7 +91,7 @@ func TestInternalDNS(t *testing.T) {
 	// Wait for the query service to be deployed
 	var querySvc api.Service
 	require.Eventually(t, func() bool {
-		querySvc, err = cli.InspectService(ctx, queryServiceName)
+		querySvc, err = cli.InspectService(ctx, queryServiceName, "")
 		if err != nil {
 			return false
 		}

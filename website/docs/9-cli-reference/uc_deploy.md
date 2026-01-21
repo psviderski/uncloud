@@ -14,6 +14,7 @@ uc deploy [FLAGS] [SERVICE...] [flags]
       --build-pull              Always attempt to pull newer versions of base images before building service images.
   -f, --file strings            One or more Compose files to deploy services from. (default compose.yaml)
   -h, --help                    help for deploy
+      --namespace string        Namespace for this deployment (overrides x-namespace). Defaults to 'default'.
       --no-build                Do not build new images before deploying services.
       --no-cache                Do not use cache when building images.
   -p, --profile strings         One or more Compose profiles to enable.

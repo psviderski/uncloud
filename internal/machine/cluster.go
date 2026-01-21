@@ -148,6 +148,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
 	}
+
 	errGroup.Go(func() error {
 		slog.Info("Starting network API server.", "addr", apiAddr)
 		if err := cc.server.Serve(listener); err != nil {

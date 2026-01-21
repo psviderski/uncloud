@@ -34,7 +34,7 @@ func deployTestService(t *testing.T, ctx context.Context, cli *client.Client, na
 
 	// Wait for all replicas to be running
 	require.Eventually(t, func() bool {
-		service, err := cli.InspectService(ctx, name)
+		service, err := cli.InspectService(ctx, name, "")
 		if err != nil {
 			return false
 		}
@@ -68,7 +68,7 @@ func TestExecBasicCommands(t *testing.T) {
 			AttachStderr: true,
 		}
 
-		_, err := cli.ExecContainer(ctx, "non-existent-service", "", execOptions)
+		_, err := cli.ExecContainer(ctx, "non-existent-service", "", "", execOptions)
 		assert.Error(t, err, "should fail for non-existent service")
 		assert.Contains(t, strings.ToLower(err.Error()), "inspect service: not found")
 	})
@@ -88,7 +88,7 @@ func TestExecBasicCommands(t *testing.T) {
 			Stderr:       &stderr,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+		exitCode, err := cli.ExecContainer(ctx, serviceName, "", "", execOptions)
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode, "command should exit with code 0")
 		assert.Equal(t, "hello world\n", stdout.String(), "should capture stdout")
@@ -103,7 +103,7 @@ func TestExecBasicCommands(t *testing.T) {
 			AttachStderr: true,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+		exitCode, err := cli.ExecContainer(ctx, serviceName, "", "", execOptions)
 		require.NoError(t, err)
 		assert.Equal(t, 42, exitCode, "should return actual exit code")
 	})
@@ -119,7 +119,7 @@ func TestExecBasicCommands(t *testing.T) {
 			Stderr:       &stderr,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+		exitCode, err := cli.ExecContainer(ctx, serviceName, "", "", execOptions)
 		require.NoError(t, err, "exec should not fail, but command should return non-zero exit")
 		assert.Equal(t, 126, exitCode, "invalid command should return non-zero exit code")
 		assert.Contains(t, stdout.String(), "executable file not found")
@@ -134,7 +134,7 @@ func TestExecBasicCommands(t *testing.T) {
 			AttachStderr: true,
 		}
 
-		_, err := cli.ExecContainer(ctx, serviceName, "non-existent-container-id", execOptions)
+		_, err := cli.ExecContainer(ctx, serviceName, "", "non-existent-container-id", execOptions)
 		assert.Error(t, err, "should fail for non-existent container")
 	})
 
@@ -146,7 +146,7 @@ func TestExecBasicCommands(t *testing.T) {
 			AttachStderr: true,
 		}
 
-		_, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+		_, err := cli.ExecContainer(ctx, serviceName, "", "", execOptions)
 		assert.Error(t, err, "should fail for empty command")
 	})
 
@@ -161,7 +161,7 @@ func TestExecBasicCommands(t *testing.T) {
 			Stderr:       &stderr,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+		exitCode, err := cli.ExecContainer(ctx, serviceName, "", "", execOptions)
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode)
 		assert.Equal(t, "stdout\n", stdout.String(), "should capture stdout")
@@ -179,7 +179,7 @@ func TestExecBasicCommands(t *testing.T) {
 			Detach:  true,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+		exitCode, err := cli.ExecContainer(ctx, serviceName, "", "", execOptions)
 		elapsed := time.Since(start)
 
 		require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestExecBasicCommands(t *testing.T) {
 			Detach:  true,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
+		exitCode, err := cli.ExecContainer(ctx, serviceName, "", "", execOptions)
 
 		require.ErrorContains(t, err, "executable file not found")
 		assert.Equal(t, 1, exitCode)
@@ -214,7 +214,7 @@ func TestExecBasicCommands(t *testing.T) {
 
 	// Test: Execute command on specific container
 	t.Run("exec on specific container", func(t *testing.T) {
-		service, err := cli.InspectService(ctx, multiServiceName)
+		service, err := cli.InspectService(ctx, multiServiceName, "")
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(service.Containers), 2, "should have at least 2 containers")
 
@@ -230,7 +230,7 @@ func TestExecBasicCommands(t *testing.T) {
 			Stderr:       &stderr,
 		}
 
-		exitCode, err := cli.ExecContainer(ctx, multiServiceName, containerIDPrefix, execOptions)
+		exitCode, err := cli.ExecContainer(ctx, multiServiceName, "", containerIDPrefix, execOptions)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode)

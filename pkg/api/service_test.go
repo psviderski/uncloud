@@ -291,3 +291,23 @@ func TestContainerSpec_Clone(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o644), *cloned.ConfigMounts[0].Mode, "Mode should be deep copied")
 	assert.Equal(t, "1", cloned.Sysctls["net.ipv4.ip_forward"])
 }
+
+func TestServiceSpec_DefaultNamespaceAndValidation(t *testing.T) {
+	spec := ServiceSpec{
+		Name: "test",
+		Container: ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+
+	// Validate should accept empty namespace by treating it as default.
+	require.NoError(t, spec.Validate())
+
+	// SetDefaults should populate the default namespace.
+	defaulted := spec.SetDefaults()
+	require.Equal(t, DefaultNamespace, defaulted.Namespace)
+
+	// Invalid namespace should fail validation.
+	spec.Namespace = "Invalid_Namespace"
+	require.ErrorContains(t, spec.Validate(), "invalid namespace")
+}

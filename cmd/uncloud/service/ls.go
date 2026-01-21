@@ -20,21 +20,26 @@ func NewListCommand(groupID string) *cobra.Command {
 		Short:   "List services.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return list(cmd.Context(), uncli)
+			ns := cmd.Flag("namespace").Value.String()
+			if err := api.ValidateOptionalNamespace(ns); err != nil {
+				return fmt.Errorf("invalid namespace: %w", err)
+			}
+			return list(cmd.Context(), uncli, ns)
 		},
 		GroupID: groupID,
 	}
+	cmd.Flags().String("namespace", "", "Filter services by namespace (optional).")
 	return cmd
 }
 
-func list(ctx context.Context, uncli *cli.CLI) error {
+func list(ctx context.Context, uncli *cli.CLI, namespace string) error {
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer client.Close()
 
-	services, err := client.ListServices(ctx)
+	services, err := client.ListServices(ctx, namespace)
 	if err != nil {
 		return fmt.Errorf("list services: %w", err)
 	}
@@ -58,7 +63,7 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			return fmt.Errorf("write header: %w", err)
 		}
 	}
-	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tIMAGE\tENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tNAMESPACE\tMODE\tREPLICAS\tIMAGE\tENDPOINTS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	for _, s := range services {
@@ -79,8 +84,8 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 				return fmt.Errorf("write row: %w", err)
 			}
 		}
-		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\n",
-			s.Name, s.Mode, len(s.Containers), images, endpoints); err != nil {
+		if _, err = fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\n",
+			s.Name, s.Namespace(), s.Mode, len(s.Containers), images, endpoints); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}

@@ -8,13 +8,15 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
 type stopOptions struct {
-	services []string
-	signal   string
-	timeout  int
+	services  []string
+	signal    string
+	timeout   int
+	namespace string
 }
 
 func NewStopCommand(groupID string) *cobra.Command {
@@ -40,10 +42,14 @@ Services can be specified by name or ID. Stopped services can be restarted with 
 	cmd.Flags().IntVarP(&opts.timeout, "timeout", "t", 10,
 		"Seconds to wait for each container to stop gracefully before forcibly killing it with SIGKILL.\n"+
 			"Use -1 to wait indefinitely.")
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service(s) (optional).")
 	return cmd
 }
 
 func stop(ctx context.Context, uncli *cli.CLI, opts stopOptions) error {
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
+	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -57,7 +63,7 @@ func stop(ctx context.Context, uncli *cli.CLI, opts stopOptions) error {
 
 	for _, s := range opts.services {
 		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-			if err = client.StopService(ctx, s, stopOpts); err != nil {
+			if err = client.StopService(ctx, s, opts.namespace, stopOpts); err != nil {
 				return fmt.Errorf("stop service '%s': %w", s, err)
 			}
 			return nil

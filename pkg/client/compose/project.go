@@ -28,6 +28,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		composecli.WithExtension(CaddyExtensionKey, Caddy{}),
 		composecli.WithExtension(MachinesExtensionKey, MachinesSource{}),
 		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
+		composecli.WithExtension(NamespaceExtensionKey, NamespaceSource("")),
 	}
 
 	options, err := composecli.NewProjectOptions(

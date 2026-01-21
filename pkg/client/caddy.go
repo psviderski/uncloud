@@ -57,6 +57,7 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 		},
 		Mode:      api.ServiceModeGlobal,
 		Name:      CaddyServiceName,
+		Namespace: api.SystemNamespace,
 		Placement: placement,
 		Ports: []api.PortSpec{
 			{

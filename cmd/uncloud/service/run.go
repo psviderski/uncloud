@@ -28,6 +28,7 @@ type runOptions struct {
 	memory            dockeropts.MemBytes
 	mode              string
 	name              string
+	namespace         string
 	privileged        bool
 	publish           []string
 	pull              string
@@ -81,6 +82,8 @@ func NewRunCommand(groupID string) *cobra.Command {
 			"Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)")
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "",
 		"Assign a name to the service. A random name is generated if not specified.")
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "",
+		"Namespace for this service. Defaults to 'default'.")
 	cmd.Flags().BoolVar(&opts.privileged, "privileged", false,
 		"Give extended privileges to service containers. This is a security risk and should be used with caution.")
 	cmd.Flags().StringSliceVarP(&opts.publish, "publish", "p", nil,
@@ -115,6 +118,9 @@ func NewRunCommand(groupID string) *cobra.Command {
 }
 
 func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
+	}
 	spec, err := prepareServiceSpec(opts)
 	if err != nil {
 		return err
@@ -139,7 +145,7 @@ func run(ctx context.Context, uncli *cli.CLI, opts runOptions) error {
 		return err
 	}
 
-	svc, err := clusterClient.InspectService(ctx, resp.ID)
+	svc, err := clusterClient.InspectService(ctx, resp.ID, opts.namespace)
 	if err != nil {
 		return fmt.Errorf("inspect service: %w", err)
 	}
@@ -219,6 +225,7 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 		},
 		Mode:      opts.mode,
 		Name:      opts.name,
+		Namespace: opts.namespace,
 		Placement: placement,
 		Ports:     ports,
 		Replicas:  opts.replicas,

@@ -17,7 +17,8 @@ uc service rm SERVICE [SERVICE...] [flags]
 ## Options
 
 ```
-  -h, --help   help for rm
+  -h, --help               help for rm
+      --namespace string   Namespace of the service(s) (optional).
 ```
 
 ## Options inherited from parent commands

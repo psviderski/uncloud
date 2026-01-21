@@ -16,11 +16,12 @@ uc service stop SERVICE [SERVICE...] [flags]
 ## Options
 
 ```
-  -h, --help            help for stop
-  -s, --signal string   Signal to send to each container's main process.
-                        Can be a signal name (SIGTERM, SIGINT, SIGHUP, etc.) or a number. (default SIGTERM)
-  -t, --timeout int     Seconds to wait for each container to stop gracefully before forcibly killing it with SIGKILL.
-                        Use -1 to wait indefinitely. (default 10)
+  -h, --help               help for stop
+      --namespace string   Namespace of the service(s) (optional).
+  -s, --signal string      Signal to send to each container's main process.
+                           Can be a signal name (SIGTERM, SIGINT, SIGHUP, etc.) or a number. (default SIGTERM)
+  -t, --timeout int        Seconds to wait for each container to stop gracefully before forcibly killing it with SIGKILL.
+                           Use -1 to wait indefinitely. (default 10)
 ```
 
 ## Options inherited from parent commands

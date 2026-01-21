@@ -16,7 +16,8 @@ import (
 )
 
 type inspectOptions struct {
-	service string
+	service   string
+	namespace string
 }
 
 func NewInspectCommand(groupID string) *cobra.Command {
@@ -32,17 +33,21 @@ func NewInspectCommand(groupID string) *cobra.Command {
 		},
 		GroupID: groupID,
 	}
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "Namespace of the service (optional).")
 	return cmd
 }
 
 func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
+	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer client.Close()
 
-	svc, err := client.InspectService(ctx, opts.service)
+	svc, err := client.InspectService(ctx, opts.service, opts.namespace)
 	if err != nil {
 		return fmt.Errorf("inspect service: %w", err)
 	}
@@ -58,6 +63,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 
 	fmt.Printf("Service ID: %s\n", svc.ID)
 	fmt.Printf("Name:       %s\n", svc.Name)
+	fmt.Printf("Namespace:  %s\n", svc.Namespace())
 	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 

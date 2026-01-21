@@ -25,7 +25,7 @@ type ContainerClient interface {
 	RemoveContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions) error
 	StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error
 	StopContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions) error
-	ExecContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, config ExecOptions) (int, error)
+	ExecContainer(ctx context.Context, serviceNameOrID, namespace, containerNameOrID string, config ExecOptions) (int, error)
 }
 
 type DNSClient interface {
@@ -46,10 +46,11 @@ type MachineClient interface {
 
 type ServiceClient interface {
 	RunService(ctx context.Context, spec ServiceSpec) (RunServiceResponse, error)
-	InspectService(ctx context.Context, id string) (Service, error)
-	RemoveService(ctx context.Context, id string) error
-	StopService(ctx context.Context, id string, opts container.StopOptions) error
-	StartService(ctx context.Context, id string) error
+	InspectService(ctx context.Context, id string, namespace string) (Service, error)
+	ListServices(ctx context.Context, namespace string) ([]Service, error)
+	RemoveService(ctx context.Context, id string, namespace string) error
+	StopService(ctx context.Context, id string, namespace string, opts container.StopOptions) error
+	StartService(ctx context.Context, id string, namespace string) error
 }
 
 type VolumeClient interface {

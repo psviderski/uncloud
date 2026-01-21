@@ -42,7 +42,7 @@ func execInContainerAndReadOutput(
 
 	commandName := command[0]
 
-	exitCode, err := cli.ExecContainer(ctx, serviceNameOrID, containerNameOrID, execOpts)
+	exitCode, err := cli.ExecContainer(ctx, serviceNameOrID, "", containerNameOrID, execOpts)
 	if err != nil {
 		return "", fmt.Errorf("exec %s: %w", commandName, err)
 	}

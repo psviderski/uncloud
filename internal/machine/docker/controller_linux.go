@@ -119,6 +119,16 @@ func configureIptables(bridgeName string, subnet netip.Prefix, dnsServer netip.A
 		}
 	}
 
+	// Enforce namespace isolation for traffic within the bridge.
+	namespaceFilterRule := []string{
+		"--in-interface", bridgeName,
+		"--out-interface", bridgeName,
+		"-j", firewall.UncloudNamespaceFilterChain,
+	}
+	if err := ipt.ProgramRule(iptables.Filter, firewall.DockerUserChain, iptables.Insert, namespaceFilterRule); err != nil {
+		return fmt.Errorf("insert namespace filter jump rule: %w", err)
+	}
+
 	// Skip masquerading for the container traffic going from the uncloud Docker network through the WG mesh.
 	// https://uncloud.run/blog/connect-docker-containers-across-hosts-wireguard#step-3-configure-ip-routing
 	skipMasqueradeRule := []string{

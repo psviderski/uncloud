@@ -16,8 +16,9 @@ uc ps [flags]
 ## Options
 
 ```
-  -h, --help          help for ps
-  -s, --sort string   Sort containers by 'service', 'machine', or 'health'. (default "service")
+  -h, --help               help for ps
+      --namespace string   Filter containers by service namespace (optional).
+  -s, --sort string        Sort containers by 'service', 'machine', or 'health'. (default "service")
 ```
 
 ## Options inherited from parent commands

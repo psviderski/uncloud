@@ -73,6 +73,9 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	if machines, ok := service.Extensions[MachinesExtensionKey].(MachinesSource); ok {
 		spec.Placement.Machines = machines
 	}
+	if ns, ok := service.Extensions[NamespaceExtensionKey].(NamespaceSource); ok {
+		spec.Namespace = string(ns)
+	}
 
 	// Map LogDriver if specified
 	if service.Logging != nil && service.Logging.Driver != "" {

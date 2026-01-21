@@ -44,7 +44,7 @@ func TestComposeConfigs(t *testing.T) {
 		err = deploy.Run(ctx)
 		require.NoError(t, err)
 
-		svc, err := cli.InspectService(ctx, name)
+		svc, err := cli.InspectService(ctx, name, "")
 		require.NoError(t, err)
 
 		expectedSpec := api.ServiceSpec{

@@ -21,13 +21,14 @@ import (
 )
 
 type logsOptions struct {
-	files    []string
-	follow   bool
-	tail     string
-	since    string
-	until    string
-	utc      bool
-	machines []string
+	files     []string
+	follow    bool
+	tail      string
+	since     string
+	until     string
+	utc       bool
+	machines  []string
+	namespace string
 }
 
 func NewLogsCommand(groupID string) *cobra.Command {
@@ -93,6 +94,7 @@ If no services are specified, streams logs from all services defined in the Comp
 			"See --since for examples.")
 	cmd.Flags().BoolVar(&options.utc, "utc", false,
 		"Print timestamps in UTC instead of local timezone.")
+	cmd.Flags().StringVar(&options.namespace, "namespace", "", "Namespace of the service(s) (optional).")
 
 	return cmd
 }
@@ -109,6 +111,10 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		if len(serviceNames) == 0 {
 			return errors.New("no services found in compose file(s)")
 		}
+	}
+
+	if err := api.ValidateOptionalNamespace(opts.namespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
 	}
 
 	// Parse tail option.
@@ -139,7 +145,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 	machineIDsSet := mapset.NewSet[string]()
 	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceNames))
 	for _, serviceName := range serviceNames {
-		svc, ch, err := c.ServiceLogs(ctx, serviceName, logsOpts)
+		svc, ch, err := c.ServiceLogs(ctx, serviceName, opts.namespace, logsOpts)
 		if err != nil {
 			return fmt.Errorf("stream logs for service '%s': %w", serviceName, err)
 		}

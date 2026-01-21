@@ -16,7 +16,8 @@ uc start SERVICE [SERVICE...] [flags]
 ## Options
 
 ```
-  -h, --help   help for start
+  -h, --help               help for start
+      --namespace string   Namespace of the service(s) (optional).
 ```
 
 ## Options inherited from parent commands
