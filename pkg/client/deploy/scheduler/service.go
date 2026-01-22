@@ -81,23 +81,12 @@ var NoReservationRanker = MachineRankerFunc(func(a, b *Machine) bool {
 // The report includes details on why ineligible machines failed.
 // Returns an error if no machines are eligible.
 func (s *ServiceScheduler) EligibleMachines() ([]*Machine, *SchedulingReport, error) {
-	report := &SchedulingReport{}
+	s.updateReport()
 
-	for _, machine := range s.state.Machines {
-		eval := s.evaluateAllConstraints(machine)
-		if eval.Passed() {
-			report.Eligible = append(report.Eligible, machine)
-		} else {
-			report.Ineligible = append(report.Ineligible, eval)
-		}
+	if len(s.lastReport.Eligible) == 0 {
+		return nil, s.lastReport, errors.New("no eligible machines")
 	}
-
-	s.lastReport = report
-
-	if len(report.Eligible) == 0 {
-		return nil, report, errors.New("no eligible machines")
-	}
-	return report.Eligible, report, nil
+	return s.lastReport.Eligible, s.lastReport, nil
 }
 
 // evaluateAllConstraints evaluates all constraints for a machine and returns the evaluation.
@@ -138,7 +127,7 @@ func (s *ServiceScheduler) ScheduleContainer() (*Machine, *SchedulingReport, err
 
 	// Re-filter the heap to remove machines that no longer satisfy constraints (e.g., out of resources).
 	// Also update the report with current constraint evaluations for all machines.
-	s.updateReportForCurrentState()
+	s.updateReport()
 
 	s.heap.machines = filterEligible(s.heap.machines, s.evaluateConstraintsSatisfied)
 	if len(s.heap.machines) == 0 {
@@ -160,9 +149,9 @@ func (s *ServiceScheduler) ScheduleContainer() (*Machine, *SchedulingReport, err
 	return m, s.lastReport, nil
 }
 
-// updateReportForCurrentState updates the lastReport with fresh constraint evaluations
-// for all machines in the cluster, reflecting the current scheduling state.
-func (s *ServiceScheduler) updateReportForCurrentState() {
+// updateReport refreshes the lastReport with constraint evaluations for all machines,
+// reflecting the current scheduling state.
+func (s *ServiceScheduler) updateReport() {
 	report := &SchedulingReport{}
 
 	for _, machine := range s.state.Machines {

@@ -97,8 +97,9 @@ func (c *PlacementConstraint) Evaluate(machine *Machine) ConstraintResult {
 }
 
 func (c *PlacementConstraint) Description() string {
-	slices.Sort(c.Machines)
-	return "Placement constraint by machines: " + strings.Join(c.Machines, ", ")
+	machines := slices.Clone(c.Machines)
+	slices.Sort(machines)
+	return "Placement constraint by machines: " + strings.Join(machines, ", ")
 }
 
 // VolumesConstraint restricts container placement to machines that have the required named Docker volumes.
@@ -150,12 +151,12 @@ func (c *VolumesConstraint) volumeExistsOrScheduled(v api.VolumeSpec, machine *M
 
 	// Check if the required volume has been scheduled on the machine.
 	return slices.ContainsFunc(machine.ScheduledVolumes, func(scheduled api.VolumeSpec) bool {
-		return c.scheduledVolumeMatches(v, scheduled)
+		return scheduledVolumeMatches(v, scheduled)
 	})
 }
 
 // scheduledVolumeMatches checks if a scheduled volume matches the required volume spec.
-func (c *VolumesConstraint) scheduledVolumeMatches(required, scheduled api.VolumeSpec) bool {
+func scheduledVolumeMatches(required, scheduled api.VolumeSpec) bool {
 	if required.DockerVolumeName() != scheduled.DockerVolumeName() {
 		return false
 	}
