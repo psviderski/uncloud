@@ -216,9 +216,9 @@ func (s *VolumeScheduler) serviceEligibleMachinesWithoutVolumes(spec api.Service
 	specWithoutVolumes.Container.VolumeMounts = nil
 
 	scheduler := NewServiceScheduler(s.state, specWithoutVolumes)
-	machines, err := scheduler.EligibleMachines()
+	machines, report, err := scheduler.EligibleMachines()
 	if err != nil {
-		return nil, fmt.Errorf("schedule service '%s': %w", spec.Name, err)
+		return nil, fmt.Errorf("schedule service '%s':\n%s", spec.Name, report.Error())
 	}
 
 	machineIDs := mapset.NewSetWithSize[string](len(machines))

@@ -249,7 +249,10 @@ func TestResourceConstraint_Evaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.constraint.Evaluate(tt.machine)
-			assert.Equal(t, tt.want, result)
+			assert.Equal(t, tt.want, result.Satisfied)
+			if !tt.want {
+				assert.NotEmpty(t, result.Reason, "failing constraint should have a reason")
+			}
 		})
 	}
 }
@@ -375,7 +378,11 @@ func TestPlacementConstraint_Evaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.constraint.Evaluate(tt.machine)
-			assert.Equal(t, tt.want, result)
+			assert.Equal(t, tt.want, result.Satisfied)
+			if !tt.want {
+				assert.NotEmpty(t, result.Reason, "failing constraint should have a reason")
+				assert.Contains(t, result.Reason, "not in allowed list")
+			}
 		})
 	}
 }
@@ -435,7 +442,12 @@ func TestVolumesConstraint_Evaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &VolumesConstraint{Volumes: []api.VolumeSpec{volumeSpec}}
-			assert.Equal(t, tt.want, c.Evaluate(tt.machine))
+			result := c.Evaluate(tt.machine)
+			assert.Equal(t, tt.want, result.Satisfied)
+			if !tt.want {
+				assert.NotEmpty(t, result.Reason, "failing constraint should have a reason")
+				assert.Contains(t, result.Reason, "not found on machine")
+			}
 		})
 	}
 }

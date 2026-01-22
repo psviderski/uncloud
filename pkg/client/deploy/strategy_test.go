@@ -131,6 +131,8 @@ func TestRollingStrategy_planReplicated_WithResources(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot schedule replica")
+		// Error should now include detailed per-machine reasons
+		assert.Contains(t, err.Error(), "insufficient CPU")
 	})
 
 	t.Run("respects resource constraints during scheduling", func(t *testing.T) {
@@ -489,6 +491,9 @@ func TestRollingStrategy_planGlobal_WithResources(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "global service")
 		assert.Contains(t, err.Error(), "2 of 3 machines are eligible")
+		// Error should now include detailed per-machine reasons
+		assert.Contains(t, err.Error(), "node3")
+		assert.Contains(t, err.Error(), "insufficient CPU")
 	})
 
 	t.Run("global service with resource requirements on sufficient cluster", func(t *testing.T) {
@@ -542,6 +547,9 @@ func TestRollingStrategy_planGlobal_WithResources(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "1 of 2 machines are eligible")
+		// Error should now include detailed per-machine reasons
+		assert.Contains(t, err.Error(), "node2")
+		assert.Contains(t, err.Error(), "insufficient memory")
 	})
 
 	t.Run("global service without resource constraints succeeds", func(t *testing.T) {

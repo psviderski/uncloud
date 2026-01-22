@@ -172,16 +172,19 @@ func TestServiceScheduler_EligibleMachines(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sched := NewServiceScheduler(tt.state, tt.spec)
-			machines, err := sched.EligibleMachines()
+			machines, report, err := sched.EligibleMachines()
 
 			if tt.wantErr != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.NotNil(t, report, "report should be returned even on error")
+				assert.NotEmpty(t, report.Error(), "report error should provide details")
 				return
 			}
 
 			require.NoError(t, err)
 			assert.Len(t, machines, tt.wantCount)
+			assert.NotNil(t, report)
 
 			if tt.wantMachine != "" {
 				found := false
@@ -218,9 +221,10 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 		}
 
 		sched := NewServiceScheduler(state, spec)
-		m, err := sched.ScheduleContainer()
+		m, report, err := sched.ScheduleContainer()
 
 		require.NoError(t, err)
+		assert.NotNil(t, report)
 		assert.Equal(t, "m1", m.Info.Id)
 		assert.Equal(t, 1*core, m.ScheduledCPU)
 		assert.Equal(t, 1, m.ScheduledContainers)
@@ -248,7 +252,7 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 		}
 
 		sched := NewServiceScheduler(state, spec)
-		m, err := sched.ScheduleContainer()
+		m, _, err := sched.ScheduleContainer()
 
 		require.NoError(t, err)
 		assert.Equal(t, "m2", m.Info.Id) // Least loaded machine
@@ -266,7 +270,7 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 		sched := NewServiceScheduler(state, spec)
 
 		for i := 0; i < 4; i++ {
-			_, err := sched.ScheduleContainer()
+			_, _, err := sched.ScheduleContainer()
 			require.NoError(t, err)
 		}
 
@@ -290,7 +294,7 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 		}
 
 		sched := NewServiceScheduler(state, spec)
-		m, err := sched.ScheduleContainer()
+		m, _, err := sched.ScheduleContainer()
 
 		require.NoError(t, err)
 		assert.Equal(t, 2*core, m.ScheduledCPU)
@@ -309,13 +313,13 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 
 		sched := NewServiceScheduler(state, spec)
 
-		m1, err := sched.ScheduleContainer()
+		m1, _, err := sched.ScheduleContainer()
 		require.NoError(t, err)
-		m2, err := sched.ScheduleContainer()
+		m2, _, err := sched.ScheduleContainer()
 		require.NoError(t, err)
-		m3, err := sched.ScheduleContainer()
+		m3, _, err := sched.ScheduleContainer()
 		require.NoError(t, err)
-		m4, err := sched.ScheduleContainer()
+		m4, _, err := sched.ScheduleContainer()
 		require.NoError(t, err)
 
 		// Should alternate between machines (due to spread ranking)
@@ -334,7 +338,7 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 	t.Run("returns error when no capacity - resource exhaustion", func(t *testing.T) {
 		state := &ClusterState{
 			Machines: []*Machine{
-				{Info: &pb.MachineInfo{Id: "m1", TotalCpuNanos: 2 * core, TotalMemoryBytes: 8 * gb}},
+				{Info: &pb.MachineInfo{Id: "m1", Name: "node1", TotalCpuNanos: 2 * core, TotalMemoryBytes: 8 * gb}},
 			},
 		}
 		spec := api.ServiceSpec{
@@ -346,15 +350,17 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 		sched := NewServiceScheduler(state, spec)
 
 		// First two should succeed
-		_, err := sched.ScheduleContainer()
+		_, _, err := sched.ScheduleContainer()
 		require.NoError(t, err)
-		_, err = sched.ScheduleContainer()
+		_, _, err = sched.ScheduleContainer()
 		require.NoError(t, err)
 
 		// Third should fail - no more CPU capacity
-		_, err = sched.ScheduleContainer()
+		_, report, err := sched.ScheduleContainer()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no eligible machines")
+		assert.NotNil(t, report)
+		assert.Contains(t, report.Error(), "insufficient CPU")
 	})
 
 	t.Run("re-filters after resource exhaustion on some machines", func(t *testing.T) {
@@ -374,7 +380,7 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 
 		// Schedule 4 containers - first 2 per machine, then m1 runs out
 		for i := 0; i < 4; i++ {
-			m, err := sched.ScheduleContainer()
+			m, _, err := sched.ScheduleContainer()
 			require.NoError(t, err)
 			t.Logf("Scheduled container %d on %s", i+1, m.Info.Id)
 		}
@@ -386,13 +392,13 @@ func TestServiceScheduler_ScheduleContainer(t *testing.T) {
 
 		// Next 2 containers should go to m2 only (m1 is exhausted)
 		for i := 0; i < 2; i++ {
-			m, err := sched.ScheduleContainer()
+			m, _, err := sched.ScheduleContainer()
 			require.NoError(t, err)
 			assert.Equal(t, "m2", m.Info.Id)
 		}
 
 		// m2 should now be at capacity
-		_, err := sched.ScheduleContainer()
+		_, _, err := sched.ScheduleContainer()
 		assert.Error(t, err)
 	})
 }
@@ -421,7 +427,7 @@ func TestServiceScheduler_UnscheduleContainer(t *testing.T) {
 		}
 
 		sched := NewServiceScheduler(state, spec)
-		m, err := sched.ScheduleContainer()
+		m, _, err := sched.ScheduleContainer()
 		require.NoError(t, err)
 
 		assert.Equal(t, 1*core, m.ScheduledCPU)
@@ -444,7 +450,7 @@ func TestServiceScheduler_UnscheduleContainer(t *testing.T) {
 		spec := api.ServiceSpec{}
 
 		sched := NewServiceScheduler(state, spec)
-		m, err := sched.ScheduleContainer()
+		m, _, err := sched.ScheduleContainer()
 		require.NoError(t, err)
 
 		// Unschedule twice - should not go negative
@@ -497,7 +503,7 @@ func TestServiceScheduler_CustomRanker(t *testing.T) {
 	spec := api.ServiceSpec{}
 
 	sched := NewServiceSchedulerWithRanker(state, spec, memoryRanker)
-	m, err := sched.ScheduleContainer()
+	m, _, err := sched.ScheduleContainer()
 
 	require.NoError(t, err)
 	assert.Equal(t, "m3", m.Info.Id) // Should pick machine with most memory

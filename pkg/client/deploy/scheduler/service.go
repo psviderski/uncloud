@@ -34,6 +34,8 @@ type ServiceScheduler struct {
 	constraints []Constraint
 	ranker      MachineRanker
 	heap        *machineHeap
+	// lastReport holds the most recent scheduling report for error reporting.
+	lastReport *SchedulingReport
 }
 
 // NewServiceScheduler creates a new ServiceScheduler with the given cluster state and service specification.
@@ -75,24 +77,45 @@ var NoReservationRanker = MachineRankerFunc(func(a, b *Machine) bool {
 	return a.Info.Id < b.Info.Id
 })
 
-// EligibleMachines returns a list of machines that satisfy all constraints.
+// EligibleMachines returns a list of machines that satisfy all constraints and a scheduling report.
+// The report includes details on why ineligible machines failed.
 // Returns an error if no machines are eligible.
-func (s *ServiceScheduler) EligibleMachines() ([]*Machine, error) {
-	var available []*Machine
+func (s *ServiceScheduler) EligibleMachines() ([]*Machine, *SchedulingReport, error) {
+	report := &SchedulingReport{}
+
 	for _, machine := range s.state.Machines {
-		if s.evaluateConstraints(machine) {
-			available = append(available, machine)
+		eval := s.evaluateAllConstraints(machine)
+		if eval.Passed() {
+			report.Eligible = append(report.Eligible, machine)
+		} else {
+			report.Ineligible = append(report.Ineligible, eval)
 		}
 	}
-	if len(available) == 0 {
-		return nil, errors.New("no eligible machines")
+
+	s.lastReport = report
+
+	if len(report.Eligible) == 0 {
+		return nil, report, errors.New("no eligible machines")
 	}
-	return available, nil
+	return report.Eligible, report, nil
 }
 
-func (s *ServiceScheduler) evaluateConstraints(machine *Machine) bool {
+// evaluateAllConstraints evaluates all constraints for a machine and returns the evaluation.
+func (s *ServiceScheduler) evaluateAllConstraints(machine *Machine) MachineEvaluation {
+	eval := MachineEvaluation{Machine: machine}
+
 	for _, c := range s.constraints {
-		if !c.Evaluate(machine) {
+		result := c.Evaluate(machine)
+		eval.Results = append(eval.Results, result)
+	}
+
+	return eval
+}
+
+// evaluateConstraintsSatisfied returns true if the machine satisfies all constraints.
+func (s *ServiceScheduler) evaluateConstraintsSatisfied(machine *Machine) bool {
+	for _, c := range s.constraints {
+		if !c.Evaluate(machine).Satisfied {
 			return false
 		}
 	}
@@ -100,22 +123,26 @@ func (s *ServiceScheduler) evaluateConstraints(machine *Machine) bool {
 }
 
 // ScheduleContainer finds the best eligible machine for the next container, reserves resources on it,
-// and returns the machine. Returns an error if no machine can accommodate the container.
-func (s *ServiceScheduler) ScheduleContainer() (*Machine, error) {
+// and returns the machine along with the scheduling report. Returns an error if no machine can accommodate
+// the container. The report explains why each ineligible machine failed constraints.
+func (s *ServiceScheduler) ScheduleContainer() (*Machine, *SchedulingReport, error) {
 	// Initialize heap on first call.
 	if s.heap == nil {
-		eligible, err := s.EligibleMachines()
+		eligible, report, err := s.EligibleMachines()
 		if err != nil {
-			return nil, err
+			return nil, report, err
 		}
 		s.heap = &machineHeap{machines: eligible, ranker: s.ranker}
 		heap.Init(s.heap)
 	}
 
 	// Re-filter the heap to remove machines that no longer satisfy constraints (e.g., out of resources).
-	s.heap.machines = filterEligible(s.heap.machines, s.evaluateConstraints)
+	// Also update the report with current constraint evaluations for all machines.
+	s.updateReportForCurrentState()
+
+	s.heap.machines = filterEligible(s.heap.machines, s.evaluateConstraintsSatisfied)
 	if len(s.heap.machines) == 0 {
-		return nil, errors.New("no eligible machines with sufficient resources")
+		return nil, s.lastReport, errors.New("no eligible machines with sufficient resources")
 	}
 	heap.Init(s.heap)
 
@@ -130,7 +157,24 @@ func (s *ServiceScheduler) ScheduleContainer() (*Machine, error) {
 	// Push back with updated state so it gets re-ranked.
 	heap.Push(s.heap, m)
 
-	return m, nil
+	return m, s.lastReport, nil
+}
+
+// updateReportForCurrentState updates the lastReport with fresh constraint evaluations
+// for all machines in the cluster, reflecting the current scheduling state.
+func (s *ServiceScheduler) updateReportForCurrentState() {
+	report := &SchedulingReport{}
+
+	for _, machine := range s.state.Machines {
+		eval := s.evaluateAllConstraints(machine)
+		if eval.Passed() {
+			report.Eligible = append(report.Eligible, machine)
+		} else {
+			report.Ineligible = append(report.Ineligible, eval)
+		}
+	}
+
+	s.lastReport = report
 }
 
 // UnscheduleContainer rolls back a previous reservation for a container on the given machine.
@@ -148,7 +192,7 @@ func (s *ServiceScheduler) UnscheduleContainer(m *Machine) {
 	}
 
 	// Re-rank machines after resource adjustment.
-	s.heap.machines = filterEligible(s.heap.machines, s.evaluateConstraints)
+	s.heap.machines = filterEligible(s.heap.machines, s.evaluateConstraintsSatisfied)
 	heap.Init(s.heap)
 }
 

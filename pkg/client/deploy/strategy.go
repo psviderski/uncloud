@@ -107,9 +107,9 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 	// Schedule containers across eligible machines using the heap-based scheduler.
 	for i := 0; i < int(spec.Replicas); i++ {
 		// Get the best eligible machine for this container (accounts for resources and spreading).
-		m, err := sched.ScheduleContainer()
+		m, report, err := sched.ScheduleContainer()
 		if err != nil {
-			return plan, fmt.Errorf("cannot schedule replica %d of service '%s': %w", i+1, spec.Name, err)
+			return plan, fmt.Errorf("cannot schedule replica %d of service '%s':\n%s", i+1, spec.Name, report.Error())
 		}
 
 		containers := containersOnMachine[m.Info.Id]
@@ -195,9 +195,10 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 	}
 
 	sched := scheduler.NewServiceScheduler(s.state, spec)
-	availableMachines, err := sched.EligibleMachines()
+	availableMachines, report, err := sched.EligibleMachines()
 	if err != nil {
-		return plan, err
+		return plan, fmt.Errorf("global service '%s' requires all machines to satisfy constraints:\n%s",
+			spec.Name, report.Error())
 	}
 
 	// Global mode requires all target machines to satisfy the constraints.
@@ -209,8 +210,8 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 
 	if len(availableMachines) != targetMachineCount {
 		return plan, fmt.Errorf(
-			"global service '%s' requires all machines to satisfy constraints, but only %d of %d machines are eligible",
-			spec.Name, len(availableMachines), targetMachineCount,
+			"global service '%s' requires all machines to satisfy constraints, but only %d of %d machines are eligible:\n%s",
+			spec.Name, len(availableMachines), targetMachineCount, report.Error(),
 		)
 	}
 
