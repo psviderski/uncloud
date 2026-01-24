@@ -30,6 +30,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/version"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
@@ -659,6 +660,13 @@ func (m *Machine) CheckPrerequisites(_ context.Context, _ *emptypb.Empty) (*pb.C
 
 	return &pb.CheckPrerequisitesResponse{
 		Satisfied: true,
+	}, nil
+}
+
+// GetVersion returns the version of the daemon running on the machine.
+func (m *Machine) GetVersion(_ context.Context, _ *emptypb.Empty) (*pb.GetVersionResponse, error) {
+	return &pb.GetVersionResponse{
+		Version: version.String(),
 	}, nil
 }
 

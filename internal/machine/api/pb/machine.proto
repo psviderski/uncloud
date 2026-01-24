@@ -11,6 +11,8 @@ import "internal/machine/api/pb/common.proto";
 service Machine {
   // CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
   rpc CheckPrerequisites(google.protobuf.Empty) returns (CheckPrerequisitesResponse);
+  // GetVersion returns the version of the daemon running on the machine.
+  rpc GetVersion(google.protobuf.Empty) returns (GetVersionResponse);
   rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
   rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
@@ -45,6 +47,10 @@ message CheckPrerequisitesResponse {
   bool satisfied = 1;
   // Error message if not satisfied (empty if all checks pass).
   string error = 2;
+}
+
+message GetVersionResponse {
+  string version = 1;
 }
 
 message InitClusterRequest {
