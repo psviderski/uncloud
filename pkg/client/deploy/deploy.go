@@ -76,9 +76,17 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return Plan{}, fmt.Errorf("get cluster domain: %w", err)
 	}
+
+	// Collect used TCP ports from existing services.
+	usedTCPPorts, err := CollectUsedTCPPorts(ctx, d.cli)
+	if err != nil {
+		return Plan{}, fmt.Errorf("collect used TCP ports: %w", err)
+	}
+
 	specResolver := &ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: clusterDomain,
+		UsedTCPPorts:  usedTCPPorts,
 	}
 
 	resolvedSpec, err := specResolver.Resolve(d.Spec)
@@ -149,4 +157,34 @@ func (d *Deployment) Run(ctx context.Context) (Plan, error) {
 	}
 
 	return plan, plan.Execute(ctx, d.cli)
+}
+
+// CollectUsedTCPPorts returns a set of TCP ingress ports currently in use by services in the cluster.
+func CollectUsedTCPPorts(ctx context.Context, cli api.ServiceClient) (map[uint16]struct{}, error) {
+	usedPorts := make(map[uint16]struct{})
+
+	services, err := cli.ListServices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list services: %w", err)
+	}
+
+	for _, svc := range services {
+		for _, mc := range svc.Containers {
+			ports, err := mc.Container.ServicePorts()
+			if err != nil {
+				continue
+			}
+
+			for _, port := range ports {
+				// Only track TCP ingress ports with a published port.
+				if port.Protocol == api.ProtocolTCP &&
+					(port.Mode == "" || port.Mode == api.PortModeIngress) &&
+					port.PublishedPort != 0 {
+					usedPorts[port.PublishedPort] = struct{}{}
+				}
+			}
+		}
+	}
+
+	return usedPorts, nil
 }

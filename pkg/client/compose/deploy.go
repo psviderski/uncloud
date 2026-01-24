@@ -44,9 +44,17 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return nil, fmt.Errorf("get cluster domain: %w", err)
 	}
+
+	// Collect used TCP ports from existing services.
+	usedTCPPorts, err := deploy.CollectUsedTCPPorts(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf("collect used TCP ports: %w", err)
+	}
+
 	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
 		ClusterDomain: domain,
+		UsedTCPPorts:  usedTCPPorts,
 	}
 
 	return &Deployment{
@@ -113,13 +121,22 @@ func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error)
 }
 
 // ServiceSpec returns the service specification for the given compose service that is ready for deployment.
+// The spec is resolved using the shared resolver which tracks allocated TCP ports across all services
+// in the deployment.
 func (d *Deployment) ServiceSpec(name string) (api.ServiceSpec, error) {
 	spec, err := ServiceSpecFromCompose(d.Project, name)
 	if err != nil {
 		return spec, fmt.Errorf("convert compose service '%s' to service spec: %w", name, err)
 	}
 
-	return spec, nil
+	// Resolve the spec using the shared resolver to ensure TCP port allocation
+	// is consistent across all services in this compose deployment.
+	resolvedSpec, err := d.SpecResolver.Resolve(spec)
+	if err != nil {
+		return spec, fmt.Errorf("resolve service spec '%s': %w", name, err)
+	}
+
+	return resolvedSpec, nil
 }
 
 // PlanVolumes checks if the external volumes exist and plans the creation of missing volumes.

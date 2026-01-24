@@ -56,11 +56,14 @@ func (p *PortSpec) Validate() error {
 			return fmt.Errorf("host IP cannot be specified in %s mode", PortModeIngress)
 		}
 		if p.Hostname != "" {
-			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
-				return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
-			}
 			if err := validateHostname(p.Hostname); err != nil {
 				return fmt.Errorf("invalid hostname '%s': %w", p.Hostname, err)
+			}
+			// Hostname is only meaningful for HTTP/HTTPS protocols where Caddy uses it for routing.
+			// TCP/UDP proxies don't use SNI or hostname-based routing.
+			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
+				return fmt.Errorf("hostname cannot be specified with protocol '%s', only with '%s' or '%s'",
+					p.Protocol, ProtocolHTTP, ProtocolHTTPS)
 			}
 		}
 	case PortModeHost:
@@ -223,11 +226,9 @@ func ParsePortSpec(port string) (PortSpec, error) {
 	}
 
 	if spec.Hostname != "" {
+		// If hostname is specified and no protocol, default to HTTPS for HTTP-like behavior.
 		if specifiedProtocol == "" {
 			spec.Protocol = ProtocolHTTPS
-		} else if specifiedProtocol != ProtocolHTTP && specifiedProtocol != ProtocolHTTPS {
-			return spec, fmt.Errorf("hostname is only valid with '%s' or '%s' protocols, specified: '%s'",
-				ProtocolHTTP, ProtocolHTTPS, specifiedProtocol)
 		}
 	}
 
