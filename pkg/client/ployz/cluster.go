@@ -260,6 +260,26 @@ func deployCaddyIfNeeded(ctx context.Context, clusterClient *client.Client) erro
 }
 
 func provisionAndConnect(ctx context.Context, user, host string, port int, keyPath, version string) (*client.Client, error) {
+	// If keyPath is actually key content, write it to a temp file.
+	if strings.HasPrefix(keyPath, "-----BEGIN") {
+		tmpFile, err := os.CreateTemp("", "ssh-key-*")
+		if err != nil {
+			return nil, fmt.Errorf("create temp key file: %w", err)
+		}
+		if _, err := tmpFile.WriteString(keyPath); err != nil {
+			tmpFile.Close()
+			os.Remove(tmpFile.Name())
+			return nil, fmt.Errorf("write temp key file: %w", err)
+		}
+		tmpFile.Close()
+		if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
+			os.Remove(tmpFile.Name())
+			return nil, fmt.Errorf("chmod temp key file: %w", err)
+		}
+		keyPath = tmpFile.Name()
+		defer os.Remove(keyPath)
+	}
+
 	// Connect via SSH.
 	sshClient, err := sshexec.Connect(user, host, port, keyPath)
 	// If the SSH connection using SSH agent fails and no key path is provided, try to use the default SSH key.
