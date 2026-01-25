@@ -13,6 +13,43 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+// MachineInfo represents a machine in the cluster with Go-native types.
+type MachineInfo struct {
+	ID       string
+	Name     string
+	Subnet   netip.Prefix
+	ManagementIP netip.Addr
+	Endpoints    []netip.AddrPort
+	PublicKey    []byte
+	PublicIP     netip.Addr
+}
+
+// machineInfoFromPB converts internal pb.MachineInfo to public MachineInfo.
+func machineInfoFromPB(m *pb.MachineInfo) *MachineInfo {
+	info := &MachineInfo{
+		ID:   m.Id,
+		Name: m.Name,
+	}
+	if m.Network != nil {
+		if m.Network.Subnet != nil {
+			info.Subnet, _ = m.Network.Subnet.ToPrefix()
+		}
+		if m.Network.ManagementIp != nil {
+			info.ManagementIP, _ = m.Network.ManagementIp.ToAddr()
+		}
+		for _, ep := range m.Network.Endpoints {
+			if addr, err := ep.ToAddrPort(); err == nil {
+				info.Endpoints = append(info.Endpoints, addr)
+			}
+		}
+		info.PublicKey = m.Network.PublicKey
+	}
+	if m.PublicIp != nil {
+		info.PublicIP, _ = m.PublicIp.ToAddr()
+	}
+	return info
+}
+
 // MachineToken contains the parsed enrollment token from a machine.
 type MachineToken struct {
 	PublicKey []byte           `json:"PublicKey"`
@@ -78,11 +115,13 @@ type AdoptMachineOptions struct {
 //  4. Get peer configuration from existing cluster machines
 //  5. Configure new machine to join with peer info
 //  6. Optionally wait for the machine to be ready
+//
+// Returns a MachineInfo with Go-native types (no protobuf imports needed).
 func (cli *Client) AdoptMachine(
 	ctx context.Context,
 	newMachineClient *Client,
 	opts AdoptMachineOptions,
-) (*pb.MachineInfo, error) {
+) (*MachineInfo, error) {
 	if opts.WaitTimeout == 0 {
 		opts.WaitTimeout = 5 * time.Minute
 	}
@@ -153,7 +192,7 @@ func (cli *Client) AdoptMachine(
 		}
 	}
 
-	return machineInfo, nil
+	return machineInfoFromPB(machineInfo), nil
 }
 
 // Token returns the machine enrollment token.
