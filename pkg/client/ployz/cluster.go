@@ -11,6 +11,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 )
@@ -21,6 +22,7 @@ type AddOptions struct {
 	PublicIP    string
 	SSHKey      string
 	Version     string
+	SocketPath  string
 }
 
 const (
@@ -29,7 +31,16 @@ const (
 )
 
 func AddMachine(ctx context.Context, opts AddOptions) error {
-	uncli, err := cli.New("", nil, "")
+	socketPath := opts.SocketPath
+	if socketPath == "" {
+		socketPath = machine.DefaultUncloudSockPath
+	}
+
+	conn := &config.MachineConnection{
+		Unix: socketPath,
+	}
+
+	uncli, err := cli.New("", conn, "")
 	if err != nil {
 		return fmt.Errorf("create cli: %w", err)
 	}
