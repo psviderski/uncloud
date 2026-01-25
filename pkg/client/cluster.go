@@ -204,3 +204,13 @@ func (cli *Client) JoinCluster(
 	_, err := cli.MachineClient.JoinCluster(ctx, req)
 	return err
 }
+
+// IsInitialized checks if the connected machine is already initialized as a cluster member.
+// Returns the machine ID if initialized, empty string if not.
+func (cli *Client) IsInitialized(ctx context.Context) (string, error) {
+	resp, err := cli.MachineClient.Inspect(ctx, &emptypb.Empty{})
+	if err != nil {
+		return "", fmt.Errorf("inspect machine: %w", err)
+	}
+	return resp.Id, nil
+}
