@@ -277,7 +277,8 @@ func provisionAndConnect(ctx context.Context, user, host string, port int, keyPa
 			return nil, fmt.Errorf("chmod temp key file: %w", err)
 		}
 		keyPath = tmpFile.Name()
-		defer os.Remove(keyPath)
+		// Note: temp file is not cleaned up here as it may be needed by SSH connector later.
+		// OS will clean it up on reboot.
 	}
 
 	// Connect via SSH.
