@@ -1316,10 +1316,6 @@ input[type="search"]::-webkit-search-results-decoration {
   width: 100%;
 }
 
-.min-w-0{
-  min-width: 0px;
-}
-
 .max-w-3xl{
   max-width: 48rem;
 }
@@ -1336,20 +1332,12 @@ input[type="search"]::-webkit-search-results-decoration {
   max-width: 28rem;
 }
 
-.max-w-sm{
-  max-width: 24rem;
-}
-
 .max-w-xl{
   max-width: 36rem;
 }
 
 .max-w-xs{
   max-width: 20rem;
-}
-
-.flex-1{
-  flex: 1 1 0%;
 }
 
 .shrink-0{
@@ -1393,10 +1381,6 @@ input[type="search"]::-webkit-search-results-decoration {
   align-items: center;
 }
 
-.items-stretch{
-  align-items: stretch;
-}
-
 .justify-end{
   justify-content: flex-end;
 }
@@ -1415,10 +1399,6 @@ input[type="search"]::-webkit-search-results-decoration {
 
 .gap-3{
   gap: 0.75rem;
-}
-
-.gap-4{
-  gap: 1rem;
 }
 
 .gap-6{
@@ -1499,21 +1479,6 @@ input[type="search"]::-webkit-search-results-decoration {
   border-radius: 0.75rem;
 }
 
-.rounded-l{
-  border-top-left-radius: 0.25rem;
-  border-bottom-left-radius: 0.25rem;
-}
-
-.rounded-l-none{
-  border-top-left-radius: 0px;
-  border-bottom-left-radius: 0px;
-}
-
-.rounded-r-none{
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 0px;
-}
-
 .border{
   border-width: 1px;
 }
@@ -1528,10 +1493,6 @@ input[type="search"]::-webkit-search-results-decoration {
 
 .border-b-2{
   border-bottom-width: 2px;
-}
-
-.border-r-0{
-  border-right-width: 0px;
 }
 
 .border-t{
@@ -1838,11 +1799,6 @@ input[type="search"]::-webkit-search-results-decoration {
   color: rgb(79 70 229 / var(--tw-text-opacity));
 }
 
-.text-rose-700{
-  --tw-text-opacity: 1;
-  color: rgb(190 18 60 / var(--tw-text-opacity));
-}
-
 .text-transparent{
   color: transparent;
 }
@@ -2115,11 +2071,6 @@ input[type="search"]::-webkit-search-results-decoration {
   border-color: transparent;
 }
 
-.focus\:border-zinc-900:focus{
-  --tw-border-opacity: 1;
-  border-color: rgb(24 24 27 / var(--tw-border-opacity));
-}
-
 .focus\:bg-gray-200:focus{
   --tw-bg-opacity: 1;
   background-color: rgb(229 231 235 / var(--tw-bg-opacity));
@@ -2203,10 +2154,6 @@ input[type="search"]::-webkit-search-results-decoration {
     margin-right: 0.25rem;
   }
 
-  .sm\:block{
-    display: block;
-  }
-
   .sm\:inline{
     display: inline;
   }
@@ -2225,10 +2172,6 @@ input[type="search"]::-webkit-search-results-decoration {
 
   .sm\:grid-cols-2{
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .sm\:flex-row{
-    flex-direction: row;
   }
 
   .sm\:justify-center{
