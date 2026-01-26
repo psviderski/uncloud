@@ -41,6 +41,9 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		env[k] = *v
 	}
 
+	// Extract service-level labels to apply to containers.
+	containerLabels := mergeLabels(service.Labels, service.CustomLabels)
+
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
 			CapAdd:     service.CapAdd,
@@ -56,8 +59,18 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Sysctls:    service.Sysctls,
 			User:       service.User,
 		},
-		Name: serviceName,
-		Mode: api.ServiceModeReplicated,
+		Name:   serviceName,
+		Mode:   api.ServiceModeReplicated,
+		Labels: containerLabels,
+	}
+
+	// Extract deploy labels into ServiceSpec.DeployLabels (metadata only, not applied to containers).
+	// DeployLabels can be updated without recreating containers.
+	if service.Deploy != nil {
+		labels := mergeLabels(service.Deploy.Labels)
+		if len(labels) > 0 {
+			spec.DeployLabels = labels
+		}
 	}
 
 	// Map x-caddy extension to spec.Caddy if specified.

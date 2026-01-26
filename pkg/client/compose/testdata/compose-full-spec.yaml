@@ -26,6 +26,13 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
     user: nginx:nginx
+    labels:
+      app: test
+      version: "1.0"
+    deploy:
+      labels:
+        deploy_id: abc123
+        env: prod
     volumes:
       - /etc/passwd:/host/etc/passwd:ro
       - data1:/data1

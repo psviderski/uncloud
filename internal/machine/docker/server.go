@@ -69,6 +69,8 @@ type Server struct {
 	networkReady func() bool
 	// waitForNetworkReady is a function that waits for the Docker network to be ready for containers.
 	waitForNetworkReady func(ctx context.Context) error
+	// storeSync signals the Controller to immediately sync containers to the cluster store.
+	storeSync chan<- struct{}
 }
 
 type ServerOptions struct {
@@ -77,6 +79,9 @@ type ServerOptions struct {
 	//  API server but in this case we should probably fail until the cluster is initialised.
 	NetworkReady        func() bool
 	WaitForNetworkReady func(ctx context.Context) error
+	// StoreSync signals the Controller to immediately sync containers to the cluster store.
+	// Used when spec updates need immediate cluster-wide visibility (e.g., deploy labels).
+	StoreSync chan<- struct{}
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker service.
@@ -91,6 +96,7 @@ func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, m
 
 	s.networkReady = opts.NetworkReady
 	s.waitForNetworkReady = opts.WaitForNetworkReady
+	s.storeSync = opts.StoreSync
 
 	return s
 }
@@ -550,19 +556,24 @@ func (s *Server) CreateServiceContainer(
 		}
 	}
 
+	// Start with user labels (from service.labels in Compose), then overlay system labels (system takes precedence).
+	containerLabels := make(map[string]string)
+	for k, v := range spec.Labels {
+		containerLabels[k] = v
+	}
+	containerLabels[api.LabelServiceID] = req.ServiceId
+	containerLabels[api.LabelServiceName] = spec.Name
+	containerLabels[api.LabelServiceMode] = spec.Mode
+	containerLabels[api.LabelManaged] = ""
+
 	config := &container.Config{
 		Cmd:        spec.Container.Command,
 		Env:        envVars.ToSlice(),
 		Entrypoint: spec.Container.Entrypoint,
 		Hostname:   containerName,
 		Image:      spec.Container.Image,
-		Labels: map[string]string{
-			api.LabelServiceID:   req.ServiceId,
-			api.LabelServiceName: spec.Name,
-			api.LabelServiceMode: spec.Mode,
-			api.LabelManaged:     "",
-		},
-		User: spec.Container.User,
+		Labels:     containerLabels,
+		User:       spec.Container.User,
 	}
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
@@ -1035,6 +1046,57 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	}
 
 	return resp, nil
+}
+
+// UpdateServiceContainerSpec updates the stored service spec for a container without recreating it.
+// Used for updating metadata like deploy labels that don't require container recreation.
+func (s *Server) UpdateServiceContainerSpec(
+	ctx context.Context, req *pb.UpdateServiceContainerSpecRequest,
+) (*emptypb.Empty, error) {
+	// Validate the spec.
+	var spec api.ServiceSpec
+	if err := json.Unmarshal(req.ServiceSpec, &spec); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unmarshal service spec: %v", err)
+	}
+
+	// Validate the provided spec.
+	spec = spec.SetDefaults()
+	if err := spec.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid service spec: %v", err)
+	}
+
+	// Serialize back for storage.
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal service spec: %v", err)
+	}
+
+	// Update in local DB.
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE containers SET service_spec = $1, updated_at = datetime('subsecond') WHERE id = $2`,
+		string(specBytes), req.ContainerId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "update container spec: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get rows affected: %v", err)
+	}
+	if rowsAffected == 0 {
+		return nil, status.Errorf(codes.NotFound, "container not found: %s", req.ContainerId)
+	}
+
+	// Trigger immediate sync to cluster store for cluster-wide visibility.
+	if s.storeSync != nil {
+		select {
+		case s.storeSync <- struct{}{}:
+		default:
+			// Channel full, sync already pending.
+		}
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // logsHeartbeatInterval is the interval at which heartbeat entries are sent when there are no logs to stream.

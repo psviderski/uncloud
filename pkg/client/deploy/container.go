@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"maps"
 	"reflect"
 	"sort"
 
@@ -12,9 +13,10 @@ import (
 type ContainerSpecStatus string
 
 const (
-	ContainerUpToDate      ContainerSpecStatus = "up-to-date"
-	ContainerNeedsUpdate   ContainerSpecStatus = "needs-update"
-	ContainerNeedsRecreate ContainerSpecStatus = "needs-recreate"
+	ContainerUpToDate        ContainerSpecStatus = "up-to-date"
+	ContainerNeedsUpdate     ContainerSpecStatus = "needs-update"
+	ContainerNeedsRecreate   ContainerSpecStatus = "needs-recreate"
+	ContainerNeedsSpecUpdate ContainerSpecStatus = "needs-spec-update"
 )
 
 func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) ContainerSpecStatus {
@@ -83,6 +85,11 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		}
 	}
 
+	// Labels require container recreation if changed.
+	if !maps.Equal(current.Labels, new.Labels) {
+		return ContainerNeedsRecreate
+	}
+
 	// Device reservations are immutable, so we'll need to recreate if any have changed
 	if !reflect.DeepEqual(current.Container.Resources.DeviceReservations, newResources.DeviceReservations) {
 		return ContainerNeedsRecreate
@@ -96,6 +103,11 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	// Remaining resources are mutable.
 	if !reflect.DeepEqual(current.Container.Resources, newResources) {
 		return ContainerNeedsUpdate
+	}
+
+	// Deploy labels only need spec update (no container recreation).
+	if !maps.Equal(current.DeployLabels, new.DeployLabels) {
+		return ContainerNeedsSpecUpdate
 	}
 
 	return ContainerUpToDate

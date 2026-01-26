@@ -1886,3 +1886,130 @@ func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 		})
 	}
 }
+
+func TestEvalContainerSpecChange_LabelsAndDeployLabels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		currentLabels map[string]string
+		newLabels     map[string]string
+		currentDeploy map[string]string
+		newDeploy     map[string]string
+		want          ContainerSpecStatus
+	}{
+		// Container labels (service.labels) tests
+		{
+			name:          "labels: empty",
+			currentLabels: nil,
+			newLabels:     nil,
+			want:          ContainerUpToDate,
+		},
+		{
+			name:          "labels: identical",
+			currentLabels: map[string]string{"app": "test"},
+			newLabels:     map[string]string{"app": "test"},
+			want:          ContainerUpToDate,
+		},
+		{
+			name:          "labels: add",
+			currentLabels: nil,
+			newLabels:     map[string]string{"app": "test"},
+			want:          ContainerNeedsRecreate,
+		},
+		{
+			name:          "labels: remove",
+			currentLabels: map[string]string{"app": "test"},
+			newLabels:     nil,
+			want:          ContainerNeedsRecreate,
+		},
+		{
+			name:          "labels: change value",
+			currentLabels: map[string]string{"app": "test"},
+			newLabels:     map[string]string{"app": "modified"},
+			want:          ContainerNeedsRecreate,
+		},
+		{
+			name:          "labels: add additional",
+			currentLabels: map[string]string{"app": "test"},
+			newLabels:     map[string]string{"app": "test", "env": "prod"},
+			want:          ContainerNeedsRecreate,
+		},
+		// Deploy labels (deploy.labels) tests
+		{
+			name:          "deploy labels: empty",
+			currentDeploy: nil,
+			newDeploy:     nil,
+			want:          ContainerUpToDate,
+		},
+		{
+			name:          "deploy labels: identical",
+			currentDeploy: map[string]string{"deploy_id": "abc123"},
+			newDeploy:     map[string]string{"deploy_id": "abc123"},
+			want:          ContainerUpToDate,
+		},
+		{
+			name:          "deploy labels: add",
+			currentDeploy: nil,
+			newDeploy:     map[string]string{"deploy_id": "abc123"},
+			want:          ContainerNeedsSpecUpdate,
+		},
+		{
+			name:          "deploy labels: remove",
+			currentDeploy: map[string]string{"deploy_id": "abc123"},
+			newDeploy:     nil,
+			want:          ContainerNeedsSpecUpdate,
+		},
+		{
+			name:          "deploy labels: change value",
+			currentDeploy: map[string]string{"deploy_id": "abc123"},
+			newDeploy:     map[string]string{"deploy_id": "def456"},
+			want:          ContainerNeedsSpecUpdate,
+		},
+		{
+			name:          "deploy labels: add additional",
+			currentDeploy: map[string]string{"deploy_id": "abc123"},
+			newDeploy:     map[string]string{"deploy_id": "abc123", "version": "v2"},
+			want:          ContainerNeedsSpecUpdate,
+		},
+		// Combined tests
+		{
+			name:          "both: labels changed takes precedence over deploy labels",
+			currentLabels: map[string]string{"app": "test"},
+			newLabels:     map[string]string{"app": "modified"},
+			currentDeploy: map[string]string{"deploy_id": "abc123"},
+			newDeploy:     map[string]string{"deploy_id": "def456"},
+			want:          ContainerNeedsRecreate,
+		},
+		{
+			name:          "both: only deploy labels changed",
+			currentLabels: map[string]string{"app": "test"},
+			newLabels:     map[string]string{"app": "test"},
+			currentDeploy: map[string]string{"deploy_id": "abc123"},
+			newDeploy:     map[string]string{"deploy_id": "def456"},
+			want:          ContainerNeedsSpecUpdate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Labels:       tt.currentLabels,
+				DeployLabels: tt.currentDeploy,
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image: "nginx:latest",
+				},
+				Labels:       tt.newLabels,
+				DeployLabels: tt.newDeploy,
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}

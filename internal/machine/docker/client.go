@@ -536,3 +536,25 @@ func (c *Client) RemoveServiceContainer(ctx context.Context, id string, opts con
 	}
 	return err
 }
+
+// UpdateServiceContainerSpec updates the stored service spec for a container without recreating it.
+// Used for updating metadata like deploy labels that don't require container recreation.
+func (c *Client) UpdateServiceContainerSpec(ctx context.Context, containerID string, spec api.ServiceSpec) error {
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("marshal service spec: %w", err)
+	}
+
+	_, err = c.GRPCClient.UpdateServiceContainerSpec(ctx, &pb.UpdateServiceContainerSpecRequest{
+		ContainerId: containerID,
+		ServiceSpec: specBytes,
+	})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return errdefs.NotFound(err)
+		}
+		return err
+	}
+
+	return nil
+}

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"text/tabwriter"
@@ -59,6 +60,24 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	fmt.Printf("Service ID: %s\n", svc.ID)
 	fmt.Printf("Name:       %s\n", svc.Name)
 	fmt.Printf("Mode:       %s\n", svc.Mode)
+
+	// Display labels from the service spec. Use the first container's spec as representative.
+	if len(svc.Containers) > 0 {
+		spec := svc.Containers[0].Container.ServiceSpec
+		if len(spec.Labels) > 0 {
+			fmt.Println("Labels:")
+			for _, key := range slices.Sorted(maps.Keys(spec.Labels)) {
+				fmt.Printf("  %s=%s\n", key, spec.Labels[key])
+			}
+		}
+		if len(spec.DeployLabels) > 0 {
+			fmt.Println("Deploy Labels:")
+			for _, key := range slices.Sorted(maps.Keys(spec.DeployLabels)) {
+				fmt.Printf("  %s=%s\n", key, spec.DeployLabels[key])
+			}
+		}
+	}
+
 	fmt.Println()
 
 	// Parse created times for sorting and display.
