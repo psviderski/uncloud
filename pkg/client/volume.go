@@ -7,7 +7,6 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -55,38 +54,34 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		proxyMachines = filter.Machines
 	}
 
-	listCtx, machines, err := cli.ProxyMachinesContext(ctx, proxyMachines)
+	mctx, err := cli.ProxyMachinesContext(ctx, proxyMachines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to all machines: %w", err)
 	}
 
-	machineVolumes, err := cli.Docker.ListVolumes(listCtx, volume.ListOptions{})
+	machineVolumes, err := cli.Docker.ListVolumes(mctx, volume.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	var volumes []api.MachineVolume
 	// Process responses from all machines.
-	for _, mv := range machineVolumes {
-		if mv.Metadata != nil && mv.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			PrintWarning(fmt.Sprintf("failed to list volumes on machine '%s': %s",
-				mv.Metadata.Machine, mv.Metadata.Error))
+	for res := range ResolveMachines(mctx, machineVolumes) {
+		mv := res.Item
+		m := res.Machine
+		// Note: ResolveMachines iterator handles error checking and resolution.
+		// It yields only valid results or results where machine might be unknown but no error in metadata.
+		// However, for volumes we really need the machine ID.
+
+		if m == nil {
+			// We need the machine ID to construct the MachineVolume response.
+			// If we couldn't resolve the machine from the metadata (IP), we skip it.
+			PrintWarning(fmt.Sprintf("machine not found by management IP: %s", res.MachineAddr))
 			continue
 		}
 
-		var m *pb.MachineMember
-		if mv.Metadata == nil {
-			// ListVolumes was proxied to only one machine.
-			m = machines[0]
-		} else {
-			m = machines.FindByManagementIP(mv.Metadata.Machine)
-			if m == nil {
-				return nil, fmt.Errorf("machine not found by management IP: %s", mv.Metadata.Machine)
-			}
-		}
-
 		for _, vol := range mv.Response.Volumes {
+
 			volumes = append(volumes, api.MachineVolume{
 				MachineID:   m.Machine.Id,
 				MachineName: m.Machine.Name,
