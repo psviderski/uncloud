@@ -195,6 +195,9 @@ type Machine struct {
 	// dockerService provides high-level operations for managing Docker containers.
 	dockerService *machinedocker.Service
 	dockerServer  *machinedocker.Server
+	// storeSync is shared between the docker Server (sends) and Controller (receives)
+	// to trigger immediate container sync to the cluster store.
+	storeSync chan struct{}
 	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
 	localMachineServer *grpc.Server
 
@@ -285,6 +288,8 @@ func NewMachine(config *Config) (*Machine, error) {
 		dockerService:    dockerService,
 		localProxyServer: localProxyServer,
 		proxyDirector:    proxyDirector,
+		// Buffered channel to avoid blocking when triggering sync.
+		storeSync: make(chan struct{}, 1),
 	}
 
 	// Machine IP will only be available after the machine is initialised as a cluster member so wrap it in a function.
@@ -298,6 +303,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	m.dockerServer = machinedocker.NewServer(dockerService, db, internalDNSIP, machineID, machinedocker.ServerOptions{
 		NetworkReady:        m.IsNetworkReady,
 		WaitForNetworkReady: m.WaitForNetworkReady,
+		StoreSync:           m.storeSync,
 	})
 	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir))
 	m.localMachineServer = newGRPCServer(m, c, m.dockerServer, caddyServer)
@@ -489,6 +495,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				dnsServer,
 				dnsResolver,
 				unreg,
+				m.storeSync,
 			)
 			m.mu.Unlock()
 			if err != nil {

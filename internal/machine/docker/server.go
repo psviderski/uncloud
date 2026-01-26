@@ -68,6 +68,8 @@ type Server struct {
 	networkReady func() bool
 	// waitForNetworkReady is a function that waits for the Docker network to be ready for containers.
 	waitForNetworkReady func(ctx context.Context) error
+	// storeSync signals the Controller to immediately sync containers to the cluster store.
+	storeSync chan<- struct{}
 }
 
 type ServerOptions struct {
@@ -76,6 +78,9 @@ type ServerOptions struct {
 	//  API server but in this case we should probably fail until the cluster is initialised.
 	NetworkReady        func() bool
 	WaitForNetworkReady func(ctx context.Context) error
+	// StoreSync signals the Controller to immediately sync containers to the cluster store.
+	// Used when spec updates need immediate cluster-wide visibility (e.g., deploy labels).
+	StoreSync chan<- struct{}
 }
 
 // NewServer creates a new Docker gRPC server with the provided Docker service.
@@ -90,6 +95,7 @@ func NewServer(service *Service, db *sqlx.DB, internalDNSIP func() netip.Addr, m
 
 	s.networkReady = opts.NetworkReady
 	s.waitForNetworkReady = opts.WaitForNetworkReady
+	s.storeSync = opts.StoreSync
 
 	return s
 }
@@ -1060,6 +1066,15 @@ func (s *Server) UpdateServiceContainerSpec(
 	}
 	if rowsAffected == 0 {
 		return nil, status.Errorf(codes.NotFound, "container not found: %s", req.ContainerId)
+	}
+
+	// Trigger immediate sync to cluster store for cluster-wide visibility.
+	if s.storeSync != nil {
+		select {
+		case s.storeSync <- struct{}{}:
+		default:
+			// Channel full, sync already pending.
+		}
 	}
 
 	return &emptypb.Empty{}, nil

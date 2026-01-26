@@ -30,14 +30,17 @@ type Controller struct {
 	client    *client.Client
 	service   *Service
 	store     *store.Store
+	// sync receives signals to trigger an immediate sync to the cluster store.
+	sync <-chan struct{}
 }
 
-func NewController(machineID string, service *Service, store *store.Store) *Controller {
+func NewController(machineID string, service *Service, store *store.Store, sync <-chan struct{}) *Controller {
 	return &Controller{
 		machineID: machineID,
 		client:    service.Client,
 		service:   service,
 		store:     store,
+		sync:      sync,
 	}
 }
 
@@ -134,6 +137,11 @@ func (c *Controller) WatchAndSyncContainers(ctx context.Context) error {
 		case <-ticker.C:
 			slog.Debug("Syncing containers to cluster store triggered by a regular interval.",
 				"interval", SyncInterval)
+			if err := c.syncContainersToStore(ctx); err != nil {
+				return fmt.Errorf("sync containers to cluster store: %w", err)
+			}
+		case <-c.sync:
+			slog.Debug("Syncing containers to cluster store triggered by spec update.")
 			if err := c.syncContainersToStore(ctx); err != nil {
 				return fmt.Errorf("sync containers to cluster store: %w", err)
 			}

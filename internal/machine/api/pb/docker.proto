@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package api;
 
-option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
-
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "internal/machine/api/pb/common.proto";
+
+option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
@@ -34,8 +34,6 @@ service Docker {
   rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
   rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
-  // UpdateServiceContainerSpec updates the stored service spec for a container without recreating it.
-  // Used for updating metadata like deploy labels that don't require container recreation.
   rpc UpdateServiceContainerSpec(UpdateServiceContainerSpecRequest) returns (google.protobuf.Empty);
 }
 

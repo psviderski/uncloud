@@ -67,6 +67,7 @@ func newClusterController(
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
 	unregistry *unregistry.Registry,
+	storeSync <-chan struct{},
 ) (*clusterController, error) {
 	slog.Info("Starting WireGuard network.")
 	wgnet, err := network.NewWireGuardNetwork()
@@ -82,7 +83,7 @@ func newClusterController(
 		endpointChanges: endpointChanges,
 		server:          server,
 		corroService:    corroService,
-		dockerCtrl:      docker.NewController(state.ID, dockerService, store),
+		dockerCtrl:      docker.NewController(state.ID, dockerService, store, storeSync),
 		dockerReady:     dockerReady,
 		clusterReady:    clusterReady,
 		caddyconfigCtrl: caddyfileCtrl,

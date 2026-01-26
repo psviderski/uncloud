@@ -500,13 +500,13 @@ func ServiceFromProto(s *pb.Service) (Service, error) {
 }
 
 func machineContainerFromProto(sc *pb.Service_Container) (MachineServiceContainer, error) {
-	var c Container
+	var c ServiceContainer
 	if err := json.Unmarshal(sc.Container, &c); err != nil {
 		return MachineServiceContainer{}, fmt.Errorf("unmarshal container: %w", err)
 	}
 
 	return MachineServiceContainer{
 		MachineID: sc.MachineId,
-		Container: ServiceContainer{Container: c},
+		Container: c,
 	}, nil
 }

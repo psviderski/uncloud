@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
@@ -557,5 +558,115 @@ volumes:
 		require.NoError(t, err)
 
 		assert.Len(t, plan.Operations, 2, "Expected 1 volume creation and 1 service to deploy")
+	})
+
+	t.Run("redeploy with deploy labels updates spec without recreating container", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-deploy-labels"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+		})
+
+		// Initial deployment without deploy labels, pinned to machine-1.
+		initialYAML := `
+services:
+  test-compose-deploy-labels:
+    image: portainer/pause:3.9
+    environment:
+      VAR: value
+    x-machines: machine-1
+`
+		project, err := compose.LoadProjectFromContent(ctx, initialYAML)
+		require.NoError(t, err)
+
+		deployment, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		err = deployment.Run(ctx)
+		require.NoError(t, err)
+
+		// Get the container ID after initial deployment.
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		require.Len(t, svc.Containers, 1)
+
+		originalContainerID := svc.Containers[0].Container.ID
+		originalSpec := svc.Containers[0].Container.ServiceSpec
+		assert.Empty(t, originalSpec.DeployLabels, "Initial spec should have no deploy labels")
+
+		// Redeploy with deploy labels added, still pinned to machine-1.
+		updatedYAML := `
+services:
+  test-compose-deploy-labels:
+    image: portainer/pause:3.9
+    environment:
+      VAR: value
+    x-machines: machine-1
+    deploy:
+      labels:
+        app.version: "1.0"
+        app.environment: "test"
+`
+		project, err = compose.LoadProjectFromContent(ctx, updatedYAML)
+		require.NoError(t, err)
+
+		deployment, err = compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deployment.Plan(ctx)
+		require.NoError(t, err)
+		require.Len(t, plan.Operations, 1, "Expected 1 service plan")
+
+		// The compose plan contains service plans. Unwrap to get the actual operation.
+		servicePlan, ok := plan.Operations[0].(*deploy.Plan)
+		require.True(t, ok, "Expected service plan, got %T", plan.Operations[0])
+		require.Len(t, servicePlan.Operations, 1, "Expected 1 operation in service plan")
+
+		// Verify the operation is an UpdateSpecOperation.
+		_, isUpdateSpec := servicePlan.Operations[0].(*deploy.UpdateSpecOperation)
+		assert.True(t, isUpdateSpec, "Operation should be UpdateSpecOperation, got %T", servicePlan.Operations[0])
+
+		err = deployment.Run(ctx)
+		require.NoError(t, err)
+
+		// Verify the container was not recreated.
+		svc, err = cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		require.Len(t, svc.Containers, 1)
+
+		assert.Equal(t, originalContainerID, svc.Containers[0].Container.ID,
+			"Container should not be recreated when only deploy labels change")
+
+		// Verify the spec was updated with deploy labels.
+		updatedSpec := svc.Containers[0].Container.ServiceSpec
+		assert.Equal(t, map[string]string{
+			"app.version":     "1.0",
+			"app.environment": "test",
+		}, updatedSpec.DeployLabels, "Spec should have updated deploy labels")
+
+		// Verify Corrosion replication by reading from a different machine.
+		// Connect to machine 2 (different from machine 1 used for the update).
+		cli2, err := c.Machines[1].Connect(ctx)
+		require.NoError(t, err)
+		defer cli2.Close()
+
+		// Read from machine 2's Corrosion store - should see the replicated update.
+		// We use 2 seconds as the timeout: long enough for Corrosion to sync, but short enough
+		// that we can be confident the sync was triggered immediately (not by the 30s periodic ticker).
+		require.Eventually(t, func() bool {
+			svcFromStore, err := cli2.InspectServiceFromStore(ctx, name)
+			if err != nil {
+				return false
+			}
+			if len(svcFromStore.Containers) == 0 {
+				return false
+			}
+			// Check if deploy labels have been replicated.
+			spec := svcFromStore.Containers[0].Container.ServiceSpec
+			return spec.DeployLabels["app.version"] == "1.0" &&
+				spec.DeployLabels["app.environment"] == "test"
+		}, 2*time.Second, 100*time.Millisecond,
+			"Corrosion should replicate updated deploy labels to machine 2")
 	})
 }
