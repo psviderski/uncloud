@@ -46,7 +46,7 @@ The following table shows the support status for main Compose features:
 | `resources`        | ⚠️ Limited         | CPU, memory limits and device reservations                                                     |
 | `restart_policy`   | ❌ Not supported    | Defaults to `unless-stopped`                                                                   |
 | `rollback_config`  | ❌ Not supported    | See [#151](https://github.com/psviderski/uncloud/issues/151)                                   |
-| `update_config`    | ❌ Not supported    | See [#151](https://github.com/psviderski/uncloud/issues/151)                                   |
+| `update_config`    | ⚠️ Limited         | Only `order` supported (defaults to `start-first`). See [deployment strategies](../4-guides/1-deployments/4-deployment-strategies.md) |
 | **Volumes**        |                    |                                                                                                |
 | Named volumes      | ✅ Supported        | Docker volumes                                                                                 |
 | Bind mounts        | ✅ Supported        | Host path binding                                                                              |

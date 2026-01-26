@@ -97,6 +97,20 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		default:
 			return spec, fmt.Errorf("unsupported deploy mode: '%s'", service.Deploy.Mode)
 		}
+
+		// Parse update_config.order
+		if cfg := service.Deploy.UpdateConfig; cfg != nil {
+			switch cfg.Order {
+			case "":
+				// No order specified, use default behavior.
+			case "start-first":
+				spec.UpdateConfig.Order = api.UpdateOrderStartFirst
+			case "stop-first":
+				spec.UpdateConfig.Order = api.UpdateOrderStopFirst
+			default:
+				return spec, fmt.Errorf("unsupported update_config.order: '%s'", cfg.Order)
+			}
+		}
 	}
 
 	// TODO: can service.tmpfs be handled as tmpfs volume mounts as well?

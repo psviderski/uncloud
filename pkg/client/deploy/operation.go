@@ -158,6 +158,66 @@ func (o *CreateVolumeOperation) String() string {
 		o.MachineID, o.VolumeSpec.DockerVolumeName())
 }
 
+// ReplaceContainerOperation replaces an old container with a new one based on the specified update order.
+// For start-first: starts new container, then removes old container.
+// For stop-first: stops old container, starts new container, then removes old container.
+type ReplaceContainerOperation struct {
+	ServiceID    string
+	Spec         api.ServiceSpec
+	MachineID    string
+	OldContainer api.ServiceContainer
+	// Order specifies the update order: "start-first" or "stop-first".
+	Order string
+}
+
+func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) error {
+
+	stopFirst := o.Order == api.UpdateOrderStopFirst
+
+	if stopFirst {
+		if err := cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
+			return fmt.Errorf("stop old container: %w", err)
+		}
+	}
+
+	// TODO: Rollback support - if new container fails to start, restart old container (#24)
+	// TODO: When parallelism is added, rollback becomes more complex - need to track which containers
+	//       were stopped and restore them all on failure
+	resp, err := cli.CreateContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
+	if err != nil {
+		return fmt.Errorf("create container: %w", err)
+	}
+	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
+		return fmt.Errorf("start container: %w", err)
+	}
+
+	// For start-first, we need to stop before removing.
+	// For stop-first, the container is already stopped.
+	if !stopFirst {
+		if err := cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
+			return fmt.Errorf("stop old container: %w", err)
+		}
+	}
+
+	if err := cli.RemoveContainer(ctx, o.ServiceID, o.OldContainer.ID, container.RemoveOptions{
+		RemoveVolumes: true,
+	}); err != nil {
+		return fmt.Errorf("remove old container: %w", err)
+	}
+
+	return nil
+}
+
+func (o *ReplaceContainerOperation) Format(resolver NameResolver) string {
+	return fmt.Sprintf("%s: Replace container [id=%s image=%s order=%s]",
+		resolver.MachineName(o.MachineID), o.OldContainer.ShortID(), o.Spec.Container.Image, o.Order)
+}
+
+func (o *ReplaceContainerOperation) String() string {
+	return fmt.Sprintf("ReplaceContainerOperation[machine_id=%s service_id=%s old_container_id=%s order=%s]",
+		o.MachineID, o.ServiceID, o.OldContainer.ID, o.Order)
+}
+
 // SequenceOperation is a composite operation that executes a sequence of operations in order.
 type SequenceOperation struct {
 	Operations []Operation
