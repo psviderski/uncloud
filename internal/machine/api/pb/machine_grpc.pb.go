@@ -21,7 +21,6 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Machine_CheckPrerequisites_FullMethodName      = "/api.Machine/CheckPrerequisites"
-	Machine_GetVersion_FullMethodName              = "/api.Machine/GetVersion"
 	Machine_InitCluster_FullMethodName             = "/api.Machine/InitCluster"
 	Machine_JoinCluster_FullMethodName             = "/api.Machine/JoinCluster"
 	Machine_Token_FullMethodName                   = "/api.Machine/Token"
@@ -38,8 +37,6 @@ const (
 type MachineClient interface {
 	// CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
 	CheckPrerequisites(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CheckPrerequisitesResponse, error)
-	// GetVersion returns the version of the daemon running on the machine.
-	GetVersion(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetVersionResponse, error)
 	InitCluster(ctx context.Context, in *InitClusterRequest, opts ...grpc.CallOption) (*InitClusterResponse, error)
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Token(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TokenResponse, error)
@@ -66,16 +63,6 @@ func (c *machineClient) CheckPrerequisites(ctx context.Context, in *emptypb.Empt
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckPrerequisitesResponse)
 	err := c.cc.Invoke(ctx, Machine_CheckPrerequisites_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *machineClient) GetVersion(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetVersionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetVersionResponse)
-	err := c.cc.Invoke(ctx, Machine_GetVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +155,6 @@ func (c *machineClient) InspectService(ctx context.Context, in *InspectServiceRe
 type MachineServer interface {
 	// CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
 	CheckPrerequisites(context.Context, *emptypb.Empty) (*CheckPrerequisitesResponse, error)
-	// GetVersion returns the version of the daemon running on the machine.
-	GetVersion(context.Context, *emptypb.Empty) (*GetVersionResponse, error)
 	InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error)
 	JoinCluster(context.Context, *JoinClusterRequest) (*emptypb.Empty, error)
 	Token(context.Context, *emptypb.Empty) (*TokenResponse, error)
@@ -194,9 +179,6 @@ type UnimplementedMachineServer struct{}
 
 func (UnimplementedMachineServer) CheckPrerequisites(context.Context, *emptypb.Empty) (*CheckPrerequisitesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CheckPrerequisites not implemented")
-}
-func (UnimplementedMachineServer) GetVersion(context.Context, *emptypb.Empty) (*GetVersionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetVersion not implemented")
 }
 func (UnimplementedMachineServer) InitCluster(context.Context, *InitClusterRequest) (*InitClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitCluster not implemented")
@@ -257,24 +239,6 @@ func _Machine_CheckPrerequisites_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MachineServer).CheckPrerequisites(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Machine_GetVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MachineServer).GetVersion(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Machine_GetVersion_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MachineServer).GetVersion(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -433,10 +397,6 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CheckPrerequisites",
 			Handler:    _Machine_CheckPrerequisites_Handler,
-		},
-		{
-			MethodName: "GetVersion",
-			Handler:    _Machine_GetVersion_Handler,
 		},
 		{
 			MethodName: "InitCluster",

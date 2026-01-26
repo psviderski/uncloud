@@ -663,13 +663,6 @@ func (m *Machine) CheckPrerequisites(_ context.Context, _ *emptypb.Empty) (*pb.C
 	}, nil
 }
 
-// GetVersion returns the version of the daemon running on the machine.
-func (m *Machine) GetVersion(_ context.Context, _ *emptypb.Empty) (*pb.GetVersionResponse, error) {
-	return &pb.GetVersionResponse{
-		Version: version.String(),
-	}, nil
-}
-
 // checkDNSPortAvailable verifies that DNS port 53/udp is available for Uncloud's embedded DNS service.
 func checkDNSPortAvailable() error {
 	addr := &net.UDPAddr{
@@ -916,6 +909,7 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 					},
 				},
 				StoreDbVersion: dbVersion,
+				DaemonVersion:  version.String(),
 			},
 		},
 	}, nil

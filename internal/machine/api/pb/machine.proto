@@ -11,8 +11,6 @@ import "internal/machine/api/pb/common.proto";
 service Machine {
   // CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
   rpc CheckPrerequisites(google.protobuf.Empty) returns (CheckPrerequisitesResponse);
-  // GetVersion returns the version of the daemon running on the machine.
-  rpc GetVersion(google.protobuf.Empty) returns (GetVersionResponse);
   rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
   rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
   rpc Token(google.protobuf.Empty) returns (TokenResponse);
@@ -49,10 +47,6 @@ message CheckPrerequisitesResponse {
   string error = 2;
 }
 
-message GetVersionResponse {
-  string version = 1;
-}
-
 message InitClusterRequest {
   string machineName = 1;
   IPPrefix network = 2;
@@ -84,6 +78,8 @@ message MachineDetails {
   MachineInfo machine = 2;
   // Current Corrosion cr-sqlite database version (Lamport timestamp) of the cluster store.
   int64 store_db_version = 3;
+  // Version of the Uncloud daemon running on the machine.
+  string daemon_version = 4;
 }
 
 message TokenResponse {

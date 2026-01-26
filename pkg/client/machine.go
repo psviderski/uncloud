@@ -147,12 +147,3 @@ func (cli *Client) WaitClusterReady(ctx context.Context, timeout time.Duration) 
 	}
 	return backoff.Retry(listMachines, boff)
 }
-
-// GetVersion returns the version of the daemon running on the connected machine.
-func (cli *Client) GetVersion(ctx context.Context) (string, error) {
-	resp, err := cli.MachineClient.GetVersion(ctx, &emptypb.Empty{})
-	if err != nil {
-		return "", err
-	}
-	return resp.Version, nil
-}
