@@ -43,7 +43,7 @@ The following table shows the support status for main Compose features:
 | `mode`             | ✅ Supported        | Either `global` or `replicated`                                                                |
 | `placement`        | ❌ Not supported    | Use `x-machines` extension                                                                     |
 | `replicas`         | ✅ Supported        | Number of container replicas                                                                   |
-| `resources`        | ⚠️ Limited         | CPU, memory limits and device reservations                                                     |
+| `resources`        | ✅ Supported        | CPU/memory limits and reservations, device requests                                            |
 | `restart_policy`   | ❌ Not supported    | Defaults to `unless-stopped`                                                                   |
 | `rollback_config`  | ❌ Not supported    | See [#151](https://github.com/psviderski/uncloud/issues/151)                                   |
 | `update_config`    | ❌ Not supported    | See [#151](https://github.com/psviderski/uncloud/issues/151)                                   |

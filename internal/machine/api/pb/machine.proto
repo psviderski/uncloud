@@ -31,6 +31,11 @@ message MachineInfo {
   string name = 2;
   NetworkConfig network = 3;
   IP public_ip = 4;
+  // Resource capacity and reservations for scheduling.
+  int64 total_cpu_nanos = 5;        // Total CPU in nanocores (1e9 = 1 core)
+  int64 total_memory_bytes = 6;  
+  int64 reserved_cpu_nanos = 7;     
+  int64 reserved_memory_bytes = 8;  
 }
 
 message NetworkConfig {

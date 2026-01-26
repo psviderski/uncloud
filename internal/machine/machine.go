@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/psviderski/uncloud/internal/corrosion"
@@ -876,8 +877,8 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 }
 
 // Deprecated: use InspectMachine instead.
-func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
-	return &pb.MachineInfo{
+func (m *Machine) Inspect(ctx context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
+	info := &pb.MachineInfo{
 		Id:   m.state.ID,
 		Name: m.state.Name,
 		Network: &pb.NetworkConfig{
@@ -885,7 +886,41 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 			ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
 			PublicKey:    m.state.Network.PublicKey,
 		},
-	}, nil
+	}
+
+	// Populate resource capacity and reservations for scheduling.
+	if m.dockerService != nil {
+		if err := m.populateResources(ctx, info); err != nil {
+			slog.Warn("Failed to populate machine resources.", "err", err)
+		}
+	}
+
+	return info, nil
+}
+
+// populateResources fills in the resource capacity and reservation fields of MachineInfo.
+func (m *Machine) populateResources(ctx context.Context, info *pb.MachineInfo) error {
+	// Get system info for total CPU and memory.
+	dockerInfo, err := m.dockerService.Client.Info(ctx)
+	if err != nil {
+		return fmt.Errorf("get docker info: %w", err)
+	}
+
+	info.TotalCpuNanos = int64(dockerInfo.NCPU) * 1e9
+	info.TotalMemoryBytes = dockerInfo.MemTotal
+
+	// Sum up reserved resources from running containers.
+	containers, err := m.dockerService.ListServiceContainers(ctx, "", container.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("list containers: %w", err)
+	}
+
+	for _, ctr := range containers {
+		info.ReservedCpuNanos += ctr.ServiceSpec.Container.Resources.CPUReservation
+		info.ReservedMemoryBytes += ctr.ServiceSpec.Container.Resources.MemoryReservation
+	}
+
+	return nil
 }
 
 func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.InspectMachineResponse, error) {

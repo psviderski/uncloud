@@ -26,6 +26,8 @@ type runOptions struct {
 	image             string
 	machines          []string
 	memory            dockeropts.MemBytes
+	memoryReservation dockeropts.MemBytes
+	cpuReservation    dockeropts.NanoCPUs
 	mode              string
 	name              string
 	privileged        bool
@@ -63,6 +65,8 @@ func NewRunCommand(groupID string) *cobra.Command {
 	cmd.Flags().VarP(&opts.cpu, "cpu", "",
 		"Maximum number of CPU cores a service container can use. Fractional values are allowed: "+
 			"0.5 for half a core or 2.25 for two and a quarter cores.")
+	cmd.Flags().Var(&opts.cpuReservation, "reserve-cpu",
+		"Minimum CPU cores to reserve for placement. Fractional values are allowed, e.g. 0.5 for half a core.")
 	cmd.Flags().StringVar(&opts.entrypoint, "entrypoint", "",
 		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it.")
 	cmd.Flags().StringSliceVarP(&opts.env, "env", "e", nil,
@@ -79,6 +83,8 @@ func NewRunCommand(groupID string) *cobra.Command {
 		"Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix "+
 			"(b, k, m, g). Default unit is bytes if no suffix specified.\n"+
 			"Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)")
+	cmd.Flags().Var(&opts.memoryReservation, "reserve-memory",
+		"Minimum memory to reserve for placement. Value is a positive integer with optional unit suffix (b, k, m, g).")
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "",
 		"Assign a name to the service. A random name is generated if not specified.")
 	cmd.Flags().BoolVar(&opts.privileged, "privileged", false,
@@ -211,8 +217,10 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 			Privileged: opts.privileged,
 			PullPolicy: opts.pull,
 			Resources: api.ContainerResources{
-				CPU:    opts.cpu.Value(),
-				Memory: opts.memory.Value(),
+				CPU:               opts.cpu.Value(),
+				Memory:            opts.memory.Value(),
+				CPUReservation:    opts.cpuReservation.Value(),
+				MemoryReservation: opts.memoryReservation.Value(),
 			},
 			User:         opts.user,
 			VolumeMounts: mounts,
