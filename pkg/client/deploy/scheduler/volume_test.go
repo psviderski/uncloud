@@ -908,7 +908,20 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 					},
 				},
 			},
-			want: map[string][]api.VolumeSpec{},
+			want: map[string][]api.VolumeSpec{
+				"machine2": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine3": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
 		},
 		{
 			name: "global service with placement constraint",

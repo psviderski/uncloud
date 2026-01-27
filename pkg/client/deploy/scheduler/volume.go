@@ -11,6 +11,7 @@ import (
 
 // VolumeScheduler determines what missing volumes should be created and where for a multi-service deployment.
 // It satisfies the following constraints:
+//   - Volumes used by global services will be created on all eligible machines.
 //   - Services that share a volume must be placed on the same machine where the volume is located.
 //     If the volume is located on multiple machines, services can be placed on any of them.
 //   - Services must respect their individual placement constraints.
@@ -128,12 +129,20 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 		serviceEligibleMachines[spec.Name] = machineIDs
 	}
 
-	// For each volume that exists on any machine(s) (which shouldn't be created), intersect each service's
+	// For each volume that exists on any machine(s), intersect each non-global service's
 	// eligible machines that use the volume with the machines the volume is located on.
+	// Global services skip this constraint as they need the volume on ALL eligible machines,
+	// and the volume will be created on machines that don't have it.
 	//
 	// Service name -> list of processed volume names (quoted) to format the error message.
 	quotedServiceVolumes := make(map[string][]string)
 	for volumeName, volumeMachines := range s.existingVolumeMachines {
+		// Skip constraint narrowing for global services - they don't need to be constrained
+		// to machines that already have the volume.
+		if s.isVolumeForGlobalService(volumeName) {
+			continue
+		}
+
 		for _, serviceName := range s.volumeServices[volumeName] {
 			quotedServiceVolumes[serviceName] = append(quotedServiceVolumes[serviceName],
 				fmt.Sprintf("'%s'", volumeName))
@@ -147,11 +156,14 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 		}
 	}
 
-	// Skip constraints propagation for volumes that already exist on machines as the propagation only works
-	// for missing volumes.
+	// Skip constraints propagation for volumes that already exist on machines (for replicated services)
+	// as the propagation only works for missing volumes. Global service volumes are NOT marked as placed
+	// here since they still need to be scheduled on machines that don't have them.
 	placedVolumes := make(map[string]struct{})
 	for volumeName := range s.existingVolumeMachines {
-		placedVolumes[volumeName] = struct{}{}
+		if !s.isVolumeForGlobalService(volumeName) {
+			placedVolumes[volumeName] = struct{}{}
+		}
 	}
 
 	if err := s.propagateConstraintsUntilConvergence(serviceEligibleMachines, placedVolumes); err != nil {
@@ -159,58 +171,64 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 	}
 
 	// Schedule each missing volume on eligible machines.
-	// For global services: schedule on ALL eligible machines.
-	// For replicated services: schedule on ONE eligible machine.
+	// For global services: schedule on ALL eligible machines that don't already have the volume.
+	// For replicated services: schedule on ONE eligible machine (skip if volume exists anywhere).
 	scheduledVolumes := make(map[string][]api.VolumeSpec)
-	for missingVolumeName, missingVolumeSpec := range s.volumeSpecs {
-		// Skip volumes that already exist on machines.
-		if _, ok := s.existingVolumeMachines[missingVolumeName]; ok {
-			continue
-		}
+	for volumeName, volumeSpec := range s.volumeSpecs {
+		existingMachines := s.existingVolumeMachines[volumeName]
 
 		// Check for invalid configuration: volume shared between global and replicated services.
-		if s.isVolumeSharedBetweenGlobalAndReplicated(missingVolumeName) {
+		if s.isVolumeSharedBetweenGlobalAndReplicated(volumeName) {
 			return nil, fmt.Errorf("volume '%s' cannot be shared between global and replicated services: "+
 				"global services require the volume on all machines while replicated services require "+
-				"co-location with the volume", missingVolumeName)
+				"co-location with the volume", volumeName)
 		}
 
-		serviceNames := s.volumeServices[missingVolumeName]
+		serviceNames := s.volumeServices[volumeName]
 		if len(serviceNames) == 0 {
-			return nil, fmt.Errorf("bug detected: no services using volume '%s'", missingVolumeName)
+			return nil, fmt.Errorf("bug detected: no services using volume '%s'", volumeName)
 		}
 
 		// Get the current eligible machines (any service using the volume will have the same set after convergence).
 		eligibleMachines := serviceEligibleMachines[serviceNames[0]]
 		if eligibleMachines.Cardinality() == 0 {
-			return nil, fmt.Errorf("bug detected: no eligible machines for volume '%s'", missingVolumeName)
+			return nil, fmt.Errorf("bug detected: no eligible machines for volume '%s'", volumeName)
 		}
 
 		// Sort the eligible machines to ensure deterministic behavior.
 		sortedEligibleMachines := eligibleMachines.ToSlice()
 		slices.Sort(sortedEligibleMachines)
 
-		if s.isVolumeForGlobalService(missingVolumeName) {
-			// Global service: schedule volume on ALL eligible machines.
+		if s.isVolumeForGlobalService(volumeName) {
+			// Global service: schedule volume on eligible machines that don't already have it.
 			for _, machineID := range sortedEligibleMachines {
-				scheduledVolumes[machineID] = append(scheduledVolumes[machineID], missingVolumeSpec)
+				if existingMachines != nil && existingMachines.Contains(machineID) {
+					// Volume already exists on this machine, skip it.
+					continue
+				}
+				scheduledVolumes[machineID] = append(scheduledVolumes[machineID], volumeSpec)
 			}
 			// Mark volume as placed - no constraint propagation needed since volume will be on all machines.
-			placedVolumes[missingVolumeName] = struct{}{}
+			placedVolumes[volumeName] = struct{}{}
 		} else {
-			// Replicated service: schedule volume on ONE machine (first in sorted order).
+			// Replicated service: skip if volume already exists on any machine (services will use that location).
+			if existingMachines != nil && existingMachines.Cardinality() > 0 {
+				continue
+			}
+
+			// Schedule volume on ONE machine (first in sorted order).
 			machineID := sortedEligibleMachines[0]
 			// Update constraints for all services that use this volume to be placed on the selected machine.
 			for _, serviceName := range serviceNames {
 				serviceEligibleMachines[serviceName] = mapset.NewSet(machineID)
 			}
-			placedVolumes[missingVolumeName] = struct{}{}
-			scheduledVolumes[machineID] = append(scheduledVolumes[machineID], missingVolumeSpec)
+			placedVolumes[volumeName] = struct{}{}
+			scheduledVolumes[machineID] = append(scheduledVolumes[machineID], volumeSpec)
 
 			// Propagate the updated constraints.
 			if err := s.propagateConstraintsUntilConvergence(serviceEligibleMachines, placedVolumes); err != nil {
 				return nil, fmt.Errorf("unexpected error while propagating constraints after "+
-					"scheduling volume '%s' on machine '%s': %w", missingVolumeName, machineID, err)
+					"scheduling volume '%s' on machine '%s': %w", volumeName, machineID, err)
 			}
 		}
 	}
