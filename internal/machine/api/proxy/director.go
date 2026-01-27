@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/siderolabs/grpc-proxy/proxy"
@@ -18,24 +19,30 @@ type Director struct {
 	// mu synchronizes access to localAddress.
 	mu           sync.RWMutex
 	localAddress string
+	localID      string
+	localName    string
+	directory    MachineDirectory
 }
 
-func NewDirector(localSockPath string, remotePort uint16) *Director {
+func NewDirector(localSockPath string, remotePort uint16, directory MachineDirectory) *Director {
 	return &Director{
-		localBackend: NewLocalBackend(localSockPath, ""),
+		localBackend: NewLocalBackend(localSockPath, "", "", ""),
 		remotePort:   remotePort,
+		directory:    directory,
 	}
 }
 
-// UpdateLocalAddress updates the local machine address used to identify which requests should be proxied
+// UpdateLocalMachine updates the local machine details used to identify which requests should be proxied
 // to the local gRPC server.
-func (d *Director) UpdateLocalAddress(addr string) {
+func (d *Director) UpdateLocalMachine(id, name, addr string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	d.localAddress = addr
+	d.localID = id
+	d.localName = name
 	// Replace the local backend with the one that has local address set.
-	d.localBackend = NewLocalBackend(d.localBackend.sockPath, addr)
+	d.localBackend = NewLocalBackend(d.localBackend.sockPath, addr, id, name)
 }
 
 // Director implements proxy.StreamDirector for grpc-proxy, routing requests to local or remote backends based
@@ -51,11 +58,11 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
 	}
 	// If the request metadata doesn't contain machines to proxy to, send it to the local backend.
-	machines, ok := md["machines"]
+	machineNames, ok := md["machines"]
 	if !ok {
 		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
 	}
-	if len(machines) == 0 {
+	if len(machineNames) == 0 {
 		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "no machines specified")
 	}
 
@@ -64,34 +71,68 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 	localBackend := d.localBackend
 	d.mu.RUnlock()
 
-	backends := make([]proxy.Backend, len(machines))
-	for i, addr := range machines {
-		if addr == localAddress {
+	// Resolve machines
+	type target struct {
+		id, name, addr string
+	}
+	targets := make([]target, 0, len(machineNames))
+
+	// Check for "all" machines wildcard
+	proxyAll := false
+	for _, name := range machineNames {
+		if IsAllMachines(name) {
+			proxyAll = true
+			break
+		}
+	}
+
+	if proxyAll {
+		allMachines, err := d.directory.ListMachines(ctx)
+		if err != nil {
+			return proxy.One2One, nil, status.Error(codes.Internal, fmt.Sprintf("failed to list machines: %v", err))
+		}
+		for _, m := range allMachines {
+			ip, err := m.Network.ManagementIp.ToAddr()
+			if err != nil {
+				continue
+			}
+			targets = append(targets, target{id: m.Id, name: m.Name, addr: ip.String()})
+		}
+	} else {
+		for _, name := range machineNames {
+			id, mName, ip, err := d.directory.ResolveMachine(ctx, name)
+			if err != nil {
+				return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to resolve machine %s: %v", name, err))
+			}
+			targets = append(targets, target{id: id, name: mName, addr: ip.String()})
+		}
+	}
+
+	backends := make([]proxy.Backend, len(targets))
+	for i, t := range targets {
+		if t.addr == localAddress {
 			backends[i] = localBackend
 			continue
 		}
 
-		backend, err := d.remoteBackend(addr)
+		backend, err := d.remoteBackend(t.addr, t.id, t.name)
 		if err != nil {
 			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
 		}
 		backends[i] = backend
 	}
 
-	if len(backends) == 1 {
-		return proxy.One2One, backends, nil
-	}
 	return proxy.One2Many, backends, nil
 }
 
 // remoteBackend returns a RemoteBackend for the given address from the cache or creates a new one.
-func (d *Director) remoteBackend(addr string) (*RemoteBackend, error) {
+func (d *Director) remoteBackend(addr, id, name string) (*RemoteBackend, error) {
 	b, ok := d.remoteBackends.Load(addr)
 	if ok {
 		return b.(*RemoteBackend), nil
 	}
 
-	backend, err := NewRemoteBackend(addr, d.remotePort)
+	backend, err := NewRemoteBackend(addr, d.remotePort, id, name)
 	if err != nil {
 		return nil, err
 	}

@@ -55,15 +55,21 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	defer client.Close()
 
 	// Verify the machine exists and list all service containers on it including stopped ones.
-	mctx, err := client.ProxyMachinesContext(ctx, []string{nameOrID})
+	allMachines, err := client.ListMachines(ctx, &api.MachineFilter{
+		NamesOrIDs: []string{nameOrID},
+	})
+	if err != nil {
+		return fmt.Errorf("list machines: %w", err)
+	}
+	if len(allMachines) == 0 {
+		return fmt.Errorf("machine '%s' not found in the cluster", nameOrID)
+	}
+	m := allMachines[0].Machine
+
+	mctx, err := client.ProxyMachinesContext(ctx, []string{m.Id})
 	if err != nil {
 		return err
 	}
-	machines := mctx.Machines()
-	if len(machines) == 0 {
-		return fmt.Errorf("machine '%s' not found in the cluster", nameOrID)
-	}
-	m := machines[0].Machine
 
 	// Verify if the machine being removed is the proxy machine we're connected to.
 	proxyMachine, err := client.MachineClient.Inspect(ctx, nil)

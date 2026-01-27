@@ -265,7 +265,8 @@ func NewMachine(config *Config) (*Machine, error) {
 	dockerService := machinedocker.NewService(config.DockerClient, db)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
-	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)
+	directory := apiproxy.NewCorrosionDirectory(corroStore)
+	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort, directory)
 	localProxyServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.UnknownServiceHandler(
@@ -418,7 +419,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			slog.Info("Starting cluster controller.")
 			// Update the proxy director's local address to the machine's management IP address, allowing
 			// the proxy to identify which requests should be proxied to the local machine API server.
-			m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
+			m.proxyDirector.UpdateLocalMachine(m.state.ID, m.state.Name, m.state.Network.ManagementIP.String())
 			proxyServer := grpc.NewServer(
 				grpc.ForceServerCodecV2(proxy.Codec()),
 				grpc.UnknownServiceHandler(

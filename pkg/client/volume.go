@@ -2,11 +2,13 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/volume"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -59,32 +61,48 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		return nil, fmt.Errorf("create request context to broadcast to all machines: %w", err)
 	}
 
-	machineVolumes, err := cli.Docker.ListVolumes(mctx, volume.ListOptions{})
+	optsBytes, err := json.Marshal(volume.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	machineVolumes, err := cli.Docker.GRPCClient.ListVolumes(mctx, &pb.ListVolumesRequest{Options: optsBytes})
 	if err != nil {
 		return nil, err
 	}
 
 	var volumes []api.MachineVolume
 	// Process responses from all machines.
-	for res := range ResolveMachines(mctx, machineVolumes) {
-		mv := res.Item
-		m := res.Machine
-		// Note: ResolveMachines iterator handles error checking and resolution.
-		// It yields only valid results or results where machine might be unknown but no error in metadata.
-		// However, for volumes we really need the machine ID.
-
-		if m == nil {
-			// We need the machine ID to construct the MachineVolume response.
-			// If we couldn't resolve the machine from the metadata (IP), we skip it.
-			PrintWarning(fmt.Sprintf("machine not found by management IP: %s", res.MachineAddr))
+	for _, mv := range machineVolumes.Messages {
+		if mv.Metadata == nil {
+			PrintWarning("metadata is missing in response from unknown server")
 			continue
 		}
 
-		for _, vol := range mv.Response.Volumes {
+		if mv.Metadata.Error != "" {
+			PrintWarning(fmt.Sprintf("failed to list volumes on machine %s: %s", mv.Metadata.Machine, mv.Metadata.Error))
+			continue
+		}
 
+		machineID := mv.Metadata.MachineId
+		machineName := mv.Metadata.MachineName
+
+		if machineID == "" {
+			// We need the machine ID to construct the MachineVolume response.
+			// If we couldn't resolve the machine from the metadata (IP), we skip it.
+			PrintWarning(fmt.Sprintf("machine ID missing in response from: %s", mv.Metadata.Machine))
+			continue
+		}
+
+		var volResp volume.ListResponse
+		if err = json.Unmarshal(mv.Response, &volResp); err != nil {
+			return nil, fmt.Errorf("unmarshal volume response: %w", err)
+		}
+
+		for _, vol := range volResp.Volumes {
 			volumes = append(volumes, api.MachineVolume{
-				MachineID:   m.Machine.Id,
-				MachineName: m.Machine.Name,
+				MachineID:   machineID,
+				MachineName: machineName,
 				Volume:      *vol,
 			})
 		}

@@ -16,6 +16,10 @@ message Metadata {
   string error = 2;
   // error as a gRPC Status message.
   google.rpc.Status status = 3;
+  // ID of the machine the response came from.
+  string machine_id = 4;
+  // Name of the machine the response came from.
+  string machine_name = 5;
 }
 
 // A helper message for marshalling the metadata field and injecting it into the response by the gRPC proxy.

@@ -21,13 +21,15 @@ type LocalBackend struct {
 
 var _ proxy.Backend = (*LocalBackend)(nil)
 
-// NewLocalBackend returns a new LocalBackend for the given Unix socket path. The addr parameter is the local address
-// of the current machine which could be empty if it's not known. The address is used to populate response metadata
-// in one2many mode.
-func NewLocalBackend(sockPath, addr string) *LocalBackend {
+// NewLocalBackend returns a new LocalBackend for the given Unix socket path. The addr, id and name parameters
+// specify the local machine details which could be empty if they are not known. These details are used to populate
+// response metadata in one2many mode.
+func NewLocalBackend(sockPath, addr, id, name string) *LocalBackend {
 	return &LocalBackend{
 		One2ManyResponder: One2ManyResponder{
-			machine: addr,
+			machine:     addr,
+			machineID:   id,
+			machineName: name,
 		},
 		sockPath: sockPath,
 	}

@@ -12,7 +12,9 @@ import (
 // One2ManyResponder converts upstream responses into messages from upstreams, so that multiple
 // successful and failure responses might be returned in One2Many mode.
 type One2ManyResponder struct {
-	machine string
+	machine     string
+	machineID   string
+	machineName string
 }
 
 // AppendInfo is called to enhance response from the backend with additional data.
@@ -62,7 +64,9 @@ type One2ManyResponder struct {
 func (b *One2ManyResponder) AppendInfo(streaming bool, resp []byte) ([]byte, error) {
 	payload, err := proto.Marshal(&pb.Empty{
 		Metadata: &pb.Metadata{
-			Machine: b.machine,
+			Machine:     b.machine,
+			MachineId:   b.machineID,
+			MachineName: b.machineName,
 		},
 	})
 
@@ -127,9 +131,11 @@ func (b *One2ManyResponder) AppendInfo(streaming bool, resp []byte) ([]byte, err
 func (b *One2ManyResponder) BuildError(streaming bool, err error) ([]byte, error) {
 	var resp proto.Message = &pb.Empty{
 		Metadata: &pb.Metadata{
-			Machine: b.machine,
-			Error:   err.Error(),
-			Status:  status.Convert(err).Proto(),
+			Machine:     b.machine,
+			MachineId:   b.machineID,
+			MachineName: b.machineName,
+			Error:       err.Error(),
+			Status:      status.Convert(err).Proto(),
 		},
 	}
 

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
-	"strings"
 
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -74,171 +72,23 @@ func (cli *Client) progressOut() *streams.Out {
 
 // proxyToMachine returns a new context that proxies gRPC requests to the specified machine.
 func proxyToMachine(ctx context.Context, machine *pb.MachineInfo) context.Context {
-	machineIP, _ := machine.Network.ManagementIp.ToAddr()
-	md := metadata.Pairs("machines", machineIP.String())
+	md := metadata.Pairs("machines", machine.Id)
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-// MultiMachineContext is a context wrapper that includes information about the machines
-// being targeted by a proxied gRPC request.
-type MultiMachineContext struct {
-	context.Context
-	machines     api.MachineMembersList
-	machinesByIP map[string]*pb.MachineMember
-}
-
-// Machines returns the list of machines targeted by this context.
-func (m *MultiMachineContext) Machines() api.MachineMembersList {
-	return m.machines
-}
-
-// ResolveMachine returns the machine member that corresponds to the provided metadata.
-func (m *MultiMachineContext) ResolveMachine(metadata *pb.Metadata) (*pb.MachineMember, error) {
-	if metadata == nil {
-		if len(m.machines) == 1 {
-			return m.machines[0], nil
-		}
-		return nil, fmt.Errorf("metadata is missing for a machine response")
-	}
-
-	if machine, ok := m.machinesByIP[metadata.Machine]; ok {
-		return machine, nil
-	}
-
-	return nil, fmt.Errorf("machine not found by management IP: %s", metadata.Machine)
-}
-
 // ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
-// If namesOrIDs is nil, all machines are included.
+// If namesOrIDs is nil or empty, all machines are included.
 func (cli *Client) ProxyMachinesContext(
 	ctx context.Context, namesOrIDs []string,
-) (*MultiMachineContext, error) {
-	// TODO: move the machine IP resolution to the proxy router to allow setting machine names and IDs in the metadata.
-	machines, err := cli.ListMachines(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("list machines: %w", err)
-	}
-
-	var proxiedMachines api.MachineMembersList
-	var notFound []string
-	for _, nameOrID := range namesOrIDs {
-		if m := machines.FindByNameOrID(nameOrID); m != nil {
-			proxiedMachines = append(proxiedMachines, m)
-		} else {
-			notFound = append(notFound, nameOrID)
-		}
-	}
-
-	if len(notFound) > 0 {
-		return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
-	}
-
-	if len(namesOrIDs) == 0 {
-		proxiedMachines = machines
-	}
-
+) (context.Context, error) {
 	md := metadata.New(nil)
-	machinesByIP := make(map[string]*pb.MachineMember)
-	for _, m := range proxiedMachines {
-		machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
-		md.Append("machines", machineIP.String())
-		machinesByIP[machineIP.String()] = m
-	}
-
-	return &MultiMachineContext{
-		Context:      metadata.NewOutgoingContext(ctx, md),
-		machines:     proxiedMachines,
-		machinesByIP: machinesByIP,
-	}, nil
-}
-
-// ResolvedResult wraps a response item with the resolved machine information.
-type ResolvedResult[T any] struct {
-	Item        T
-	Machine     *pb.MachineMember
-	MachineName string
-	// MachineAddr is the machine's management IP address from the response metadata.
-	MachineAddr string
-}
-
-// ResolveMachines iterates over a slice of results and yields each result paired with its resolved machine.
-// It uses reflection to find the metadata in the result items (looking for a Metadata field or GetMetadata method).
-func ResolveMachines[T any](
-	mctx *MultiMachineContext, results []T,
-) func(func(ResolvedResult[T]) bool) {
-	return func(yield func(ResolvedResult[T]) bool) {
-		for _, res := range results {
-			var metadata *pb.Metadata
-
-			// Use reflection to find metadata to avoid forcing all types to implement an interface.
-			// Check for Metadata field first.
-			v := reflect.ValueOf(res)
-			if v.Kind() == reflect.Ptr {
-				v = v.Elem()
-			}
-			if v.Kind() == reflect.Struct {
-				f := v.FieldByName("Metadata")
-				if f.IsValid() && !f.IsNil() && f.Type() == reflect.TypeOf(&pb.Metadata{}) {
-					metadata = f.Interface().(*pb.Metadata)
-				}
-			}
-
-			// If field not found or nil (and struct might be just hiding it), try GetMetadata method.
-			if metadata == nil {
-				if getter, ok := any(res).(interface{ GetMetadata() *pb.Metadata }); ok {
-					metadata = getter.GetMetadata()
-				}
-			}
-
-			machine, resolveErr := mctx.ResolveMachine(metadata)
-			machineName := "unknown"
-			machineAddr := ""
-
-			if metadata != nil {
-				machineAddr = metadata.Machine
-			}
-
-			if machine != nil {
-				machineName = machine.Machine.Name
-			} else if machineAddr != "" {
-				machineName = machineAddr
-			}
-
-			// Check for machine errors in metadata
-			if metadata != nil && metadata.Error != "" {
-				PrintWarning(fmt.Sprintf("failed to list items on machine %s: %s", machineName, metadata.Error))
-				continue
-			}
-
-			// If resolution failed and we couldn't determine the machine, we might want to skip or yield with nil machine.
-			// Current existing logic in ps.go handles "unknown" machineName.
-			// However, if metadata is nil and we have multiple machines, ResolveMachine returns error.
-			// If metadata is nil and we have 1 machine, ResolveMachine returns it.
-
-			if resolveErr != nil && metadata == nil {
-				// Ambiguous case (multiple machines but no metadata).
-				// This usually indicates a proxy error.
-				// We log a warning and fallback to "unknown" instead of failing the whole request.
-				PrintWarning("something went wrong with gRPC proxy: metadata is missing for a machine response")
-				if !yield(ResolvedResult[T]{
-					Item:        res,
-					Machine:     nil,
-					MachineName: "unknown",
-					MachineAddr: "",
-				}) {
-					return
-				}
-				continue
-			}
-
-			if !yield(ResolvedResult[T]{
-				Item:        res,
-				Machine:     machine,
-				MachineName: machineName,
-				MachineAddr: machineAddr,
-			}) {
-				return
-			}
+	if len(namesOrIDs) == 0 {
+		md.Append("machines", "*")
+	} else {
+		for _, nameOrID := range namesOrIDs {
+			md.Append("machines", nameOrID)
 		}
 	}
+
+	return metadata.NewOutgoingContext(ctx, md), nil
 }
