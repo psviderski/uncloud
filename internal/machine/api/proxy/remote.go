@@ -30,7 +30,7 @@ type RemoteBackend struct {
 var _ proxy.Backend = (*RemoteBackend)(nil)
 
 // NewRemoteBackend creates a new instance of RemoteBackend for the given IPv6 address and port.
-func NewRemoteBackend(addr string, port uint16) (*RemoteBackend, error) {
+func NewRemoteBackend(addr string, port uint16, id, name string) (*RemoteBackend, error) {
 	ip, err := netip.ParseAddr(addr)
 	if err != nil || !ip.Is6() {
 		return nil, fmt.Errorf("address must be a valid IPv6 address: %s", addr)
@@ -38,7 +38,9 @@ func NewRemoteBackend(addr string, port uint16) (*RemoteBackend, error) {
 
 	return &RemoteBackend{
 		One2ManyResponder: One2ManyResponder{
-			machine: addr,
+			machine:     addr,
+			machineID:   id,
+			machineName: name,
 		},
 		target: netip.AddrPortFrom(ip, port).String(),
 	}, nil

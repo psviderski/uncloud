@@ -72,20 +72,21 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 
 	machineImages := make([]api.MachineImages, 0, len(resp.Messages))
 
-	for res := range ResolveMachines(mctx, resp.Messages) {
-		msg := res.Item
-		machine := res.Machine
+	for _, msg := range resp.Messages {
+		if msg.Metadata == nil {
+			PrintWarning("metadata is missing in response from unknown server")
+			continue
+		}
 
 		mi := api.MachineImages{
 			Metadata:        msg.Metadata,
 			ContainerdStore: msg.ContainerdStore,
 		}
 
-		if machine != nil {
-			if mi.Metadata == nil {
-				mi.Metadata = &pb.Metadata{}
-			}
-			mi.Metadata.Machine = machine.Machine.Id
+		// Check for machine errors in metadata
+		if mi.Metadata.Error != "" {
+			PrintWarning(fmt.Sprintf("failed to list images on machine %s: %s", mi.Metadata.MachineName, mi.Metadata.Error))
+			continue
 		}
 
 		if len(msg.Images) > 0 {

@@ -196,9 +196,19 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 	}
 
 	var containers []containerInfo
-	for res := range client.ResolveMachines(mctx, machineContainers) {
-		msc := res.Item
-		machineName := res.MachineName
+	for _, msc := range machineContainers {
+		if msc.Metadata == nil {
+			client.PrintWarning("metadata is missing in response from unknown server")
+			continue
+		}
+
+		if msc.Metadata.Error != "" {
+			client.PrintWarning(fmt.Sprintf("failed to list service containers on machine %s: %s",
+				msc.Metadata.Machine, msc.Metadata.Error))
+			continue
+		}
+
+		machineName := msc.Metadata.MachineName
 
 		for _, ctr := range msc.Containers {
 			if ctr.Container.State == nil || ctr.Container.Config == nil {
