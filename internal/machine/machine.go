@@ -30,6 +30,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/version"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
@@ -908,6 +909,7 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 					},
 				},
 				StoreDbVersion: dbVersion,
+				DaemonVersion:  version.String(),
 			},
 		},
 	}, nil
