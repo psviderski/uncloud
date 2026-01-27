@@ -1106,6 +1106,92 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "multiple global services sharing same volume with different placement constraints",
+			machines: []*Machine{
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine1",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine2",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine3",
+					},
+				},
+			},
+			serviceSpecs: []api.ServiceSpec{
+				{
+					Name: "global-service-1",
+					Mode: api.ServiceModeGlobal,
+					Placement: api.Placement{
+						Machines: []string{"machine1", "machine2"},
+					},
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data1",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+				{
+					Name: "global-service-2",
+					Mode: api.ServiceModeGlobal,
+					Placement: api.Placement{
+						Machines: []string{"machine2", "machine3"},
+					},
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data2",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+			},
+			want: map[string][]api.VolumeSpec{
+				"machine1": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine2": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine3": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

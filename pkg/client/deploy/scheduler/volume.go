@@ -156,12 +156,20 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 		}
 	}
 
-	// Skip constraints propagation for volumes that already exist on machines (for replicated services)
-	// as the propagation only works for missing volumes. Global service volumes are NOT marked as placed
-	// here since they still need to be scheduled on machines that don't have them.
+	// Skip constraints propagation for:
+	// 1. Volumes that already exist on machines (for replicated services) as the propagation only works
+	//    for missing volumes. Global service volumes are NOT marked as placed here since they still need
+	//    to be scheduled on machines that don't have them.
+	// 2. Volumes only used by global services - these need UNION of eligible machines, not intersection.
 	placedVolumes := make(map[string]struct{})
 	for volumeName := range s.existingVolumeMachines {
 		if !s.isVolumeForGlobalService(volumeName) {
+			placedVolumes[volumeName] = struct{}{}
+		}
+	}
+	// Skip constraint propagation for volumes only used by global services.
+	for volumeName := range s.volumeSpecs {
+		if s.isVolumeOnlyForGlobalServices(volumeName) {
 			placedVolumes[volumeName] = struct{}{}
 		}
 	}
@@ -189,8 +197,19 @@ func (s *VolumeScheduler) Schedule() (map[string][]api.VolumeSpec, error) {
 			return nil, fmt.Errorf("bug detected: no services using volume '%s'", volumeName)
 		}
 
-		// Get the current eligible machines (any service using the volume will have the same set after convergence).
-		eligibleMachines := serviceEligibleMachines[serviceNames[0]]
+		// Get the eligible machines for this volume.
+		// For volumes only used by global services: compute UNION of all services' eligible machines.
+		// For other volumes: any service will have the same set after constraint convergence.
+		var eligibleMachines mapset.Set[string]
+		if s.isVolumeOnlyForGlobalServices(volumeName) {
+			// Compute union of eligible machines for all global services using this volume.
+			eligibleMachines = mapset.NewSet[string]()
+			for _, serviceName := range serviceNames {
+				eligibleMachines = eligibleMachines.Union(serviceEligibleMachines[serviceName])
+			}
+		} else {
+			eligibleMachines = serviceEligibleMachines[serviceNames[0]]
+		}
 		if eligibleMachines.Cardinality() == 0 {
 			return nil, fmt.Errorf("bug detected: no eligible machines for volume '%s'", volumeName)
 		}
@@ -347,6 +366,28 @@ func (s *VolumeScheduler) isVolumeForGlobalService(volumeName string) bool {
 		}
 	}
 	return false
+}
+
+// isVolumeOnlyForGlobalServices returns true if ALL services using this volume are global services.
+func (s *VolumeScheduler) isVolumeOnlyForGlobalServices(volumeName string) bool {
+	serviceNames := s.volumeServices[volumeName]
+	if len(serviceNames) == 0 {
+		return false
+	}
+	for _, serviceName := range serviceNames {
+		for _, spec := range s.serviceSpecs {
+			if spec.Name == serviceName {
+				mode := spec.Mode
+				if mode == "" {
+					mode = api.ServiceModeReplicated
+				}
+				if mode != api.ServiceModeGlobal {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 // isVolumeSharedBetweenGlobalAndReplicated returns true if a volume is used by both
