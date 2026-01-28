@@ -30,7 +30,7 @@ func NewSSHCLIRemote(user, host string, port int, keyPath string) *SSHCLIRemote 
 func (r *SSHCLIRemote) buildSSHArgs() []string {
 	args := []string{"-o", "ConnectTimeout=5"}
 
-	if r.port != 0 && r.port != 22 {
+	if r.port != 0 {
 		args = append(args, "-p", strconv.Itoa(r.port))
 	}
 
@@ -38,7 +38,12 @@ func (r *SSHCLIRemote) buildSSHArgs() []string {
 		args = append(args, "-i", r.keyPath)
 	}
 
-	args = append(args, r.user+"@"+r.host)
+	dst := r.host
+	if r.user != "" {
+		dst = fmt.Sprintf("%s@%s", r.user, dst)
+	}
+	args = append(args, dst)
+
 	return args
 }
 
