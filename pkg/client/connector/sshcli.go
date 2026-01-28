@@ -19,7 +19,6 @@ import (
 // and running `uncloudd dial-stdio` on the remote machine.
 type SSHCLIConnector struct {
 	config SSHConnectorConfig
-	conn   net.Conn
 	// Path to SSH control socket for connection reuse.
 	controlSockPath string
 }
@@ -123,28 +122,22 @@ func (d *sshCLIDialer) DialContext(ctx context.Context, network, address string)
 }
 
 func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
-	if c.conn == nil {
-		args := c.buildSSHArgs()
-
-		// Create connection using docker's commandconn.
-		conn, err := commandconn.New(ctx, "ssh", args...)
-		if err != nil {
-			return nil, fmt.Errorf("SSH connection to %s: %w", c.config.Destination(), err)
-		}
-		c.conn = conn
-	}
-
-	// Create gRPC client over the connection. Use a custom dialer that returns our existing connection.
+	// Create gRPC client with a dialer that spawns a new SSH connection on demand.
+	// Each dial attempt runs `ssh ... uncloudd dial-stdio`, reusing the control socket if available.
 	grpcConn, err := grpc.NewClient(
 		"passthrough:///", // Dummy target since we're using a custom dialer.
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(defaultServiceConfig),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return c.conn, nil
+			args := c.buildSSHArgs()
+			conn, err := commandconn.New(ctx, "ssh", args...)
+			if err != nil {
+				return nil, fmt.Errorf("SSH connection to %s: %w", c.config.Destination(), err)
+			}
+			return conn, nil
 		}),
 	)
 	if err != nil {
-		c.conn.Close()
 		return nil, fmt.Errorf("create machine API client: %w", err)
 	}
 
@@ -212,10 +205,7 @@ func (c *SSHCLIConnector) Dialer() (proxy.ContextDialer, error) {
 }
 
 func (c *SSHCLIConnector) Close() error {
-	if c.conn != nil {
-		err := c.conn.Close()
-		c.conn = nil
-		return err
-	}
+	// Individual connections are managed by gRPC and closed when the gRPC connection closes.
+	// The SSH control socket may persist for connection reuse across CLI invocations.
 	return nil
 }
