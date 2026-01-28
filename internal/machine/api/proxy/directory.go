@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"strings"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
@@ -54,51 +53,7 @@ func (d *CorrosionDirectory) ResolveMachine(ctx context.Context, nameOrID string
 	return "", "", netip.Addr{}, fmt.Errorf("machine not found: %s", nameOrID)
 }
 
-// StaticDirectory implements MachineDirectory using a static list of machines.
-// It is useful when the director is used without a cluster store, e.g. in the CLI
-// (although the CLI currently doesn't use the director directly, this might be useful for testing).
-type StaticDirectory struct {
-	Machines []*pb.MachineInfo
-}
-
-func (d *StaticDirectory) ListMachines(_ context.Context) ([]*pb.MachineInfo, error) {
-	return d.Machines, nil
-}
-
-func (d *StaticDirectory) ResolveMachine(_ context.Context, nameOrID string) (string, string, netip.Addr, error) {
-	for _, m := range d.Machines {
-		if m.Id == nameOrID || m.Name == nameOrID {
-			ip, err := m.Network.ManagementIp.ToAddr()
-			if err != nil {
-				return "", "", netip.Addr{}, fmt.Errorf("invalid management IP for machine %s: %w", m.Name, err)
-			}
-			return m.Id, m.Name, ip, nil
-		}
-	}
-	return "", "", netip.Addr{}, fmt.Errorf("machine not found: %s", nameOrID)
-}
-
-// MockDirectory is a mock implementation of MachineDirectory for testing.
-type MockDirectory struct {
-	ListFunc    func(ctx context.Context) ([]*pb.MachineInfo, error)
-	ResolveFunc func(ctx context.Context, nameOrID string) (string, string, netip.Addr, error)
-}
-
-func (m *MockDirectory) ListMachines(ctx context.Context) ([]*pb.MachineInfo, error) {
-	if m.ListFunc != nil {
-		return m.ListFunc(ctx)
-	}
-	return nil, nil
-}
-
-func (m *MockDirectory) ResolveMachine(ctx context.Context, nameOrID string) (string, string, netip.Addr, error) {
-	if m.ResolveFunc != nil {
-		return m.ResolveFunc(ctx, nameOrID)
-	}
-	return "", "", netip.Addr{}, fmt.Errorf("machine not found: %s", nameOrID)
-}
-
 // IsAllMachines returns true if the machine name/ID indicates all machines in the cluster.
 func IsAllMachines(nameOrID string) bool {
-	return nameOrID == "*" || strings.ToLower(nameOrID) == "all"
+	return nameOrID == "*"
 }

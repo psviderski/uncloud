@@ -71,13 +71,15 @@ func (cli *Client) progressOut() *streams.Out {
 }
 
 // proxyToMachine returns a new context that proxies gRPC requests to the specified machine.
+// It uses "machine" metadata for One2One proxying (no metadata injection).
 func proxyToMachine(ctx context.Context, machine *pb.MachineInfo) context.Context {
-	md := metadata.Pairs("machines", machine.Id)
+	md := metadata.Pairs("machine", machine.Id)
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
 // ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
 // If namesOrIDs is nil or empty, all machines are included.
+// This triggers One2Many proxying, which always injects metadata into the response.
 func (cli *Client) ProxyMachinesContext(
 	ctx context.Context, namesOrIDs []string,
 ) (context.Context, error) {
@@ -85,10 +87,18 @@ func (cli *Client) ProxyMachinesContext(
 	if len(namesOrIDs) == 0 {
 		md.Append("machines", "*")
 	} else {
-		for _, nameOrID := range namesOrIDs {
-			md.Append("machines", nameOrID)
-		}
+		md.Append("machines", namesOrIDs...)
 	}
 
+	return metadata.NewOutgoingContext(ctx, md), nil
+}
+
+// ProxyMachineContext returns a new context that proxies gRPC requests to a single specified machine.
+// This triggers One2One proxying, which does NOT inject metadata into the response.
+// Use this for requests that expect a single response message without metadata wrapper.
+func (cli *Client) ProxyMachineContext(
+	ctx context.Context, nameOrID string,
+) (context.Context, error) {
+	md := metadata.Pairs("machine", nameOrID)
 	return metadata.NewOutgoingContext(ctx, md), nil
 }
