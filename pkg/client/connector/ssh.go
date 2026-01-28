@@ -24,6 +24,16 @@ type SSHConnectorConfig struct {
 	SockPath string
 }
 
+// Destination returns the destination string that can be passed to ssh CLI in the format [user@]host.
+func (cfg *SSHConnectorConfig) Destination() string {
+	dst := cfg.Host
+	if cfg.User != "" {
+		dst = fmt.Sprintf("%s@%s", cfg.User, dst)
+	}
+
+	return dst
+}
+
 // SSHConnector establishes a connection to the machine API through an SSH tunnel to the machine.
 type SSHConnector struct {
 	config SSHConnectorConfig
@@ -48,7 +58,11 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 		var err error
 		c.client, err = sshexec.Connect(c.config.User, c.config.Host, c.config.Port, c.config.KeyPath)
 		if err != nil {
-			return nil, fmt.Errorf("SSH login to %s@%s:%d: %w", c.config.User, c.config.Host, c.config.Port, err)
+			dst := c.config.Destination()
+			if c.config.Port != 0 {
+				dst = fmt.Sprintf("%s:%d", dst, c.config.Port)
+			}
+			return nil, fmt.Errorf("SSH login to %s: %w", dst, err)
 		}
 	}
 

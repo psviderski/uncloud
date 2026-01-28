@@ -30,7 +30,7 @@ type MachineConnection struct {
 	MachineID string        `yaml:"machine_id,omitempty"`
 }
 
-func (c MachineConnection) String() string {
+func (c *MachineConnection) String() string {
 	if c.SSH != "" {
 		return "ssh://" + string(c.SSH)
 	} else if c.SSHCLI != "" {
@@ -69,36 +69,37 @@ func (c *MachineConnection) Validate() error {
 }
 
 // SSHDestination represents an SSH destination string in the canonical form of "user@host:port".
-// The default user "root" and port 22 can be omitted.
+// Empty user or port components are omitted.
 type SSHDestination string
 
+// NewSSHDestination constructs an SSHDestination from user, host, and port components.
+// If user is empty, it is omitted.
+// If port is 0, it is omitted.
 func NewSSHDestination(user, host string, port int) SSHDestination {
 	dst := host
-	if port != 0 && port != DefaultSSHPort {
+	if port != 0 {
 		dst = net.JoinHostPort(host, strconv.Itoa(port))
 	}
-	if user == "" {
-		user = DefaultSSHUser
+	if user != "" {
+		dst = fmt.Sprintf("%s@%s", user, dst)
 	}
-	dst = user + "@" + dst
+
 	return SSHDestination(dst)
 }
 
+// Parse parses the SSH destination string into user, host, and port components.
+// If user is not specified, it returns an empty string.
+// If port is not specified, it returns 0.
 func (d SSHDestination) Parse() (user string, host string, port int, err error) {
 	host = string(d)
 	if strings.Contains(host, "@") {
 		user, host, _ = strings.Cut(host, "@")
-	}
-	if user == "" {
-		user = DefaultSSHUser
 	}
 	h, p, sErr := net.SplitHostPort(host)
 	if sErr == nil {
 		host = h
 		port, err = strconv.Atoi(p)
 	}
-	if port == 0 {
-		port = DefaultSSHPort
-	}
+
 	return
 }

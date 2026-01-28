@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	osuser "os/user"
 	"strconv"
 	"time"
 
@@ -13,7 +14,17 @@ import (
 )
 
 func Connect(user, host string, port int, sshKeyPath string) (*ssh.Client, error) {
+	// Use the current OS user if no user is specified to be make it consistent with ssh CLI behavior.
+	if user == "" {
+		if u, err := osuser.Current(); err == nil {
+			user = u.Username
+		}
+	}
+	if port == 0 {
+		port = 22
+	}
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
+
 	// Try to connect using SSH agent only.
 	agentAuth, agentClose, agentErr := sshAgentAuth()
 	if agentErr == nil {
