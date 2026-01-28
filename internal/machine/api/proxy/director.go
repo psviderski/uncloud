@@ -21,14 +21,14 @@ type Director struct {
 	localAddress string
 	localID      string
 	localName    string
-	directory    MachineDirectory
+	mapper       MachineMapper
 }
 
-func NewDirector(localSockPath string, remotePort uint16, directory MachineDirectory) *Director {
+func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) *Director {
 	return &Director{
-		localBackend: NewLocalBackend(localSockPath, "", "", ""),
+		localBackend: NewLocalBackend(localSockPath),
 		remotePort:   remotePort,
-		directory:    directory,
+		mapper:       mapper,
 	}
 }
 
@@ -41,8 +41,7 @@ func (d *Director) UpdateLocalMachine(id, name, addr string) {
 	d.localAddress = addr
 	d.localID = id
 	d.localName = name
-	// Replace the local backend with the one that has local address set.
-	d.localBackend = NewLocalBackend(d.localBackend.sockPath, addr, id, name)
+	// Local backend doesn't need re-creation as it doesn't store metadata anymore.
 }
 
 // Director implements proxy.StreamDirector for grpc-proxy, routing requests to local or remote backends based
@@ -64,34 +63,23 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
 	}
 
-	d.mu.RLock()
-	localAddress := d.localAddress
-	localBackend := d.localBackend
-	d.mu.RUnlock()
-
-	type target struct {
-		id, name, addr string
-	}
-	var targets []target
-
 	// Handle singular "machine" case (One2One, no metadata injection)
 	if hasMachine && len(machine) > 0 {
 		name := machine[0]
-		id, mName, ip, err := d.directory.ResolveMachine(ctx, name)
+		targets, err := d.mapper.MapMachines(ctx, []string{name})
 		if err != nil {
 			return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to resolve machine %s: %v", name, err))
 		}
-
-		t := target{id: id, name: mName, addr: ip.String()}
-		var backend proxy.Backend
-		if t.addr == localAddress {
-			backend = localBackend
-		} else {
-			backend, err = d.remoteBackend(t.addr, t.id, t.name)
-			if err != nil {
-				return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
-			}
+		if len(targets) == 0 {
+			return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("machine not found: %s", name))
 		}
+
+		backend, err := d.getBackend(targets[0].Addr)
+		if err != nil {
+			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
+		}
+
+		// For One2One, we don't wrap in MetadataBackend as we don't inject metadata.
 		return proxy.One2One, []proxy.Backend{backend}, nil
 	}
 
@@ -100,64 +88,51 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "no machines specified")
 	}
 
-	targets = make([]target, 0, len(machines))
-
-	// Check for "all" machines wildcard
-	proxyAll := false
-	for _, name := range machines {
-		if name == "*" {
-			proxyAll = true
-			break
-		}
-	}
-
-	if proxyAll {
-		allMachines, err := d.directory.ListMachines(ctx)
-		if err != nil {
-			return proxy.One2One, nil, status.Error(codes.Internal, fmt.Sprintf("failed to list machines: %v", err))
-		}
-		for _, m := range allMachines {
-			ip, err := m.Network.ManagementIp.ToAddr()
-			if err != nil {
-				continue
-			}
-			targets = append(targets, target{id: m.Id, name: m.Name, addr: ip.String()})
-		}
-	} else {
-		for _, name := range machines {
-			id, mName, ip, err := d.directory.ResolveMachine(ctx, name)
-			if err != nil {
-				return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to resolve machine %s: %v", name, err))
-			}
-			targets = append(targets, target{id: id, name: mName, addr: ip.String()})
-		}
+	targets, err := d.mapper.MapMachines(ctx, machines)
+	if err != nil {
+		return proxy.One2One, nil, status.Error(codes.Internal, fmt.Sprintf("failed to resolve machines: %v", err))
 	}
 
 	backends := make([]proxy.Backend, len(targets))
 	for i, t := range targets {
-		if t.addr == localAddress {
-			backends[i] = localBackend
-			continue
-		}
-
-		backend, err := d.remoteBackend(t.addr, t.id, t.name)
+		backend, err := d.getBackend(t.Addr)
 		if err != nil {
 			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
 		}
-		backends[i] = backend
+
+		// Wrap with metadata injector
+		backends[i] = &MetadataBackend{
+			Backend:     backend,
+			MachineID:   t.ID,
+			MachineName: t.Name,
+			MachineAddr: t.Addr,
+		}
 	}
 
 	return proxy.One2Many, backends, nil
 }
 
+// getBackend returns a backend for the given address, utilizing local backend if matching local address.
+func (d *Director) getBackend(addr string) (proxy.Backend, error) {
+	d.mu.RLock()
+	localAddress := d.localAddress
+	localBackend := d.localBackend
+	d.mu.RUnlock()
+
+	if addr == localAddress {
+		return localBackend, nil
+	}
+	return d.remoteBackend(addr)
+}
+
 // remoteBackend returns a RemoteBackend for the given address from the cache or creates a new one.
-func (d *Director) remoteBackend(addr, id, name string) (*RemoteBackend, error) {
+func (d *Director) remoteBackend(addr string) (*RemoteBackend, error) {
 	b, ok := d.remoteBackends.Load(addr)
 	if ok {
 		return b.(*RemoteBackend), nil
 	}
 
-	backend, err := NewRemoteBackend(addr, d.remotePort, id, name)
+	backend, err := NewRemoteBackend(addr, d.remotePort)
 	if err != nil {
 		return nil, err
 	}

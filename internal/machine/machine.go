@@ -265,8 +265,8 @@ func NewMachine(config *Config) (*Machine, error) {
 	dockerService := machinedocker.NewService(config.DockerClient, db)
 
 	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
-	directory := apiproxy.NewCorrosionDirectory(corroStore)
-	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort, directory)
+	mapper := apiproxy.NewCorrosionMapper(corroStore)
+	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort, mapper)
 	localProxyServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.UnknownServiceHandler(
