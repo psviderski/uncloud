@@ -11,11 +11,6 @@ import (
 	"github.com/psviderski/uncloud/internal/secret"
 )
 
-const (
-	DefaultSSHUser = "root"
-	DefaultSSHPort = 22
-)
-
 type MachineConnection struct {
 	SSH        SSHDestination `yaml:"ssh,omitempty"`
 	SSHCLI     SSHDestination `yaml:"ssh_cli,omitempty"`
