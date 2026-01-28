@@ -18,28 +18,48 @@ func TestSSHCLIRemote_buildSSHArgs(t *testing.T) {
 		expected []string
 	}{
 		{
-			name:     "default port, no key",
+			name:     "host only",
+			host:     "example.com",
+			expected: []string{"-o", "ConnectTimeout=5", "example.com"},
+		},
+		{
+			name:     "with user",
 			user:     "root",
 			host:     "example.com",
-			port:     22,
-			keyPath:  "",
 			expected: []string{"-o", "ConnectTimeout=5", "root@example.com"},
 		},
 		{
-			name:     "custom port",
+			name:     "with port",
+			host:     "example.com",
+			port:     2222,
+			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "example.com"},
+		},
+		{
+			name:     "with key",
+			host:     "example.com",
+			keyPath:  "/path/to/key",
+			expected: []string{"-o", "ConnectTimeout=5", "-i", "/path/to/key", "example.com"},
+		},
+		{
+			name:     "user and port",
 			user:     "ubuntu",
 			host:     "192.168.1.10",
 			port:     2222,
-			keyPath:  "",
 			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "ubuntu@192.168.1.10"},
 		},
 		{
-			name:     "with key path",
+			name:     "user and key",
 			user:     "root",
 			host:     "example.com",
-			port:     22,
 			keyPath:  "/path/to/key",
 			expected: []string{"-o", "ConnectTimeout=5", "-i", "/path/to/key", "root@example.com"},
+		},
+		{
+			name:     "port and key",
+			host:     "example.com",
+			port:     22,
+			keyPath:  "~/.ssh/id_rsa",
+			expected: []string{"-o", "ConnectTimeout=5", "-p", "22", "-i", "~/.ssh/id_rsa", "example.com"},
 		},
 		{
 			name:     "all options",
@@ -48,14 +68,6 @@ func TestSSHCLIRemote_buildSSHArgs(t *testing.T) {
 			port:     2222,
 			keyPath:  "~/.ssh/id_rsa",
 			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "-i", "~/.ssh/id_rsa", "admin@server.local"},
-		},
-		{
-			name:     "port zero (default)",
-			user:     "root",
-			host:     "example.com",
-			port:     0,
-			keyPath:  "",
-			expected: []string{"-o", "ConnectTimeout=5", "root@example.com"},
 		},
 	}
 
