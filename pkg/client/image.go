@@ -406,6 +406,9 @@ func runDockerVMProxyContainer(ctx context.Context, dockerCli *docker.Client, ta
 		ExposedPorts: nat.PortSet{
 			containerPort: {},
 		},
+		Labels: map[string]string{
+			api.LabelManaged: "",
+		},
 	}
 
 	// Get an available port on localhost to bind the container port to by creating a temporary listener and closing it.
