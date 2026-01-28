@@ -60,67 +60,6 @@ func controlSocketPath() string {
 	return ""
 }
 
-// sshCLIDialer implements proxy.ContextDialer by spawning SSH processes with -W flag.
-type sshCLIDialer struct {
-	config SSHConnectorConfig
-	// Shared control socket path from SSHCLIConnector for connection reuse.
-	controlSockPath string
-}
-
-// buildDialArgs constructs SSH command arguments for -W flag dialing.
-func (d *sshCLIDialer) buildDialArgs(address string) []string {
-	var args []string
-
-	if d.controlSockPath != "" {
-		// Try to reuse the existing control connection without initiating a new one.
-		// Falls back to direct connection if the control socket is not available.
-		args = append(args, "-o", "ControlMaster=no")
-		args = append(args, "-o", "ControlPath="+d.controlSockPath)
-	}
-
-	// Add connection timeout to fail fast when node is down.
-	args = append(args, "-o", "ConnectTimeout=5")
-	// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
-	args = append(args, "-T")
-
-	// Add port if specified.
-	if d.config.Port != 0 {
-		args = append(args, "-p", strconv.Itoa(d.config.Port))
-	}
-
-	// Add identity file if specified.
-	if d.config.KeyPath != "" {
-		args = append(args, "-i", d.config.KeyPath)
-	}
-
-	// Add -W flag for stdin/stdout forwarding to target address.
-	args = append(args, "-W", address)
-
-	// Add [user@]host destination.
-	args = append(args, d.config.Destination())
-
-	return args
-}
-
-// DialContext establishes a connection to the target address through an SSH tunnel using -W flag.
-func (d *sshCLIDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	// Only support TCP connections.
-	if network != "tcp" {
-		return nil, fmt.Errorf("unsupported network type: %s", network)
-	}
-
-	// Build SSH command arguments.
-	args := d.buildDialArgs(address)
-
-	// Create connection using docker's commandconn.
-	conn, err := commandconn.New(ctx, "ssh", args...)
-	if err != nil {
-		return nil, fmt.Errorf("SSH connection to %s for dialing %s: %w", d.config.Destination(), address, err)
-	}
-
-	return conn, nil
-}
-
 func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 	// Create gRPC client with a dialer that spawns a new SSH connection on demand.
 	// Each dial attempt runs `ssh ... uncloudd dial-stdio`, reusing the control socket if available.
@@ -208,4 +147,65 @@ func (c *SSHCLIConnector) Close() error {
 	// Individual connections are managed by gRPC and closed when the gRPC connection closes.
 	// The SSH control socket may persist for connection reuse across CLI invocations.
 	return nil
+}
+
+// sshCLIDialer implements proxy.ContextDialer by spawning SSH processes with -W flag.
+type sshCLIDialer struct {
+	config SSHConnectorConfig
+	// Shared control socket path from SSHCLIConnector for connection reuse.
+	controlSockPath string
+}
+
+// buildDialArgs constructs SSH command arguments for -W flag dialing.
+func (d *sshCLIDialer) buildDialArgs(address string) []string {
+	var args []string
+
+	if d.controlSockPath != "" {
+		// Try to reuse the existing control connection without initiating a new one.
+		// Falls back to direct connection if the control socket is not available.
+		args = append(args, "-o", "ControlMaster=no")
+		args = append(args, "-o", "ControlPath="+d.controlSockPath)
+	}
+
+	// Add connection timeout to fail fast when node is down.
+	args = append(args, "-o", "ConnectTimeout=5")
+	// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
+	args = append(args, "-T")
+
+	// Add port if specified.
+	if d.config.Port != 0 {
+		args = append(args, "-p", strconv.Itoa(d.config.Port))
+	}
+
+	// Add identity file if specified.
+	if d.config.KeyPath != "" {
+		args = append(args, "-i", d.config.KeyPath)
+	}
+
+	// Add -W flag for stdin/stdout forwarding to target address.
+	args = append(args, "-W", address)
+
+	// Add [user@]host destination.
+	args = append(args, d.config.Destination())
+
+	return args
+}
+
+// DialContext establishes a connection to the target address through an SSH tunnel using -W flag.
+func (d *sshCLIDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	// Only support TCP connections.
+	if network != "tcp" {
+		return nil, fmt.Errorf("unsupported network type: %s", network)
+	}
+
+	// Build SSH command arguments.
+	args := d.buildDialArgs(address)
+
+	// Create connection using docker's commandconn.
+	conn, err := commandconn.New(ctx, "ssh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("SSH connection to %s for dialing %s: %w", d.config.Destination(), address, err)
+	}
+
+	return conn, nil
 }
