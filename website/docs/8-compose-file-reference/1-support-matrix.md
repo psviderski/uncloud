@@ -12,13 +12,14 @@ The following table shows the support status for main Compose features:
 | `command`          | ✅ Supported        | Override container command                                                                     |
 | `configs`          | ✅ Supported        | File-based and inline configs                                                                  |
 | `cpus`             | ✅ Supported        | CPU limit                                                                                      |
-| `depends_on`       | ⚠️ Limited         | Services deployed in order but conditions not checked                                          |
+| `depends_on`       | ⚠️ Limited         | `service_started` and `service_healthy` only                                                   |
 | `dns`              | ❌ Not supported    | Built-in service discovery                                                                     |
 | `dns_search`       | ❌ Not supported    | Built-in service discovery                                                                     |
 | `entrypoint`       | ✅ Supported        | Override container entrypoint                                                                  |
 | `env_file`         | ✅ Supported        | Environment file                                                                               |
 | `environment`      | ✅ Supported        | Environment variables                                                                          |
 | `gpus`             | ✅ Supported        | GPU device access                                                                              |
+| `healthcheck`      | ✅ Supported        | Container health check configuration                                                           |
 | `image`            | ✅ Supported        | Container image specification                                                                  |
 | `init`             | ✅ Supported        | Run init process in container                                                                  |
 | `labels`           | ❌ Not supported    |                                                                                                |
