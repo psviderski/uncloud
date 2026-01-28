@@ -45,7 +45,7 @@ func runConfig(ctx context.Context, uncli *cli.CLI, opts configOptions) error {
 
 	if opts.machine != "" {
 		// If a specific machine is requested, use it to get the Caddy configuration.
-		ctx, err = clusterClient.ProxyMachinesContext(ctx, []string{opts.machine})
+		ctx, err = clusterClient.ProxyMachineContext(ctx, opts.machine)
 		if err != nil {
 			return err
 		}

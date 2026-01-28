@@ -58,12 +58,10 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
 	}
 	// If the request metadata doesn't contain machines to proxy to, send it to the local backend.
-	machineNames, ok := md["machines"]
-	if !ok {
+	machines, hasMachines := md["machines"]
+	machine, hasMachine := md["machine"]
+	if !hasMachines && !hasMachine {
 		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
-	}
-	if len(machineNames) == 0 {
-		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "no machines specified")
 	}
 
 	d.mu.RLock()
@@ -71,16 +69,43 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 	localBackend := d.localBackend
 	d.mu.RUnlock()
 
-	// Resolve machines
 	type target struct {
 		id, name, addr string
 	}
-	targets := make([]target, 0, len(machineNames))
+	var targets []target
+
+	// Handle singular "machine" case (One2One, no metadata injection)
+	if hasMachine && len(machine) > 0 {
+		name := machine[0]
+		id, mName, ip, err := d.directory.ResolveMachine(ctx, name)
+		if err != nil {
+			return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to resolve machine %s: %v", name, err))
+		}
+
+		t := target{id: id, name: mName, addr: ip.String()}
+		var backend proxy.Backend
+		if t.addr == localAddress {
+			backend = localBackend
+		} else {
+			backend, err = d.remoteBackend(t.addr, t.id, t.name)
+			if err != nil {
+				return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
+			}
+		}
+		return proxy.One2One, []proxy.Backend{backend}, nil
+	}
+
+	// Handle plural "machines" case (One2Many, always metadata injection)
+	if len(machines) == 0 {
+		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "no machines specified")
+	}
+
+	targets = make([]target, 0, len(machines))
 
 	// Check for "all" machines wildcard
 	proxyAll := false
-	for _, name := range machineNames {
-		if IsAllMachines(name) {
+	for _, name := range machines {
+		if name == "*" {
 			proxyAll = true
 			break
 		}
@@ -99,7 +124,7 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 			targets = append(targets, target{id: m.Id, name: m.Name, addr: ip.String()})
 		}
 	} else {
-		for _, name := range machineNames {
+		for _, name := range machines {
 			id, mName, ip, err := d.directory.ResolveMachine(ctx, name)
 			if err != nil {
 				return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to resolve machine %s: %v", name, err))
