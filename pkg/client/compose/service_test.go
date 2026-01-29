@@ -787,6 +787,112 @@ services:
 	}
 }
 
+func TestServiceSpecFromCompose_UpdateConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		composeYAML string
+		expected    api.UpdateConfig
+		expectError bool
+	}{
+		{
+			name: "no update_config",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+`,
+			expected: api.UpdateConfig{},
+		},
+		{
+			name: "update_config with stop-first order",
+			composeYAML: `
+services:
+  test:
+    image: postgres
+    deploy:
+      update_config:
+        order: stop-first
+`,
+			expected: api.UpdateConfig{
+				Order: api.UpdateOrderStopFirst,
+			},
+		},
+		{
+			name: "update_config with start-first order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        order: start-first
+`,
+			expected: api.UpdateConfig{
+				Order: api.UpdateOrderStartFirst,
+			},
+		},
+		{
+			name: "update_config with invalid order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        order: invalid-order
+`,
+			expectError: true,
+		},
+		{
+			name: "update_config with empty order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        parallelism: 1
+`,
+			expected: api.UpdateConfig{},
+		},
+		{
+			name: "update_config with replicas and order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      replicas: 3
+      update_config:
+        order: stop-first
+`,
+			expected: api.UpdateConfig{
+				Order: api.UpdateOrderStopFirst,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "test")
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, spec.UpdateConfig)
+		})
+	}
+}
+
 func TestServiceSpecFromCompose_XMachinesPlacement(t *testing.T) {
 	tests := []struct {
 		name        string
