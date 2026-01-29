@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -72,46 +71,34 @@ func (cli *Client) progressOut() *streams.Out {
 }
 
 // proxyToMachine returns a new context that proxies gRPC requests to the specified machine.
+// It uses "machine" metadata for One2One proxying (no metadata injection).
 func proxyToMachine(ctx context.Context, machine *pb.MachineInfo) context.Context {
-	machineIP, _ := machine.Network.ManagementIp.ToAddr()
-	md := metadata.Pairs("machines", machineIP.String())
+	md := metadata.Pairs("machine", machine.Id)
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
 // ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
-// If namesOrIDs is nil, all machines are included.
+// If namesOrIDs is nil or empty, all machines are included.
+// This triggers One2Many proxying, which always injects metadata into the response.
 func (cli *Client) ProxyMachinesContext(
 	ctx context.Context, namesOrIDs []string,
-) (context.Context, api.MachineMembersList, error) {
-	// TODO: move the machine IP resolution to the proxy router to allow setting machine names and IDs in the metadata.
-	machines, err := cli.ListMachines(ctx, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("list machines: %w", err)
-	}
-
-	var proxiedMachines api.MachineMembersList
-	var notFound []string
-	for _, nameOrID := range namesOrIDs {
-		if m := machines.FindByNameOrID(nameOrID); m != nil {
-			proxiedMachines = append(proxiedMachines, m)
-		} else {
-			notFound = append(notFound, nameOrID)
-		}
-	}
-
-	if len(notFound) > 0 {
-		return nil, nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
-	}
-
-	if len(namesOrIDs) == 0 {
-		proxiedMachines = machines
-	}
-
+) (context.Context, error) {
 	md := metadata.New(nil)
-	for _, m := range proxiedMachines {
-		machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
-		md.Append("machines", machineIP.String())
+	if len(namesOrIDs) == 0 {
+		md.Append("machines", "*")
+	} else {
+		md.Append("machines", namesOrIDs...)
 	}
 
-	return metadata.NewOutgoingContext(ctx, md), proxiedMachines, nil
+	return metadata.NewOutgoingContext(ctx, md), nil
+}
+
+// ProxyMachineContext returns a new context that proxies gRPC requests to a single specified machine.
+// This triggers One2One proxying, which does NOT inject metadata into the response.
+// Use this for requests that expect a single response message without metadata wrapper.
+func (cli *Client) ProxyMachineContext(
+	ctx context.Context, nameOrID string,
+) (context.Context, error) {
+	md := metadata.Pairs("machine", nameOrID)
+	return metadata.NewOutgoingContext(ctx, md), nil
 }
