@@ -913,6 +913,50 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 	}, nil
 }
 
+func (m *Machine) ListMachineRTTs(ctx context.Context, _ *emptypb.Empty) (*pb.ListMachineRTTsResponse, error) {
+	if !m.Initialised() {
+		return nil, status.Error(codes.FailedPrecondition, "machine is not initialised")
+	}
+
+	rtts, err := m.cluster.MemberRTTs()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get member rtts: %v", err)
+	}
+
+	// List machines to map IPs to Machine IDs.
+	machines, err := m.store.ListMachines(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list machines: %v", err)
+	}
+
+	// Map Management IP -> Machine ID
+	ipToMachineID := make(map[netip.Addr]string)
+	for _, mach := range machines {
+		ip, _ := mach.Network.ManagementIp.ToAddr()
+		ipToMachineID[ip] = mach.Id
+	}
+
+	pbRTTs := make(map[string]*pb.RTTStats)
+	for _, stats := range rtts {
+		// Corrosion uses the management IP for gossip.
+		if mid, ok := ipToMachineID[stats.Addr.Addr()]; ok {
+			pbRTTs[mid] = &pb.RTTStats{
+				Average: stats.Average,
+				StdDev:  stats.StdDev,
+			}
+		}
+	}
+
+	return &pb.ListMachineRTTsResponse{
+		Machines: []*pb.MachineRTTs{
+			{
+				MachineId: m.state.ID,
+				Rtts:      pbRTTs,
+			},
+		},
+	}, nil
+}
+
 // IsNetworkReady returns true if the Docker network is ready for containers.
 func (m *Machine) IsNetworkReady() bool {
 	if !m.Initialised() {
