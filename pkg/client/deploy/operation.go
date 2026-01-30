@@ -158,6 +158,31 @@ func (o *CreateVolumeOperation) String() string {
 		o.MachineID, o.VolumeSpec.DockerVolumeName())
 }
 
+// UpdateSpecOperation updates the stored service spec for a container without recreating it.
+// Used for updating metadata like deploy labels that don't require container recreation.
+type UpdateSpecOperation struct {
+	MachineID   string
+	ContainerID string
+	NewSpec     api.ServiceSpec
+}
+
+func (o *UpdateSpecOperation) Execute(ctx context.Context, cli Client) error {
+	if err := cli.UpdateServiceContainerSpec(ctx, o.MachineID, o.ContainerID, o.NewSpec); err != nil {
+		return fmt.Errorf("update service container spec: %w", err)
+	}
+	return nil
+}
+
+func (o *UpdateSpecOperation) Format(resolver NameResolver) string {
+	machineName := resolver.MachineName(o.MachineID)
+	return fmt.Sprintf("%s: Update spec [container=%s]", machineName, o.ContainerID[:12])
+}
+
+func (o *UpdateSpecOperation) String() string {
+	return fmt.Sprintf("UpdateSpecOperation[machine_id=%s container_id=%s]",
+		o.MachineID, o.ContainerID)
+}
+
 // SequenceOperation is a composite operation that executes a sequence of operations in order.
 type SequenceOperation struct {
 	Operations []Operation

@@ -156,7 +156,17 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		containersOnMachine[m.Id] = containers[1:]
 
 		if status, ok := containerSpecStatuses[ctr.ID]; ok { // Contains statuses for only running containers.
-			if status == ContainerUpToDate {
+			switch status {
+			case ContainerUpToDate:
+				continue
+			case ContainerNeedsSpecUpdate:
+				// Only the stored spec needs updating (e.g., deploy labels changed).
+				// No container recreation needed.
+				plan.Operations = append(plan.Operations, &UpdateSpecOperation{
+					MachineID:   m.Id,
+					ContainerID: ctr.ID,
+					NewSpec:     spec,
+				})
 				continue
 			}
 			// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
@@ -269,7 +279,10 @@ func reconcileGlobalContainer(
 	}
 
 	// Check if there is a container with the same spec already running. If so, remove the rest.
+	// Also handle containers that only need spec updates (e.g., deploy labels changed).
 	upToDate := false
+	specUpdateContainer := (*api.MachineServiceContainer)(nil)
+	var specUpdateIdx int
 	for i, c := range containers {
 		if !c.Container.State.Running || c.Container.State.Paused {
 			// Skip containers that are not running.
@@ -297,9 +310,34 @@ func reconcileGlobalContainer(
 			}
 			break
 		}
+
+		if status == ContainerNeedsSpecUpdate && specUpdateContainer == nil {
+			// Track the first container that only needs spec update.
+			specUpdateContainer = &containers[i]
+			specUpdateIdx = i
+		}
 		// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
 	}
 	if upToDate {
+		return ops, nil
+	}
+
+	// If we found a container that only needs spec update, update it and remove the rest.
+	if specUpdateContainer != nil {
+		ops = append(ops, &UpdateSpecOperation{
+			MachineID:   specUpdateContainer.MachineID,
+			ContainerID: specUpdateContainer.Container.ID,
+			NewSpec:     spec,
+		})
+		for j, old := range containers {
+			if j == specUpdateIdx {
+				continue
+			}
+			ops = append(ops, &RemoveContainerOperation{
+				MachineID: old.MachineID,
+				Container: old.Container,
+			})
+		}
 		return ops, nil
 	}
 

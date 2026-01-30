@@ -24,6 +24,7 @@ type runOptions struct {
 	entrypointChanged bool
 	env               []string
 	image             string
+	labels            []string
 	machines          []string
 	memory            dockeropts.MemBytes
 	mode              string
@@ -110,6 +111,9 @@ func NewRunCommand(groupID string) *cobra.Command {
 			"  -v postgres-data:/var/lib/postgresql/data  Mount volume 'postgres-data' to /var/lib/postgresql/data in container\n"+
 			"  -v /data/uploads:/app/uploads         	 Bind mount /data/uploads host directory to /app/uploads in container\n"+
 			"  -v /host/path:/container/path:ro 		 Bind mount a host directory or file as read-only")
+	cmd.Flags().StringSliceVarP(&opts.labels, "label", "l", nil,
+		"Set a label on service containers. Can be specified multiple times.\n"+
+			"Format: key=value")
 
 	return cmd
 }
@@ -199,6 +203,11 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 		return spec, err
 	}
 
+	labels, err := parseLabels(opts.labels)
+	if err != nil {
+		return spec, err
+	}
+
 	placement := api.Placement{
 		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
 	}
@@ -217,6 +226,7 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 			User:         opts.user,
 			VolumeMounts: mounts,
 		},
+		Labels:    labels,
 		Mode:      opts.mode,
 		Name:      opts.name,
 		Placement: placement,
@@ -273,6 +283,24 @@ func parseEnv(env []string) (api.EnvVars, error) {
 	}
 
 	return envVars, nil
+}
+
+// parseLabels parses label flags in the format "key=value".
+func parseLabels(labels []string) (map[string]string, error) {
+	if len(labels) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]string, len(labels))
+	for _, l := range labels {
+		key, value, hasValue := strings.Cut(l, "=")
+		if key == "" || !hasValue {
+			return nil, fmt.Errorf("invalid label format '%s': must be key=value", l)
+		}
+		result[key] = value
+	}
+
+	return result, nil
 }
 
 // parseVolumeFlags parses volume flag values in Docker CLI format and returns VolumeSpecs and VolumeMounts.

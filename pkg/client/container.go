@@ -309,6 +309,24 @@ func (cli *Client) RemoveContainer(
 	return nil
 }
 
+// UpdateServiceContainerSpec updates the stored service spec for a container without recreating it.
+// Used for updating metadata like deploy labels that don't require container recreation.
+func (cli *Client) UpdateServiceContainerSpec(
+	ctx context.Context, machineID, containerID string, spec api.ServiceSpec,
+) error {
+	machine, err := cli.InspectMachine(ctx, machineID)
+	if err != nil {
+		return fmt.Errorf("inspect machine '%s': %w", machineID, err)
+	}
+	ctx = proxyToMachine(ctx, machine.Machine)
+
+	if err := cli.Docker.UpdateServiceContainerSpec(ctx, containerID, spec); err != nil {
+		return fmt.Errorf("update service container spec: %w", err)
+	}
+
+	return nil
+}
+
 // ExecContainer executes a command in a container within the service.
 // If containerNameOrID is empty, the first container in the service will be used.
 func (cli *Client) ExecContainer(

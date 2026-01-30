@@ -15,6 +15,8 @@ uc run IMAGE [COMMAND...] [flags]
   -e, --env strings         Set an environment variable for service containers. Can be specified multiple times.
                             Format: VAR=value or just VAR to use the value from the local environment.
   -h, --help                help for run
+  -l, --label strings       Set a label on service containers. Can be specified multiple times.
+                            Format: key=value
   -m, --machine strings     Placement constraint by machine names, limiting which machines the service can run on. Can be specified multiple times or as a comma-separated list of machine names. (default is any suitable machine)
       --memory bytes        Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.
                             Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)

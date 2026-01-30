@@ -21,7 +21,7 @@ The following table shows the support status for main Compose features:
 | `gpus`             | ✅ Supported        | GPU device access                                                                              |
 | `image`            | ✅ Supported        | Container image specification                                                                  |
 | `init`             | ✅ Supported        | Run init process in container                                                                  |
-| `labels`           | ❌ Not supported    |                                                                                                |
+| `labels`           | ✅ Supported        | Applied to containers                                                                          |
 | `links`            | ❌ Not supported    | Use service names for communication                                                            |
 | `logging`          | ✅ Supported        | Defaults to [local](https://docs.docker.com/engine/logging/drivers/local/) log driver          |
 | `mem_limit`        | ✅ Supported        | Memory limit                                                                                   |
@@ -39,7 +39,7 @@ The following table shows the support status for main Compose features:
 | `user`             | ✅ Supported        | Set container user                                                                             |
 | `volumes`          | ✅ Supported        | Named volumes, bind mounts, tmpfs                                                              |
 | **Deploy**         |                    |                                                                                                |
-| `labels`           | ❌ Not supported    |                                                                                                |
+| `labels`           | ✅ Supported        | Service metadata (updated without container recreation)                                        |
 | `mode`             | ✅ Supported        | Either `global` or `replicated`                                                                |
 | `placement`        | ❌ Not supported    | Use `x-machines` extension                                                                     |
 | `replicas`         | ✅ Supported        | Number of container replicas                                                                   |

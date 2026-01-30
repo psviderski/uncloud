@@ -174,6 +174,14 @@ func TestServiceSpecFromCompose(t *testing.T) {
 						},
 					},
 					Replicas: 3,
+					Labels: map[string]string{
+						"app":     "test",
+						"version": "1.0",
+					},
+					DeployLabels: map[string]string{
+						"deploy_id": "abc123",
+						"env":       "prod",
+					},
 					Volumes: []api.VolumeSpec{
 						{
 							Name: "bind-bb6aed1683cea1e0a1ae5cd227aacd0734f2f87f7a78fcf1baeff978ce300b90",

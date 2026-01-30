@@ -26,6 +26,9 @@ type ContainerClient interface {
 	StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error
 	StopContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions) error
 	ExecContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, config ExecOptions) (int, error)
+	// UpdateServiceContainerSpec updates the stored service spec for a container without recreating it.
+	// Used for updating metadata like deploy labels that don't require container recreation.
+	UpdateServiceContainerSpec(ctx context.Context, machineID, containerID string, spec ServiceSpec) error
 }
 
 type DNSClient interface {

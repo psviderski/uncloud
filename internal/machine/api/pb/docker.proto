@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package api;
 
-option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
-
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "internal/machine/api/pb/common.proto";
+
+option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
@@ -34,6 +34,7 @@ service Docker {
   rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
   rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
+  rpc UpdateServiceContainerSpec(UpdateServiceContainerSpecRequest) returns (google.protobuf.Empty);
 }
 
 message CreateContainerRequest {
@@ -275,4 +276,10 @@ message ListServiceContainersResponse {
 message MachineServiceContainers {
   Metadata metadata = 1;
   repeated ServiceContainer containers = 2;
+}
+
+message UpdateServiceContainerSpecRequest {
+  string container_id = 1;
+  // JSON serialised api.ServiceSpec.
+  bytes service_spec = 2;
 }
