@@ -1,0 +1,10 @@
+services:
+  test-compose-global-volume:
+    image: portainer/pause:latest
+    deploy:
+      mode: global
+    volumes:
+      - test-compose-global-volume:/data
+
+volumes:
+  test-compose-global-volume:
