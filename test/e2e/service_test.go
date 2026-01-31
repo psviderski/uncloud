@@ -1052,6 +1052,37 @@ myapp.example.com {
 			"All containers should be distributed across machines with both volumes (#0 and #1)")
 	})
 
+	// Tests that a global deployment fails when the required volume doesn't exist.
+	t.Run("global with missing volume fails", func(t *testing.T) {
+		t.Parallel()
+
+		serviceName := "test-global-with-missing-volume"
+		spec := api.ServiceSpec{
+			Name: serviceName,
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    "non-existent-volume",
+						ContainerPath: "/data",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: "non-existent-volume",
+					Type: api.VolumeTypeVolume,
+				},
+			},
+		}
+
+		d := deploy.NewDeployment(cli, spec, nil)
+		_, err = d.Run(ctx)
+		require.Error(t, err, "Global deployment should fail when required volume doesn't exist")
+		require.Contains(t, err.Error(), "no machines available")
+	})
+
 	// Tests that a global deployment with a volume on a single machine only deploys to that machine.
 	t.Run("global with volume on single machine", func(t *testing.T) {
 		t.Parallel()
