@@ -802,6 +802,396 @@ func TestVolumeScheduler_Schedule(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "global service with missing volume schedules on all machines",
+			machines: []*Machine{
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine1",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine2",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine3",
+					},
+				},
+			},
+			serviceSpecs: []api.ServiceSpec{
+				{
+					Name: "global-service",
+					Mode: api.ServiceModeGlobal,
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "vol1",
+								ContainerPath: "/data",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "vol1",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+			},
+			want: map[string][]api.VolumeSpec{
+				"machine1": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine2": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine3": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+		},
+		{
+			name: "global service with volume on some machines schedules remaining",
+			machines: []*Machine{
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine1",
+					},
+					Volumes: []volume.Volume{
+						{
+							Name: "vol1",
+						},
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine2",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine3",
+					},
+				},
+			},
+			serviceSpecs: []api.ServiceSpec{
+				{
+					Name: "global-service",
+					Mode: api.ServiceModeGlobal,
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "vol1",
+								ContainerPath: "/data",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "vol1",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+			},
+			want: map[string][]api.VolumeSpec{
+				"machine2": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine3": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+		},
+		{
+			name: "global service with placement constraint",
+			machines: []*Machine{
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine1",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine2",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine3",
+					},
+				},
+			},
+			serviceSpecs: []api.ServiceSpec{
+				{
+					Name: "global-service",
+					Mode: api.ServiceModeGlobal,
+					Placement: api.Placement{
+						Machines: []string{"machine1", "machine3"},
+					},
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "vol1",
+								ContainerPath: "/data",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "vol1",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+			},
+			want: map[string][]api.VolumeSpec{
+				"machine1": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine3": {
+					{
+						Name: "vol1",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+		},
+		{
+			name: "volume shared between global and replicated fails",
+			machines: []*Machine{
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine1",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine2",
+					},
+				},
+			},
+			serviceSpecs: []api.ServiceSpec{
+				{
+					Name: "global-service",
+					Mode: api.ServiceModeGlobal,
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+				{
+					Name: "replicated-service",
+					Mode: api.ServiceModeReplicated,
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+			},
+			wantErr: "volume 'shared-vol' cannot be shared between global and replicated services",
+		},
+		{
+			name: "multiple global services sharing same volume",
+			machines: []*Machine{
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine1",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine2",
+					},
+				},
+			},
+			serviceSpecs: []api.ServiceSpec{
+				{
+					Name: "global-service-1",
+					Mode: api.ServiceModeGlobal,
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data1",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+				{
+					Name: "global-service-2",
+					Mode: api.ServiceModeGlobal,
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data2",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+			},
+			want: map[string][]api.VolumeSpec{
+				"machine1": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine2": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+		},
+		{
+			name: "multiple global services sharing same volume with different placement constraints",
+			machines: []*Machine{
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine1",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine2",
+					},
+				},
+				{
+					Info: &pb.MachineInfo{
+						Id: "machine3",
+					},
+				},
+			},
+			serviceSpecs: []api.ServiceSpec{
+				{
+					Name: "global-service-1",
+					Mode: api.ServiceModeGlobal,
+					Placement: api.Placement{
+						Machines: []string{"machine1", "machine2"},
+					},
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data1",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+				{
+					Name: "global-service-2",
+					Mode: api.ServiceModeGlobal,
+					Placement: api.Placement{
+						Machines: []string{"machine2", "machine3"},
+					},
+					Container: api.ContainerSpec{
+						Image: "portainer/pause:latest",
+						VolumeMounts: []api.VolumeMount{
+							{
+								VolumeName:    "shared-vol",
+								ContainerPath: "/data2",
+							},
+						},
+					},
+					Volumes: []api.VolumeSpec{
+						{
+							Name: "shared-vol",
+							Type: api.VolumeTypeVolume,
+						},
+					},
+				},
+			},
+			want: map[string][]api.VolumeSpec{
+				"machine1": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine2": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+				"machine3": {
+					{
+						Name: "shared-vol",
+						Type: api.VolumeTypeVolume,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
