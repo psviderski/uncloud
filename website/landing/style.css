@@ -1365,10 +1365,6 @@ input[type="search"]::-webkit-search-results-decoration {
   flex-direction: column;
 }
 
-.flex-wrap{
-  flex-wrap: wrap;
-}
-
 .items-start{
   align-items: flex-start;
 }
@@ -1625,14 +1621,14 @@ input[type="search"]::-webkit-search-results-decoration {
   padding-right: 0.125rem;
 }
 
+.px-1{
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
 .px-2{
   padding-left: 0.5rem;
   padding-right: 0.5rem;
-}
-
-.px-3{
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
 }
 
 .px-4{
@@ -2198,9 +2194,9 @@ input[type="search"]::-webkit-search-results-decoration {
     padding: 1.5rem;
   }
 
-  .sm\:px-3{
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+  .sm\:px-5{
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
   }
 
   .sm\:px-6{
@@ -2332,11 +2328,6 @@ input[type="search"]::-webkit-search-results-decoration {
     --tw-space-y-reverse: 0;
     margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse)));
     margin-bottom: calc(0px * var(--tw-space-y-reverse));
-  }
-
-  .lg\:px-5{
-    padding-left: 1.25rem;
-    padding-right: 1.25rem;
   }
 }
 
