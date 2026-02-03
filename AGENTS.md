@@ -1,4 +1,4 @@
-# AI.md - Uncloud Project Guide
+# AGENTS.md - Uncloud Project Guide
 
 This document provides comprehensive information about the Uncloud project for AI assistants to understand the codebase, architecture, and development practices.
 
