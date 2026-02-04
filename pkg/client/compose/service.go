@@ -126,6 +126,7 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 		Memory:            int64(service.MemLimit),
 		MemoryReservation: int64(service.MemReservation),
 		Ulimits:           ulimitsFromCompose(service.Ulimits),
+		DeviceMappings:    devicesFromCompose(service.Devices),
 	}
 
 	// Convert GPU device requests from compose format, appending "gpu" capability.
@@ -319,6 +320,28 @@ func ulimitsFromCompose(ulimits map[string]*types.UlimitsConfig) map[string]api.
 	}
 
 	return res
+}
+
+func devicesFromCompose(composeDevices []types.DeviceMapping) []container.DeviceMapping {
+	mappings := make([]container.DeviceMapping, 0, len(composeDevices))
+
+	for _, dev := range composeDevices {
+		mapping := container.DeviceMapping{
+			PathOnHost:        dev.Source,
+			PathInContainer:   dev.Target,
+			CgroupPermissions: dev.Permissions,
+		}
+
+		if mapping.PathInContainer == "" {
+			mapping.PathInContainer = mapping.PathOnHost
+		}
+		if mapping.CgroupPermissions == "" {
+			mapping.CgroupPermissions = "rwm"
+		}
+
+		mappings = append(mappings, mapping)
+	}
+	return mappings
 }
 
 // validateServicesExtensions validates extension combinations across all services in the project.

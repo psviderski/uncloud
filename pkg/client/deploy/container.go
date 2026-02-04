@@ -83,8 +83,11 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		}
 	}
 
-	// Device reservations are immutable, so we'll need to recreate if any have changed
+	// Device reservations and mappings are immutable, so we'll need to recreate if any have changed
 	if !reflect.DeepEqual(current.Container.Resources.DeviceReservations, newResources.DeviceReservations) {
+		return ContainerNeedsRecreate
+	}
+	if !reflect.DeepEqual(current.Container.Resources.DeviceMappings, newResources.DeviceMappings) {
 		return ContainerNeedsRecreate
 	}
 
