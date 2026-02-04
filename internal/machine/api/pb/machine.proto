@@ -78,6 +78,8 @@ message MachineDetails {
   MachineInfo machine = 2;
   // Current Corrosion cr-sqlite database version (Lamport timestamp) of the cluster store.
   int64 store_db_version = 3;
+  // Version of the Uncloud daemon running on the machine.
+  string daemon_version = 4;
 }
 
 message TokenResponse {
