@@ -944,3 +944,88 @@ services:
 		})
 	}
 }
+
+func TestServiceSpecFromCompose_Devices(t *testing.T) {
+	tests := []struct {
+		name             string
+		composeYAML      string
+		expectedMappings []container.DeviceMapping
+	}{
+		{
+			name: "devices_simple",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - /dev/dri
+`,
+			expectedMappings: []container.DeviceMapping{
+				{
+					PathOnHost:        "/dev/dri",
+					PathInContainer:   "/dev/dri",
+					CgroupPermissions: "rwm",
+				},
+			},
+		},
+		{
+			name: "devices_full",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - /dev/sda:/dev/xvda:r
+`,
+			expectedMappings: []container.DeviceMapping{
+				{
+					PathOnHost:        "/dev/sda",
+					PathInContainer:   "/dev/xvda",
+					CgroupPermissions: "r",
+				},
+			},
+		},
+		{
+			name: "multiple_devices",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0:rw"
+      - /dev/sda:/dev/xvda
+      - "/dev/dri"
+`,
+			expectedMappings: []container.DeviceMapping{
+				{
+					PathOnHost:        "/dev/ttyUSB0",
+					PathInContainer:   "/dev/ttyUSB0",
+					CgroupPermissions: "rw",
+				},
+				{
+					PathOnHost:        "/dev/sda",
+					PathInContainer:   "/dev/xvda",
+					CgroupPermissions: "rwm",
+				},
+				{
+					PathOnHost:        "/dev/dri",
+					PathInContainer:   "/dev/dri",
+					CgroupPermissions: "rwm",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "test")
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedMappings, spec.Container.Resources.DeviceMappings,
+				"DeviceMappings should match expected")
+		})
+	}
+}

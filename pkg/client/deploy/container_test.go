@@ -1410,6 +1410,68 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 	}
 }
 
+func TestEvalContainerSpecChange_DeviceMappings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current api.ContainerResources
+		new     api.ContainerResources
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "empty",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "identical mapping",
+			current: api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			new:     api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "add mapping",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "remove mapping",
+			current: api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			new:     api.ContainerResources{},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "change mapping path",
+			current: api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			new:     api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/bar", CgroupPermissions: "rwm"}}},
+			want:    ContainerNeedsRecreate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nginx:latest",
+					Resources: tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nginx:latest",
+					Resources: tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func TestEvalContainerSpecChange_DeviceReservations(t *testing.T) {
 	t.Parallel()
 

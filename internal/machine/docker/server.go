@@ -617,6 +617,7 @@ func (s *Server) CreateServiceContainer(
 			NanoCPUs:          spec.Container.Resources.CPU,
 			Memory:            spec.Container.Resources.Memory,
 			MemoryReservation: spec.Container.Resources.MemoryReservation,
+			Devices:           spec.Container.Resources.DeviceMappings,
 			DeviceRequests:    spec.Container.Resources.DeviceReservations,
 			Ulimits:           toDockerUlimits(spec.Container.Resources.Ulimits),
 		},
