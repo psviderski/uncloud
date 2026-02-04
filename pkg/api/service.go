@@ -19,6 +19,13 @@ const (
 	ServiceModeReplicated = "replicated"
 	ServiceModeGlobal     = "global"
 
+	// UpdateOrderStartFirst starts the new container before stopping the old one.
+	// This minimizes downtime but briefly runs both containers.
+	UpdateOrderStartFirst = "start-first"
+	// UpdateOrderStopFirst stops the old container before starting the new one.
+	// This prevents data corruption for stateful services but causes brief downtime.
+	UpdateOrderStopFirst = "stop-first"
+
 	// PullPolicyAlways means the image is always pulled from the registry.
 	PullPolicyAlways = "always"
 	// PullPolicyMissing means the image is pulled from the registry only if it's not available on the machine where
@@ -59,10 +66,20 @@ type ServiceSpec struct {
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
+	// UpdateConfig configures how the service is updated during a deployment.
+	UpdateConfig UpdateConfig `json:",omitempty"`
 	// Volumes is list of data volumes that can be mounted into the container.
 	Volumes []VolumeSpec
 	// Configs is list of configuration objects that can be mounted into the container.
 	Configs []ConfigSpec
+}
+
+// UpdateConfig configures how a service is updated during a deployment.
+type UpdateConfig struct {
+	// Order specifies the order of operations during an update.
+	// Valid values are "start-first" (default for stateless services) and "stop-first" (default for services with volumes).
+	// Empty value means the strategy will determine the order based on service characteristics.
+	Order string `json:",omitempty"`
 }
 
 // CaddyConfig returns the Caddy reverse proxy configuration for the service or an empty string if it's not defined.
