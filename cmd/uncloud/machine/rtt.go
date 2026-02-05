@@ -38,28 +38,20 @@ func rtt(ctx context.Context, uncli *cli.CLI) error {
 	defer client.Close()
 
 	// Setup context to proxy request to all machines.
-	ctx, proxiedMachines, err := client.ProxyMachinesContext(ctx, nil)
+	ctx, _, err = client.ProxyMachinesContext(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("setup proxy context: %w", err)
 	}
 
-	resp, err := client.ListMachineRTTs(ctx, &emptypb.Empty{})
+	resp, err := client.MachineClient.InspectMachine(ctx, &emptypb.Empty{})
 	if err != nil {
-		return fmt.Errorf("list machine rtts: %w", err)
+		return fmt.Errorf("inspect machines: %w", err)
 	}
 
-	// Map machine IDs to names for display.
+	// Map machine IDs to names for display from the response.
 	machineNames := make(map[string]string)
-	for _, m := range proxiedMachines {
+	for _, m := range resp.Machines {
 		machineNames[m.Machine.Id] = m.Machine.Name
-	}
-
-	// Helper to get machine name or fallback to ID
-	getName := func(id string) string {
-		if name, ok := machineNames[id]; ok {
-			return name
-		}
-		return id
 	}
 
 	type row struct {
@@ -70,13 +62,15 @@ func rtt(ctx context.Context, uncli *cli.CLI) error {
 	}
 	var rows []row
 
-	for _, mRTT := range resp.Machines {
-		machineName := getName(mRTT.MachineId)
-
-		for peerID, stats := range mRTT.Rtts {
+	for _, m := range resp.Machines {
+		for peerID, stats := range m.Rtts {
+			peerName := peerID
+			if name, ok := machineNames[peerID]; ok {
+				peerName = name
+			}
 			rows = append(rows, row{
-				machine: machineName,
-				peer:    getName(peerID),
+				machine: m.Machine.Name,
+				peer:    peerName,
 				avg:     stats.Average,
 				stdDev:  stats.StdDev,
 			})
