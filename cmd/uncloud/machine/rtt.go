@@ -16,6 +16,12 @@ func NewRTTCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rtt",
 		Short: "Show round-trip times between machines.",
+		Long: `Show round-trip times between machines.
+
+Round-trip time statistics are collected from the Corrosion gossip protocol
+and represent the average of recent RTT samples between each pair of machines
+in the cluster. The values shown include the average RTT and standard deviation
+for each machine-to-machine connection.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return rtt(cmd.Context(), uncli)
