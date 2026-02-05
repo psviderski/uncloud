@@ -24,7 +24,6 @@ service Machine {
   rpc Reset(ResetRequest) returns (google.protobuf.Empty);
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
-  rpc ListMachineRTTs(google.protobuf.Empty) returns (ListMachineRTTsResponse);
 }
 
 message MachineInfo {
@@ -79,6 +78,8 @@ message MachineDetails {
   MachineInfo machine = 2;
   // Current Corrosion cr-sqlite database version (Lamport timestamp) of the cluster store.
   int64 store_db_version = 3;
+  // Round-trip times to other machines in the cluster, keyed by peer machine ID.
+  map<string, RTTStats> rtts = 4;
 }
 
 message TokenResponse {
@@ -124,17 +125,6 @@ message WireGuardPeer {
   int64 receive_bytes = 4;
   int64 transmit_bytes = 5;
   repeated string allowed_ips = 6;
-}
-
-message ListMachineRTTsResponse {
-  // Must contain only one repeated messages field to allow broadcasting ListMachineRTTs requests to multiple machines.
-  repeated MachineRTTs machines = 1;
-}
-
-message MachineRTTs {
-  // The ID of the machine that reported these RTTs.
-  string machine_id = 1;
-  map<string, RTTStats> rtts = 2; // key is peer machine ID
 }
 
 message RTTStats {

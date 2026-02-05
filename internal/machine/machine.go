@@ -894,6 +894,14 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 		return nil, status.Errorf(codes.Internal, "get database version of the cluster store: %v", err)
 	}
 
+	var rtts map[string]*pb.RTTStats
+	if m.Initialised() {
+		rtts, err = m.getMachineRTTs(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &pb.InspectMachineResponse{
 		Machines: []*pb.MachineDetails{
 			{
@@ -908,16 +916,14 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 					},
 				},
 				StoreDbVersion: dbVersion,
+				Rtts:           rtts,
 			},
 		},
 	}, nil
 }
 
-func (m *Machine) ListMachineRTTs(ctx context.Context, _ *emptypb.Empty) (*pb.ListMachineRTTsResponse, error) {
-	if !m.Initialised() {
-		return nil, status.Error(codes.FailedPrecondition, "machine is not initialised")
-	}
-
+// getMachineRTTs retrieves round-trip times to other machines in the cluster.
+func (m *Machine) getMachineRTTs(ctx context.Context) (map[string]*pb.RTTStats, error) {
 	rtts, err := m.cluster.MemberRTTs()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get member rtts: %v", err)
@@ -947,14 +953,7 @@ func (m *Machine) ListMachineRTTs(ctx context.Context, _ *emptypb.Empty) (*pb.Li
 		}
 	}
 
-	return &pb.ListMachineRTTsResponse{
-		Machines: []*pb.MachineRTTs{
-			{
-				MachineId: m.state.ID,
-				Rtts:      pbRTTs,
-			},
-		},
-	}, nil
+	return pbRTTs, nil
 }
 
 // IsNetworkReady returns true if the Docker network is ready for containers.
