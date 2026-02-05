@@ -63,6 +63,11 @@ func rtt(ctx context.Context, uncli *cli.CLI) error {
 	var rows []row
 
 	for _, m := range resp.Machines {
+		// Unlikely to occur, but might be a possible edge case when
+		// a machine is still initializing. So just to be safe...
+		if m.Rtts == nil {
+			continue
+		}
 		for peerID, stats := range m.Rtts {
 			peerName := peerID
 			if name, ok := machineNames[peerID]; ok {
