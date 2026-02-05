@@ -894,6 +894,14 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 		return nil, status.Errorf(codes.Internal, "get database version of the cluster store: %v", err)
 	}
 
+	var rtts map[string]*pb.RTTStats
+	if m.Initialised() {
+		rtts, err = m.getMachineRTTs(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &pb.InspectMachineResponse{
 		Machines: []*pb.MachineDetails{
 			{
@@ -908,9 +916,44 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 					},
 				},
 				StoreDbVersion: dbVersion,
+				Rtts:           rtts,
 			},
 		},
 	}, nil
+}
+
+// getMachineRTTs retrieves round-trip times to other machines in the cluster.
+func (m *Machine) getMachineRTTs(ctx context.Context) (map[string]*pb.RTTStats, error) {
+	rtts, err := m.cluster.MemberRTTs()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get member rtts: %v", err)
+	}
+
+	// List machines to map IPs to Machine IDs.
+	machines, err := m.store.ListMachines(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list machines: %v", err)
+	}
+
+	// Map Management IP -> Machine ID
+	ipToMachineID := make(map[netip.Addr]string)
+	for _, mach := range machines {
+		ip, _ := mach.Network.ManagementIp.ToAddr()
+		ipToMachineID[ip] = mach.Id
+	}
+
+	pbRTTs := make(map[string]*pb.RTTStats)
+	for _, stats := range rtts {
+		// Corrosion uses the management IP for gossip.
+		if mid, ok := ipToMachineID[stats.Addr.Addr()]; ok {
+			pbRTTs[mid] = &pb.RTTStats{
+				Average: stats.Average,
+				StdDev:  stats.StdDev,
+			}
+		}
+	}
+
+	return pbRTTs, nil
 }
 
 // IsNetworkReady returns true if the Docker network is ready for containers.
