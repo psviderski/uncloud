@@ -116,12 +116,24 @@ func TestCollectContainers_NilMetadata(t *testing.T) {
 	}
 }
 
-func TestCollectContainers_NilMetadata_MultipleMachines_Error(t *testing.T) {
-	// If we have multiple machines but receive nil metadata, it should return an error as it is ambiguous
+func TestCollectContainers_NilMetadata_MultipleMachines_Warning(t *testing.T) {
+	// If we have multiple machines but receive nil metadata, it should log a warning and return "unknown"
+	// Changed from Error to Warning to be more robust.
 
 	// Setup container data
 	containerData1 := map[string]interface{}{
 		"Id": "container1",
+		"Config": map[string]interface{}{
+			"Image": "test-image",
+		},
+		"State": map[string]interface{}{
+			"Status":     "running",
+			"StartedAt":  "2023-01-01T12:00:00Z",
+			"FinishedAt": "0001-01-01T00:00:00Z",
+		},
+		"NetworkSettings": map[string]interface{}{
+			"Networks": map[string]interface{}{},
+		},
 	}
 	containerJSON1, _ := json.Marshal(containerData1)
 
@@ -201,9 +213,23 @@ func TestCollectContainers_NilMetadata_MultipleMachines_Error(t *testing.T) {
 	}
 
 	// Execute
-	_, err := collectContainers(context.Background(), cli)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "metadata is missing for a machine response")
+	containers, err := collectContainers(context.Background(), cli)
+	require.NoError(t, err)
+
+	// Verify
+	assert.Len(t, containers, 2)
+	foundUnknown := false
+	foundMachine2 := false
+	for _, c := range containers {
+		if c.machineName == "unknown" && c.id == "container1" {
+			foundUnknown = true
+		}
+		if c.machineName == "machine-2" && c.id == "container2" {
+			foundMachine2 = true
+		}
+	}
+	assert.True(t, foundUnknown, "Should find container with unknown machine")
+	assert.True(t, foundMachine2, "Should find container with machine-2")
 }
 
 func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
