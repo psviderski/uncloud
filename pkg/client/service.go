@@ -127,7 +127,7 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 		if mc.Metadata != nil && mc.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
 			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
-				mc.Metadata.Machine, mc.Metadata.Error)
+				mc.Metadata.MachineAddr, mc.Metadata.Error)
 			continue
 		}
 
@@ -140,9 +140,9 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 			}
 		} else {
 			var ok bool
-			machineID, ok = machineIDByManagementIP[mc.Metadata.Machine]
+			machineID, ok = machineIDByManagementIP[mc.Metadata.MachineAddr]
 			if !ok {
-				return svc, fmt.Errorf("machine name not found for management IP: %s", mc.Metadata.Machine)
+				return svc, fmt.Errorf("machine name not found for management IP: %s", mc.Metadata.MachineAddr)
 			}
 		}
 
@@ -367,7 +367,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		if mc.Metadata != nil && mc.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
 			fmt.Fprintf(os.Stderr, "WARNING: failed to list containers on machine '%s': %s\n",
-				mc.Metadata.Machine, mc.Metadata.Error)
+				mc.Metadata.MachineAddr, mc.Metadata.Error)
 			continue
 		}
 

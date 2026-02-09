@@ -65,7 +65,7 @@ type MetadataBackend struct {
 func (b *MetadataBackend) AppendInfo(streaming bool, resp []byte) ([]byte, error) {
 	payload, err := proto.Marshal(&pb.Empty{
 		Metadata: &pb.Metadata{
-			Machine:     b.MachineAddr,
+			MachineAddr: b.MachineAddr,
 			MachineId:   b.MachineID,
 			MachineName: b.MachineName,
 		},
@@ -132,7 +132,7 @@ func (b *MetadataBackend) AppendInfo(streaming bool, resp []byte) ([]byte, error
 func (b *MetadataBackend) BuildError(streaming bool, err error) ([]byte, error) {
 	var resp proto.Message = &pb.Empty{
 		Metadata: &pb.Metadata{
-			Machine:     b.MachineAddr,
+			MachineAddr: b.MachineAddr,
 			MachineId:   b.MachineID,
 			MachineName: b.MachineName,
 			Error:       err.Error(),
