@@ -171,7 +171,6 @@ type ReplaceContainerOperation struct {
 }
 
 func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) error {
-
 	stopFirst := o.Order == api.UpdateOrderStopFirst
 
 	if stopFirst {

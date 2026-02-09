@@ -110,7 +110,7 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.SequenceOperation.Operations, 6) // 3 run + 3 remove
+		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 replace
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestDeployment(t *testing.T) {
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.SequenceOperation.Operations, 9) // 3 stop + 3 run + 3 remove
+		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 replace (stop-first due to port conflicts)
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -541,7 +541,7 @@ myapp.example.com {
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 4, "Expected 2 run + 2 remove operations")
+		assert.Len(t, plan.Operations, 2, "Expected 2 replace operations")
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -593,7 +593,7 @@ myapp.example.com {
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 8, "Expected 5 run + 3 remove operations")
+		assert.Len(t, plan.Operations, 5, "Expected 3 replace + 2 run operations")
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
