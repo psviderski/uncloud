@@ -169,7 +169,7 @@ func TestCollectContainers_NilMetadata_MultipleMachines_Warning(t *testing.T) {
 					},
 				},
 				{
-					Metadata: &pb.Metadata{Machine: "10.0.0.2"},
+					Metadata: &pb.Metadata{MachineAddr: "10.0.0.2"},
 					Containers: []*pb.ServiceContainer{
 						{
 							Container:   containerJSON2,
@@ -277,7 +277,7 @@ func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
 		listResp: &pb.ListServiceContainersResponse{
 			Messages: []*pb.MachineServiceContainers{
 				{
-					Metadata: &pb.Metadata{Machine: "10.0.0.1"},
+					Metadata: &pb.Metadata{MachineAddr: "10.0.0.1"},
 					Containers: []*pb.ServiceContainer{
 						{
 							Container:   containerJSON1,
@@ -286,7 +286,7 @@ func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
 					},
 				},
 				{
-					Metadata: &pb.Metadata{Machine: "10.0.0.2"},
+					Metadata: &pb.Metadata{MachineAddr: "10.0.0.2"},
 					Containers: []*pb.ServiceContainer{
 						{
 							Container:   containerJSON2,
@@ -425,7 +425,7 @@ func TestCollectContainers_MetadataPresent_NotInMapping(t *testing.T) {
 		listResp: &pb.ListServiceContainersResponse{
 			Messages: []*pb.MachineServiceContainers{
 				{
-					Metadata: &pb.Metadata{Machine: "10.0.0.99"}, // Unknown IP
+					Metadata: &pb.Metadata{MachineAddr: "10.0.0.99"}, // Unknown IP
 					Containers: []*pb.ServiceContainer{
 						{
 							Container:   containerJSON,
