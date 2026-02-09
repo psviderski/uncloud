@@ -301,6 +301,23 @@ func reconcileGlobalContainer(
 	}
 
 	if containerToReplace != nil {
+		// Stop any other running containers that have conflicting ports before replacing the container.
+		// This handles the edge case where multiple running containers exist (due to bugs or interrupted deployments)
+		// and more than one has ports that conflict with the new spec.
+		for _, c := range containers {
+			if c.Container.ID == containerToReplace.Container.ID || !c.Container.State.Running {
+				continue
+			}
+			conflictingPorts, err := c.Container.ConflictingServicePorts(spec.Ports)
+			if err != nil || len(conflictingPorts) > 0 {
+				ops = append(ops, &StopContainerOperation{
+					ServiceID:   serviceID,
+					ContainerID: c.Container.ID,
+					MachineID:   machineID,
+				})
+			}
+		}
+
 		// Replace the running container with a new one.
 		order := determineUpdateOrder(containerToReplace.Container, spec)
 		ops = append(ops, &ReplaceContainerOperation{
