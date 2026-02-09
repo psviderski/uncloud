@@ -116,8 +116,8 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	foundByID := false
 	var containers []api.MachineServiceContainer
 	for _, mc := range machineContainers {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
 		if mc.Metadata == nil {
-			// TODO: this should never happen. should we return an error here?
 			PrintWarning("metadata is missing in response from unknown server")
 			continue
 		}
@@ -338,8 +338,8 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	//  Most of the code can be reused in both InspectService and ListServices.
 	servicesByID := make(map[string]api.Service)
 	for _, mc := range machineContainers {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
 		if mc.Metadata == nil {
-			// TODO: this should never happen. should we return an error here?
 			PrintWarning("metadata is missing in response from unknown server")
 			continue
 		}

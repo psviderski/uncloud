@@ -70,8 +70,8 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	machineImages := make([]api.MachineImages, 0, len(resp.Messages))
 
 	for _, msg := range resp.Messages {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
 		if msg.Metadata == nil {
-			// TODO: this should never happen. should we return an error here?
 			continue
 		}
 

@@ -194,6 +194,7 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 
 	var containers []containerInfo
 	for _, msc := range machineContainers {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
 		if msc.Metadata == nil {
 			client.PrintWarning("metadata is missing in response from unknown server")
 			continue
