@@ -54,9 +54,8 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		proxyMachines = filter.Machines
 	}
 
-	mctx := cli.ProxyMachinesContext(ctx, proxyMachines)
-
-	machineVolumes, err := cli.Docker.ListVolumes(mctx, volume.ListOptions{})
+	listCtx := cli.ProxyMachinesContext(ctx, proxyMachines)
+	machineVolumes, err := cli.Docker.ListVolumes(listCtx, volume.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -69,16 +68,16 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 			continue
 		}
 
-		if mv.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			PrintWarning(fmt.Sprintf("failed to list volumes on machine %s: %s", mv.Metadata.Machine, mv.Metadata.Error))
-			continue
-		}
-
 		machineID := mv.Metadata.MachineId
 		machineName := mv.Metadata.MachineName
 		if machineName == "" {
 			machineName = machineID
+		}
+
+		if mv.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
+			PrintWarning(fmt.Sprintf("failed to list volumes on machine %s: %s", machineName, mv.Metadata.Error))
+			continue
 		}
 
 		for _, vol := range mv.Response.Volumes {

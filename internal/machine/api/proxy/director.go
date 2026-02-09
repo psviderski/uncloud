@@ -28,8 +28,8 @@ func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) 
 	}
 }
 
-// UpdateLocalAddress updates the local machine address used to identify which requests should be
-// proxied to the local gRPC server vs remote machines.
+// UpdateLocalAddress updates the local machine address used to identify which requests should be proxied
+// to the local gRPC server
 func (d *Director) UpdateLocalAddress(addr string) {
 	d.localAddress = addr
 }
@@ -60,7 +60,7 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 		if err != nil {
 			return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to resolve machine %s: %v", name, err))
 		}
-		if len(targets) == 0 {
+		if len(targets) != 1 {
 			return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("machine not found: %s", name))
 		}
 
@@ -81,6 +81,10 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 	targets, err := d.mapper.MapMachines(ctx, machines)
 	if err != nil {
 		return proxy.One2One, nil, status.Error(codes.Internal, fmt.Sprintf("failed to resolve machines: %v", err))
+	}
+	if len(targets) != len(machines) {
+		// TODO: identify which specific machine name/ID did not match.
+		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "some machines not found")
 	}
 
 	backends := make([]proxy.Backend, len(targets))

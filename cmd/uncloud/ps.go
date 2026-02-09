@@ -182,11 +182,11 @@ func printContainers(containers []containerInfo) error {
 }
 
 func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
-	mctx := cli.ProxyMachinesContext(ctx, nil)
+	listCtx := cli.ProxyMachinesContext(ctx, nil)
 
 	// List all service containers across all machines in the cluster.
 	machineContainers, err := cli.Docker.ListServiceContainers(
-		mctx, "", container.ListOptions{All: true},
+		listCtx, "", container.ListOptions{All: true},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list service containers: %w", err)
@@ -199,13 +199,13 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 			continue
 		}
 
+		machineName := msc.Metadata.MachineName
+
 		if msc.Metadata.Error != "" {
 			client.PrintWarning(fmt.Sprintf("failed to list service containers on machine %s: %s",
-				msc.Metadata.Machine, msc.Metadata.Error))
+				machineName, msc.Metadata.Error))
 			continue
 		}
-
-		machineName := msc.Metadata.MachineName
 
 		for _, ctr := range msc.Containers {
 			if ctr.Container.State == nil || ctr.Container.Config == nil {

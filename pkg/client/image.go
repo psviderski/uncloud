@@ -48,7 +48,7 @@ func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.Mac
 // it lists images on all machines.
 func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]api.MachineImages, error) {
 	// Broadcast the image list request to the specified machines or all machines if none specified.
-	mctx := cli.ProxyMachinesContext(ctx, filter.Machines)
+	listCtx := cli.ProxyMachinesContext(ctx, filter.Machines)
 
 	opts := image.ListOptions{Manifests: true}
 	if filter.Name != "" {
@@ -62,7 +62,7 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 		return nil, fmt.Errorf("marshal options: %w", err)
 	}
 
-	resp, err := cli.Docker.GRPCClient.ListImages(mctx, &pb.ListImagesRequest{Options: optsBytes})
+	resp, err := cli.Docker.GRPCClient.ListImages(listCtx, &pb.ListImagesRequest{Options: optsBytes})
 	if err != nil {
 		return nil, err
 	}
