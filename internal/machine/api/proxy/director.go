@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/siderolabs/grpc-proxy/proxy"
@@ -82,7 +83,8 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 	if err != nil {
 		return proxy.One2One, nil, status.Error(codes.Internal, fmt.Sprintf("failed to resolve machines: %v", err))
 	}
-	if len(targets) != len(machines) {
+	// Skip length check for wildcard "*" which returns all machines.
+	if !slices.Contains(machines, "*") && len(targets) != len(machines) {
 		// TODO: identify which specific machine name/ID did not match.
 		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "some machines not found")
 	}
