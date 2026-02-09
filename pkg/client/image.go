@@ -71,19 +71,18 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 
 	for _, msg := range resp.Messages {
 		if msg.Metadata == nil {
-			PrintWarning("metadata is missing in response from unknown server")
+			// TODO: this should never happen. should we return an error here?
+			continue
+		}
+
+		if msg.Metadata.Error != "" {
+			// TODO: any reason to not return these and let the caller decide what to do?
 			continue
 		}
 
 		mi := api.MachineImages{
 			Metadata:        msg.Metadata,
 			ContainerdStore: msg.ContainerdStore,
-		}
-
-		// Check for machine errors in metadata
-		if mi.Metadata.Error != "" {
-			PrintWarning(fmt.Sprintf("failed to list images on machine %s: %s", mi.Metadata.MachineName, mi.Metadata.Error))
-			continue
 		}
 
 		if len(msg.Images) > 0 {
