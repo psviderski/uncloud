@@ -16,12 +16,8 @@ type Director struct {
 	localBackend   *LocalBackend
 	remotePort     uint16
 	remoteBackends sync.Map
-	// mu synchronizes access to localAddress.
-	mu           sync.RWMutex
-	localAddress string
-	localID      string
-	localName    string
-	mapper       MachineMapper
+	localAddress   string
+	mapper         MachineMapper
 }
 
 func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) *Director {
@@ -32,16 +28,10 @@ func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) 
 	}
 }
 
-// UpdateLocalMachine updates the local machine details used to identify which requests should be proxied
-// to the local gRPC server.
-func (d *Director) UpdateLocalMachine(id, name, addr string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
+// UpdateLocalAddress updates the local machine address used to identify which requests should be
+// proxied to the local gRPC server vs remote machines.
+func (d *Director) UpdateLocalAddress(addr string) {
 	d.localAddress = addr
-	d.localID = id
-	d.localName = name
-	// Local backend doesn't need re-creation as it doesn't store metadata anymore.
 }
 
 // Director implements proxy.StreamDirector for grpc-proxy, routing requests to local or remote backends based
@@ -114,13 +104,8 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 
 // getBackend returns a backend for the given address, utilizing local backend if matching local address.
 func (d *Director) getBackend(addr string) (proxy.Backend, error) {
-	d.mu.RLock()
-	localAddress := d.localAddress
-	localBackend := d.localBackend
-	d.mu.RUnlock()
-
-	if addr == localAddress {
-		return localBackend, nil
+	if addr == d.localAddress {
+		return d.localBackend, nil
 	}
 	return d.remoteBackend(addr)
 }

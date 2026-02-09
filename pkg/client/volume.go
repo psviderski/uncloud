@@ -73,6 +73,7 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		}
 
 		if mv.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
 			PrintWarning(fmt.Sprintf("failed to list volumes on machine %s: %s", mv.Metadata.Machine, mv.Metadata.Error))
 			continue
 		}
@@ -80,14 +81,7 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		machineID := mv.Metadata.MachineId
 		machineName := mv.Metadata.MachineName
 		if machineName == "" {
-			machineName = mv.Metadata.Machine
-		}
-
-		if machineID == "" {
-			// We need the machine ID to construct the MachineVolume response.
-			// If we couldn't resolve the machine from the metadata (IP), we skip it.
-			PrintWarning(fmt.Sprintf("machine ID missing in response from: %s", mv.Metadata.Machine))
-			continue
+			machineName = machineID
 		}
 
 		for _, vol := range mv.Response.Volumes {
