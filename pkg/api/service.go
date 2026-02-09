@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/distribution/reference"
@@ -253,6 +254,8 @@ type ContainerSpec struct {
 	// Env defines the environment variables to set inside the container.
 	Env   EnvVars
 	Image string
+	// Healthcheck defines the health check configuration for the container.
+	Healthcheck *HealthcheckConfig `json:",omitempty"`
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
 	// LogDriver overrides the default logging driver for the container. Each Docker daemon can have its own default.
@@ -347,6 +350,11 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		spec.Entrypoint = make([]string, len(s.Entrypoint))
 		copy(spec.Entrypoint, s.Entrypoint)
 	}
+	if s.Healthcheck != nil {
+		hc := *s.Healthcheck
+		hc.Test = slices.Clone(s.Healthcheck.Test)
+		spec.Healthcheck = &hc
+	}
 	if s.LogDriver != nil {
 		logDriver := *s.LogDriver
 		if s.LogDriver.Options != nil {
@@ -405,6 +413,15 @@ type LogDriver struct {
 	Name string
 	// Options is the configuration options to pass to the logging driver.
 	Options map[string]string
+}
+
+// HealthcheckConfig defines the health check configuration for a container.
+type HealthcheckConfig struct {
+	Test        []string      `json:",omitempty"`
+	Interval    time.Duration `json:",omitempty"`
+	Timeout     time.Duration `json:",omitempty"`
+	Retries     int           `json:",omitempty"`
+	StartPeriod time.Duration `json:",omitempty"`
 }
 
 type RunServiceResponse struct {
