@@ -2,8 +2,8 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/siderolabs/grpc-proxy/proxy"
@@ -30,7 +30,7 @@ func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) 
 }
 
 // UpdateLocalAddress updates the local machine address used to identify which requests should be proxied
-// to the local gRPC server
+// to the local gRPC server.
 func (d *Director) UpdateLocalAddress(addr string) {
 	d.localAddress = addr
 }
@@ -56,13 +56,9 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 
 	// Handle singular "machine" case (One2One, no metadata injection)
 	if hasMachine && len(machine) > 0 {
-		name := machine[0]
-		targets, err := d.mapper.MapMachines(ctx, []string{name})
+		targets, err := d.mapper.MapMachines(ctx, machine)
 		if err != nil {
-			return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to resolve machine %s: %v", name, err))
-		}
-		if len(targets) != 1 {
-			return proxy.One2One, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("machine not found: %s", name))
+			return proxy.One2One, nil, mapErrorToStatus(err)
 		}
 
 		backend, err := d.getBackend(targets[0].Addr)
@@ -81,12 +77,7 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 
 	targets, err := d.mapper.MapMachines(ctx, machines)
 	if err != nil {
-		return proxy.One2One, nil, status.Error(codes.Internal, fmt.Sprintf("failed to resolve machines: %v", err))
-	}
-	// Skip length check for wildcard "*" which returns all machines.
-	if !slices.Contains(machines, "*") && len(targets) != len(machines) {
-		// TODO: identify which specific machine name/ID did not match.
-		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "some machines not found")
+		return proxy.One2One, nil, mapErrorToStatus(err)
 	}
 
 	backends := make([]proxy.Backend, len(targets))
@@ -106,6 +97,19 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 	}
 
 	return proxy.One2Many, backends, nil
+}
+
+// mapErrorToStatus converts mapper errors to appropriate gRPC status errors.
+func mapErrorToStatus(err error) error {
+	var notFound *MachinesNotFoundError
+	if errors.As(err, &notFound) {
+		return status.Error(codes.InvalidArgument, notFound.Error())
+	}
+	// Check if already a gRPC status error.
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+	return status.Error(codes.Internal, fmt.Sprintf("failed to resolve machines: %v", err))
 }
 
 // getBackend returns a backend for the given address, utilizing local backend if matching local address.

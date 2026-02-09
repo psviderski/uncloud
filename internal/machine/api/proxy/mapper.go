@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
@@ -13,9 +14,22 @@ type MachineTarget struct {
 	ID, Name, Addr string
 }
 
+// MachinesNotFoundError indicates that one or more requested machines were not found.
+type MachinesNotFoundError struct {
+	NotFound []string
+}
+
+func (e *MachinesNotFoundError) Error() string {
+	if len(e.NotFound) == 1 {
+		return fmt.Sprintf("machine not found: %s", e.NotFound[0])
+	}
+	return fmt.Sprintf("machines not found: %s", strings.Join(e.NotFound, ", "))
+}
+
 // MachineMapper provides access to machine information in the cluster.
 type MachineMapper interface {
 	// MapMachines resolves a list of machine names/IDs (or "*") to a list of machine targets.
+	// Returns MachinesNotFoundError if any requested machine is not found (except when "*" is used).
 	MapMachines(ctx context.Context, namesOrIDs []string) ([]MachineTarget, error)
 }
 
@@ -56,12 +70,33 @@ func (m *CorrosionMapper) MapMachines(ctx context.Context, namesOrIDs []string) 
 		return allTargets, nil
 	}
 
-	// Filter targets based on namesOrIDs
-	var targets []MachineTarget
+	// Build a map for lookup (keyed by both ID and name)
+	targetByLookup := make(map[string]MachineTarget, len(allTargets)*2)
 	for _, t := range allTargets {
-		if slices.Contains(namesOrIDs, t.ID) || slices.Contains(namesOrIDs, t.Name) {
-			targets = append(targets, t)
+		targetByLookup[t.ID] = t
+		targetByLookup[t.Name] = t
+	}
+
+	// Resolve each requested machine
+	targets := make([]MachineTarget, 0, len(namesOrIDs))
+	var notFound []string
+	seen := make(map[string]bool, len(namesOrIDs))
+
+	for _, nameOrID := range namesOrIDs {
+		if seen[nameOrID] {
+			continue
 		}
+		seen[nameOrID] = true
+
+		if t, ok := targetByLookup[nameOrID]; ok {
+			targets = append(targets, t)
+		} else {
+			notFound = append(notFound, nameOrID)
+		}
+	}
+
+	if len(notFound) > 0 {
+		return nil, &MachinesNotFoundError{NotFound: notFound}
 	}
 
 	return targets, nil
