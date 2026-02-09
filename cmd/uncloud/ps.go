@@ -182,10 +182,7 @@ func printContainers(containers []containerInfo) error {
 }
 
 func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
-	mctx, err := cli.ProxyMachinesContext(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("proxy machines context: %w", err)
-	}
+	mctx := cli.ProxyMachinesContext(ctx, nil)
 
 	// List all service containers across all machines in the cluster.
 	machineContainers, err := cli.Docker.ListServiceContainers(

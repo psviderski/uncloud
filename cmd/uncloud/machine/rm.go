@@ -63,10 +63,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	m := mMember.Machine
 
 	// Let's use ProxyMachinesContext (plural) for ListServiceContainers as it returns aggregated results (repeated messages).
-	mctxList, err := client.ProxyMachinesContext(ctx, []string{m.Id})
-	if err != nil {
-		return err
-	}
+	mctxList := client.ProxyMachinesContext(ctx, []string{m.Id})
 
 	// Verify if the machine being removed is the proxy machine we're connected to.
 
@@ -153,10 +150,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 
 	if reset && reachable {
 		// Use ProxyMachineContext (singular) for Reset as it expects a single response without metadata wrapper.
-		mctxReset, err := client.ProxyMachineContext(ctx, m.Id)
-		if err != nil {
-			return err
-		}
+		mctxReset := client.ProxyMachineContext(ctx, m.Id)
 		_, err = client.MachineClient.Reset(mctxReset, &pb.ResetRequest{})
 		if err != nil {
 			fmt.Printf("WARNING: Failed to reset machine: %v\n", err)

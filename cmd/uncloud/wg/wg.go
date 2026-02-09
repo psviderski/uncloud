@@ -56,10 +56,7 @@ func runShow(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 
 	if opts.machine != "" {
 		// Proxy requests to the specified machine.
-		ctx, err = client.ProxyMachinesContext(ctx, []string{opts.machine})
-		if err != nil {
-			return err
-		}
+		ctx = client.ProxyMachinesContext(ctx, []string{opts.machine})
 	}
 
 	resp, err := client.MachineClient.InspectWireGuardNetwork(ctx, nil)

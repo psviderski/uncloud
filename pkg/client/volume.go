@@ -25,7 +25,7 @@ func (cli *Client) CreateVolume(
 		return resp, fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
 	}
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = proxyToMachine(ctx, machine.Machine)
+	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := fmt.Sprintf("Volume %s on %s", opts.Name, machine.Machine.Name)
@@ -54,10 +54,7 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		proxyMachines = filter.Machines
 	}
 
-	mctx, err := cli.ProxyMachinesContext(ctx, proxyMachines)
-	if err != nil {
-		return nil, fmt.Errorf("create request context to broadcast to all machines: %w", err)
-	}
+	mctx := cli.ProxyMachinesContext(ctx, proxyMachines)
 
 	machineVolumes, err := cli.Docker.ListVolumes(mctx, volume.ListOptions{})
 	if err != nil {
@@ -114,7 +111,7 @@ func (cli *Client) RemoveVolume(ctx context.Context, machineNameOrID, volumeName
 		return fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
 	}
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = proxyToMachine(ctx, machine.Machine)
+	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := fmt.Sprintf("Volume %s on %s", volumeName, machine.Machine.Name)
