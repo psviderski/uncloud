@@ -13,6 +13,7 @@ The following table shows the support status for main Compose features:
 | `configs`          | ✅ Supported        | File-based and inline configs                                                                  |
 | `cpus`             | ✅ Supported        | CPU limit                                                                                      |
 | `depends_on`       | ⚠️ Limited         | Services deployed in order but conditions not checked                                          |
+| `devices`          | ✅ Supported        | Device mappings                                                                                |
 | `dns`              | ❌ Not supported    | Built-in service discovery                                                                     |
 | `dns_search`       | ❌ Not supported    | Built-in service discovery                                                                     |
 | `entrypoint`       | ✅ Supported        | Override container entrypoint                                                                  |
