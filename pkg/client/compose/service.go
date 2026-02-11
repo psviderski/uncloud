@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/opencontainers/go-digest"
 	"github.com/psviderski/uncloud/pkg/api"
+	cdi "tags.cncf.io/container-device-interface/pkg/parser"
 )
 
 func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.ServiceSpec, error) {
@@ -140,7 +141,27 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 		Memory:            int64(service.MemLimit),
 		MemoryReservation: int64(service.MemReservation),
 		Ulimits:           ulimitsFromCompose(service.Ulimits),
-		DeviceMappings:    devicesFromCompose(service.Devices),
+	}
+
+	// Convert device mappings, separating CDI devices from regular device mappings.
+	// CDI devices are identified when Source == Target and the source is a qualified CDI name.
+	var cdiDeviceNames []string
+	for _, dev := range service.Devices {
+		if dev.Source == dev.Target && cdi.IsQualifiedName(dev.Source) {
+			cdiDeviceNames = append(cdiDeviceNames, dev.Source)
+			continue
+		}
+		resources.Devices = append(resources.Devices, api.DeviceMapping{
+			HostPath:          dev.Source,
+			ContainerPath:     dev.Target,
+			CgroupPermissions: dev.Permissions,
+		})
+	}
+	if len(cdiDeviceNames) > 0 {
+		resources.DeviceReservations = append(resources.DeviceReservations, container.DeviceRequest{
+			Driver:    "cdi",
+			DeviceIDs: cdiDeviceNames,
+		})
 	}
 
 	// Convert GPU device requests from compose format, appending "gpu" capability.
@@ -334,28 +355,6 @@ func ulimitsFromCompose(ulimits map[string]*types.UlimitsConfig) map[string]api.
 	}
 
 	return res
-}
-
-func devicesFromCompose(composeDevices []types.DeviceMapping) []container.DeviceMapping {
-	mappings := make([]container.DeviceMapping, 0, len(composeDevices))
-
-	for _, dev := range composeDevices {
-		mapping := container.DeviceMapping{
-			PathOnHost:        dev.Source,
-			PathInContainer:   dev.Target,
-			CgroupPermissions: dev.Permissions,
-		}
-
-		if mapping.PathInContainer == "" {
-			mapping.PathInContainer = mapping.PathOnHost
-		}
-		if mapping.CgroupPermissions == "" {
-			mapping.CgroupPermissions = "rwm"
-		}
-
-		mappings = append(mappings, mapping)
-	}
-	return mappings
 }
 
 // validateServicesExtensions validates extension combinations across all services in the project.

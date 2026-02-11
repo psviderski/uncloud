@@ -17,12 +17,22 @@ type ContainerResources struct {
 	// MemoryReservation is the minimum amount of memory (in bytes) the container needs to run efficiently.
 	// TODO: implement a placement constraint that checks available memory on machines.
 	MemoryReservation int64
-	// Device mappings for direct access to host devices
-	DeviceMappings []container.DeviceMapping
-	// Device reservations/requests for access to things like GPUs
+	// Devices provides direct access to host devices.
+	Devices []DeviceMapping
+	// DeviceReservations requests for access to things like GPUs.
 	DeviceReservations []container.DeviceRequest
 	// Ulimits defines the resource limits for the container.
 	Ulimits map[string]Ulimit
+}
+
+// DeviceMapping represents a device mapping between host and container.
+type DeviceMapping struct {
+	// HostPath is the path to the device on the host.
+	HostPath string
+	// ContainerPath is the path to the device in the container.
+	ContainerPath string
+	// CgroupPermissions is the cgroup permissions for the device (e.g., "rwm").
+	CgroupPermissions string
 }
 
 type Ulimit struct {

@@ -232,8 +232,8 @@ func TestContainerSpec_Clone(t *testing.T) {
 			CPU:               1234,
 			Memory:            2345,
 			MemoryReservation: 3456,
-			DeviceMappings: []container.DeviceMapping{
-				{PathOnHost: "/dev/sda", PathInContainer: "/dev/xvda", CgroupPermissions: "rwm"},
+			Devices: []DeviceMapping{
+				{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "rwm"},
 			},
 			DeviceReservations: []container.DeviceRequest{
 				{Count: 1, Capabilities: [][]string{{"gpu"}}, Driver: "nvidia"},
@@ -270,7 +270,7 @@ func TestContainerSpec_Clone(t *testing.T) {
 	original.ConfigMounts[0].ContainerPath = stringModified
 	*original.ConfigMounts[0].Mode = 0o755 // Modify the Mode pointer value
 	original.Sysctls["net.ipv4.ip_forward"] = stringModified
-	original.Resources.DeviceMappings[0].PathOnHost = stringModified
+	original.Resources.Devices[0].HostPath = stringModified
 	original.Resources.DeviceReservations[0].Count = 2
 	original.Resources.DeviceReservations[0].Driver = stringModified
 
@@ -293,7 +293,7 @@ func TestContainerSpec_Clone(t *testing.T) {
 	assert.Equal(t, int64(1234), cloned.Resources.CPU)
 	assert.Equal(t, int64(2345), cloned.Resources.Memory)
 	assert.Equal(t, int64(3456), cloned.Resources.MemoryReservation)
-	assert.Equal(t, "/dev/sda", cloned.Resources.DeviceMappings[0].PathOnHost)
+	assert.Equal(t, "/dev/sda", cloned.Resources.Devices[0].HostPath)
 	assert.Equal(t, 1, cloned.Resources.DeviceReservations[0].Count)
 	assert.Equal(t, "nvidia", cloned.Resources.DeviceReservations[0].Driver)
 	assert.Equal(t, "1000:1000", cloned.User)

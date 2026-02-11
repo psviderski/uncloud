@@ -1053,12 +1053,13 @@ services:
 
 func TestServiceSpecFromCompose_Devices(t *testing.T) {
 	tests := []struct {
-		name             string
-		composeYAML      string
-		expectedMappings []container.DeviceMapping
+		name                 string
+		composeYAML          string
+		expectedDevices      []api.DeviceMapping
+		expectedReservations []container.DeviceRequest
 	}{
 		{
-			name: "devices_simple",
+			name: "simple device",
 			composeYAML: `
 services:
   test:
@@ -1066,16 +1067,12 @@ services:
     devices:
       - /dev/dri
 `,
-			expectedMappings: []container.DeviceMapping{
-				{
-					PathOnHost:        "/dev/dri",
-					PathInContainer:   "/dev/dri",
-					CgroupPermissions: "rwm",
-				},
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/dri", ContainerPath: "/dev/dri", CgroupPermissions: "rwm"},
 			},
 		},
 		{
-			name: "devices_full",
+			name: "device with target and permissions",
 			composeYAML: `
 services:
   test:
@@ -1083,16 +1080,12 @@ services:
     devices:
       - /dev/sda:/dev/xvda:r
 `,
-			expectedMappings: []container.DeviceMapping{
-				{
-					PathOnHost:        "/dev/sda",
-					PathInContainer:   "/dev/xvda",
-					CgroupPermissions: "r",
-				},
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "r"},
 			},
 		},
 		{
-			name: "multiple_devices",
+			name: "multiple devices",
 			composeYAML: `
 services:
   test:
@@ -1102,22 +1095,43 @@ services:
       - /dev/sda:/dev/xvda
       - "/dev/dri"
 `,
-			expectedMappings: []container.DeviceMapping{
-				{
-					PathOnHost:        "/dev/ttyUSB0",
-					PathInContainer:   "/dev/ttyUSB0",
-					CgroupPermissions: "rw",
-				},
-				{
-					PathOnHost:        "/dev/sda",
-					PathInContainer:   "/dev/xvda",
-					CgroupPermissions: "rwm",
-				},
-				{
-					PathOnHost:        "/dev/dri",
-					PathInContainer:   "/dev/dri",
-					CgroupPermissions: "rwm",
-				},
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/ttyUSB0", ContainerPath: "/dev/ttyUSB0", CgroupPermissions: "rw"},
+				{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "rwm"},
+				{HostPath: "/dev/dri", ContainerPath: "/dev/dri", CgroupPermissions: "rwm"},
+			},
+		},
+		{
+			name: "CDI device",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - vendor.com/class=device1
+`,
+			expectedReservations: []container.DeviceRequest{
+				{Driver: "cdi", DeviceIDs: []string{"vendor.com/class=device1"}},
+			},
+		},
+		{
+			name: "mixed CDI and regular devices",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - /dev/dri
+      - vendor.com/class=device1
+      - nvidia.com/gpu=0
+      - /dev/sda:/dev/xvda:r
+`,
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/dri", ContainerPath: "/dev/dri", CgroupPermissions: "rwm"},
+				{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "r"},
+			},
+			expectedReservations: []container.DeviceRequest{
+				{Driver: "cdi", DeviceIDs: []string{"vendor.com/class=device1", "nvidia.com/gpu=0"}},
 			},
 		},
 	}
@@ -1130,8 +1144,8 @@ services:
 			spec, err := ServiceSpecFromCompose(project, "test")
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expectedMappings, spec.Container.Resources.DeviceMappings,
-				"DeviceMappings should match expected")
+			assert.Equal(t, tt.expectedDevices, spec.Container.Resources.Devices)
+			assert.Equal(t, tt.expectedReservations, spec.Container.Resources.DeviceReservations)
 		})
 	}
 }

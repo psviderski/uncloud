@@ -617,7 +617,7 @@ func (s *Server) CreateServiceContainer(
 			NanoCPUs:          spec.Container.Resources.CPU,
 			Memory:            spec.Container.Resources.Memory,
 			MemoryReservation: spec.Container.Resources.MemoryReservation,
-			Devices:           spec.Container.Resources.DeviceMappings,
+			Devices:           toDockerDevices(spec.Container.Resources.Devices),
 			DeviceRequests:    spec.Container.Resources.DeviceReservations,
 			Ulimits:           toDockerUlimits(spec.Container.Resources.Ulimits),
 		},
@@ -895,6 +895,23 @@ func toDockerUlimits(ulimits map[string]api.Ulimit) []*units.Ulimit {
 	}
 
 	return dockerUlimits
+}
+
+func toDockerDevices(devices []api.DeviceMapping) []container.DeviceMapping {
+	if len(devices) == 0 {
+		return nil
+	}
+
+	dockerDevices := make([]container.DeviceMapping, 0, len(devices))
+	for _, d := range devices {
+		dockerDevices = append(dockerDevices, container.DeviceMapping{
+			PathOnHost:        d.HostPath,
+			PathInContainer:   d.ContainerPath,
+			CgroupPermissions: d.CgroupPermissions,
+		})
+	}
+
+	return dockerDevices
 }
 
 // verifyDockerVolumesExist checks if the Docker named volumes referenced in the mounts exist on the machine.

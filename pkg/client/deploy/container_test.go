@@ -1427,26 +1427,26 @@ func TestEvalContainerSpecChange_DeviceMappings(t *testing.T) {
 		},
 		{
 			name:    "identical mapping",
-			current: api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
-			new:     api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			current: api.ContainerResources{Devices: []api.DeviceMapping{{HostPath: "/dev/foo", ContainerPath: "/dev/foo", CgroupPermissions: "rwm"}}},
+			new:     api.ContainerResources{Devices: []api.DeviceMapping{{HostPath: "/dev/foo", ContainerPath: "/dev/foo", CgroupPermissions: "rwm"}}},
 			want:    ContainerUpToDate,
 		},
 		{
 			name:    "add mapping",
 			current: api.ContainerResources{},
-			new:     api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			new:     api.ContainerResources{Devices: []api.DeviceMapping{{HostPath: "/dev/foo", ContainerPath: "/dev/foo", CgroupPermissions: "rwm"}}},
 			want:    ContainerNeedsRecreate,
 		},
 		{
 			name:    "remove mapping",
-			current: api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
+			current: api.ContainerResources{Devices: []api.DeviceMapping{{HostPath: "/dev/foo", ContainerPath: "/dev/foo", CgroupPermissions: "rwm"}}},
 			new:     api.ContainerResources{},
 			want:    ContainerNeedsRecreate,
 		},
 		{
 			name:    "change mapping path",
-			current: api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/foo", CgroupPermissions: "rwm"}}},
-			new:     api.ContainerResources{DeviceMappings: []container.DeviceMapping{{PathOnHost: "/dev/foo", PathInContainer: "/dev/bar", CgroupPermissions: "rwm"}}},
+			current: api.ContainerResources{Devices: []api.DeviceMapping{{HostPath: "/dev/foo", ContainerPath: "/dev/foo", CgroupPermissions: "rwm"}}},
+			new:     api.ContainerResources{Devices: []api.DeviceMapping{{HostPath: "/dev/foo", ContainerPath: "/dev/bar", CgroupPermissions: "rwm"}}},
 			want:    ContainerNeedsRecreate,
 		},
 	}

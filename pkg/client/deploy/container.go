@@ -87,7 +87,7 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	if !reflect.DeepEqual(current.Container.Resources.DeviceReservations, newResources.DeviceReservations) {
 		return ContainerNeedsRecreate
 	}
-	if !reflect.DeepEqual(current.Container.Resources.DeviceMappings, newResources.DeviceMappings) {
+	if !reflect.DeepEqual(current.Container.Resources.Devices, newResources.Devices) {
 		return ContainerNeedsRecreate
 	}
 

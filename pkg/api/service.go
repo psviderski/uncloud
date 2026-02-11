@@ -383,8 +383,8 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	if s.Resources.Ulimits != nil {
 		spec.Resources.Ulimits = maps.Clone(s.Resources.Ulimits)
 	}
-	if s.Resources.DeviceMappings != nil {
-		spec.Resources.DeviceMappings = slices.Clone(s.Resources.DeviceMappings)
+	if s.Resources.Devices != nil {
+		spec.Resources.Devices = slices.Clone(s.Resources.Devices)
 	}
 	if s.Resources.DeviceReservations != nil {
 		spec.Resources.DeviceReservations = slices.Clone(s.Resources.DeviceReservations)
