@@ -370,7 +370,7 @@ func isDockerVirtualised(ctx context.Context, dockerCli *docker.Client) (bool, e
 		return false, fmt.Errorf("get Docker info: %w", err)
 	}
 
-	virtualisedHostnames := []string{"docker-desktop", "colima"}
+	virtualisedHostnames := []string{"docker-desktop", "colima", "lima-rancher-desktop"}
 	for _, name := range virtualisedHostnames {
 		if strings.Contains(strings.ToLower(info.Name), name) {
 			return true, nil
