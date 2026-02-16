@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -108,7 +109,8 @@ func verifyCaddyReachable(ctx context.Context, m *pb.MachineInfo) error {
 	eventID := fmt.Sprintf("Machine %s (%s)", m.Name, publicIP)
 	pw.Event(progress.NewEvent(eventID, progress.Working, "Querying"))
 
-	verifyURL := fmt.Sprintf("http://%s%s", publicIP, caddyconfig.VerifyPath)
+	httpFormattedIP := net.JoinHostPort(publicIP.String(), "")
+	verifyURL := fmt.Sprintf("http://%s%s", httpFormattedIP, caddyconfig.VerifyPath)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, verifyURL, nil)
 	if err != nil {
