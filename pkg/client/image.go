@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -363,14 +364,25 @@ func newUnregistryProxy(
 	return p, nil
 }
 
-// isDockerVirtualised checks if Docker is running in a virtualised environment like Docker Desktop on macOS.
+// isDockerVirtualised checks if Docker is running in a virtualised environment like Docker/Rancher Desktop or Colima.
+// On macOS, Docker always requires a VM, so it returns true unless OrbStack is detected (which handles host networking
+// natively). On other platforms, it checks for known virtualised Docker hostnames.
 func isDockerVirtualised(ctx context.Context, dockerCli *docker.Client) (bool, error) {
 	info, err := dockerCli.Info(ctx)
 	if err != nil {
 		return false, fmt.Errorf("get Docker info: %w", err)
 	}
 
-	virtualisedHostnames := []string{"docker-desktop", "colima", "lima-rancher-desktop"}
+	// On macOS, Docker always runs in a VM. OrbStack is the only known exception that doesn't need a proxy.
+	if runtime.GOOS == "darwin" {
+		if info.Name == "orbstack" {
+			return false, nil
+		}
+		return true, nil
+	}
+
+	// On other platforms, check for known virtualised Docker environments.
+	virtualisedHostnames := []string{"docker-desktop", "rancher-desktop", "colima"}
 	for _, name := range virtualisedHostnames {
 		if strings.Contains(strings.ToLower(info.Name), name) {
 			return true, nil
