@@ -14,8 +14,8 @@ Git repository state. You can customise the image name and tag format for the bu
 If you **don't specify** an `image` attribute for a service with a `build` section, Uncloud uses the following Go
 template for tagging the built image:
 
-```go
-{{.Project}}/{{.Service}}:{{if.Git.IsRepo}}{{gitdate "2006-01-02-150405"}}.{{gitsha 7}}{{if.Git.IsDirty}}.dirty{{end}}{{else}}{{date "2006-01-02-150405"}}{{end}}
+```
+{{.Project}}/{{.Service}}:{{if .Git.IsRepo}}{{gitdate "2006-01-02-150405"}}.{{gitsha 7}}{{if .Git.IsDirty}}.dirty{{end}}{{else}}{{date "2006-01-02-150405"}}{{end}}
 ```
 
 ```yaml title="compose.yaml"
@@ -92,8 +92,7 @@ image: myapp:{{date "20060102-150405" "Local"}}   # → myapp:20251031-220651
 
 ### Date format reference
 
-Go uses a reference time (`Mon Jan 2 15:04:05 MST 2006`) for formatting. Replace reference components with desired
-format:
+Go uses a reference time `Mon Jan 2 15:04:05 MST 2006` for formatting. Replace reference components with desired format:
 
 | Component | Reference | Example     |
 |-----------|-----------|-------------|
