@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -304,7 +305,7 @@ func TestReconcileGlobalContainer(t *testing.T) {
 		containers    []api.MachineServiceContainer
 		spec          api.ServiceSpec
 		forceRecreate bool
-		expectedOps   []Operation
+		expectedOps   []operation.Operation
 	}{
 		{
 			name:       "no containers creates new",
@@ -312,8 +313,8 @@ func TestReconcileGlobalContainer(t *testing.T) {
 			spec: api.ServiceSpec{
 				Container: api.ContainerSpec{Image: "nginx:latest"},
 			},
-			expectedOps: []Operation{
-				&RunContainerOperation{
+			expectedOps: []operation.Operation{
+				&operation.RunContainerOperation{
 					ServiceID: "service-1",
 					MachineID: "machine-1",
 				},
@@ -330,8 +331,8 @@ func TestReconcileGlobalContainer(t *testing.T) {
 					{ContainerPort: 8080, PublishedPort: 8080, Protocol: "tcp", Mode: api.PortModeHost},
 				},
 			},
-			expectedOps: []Operation{
-				&ReplaceContainerOperation{
+			expectedOps: []operation.Operation{
+				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
 					OldContainer: container1,
@@ -352,19 +353,19 @@ func TestReconcileGlobalContainer(t *testing.T) {
 					{ContainerPort: 9090, PublishedPort: 9090, Protocol: "tcp", Mode: api.PortModeHost},
 				},
 			},
-			expectedOps: []Operation{
-				&StopContainerOperation{
+			expectedOps: []operation.Operation{
+				&operation.StopContainerOperation{
 					ServiceID:   "service-1",
 					ContainerID: "container-2",
 					MachineID:   "machine-1",
 				},
-				&ReplaceContainerOperation{
+				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
-				&RemoveContainerOperation{
+				&operation.RemoveContainerOperation{
 					MachineID: "machine-1",
 					Container: container2WithPort9090,
 				},
@@ -383,14 +384,14 @@ func TestReconcileGlobalContainer(t *testing.T) {
 				},
 			},
 			// Container-2 has no conflicting ports, so no StopContainerOperation for it.
-			expectedOps: []Operation{
-				&ReplaceContainerOperation{
+			expectedOps: []operation.Operation{
+				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
-				&RemoveContainerOperation{
+				&operation.RemoveContainerOperation{
 					MachineID: "machine-1",
 					Container: container2WithPort3000,
 				},
@@ -409,11 +410,11 @@ func TestReconcileGlobalContainer(t *testing.T) {
 
 // assertOperationsEqual compares expected and actual operations, ignoring the Spec field
 // which is passed separately to the function and not the focus of these tests.
-func assertOperationsEqual(t *testing.T, expected, actual []Operation) {
+func assertOperationsEqual(t *testing.T, expected, actual []operation.Operation) {
 	t.Helper()
 	opts := cmp.Options{
-		cmpopts.IgnoreFields(RunContainerOperation{}, "Spec"),
-		cmpopts.IgnoreFields(ReplaceContainerOperation{}, "Spec"),
+		cmpopts.IgnoreFields(operation.RunContainerOperation{}, "Spec"),
+		cmpopts.IgnoreFields(operation.ReplaceContainerOperation{}, "Spec"),
 		cmpopts.IgnoreUnexported(api.Container{}),
 	}
 	if diff := cmp.Diff(expected, actual, opts); diff != "" {

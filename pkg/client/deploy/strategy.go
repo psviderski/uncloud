@@ -8,6 +8,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
@@ -144,7 +145,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 
 		if len(containers) == 0 {
 			// No more existing containers on this machine, create a new one.
-			plan.Operations = append(plan.Operations, &RunContainerOperation{
+			plan.Operations = append(plan.Operations, &operation.RunContainerOperation{
 				ServiceID: plan.ServiceID,
 				Spec:      spec,
 				MachineID: m.Id,
@@ -164,7 +165,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 
 		// Replace the old container with a new one.
 		order := determineUpdateOrder(ctr, spec)
-		plan.Operations = append(plan.Operations, &ReplaceContainerOperation{
+		plan.Operations = append(plan.Operations, &operation.ReplaceContainerOperation{
 			ServiceID:    plan.ServiceID,
 			Spec:         spec,
 			MachineID:    m.Id,
@@ -176,7 +177,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 	// Remove any remaining containers that are not needed.
 	for mid, containers := range containersOnMachine {
 		for _, c := range containers {
-			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
+			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID: mid,
 				Container: c,
 			})
@@ -227,7 +228,7 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 	// Remove any remaining containers on machines that don't match the new placement constraints.
 	for _, containers := range containersOnMachine {
 		for _, c := range containers {
-			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
+			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID: c.MachineID,
 				Container: c.Container,
 			})
@@ -242,12 +243,12 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 // removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
 	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string, forceRecreate bool,
-) ([]Operation, error) {
-	var ops []Operation
+) ([]operation.Operation, error) {
+	var ops []operation.Operation
 
 	if len(containers) == 0 {
 		// No containers on this machine, create a new one.
-		ops = append(ops, &RunContainerOperation{
+		ops = append(ops, &operation.RunContainerOperation{
 			ServiceID: serviceID,
 			Spec:      spec,
 			MachineID: machineID,
@@ -277,7 +278,7 @@ func reconcileGlobalContainer(
 				if i == j {
 					continue
 				}
-				ops = append(ops, &RemoveContainerOperation{
+				ops = append(ops, &operation.RemoveContainerOperation{
 					MachineID: old.MachineID,
 					Container: old.Container,
 				})
@@ -310,7 +311,7 @@ func reconcileGlobalContainer(
 			}
 			conflictingPorts, err := c.Container.ConflictingServicePorts(spec.Ports)
 			if err != nil || len(conflictingPorts) > 0 {
-				ops = append(ops, &StopContainerOperation{
+				ops = append(ops, &operation.StopContainerOperation{
 					ServiceID:   serviceID,
 					ContainerID: c.Container.ID,
 					MachineID:   machineID,
@@ -320,7 +321,7 @@ func reconcileGlobalContainer(
 
 		// Replace the running container with a new one.
 		order := determineUpdateOrder(containerToReplace.Container, spec)
-		ops = append(ops, &ReplaceContainerOperation{
+		ops = append(ops, &operation.ReplaceContainerOperation{
 			ServiceID:    serviceID,
 			Spec:         spec,
 			MachineID:    machineID,
@@ -333,20 +334,20 @@ func reconcileGlobalContainer(
 			if c.Container.ID == containerToReplace.Container.ID {
 				continue
 			}
-			ops = append(ops, &RemoveContainerOperation{
+			ops = append(ops, &operation.RemoveContainerOperation{
 				MachineID: c.MachineID,
 				Container: c.Container,
 			})
 		}
 	} else {
 		// No running containers, create a new one and remove all stopped containers.
-		ops = append(ops, &RunContainerOperation{
+		ops = append(ops, &operation.RunContainerOperation{
 			ServiceID: serviceID,
 			Spec:      spec,
 			MachineID: machineID,
 		})
 		for _, c := range containers {
-			ops = append(ops, &RemoveContainerOperation{
+			ops = append(ops, &operation.RemoveContainerOperation{
 				MachineID: c.MachineID,
 				Container: c.Container,
 			})

@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
+	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
@@ -27,7 +28,7 @@ type Deployment struct {
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
-	plan         *deploy.SequenceOperation
+	plan         *operation.SequenceOperation
 }
 
 func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
@@ -58,11 +59,11 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 	}, nil
 }
 
-func (d *Deployment) Plan(ctx context.Context) (deploy.SequenceOperation, error) {
+func (d *Deployment) Plan(ctx context.Context) (operation.SequenceOperation, error) {
 	if d.plan != nil {
 		return *d.plan, nil
 	}
-	plan := deploy.SequenceOperation{}
+	plan := operation.SequenceOperation{}
 
 	// Generate service specs for all services in the project.
 	var serviceSpecs []api.ServiceSpec
@@ -123,7 +124,7 @@ func (d *Deployment) ServiceSpec(name string) (api.ServiceSpec, error) {
 }
 
 // PlanVolumes checks if the external volumes exist and plans the creation of missing volumes.
-func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*deploy.CreateVolumeOperation, error) {
+func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*operation.CreateVolumeOperation, error) {
 	if len(d.Project.Volumes) == 0 {
 		// No volumes to check or create.
 		return nil, nil
@@ -145,7 +146,7 @@ func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*deploy.Crea
 	}
 
 	// Generate operations to create scheduled missing volumes.
-	var ops []*deploy.CreateVolumeOperation
+	var ops []*operation.CreateVolumeOperation
 	for machineID, volumes := range scheduledVolumes {
 		for _, v := range volumes {
 			machineName := machineID
@@ -153,7 +154,7 @@ func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*deploy.Crea
 				machineName = m.Info.Name
 			}
 
-			ops = append(ops, &deploy.CreateVolumeOperation{
+			ops = append(ops, &operation.CreateVolumeOperation{
 				MachineID:   machineID,
 				MachineName: machineName,
 				VolumeSpec:  v,
