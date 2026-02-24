@@ -116,7 +116,7 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		}
 	}
 
-	// TODO: Rollback support - if new container fails to start, restart old container (#24)
+	// TODO: Rollback support - if new container fails to start, stop new, collect logs, and restart old container (#24)
 	// TODO: When parallelism is added, rollback becomes more complex - need to track which containers
 	//       were stopped and restore them all on failure
 	resp, err := cli.CreateContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
@@ -126,6 +126,8 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
 		return fmt.Errorf("start container: %w", err)
 	}
+
+	// TODO: wait for the container to become healthy. If unhealthy, stop new container, collect logs, and start old.
 
 	// For start-first, we need to stop before removing.
 	// For stop-first, the container is already stopped.
