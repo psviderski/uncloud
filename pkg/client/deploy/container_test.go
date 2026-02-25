@@ -1410,7 +1410,7 @@ func TestEvalContainerSpecChange_Volumes(t *testing.T) {
 	}
 }
 
-func TestEvalContainerSpecChange_DeviceMappings(t *testing.T) {
+func TestEvalContainerSpecChange_Devices(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

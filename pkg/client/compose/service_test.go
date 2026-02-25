@@ -94,7 +94,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 			},
 		},
 		{
-			name:     "full-spec",
+			name:     "full spec",
 			filename: "compose-full-spec.yaml",
 			want: map[string]api.ServiceSpec{
 				"test": {
@@ -133,6 +133,17 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							CPU:               0.5 * api.Core,
 							Memory:            100 * units.MiB,
 							MemoryReservation: 50 * units.MiB,
+							Ulimits: map[string]api.Ulimit{
+								"nofile": {Soft: 20000, Hard: 40000},
+								"nproc":  {Soft: 65535, Hard: 65535},
+							},
+							Devices: []api.DeviceMapping{
+								{HostPath: "/dev/ttyUSB0", ContainerPath: "/dev/ttyUSB0", CgroupPermissions: "rw"},
+								{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "rwm"},
+							},
+							DeviceReservations: []container.DeviceRequest{
+								{Count: -1, Capabilities: [][]string{{"gpu"}}},
+							},
 						},
 						Sysctls: map[string]string{
 							"net.ipv4.ip_forward": "1",
@@ -147,6 +158,15 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							{
 								VolumeName:    "data1",
 								ContainerPath: "/data1",
+							},
+							{
+								VolumeName:    "bind-53f1acbf1de61e9e608c93effca23791674e463d02bb7aaca7c625804aef1926",
+								ContainerPath: "/path/in/container",
+								ReadOnly:      true,
+							},
+							{
+								VolumeName:    "data3-labeled",
+								ContainerPath: "/data3",
 							},
 							{
 								VolumeName:    "data2-alias",
@@ -182,8 +202,23 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							Mode:          api.PortModeHost,
 						},
 					},
+					Placement: api.Placement{
+						Machines: []string{"machine-1", "machine-2"},
+					},
 					Replicas: 3,
+					UpdateConfig: api.UpdateConfig{
+						Order: api.UpdateOrderStopFirst,
+					},
 					Volumes: []api.VolumeSpec{
+						{
+							Name: "bind-53f1acbf1de61e9e608c93effca23791674e463d02bb7aaca7c625804aef1926",
+							Type: api.VolumeTypeBind,
+							BindOptions: &api.BindOptions{
+								HostPath:       "/path/on/host",
+								CreateHostPath: true,
+								Propagation:    mount.Propagation("rprivate"),
+							},
+						},
 						{
 							Name: "bind-bb6aed1683cea1e0a1ae5cd227aacd0734f2f87f7a78fcf1baeff978ce300b90",
 							Type: api.VolumeTypeBind,
@@ -217,10 +252,21 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							},
 						},
 						{
+							Name: "data3-labeled",
+							Type: api.VolumeTypeVolume,
+							VolumeOptions: &api.VolumeOptions{
+								Name:    "data3-labeled",
+								NoCopy:  true,
+								SubPath: "app/data",
+								Labels:  map[string]string{"env": "test"},
+							},
+						},
+						{
 							Name: "tmpfs-efa57ba8b6a1779674ac438de3af8729e2d55900b79eb929431cf9c5b0179542",
 							Type: api.VolumeTypeTmpfs,
 							TmpfsOptions: &mount.TmpfsOptions{
 								SizeBytes: 10 * units.MiB,
+								Mode:      os.FileMode(1777),
 							},
 						},
 					},

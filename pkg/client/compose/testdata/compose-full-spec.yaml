@@ -6,11 +6,18 @@ services:
       - ALL
     command: ["nginx", "updated", "command"]
     cpus: 0.5
+    deploy:
+      update_config:
+        order: stop-first
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0:rw
+      - /dev/sda:/dev/xvda
     entrypoint: ["/updated-docker-entrypoint.sh"]
     environment:
       BOOL: "true"
       EMPTY: ""
       VAR: value
+    gpus: all
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 1m30s
@@ -32,10 +39,28 @@ services:
     scale: 3
     sysctls:
       - net.ipv4.ip_forward=1
+    ulimits:
+      nofile:
+        soft: 20000
+        hard: 40000
+      nproc: 65535
     user: nginx:nginx
     volumes:
       - /etc/passwd:/host/etc/passwd:ro
       - data1:/data1
+      - type: bind
+        source: /path/on/host
+        target: /path/in/container
+        read_only: true
+        bind:
+          create_host_path: true
+          propagation: rprivate
+      - type: volume
+        source: data3-labeled
+        target: /data3
+        volume:
+          nocopy: true
+          subpath: app/data
       - type: volume
         source: data2-alias
         target: /data2/long/syntax
@@ -44,6 +69,8 @@ services:
         target: /tmpfs
         tmpfs:
           size: 10485760
+          mode: 1777
+    x-machines: ["machine-1", "machine-2"]
     x-ports:
       - test.example.com:80/https
       - 8000/http
@@ -62,5 +89,8 @@ volumes:
   data2-alias:
     name: data2
     driver: local
+  data3-labeled:
+    labels:
+      env: test
   data-external:
     external: true
