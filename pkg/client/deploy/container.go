@@ -90,6 +90,10 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 	if !reflect.DeepEqual(current.Container.Resources.Devices, newResources.Devices) {
 		return ContainerNeedsRecreate
 	}
+	// Ulimits are immutable, so we'll need to recreate if any have changed.
+	if !reflect.DeepEqual(current.Container.Resources.Ulimits, newResources.Ulimits) {
+		return ContainerNeedsRecreate
+	}
 
 	// Check if any mutable properties changed.
 	if !current.Caddy.Equals(new.Caddy) {

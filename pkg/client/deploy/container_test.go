@@ -1864,6 +1864,85 @@ func TestEvalContainerSpecChange_DeviceReservations(t *testing.T) {
 	}
 }
 
+func TestEvalContainerSpecChange_Ulimits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current api.ContainerResources
+		new     api.ContainerResources
+		want    ContainerSpecStatus
+	}{
+		{
+			name:    "empty",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "identical single ulimit",
+			current: api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 20000, Hard: 40000}}},
+			new:     api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 20000, Hard: 40000}}},
+			want:    ContainerUpToDate,
+		},
+		{
+			name:    "set ulimit",
+			current: api.ContainerResources{},
+			new:     api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 20000, Hard: 40000}}},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "remove ulimit",
+			current: api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 20000, Hard: 40000}}},
+			new:     api.ContainerResources{},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "change ulimit soft value",
+			current: api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 20000, Hard: 40000}}},
+			new:     api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 30000, Hard: 40000}}},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "change ulimit hard value",
+			current: api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 20000, Hard: 40000}}},
+			new:     api.ContainerResources{Ulimits: map[string]api.Ulimit{"nofile": {Soft: 20000, Hard: 80000}}},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name: "add ulimit",
+			current: api.ContainerResources{Ulimits: map[string]api.Ulimit{
+				"nofile": {Soft: 20000, Hard: 40000},
+			}},
+			new: api.ContainerResources{Ulimits: map[string]api.Ulimit{
+				"nofile": {Soft: 20000, Hard: 40000},
+				"nproc":  {Soft: 65535, Hard: 65535},
+			}},
+			want: ContainerNeedsRecreate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nginx:latest",
+					Resources: tt.current,
+				},
+			}
+			newSpec := api.ServiceSpec{
+				Container: api.ContainerSpec{
+					Image:     "nginx:latest",
+					Resources: tt.new,
+				},
+			}
+
+			result := EvalContainerSpecChange(currentSpec, newSpec)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func TestEvalContainerSpecChange_Mixed(t *testing.T) {
 	t.Parallel()
 
