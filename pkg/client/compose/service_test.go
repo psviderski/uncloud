@@ -266,7 +266,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							Type: api.VolumeTypeTmpfs,
 							TmpfsOptions: &mount.TmpfsOptions{
 								SizeBytes: 10 * units.MiB,
-								Mode:      os.FileMode(1777),
+								Mode:      os.FileMode(1770),
 							},
 						},
 					},
