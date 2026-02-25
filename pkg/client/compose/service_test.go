@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/docker/api/types/container"
@@ -108,6 +109,14 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							"BOOL":  "true",
 							"EMPTY": "",
 							"VAR":   "value",
+						},
+						Healthcheck: &api.HealthcheckSpec{
+							Test:          []string{"CMD", "curl", "-f", "http://localhost"},
+							Interval:      1*time.Minute + 30*time.Second,
+							Timeout:       10 * time.Second,
+							Retries:       5,
+							StartPeriod:   15 * time.Second,
+							StartInterval: 2 * time.Second,
 						},
 						Image: "nginx:latest",
 						Init:  &initTrue,

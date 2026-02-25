@@ -11,6 +11,13 @@ services:
       BOOL: "true"
       EMPTY: ""
       VAR: value
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 1m30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+      start_interval: 2s
     image: nginx:latest
     init: true
     logging:

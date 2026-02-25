@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
@@ -44,18 +45,19 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			CapAdd:     service.CapAdd,
-			CapDrop:    service.CapDrop,
-			Command:    service.Command,
-			Entrypoint: service.Entrypoint,
-			Env:        env,
-			Image:      service.Image,
-			Init:       service.Init,
-			Privileged: service.Privileged,
-			PullPolicy: pullPolicy,
-			Resources:  resourcesFromCompose(service),
-			Sysctls:    service.Sysctls,
-			User:       service.User,
+			CapAdd:      service.CapAdd,
+			CapDrop:     service.CapDrop,
+			Command:     service.Command,
+			Entrypoint:  service.Entrypoint,
+			Env:         env,
+			Healthcheck: healthcheckFromCompose(service.HealthCheck),
+			Image:       service.Image,
+			Init:        service.Init,
+			Privileged:  service.Privileged,
+			PullPolicy:  pullPolicy,
+			Resources:   resourcesFromCompose(service),
+			Sysctls:     service.Sysctls,
+			User:        service.User,
 		},
 		Name: serviceName,
 		Mode: api.ServiceModeReplicated,
@@ -133,6 +135,34 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	spec.Container.ConfigMounts = configMounts
 
 	return spec, nil
+}
+
+func healthcheckFromCompose(hc *types.HealthCheckConfig) *api.HealthcheckSpec {
+	if hc == nil {
+		return nil
+	}
+	if hc.Disable {
+		return &api.HealthcheckSpec{Disable: true}
+	}
+
+	spec := &api.HealthcheckSpec{Test: hc.Test}
+	if hc.Interval != nil {
+		spec.Interval = time.Duration(*hc.Interval)
+	}
+	if hc.Timeout != nil {
+		spec.Timeout = time.Duration(*hc.Timeout)
+	}
+	if hc.StartPeriod != nil {
+		spec.StartPeriod = time.Duration(*hc.StartPeriod)
+	}
+	if hc.StartInterval != nil {
+		spec.StartInterval = time.Duration(*hc.StartInterval)
+	}
+	if hc.Retries != nil {
+		spec.Retries = uint(*hc.Retries)
+	}
+
+	return spec
 }
 
 func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {

@@ -1315,6 +1315,7 @@ func TestServiceLifecycle(t *testing.T) {
 			Name: "container-spec-full",
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
+				// TODO: Add the latest implemented fields to this spec and update assertContainerMatchesSpec.
 				Command: []string{"sleep", "infinity"},
 				// Extra slashes is not a typo, it changes the spec but Linux ignores them and uses the default /pause.
 				Entrypoint: []string{"///pause"},
@@ -1323,6 +1324,14 @@ func TestServiceLifecycle(t *testing.T) {
 					"EMPTY": "",
 					"BOOL":  "true",
 					"":      "ignored",
+				},
+				Healthcheck: &api.HealthcheckSpec{
+					Test:          []string{"CMD-SHELL", "exit 0"},
+					Interval:      1*time.Minute + 30*time.Second,
+					Timeout:       10 * time.Second,
+					Retries:       5,
+					StartPeriod:   15 * time.Second,
+					StartInterval: 2 * time.Second,
 				},
 				Image: "portainer/pause:latest",
 				Init:  &init,

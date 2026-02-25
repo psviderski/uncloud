@@ -567,6 +567,22 @@ func (s *Server) CreateServiceContainer(
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
 	}
+	if hc := spec.Container.Healthcheck; hc != nil {
+		if hc.Disable {
+			config.Healthcheck = &container.HealthConfig{
+				Test: []string{"NONE"},
+			}
+		} else {
+			config.Healthcheck = &container.HealthConfig{
+				Test:          hc.Test,
+				Interval:      hc.Interval,
+				Timeout:       hc.Timeout,
+				StartPeriod:   hc.StartPeriod,
+				StartInterval: hc.StartInterval,
+				Retries:       int(hc.Retries),
+			}
+		}
+	}
 
 	// TODO: do not set the ports as container labels once migrated to retrieve them from the spec in DB.
 	var err error
