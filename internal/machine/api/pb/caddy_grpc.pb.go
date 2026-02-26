@@ -20,7 +20,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Caddy_GetConfig_FullMethodName = "/api.Caddy/GetConfig"
+	Caddy_GetConfig_FullMethodName    = "/api.Caddy/GetConfig"
+	Caddy_GetUpstreams_FullMethodName = "/api.Caddy/GetUpstreams"
 )
 
 // CaddyClient is the client API for Caddy service.
@@ -29,6 +30,8 @@ const (
 type CaddyClient interface {
 	// GetConfig retrieves the current Caddy configuration from the machine.
 	GetConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetCaddyConfigResponse, error)
+	// GetUpstreams retrieves the status of Caddy upstreams.
+	GetUpstreams(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetCaddyUpstreamsResponse, error)
 }
 
 type caddyClient struct {
@@ -49,12 +52,24 @@ func (c *caddyClient) GetConfig(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
+func (c *caddyClient) GetUpstreams(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetCaddyUpstreamsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCaddyUpstreamsResponse)
+	err := c.cc.Invoke(ctx, Caddy_GetUpstreams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CaddyServer is the server API for Caddy service.
 // All implementations must embed UnimplementedCaddyServer
 // for forward compatibility.
 type CaddyServer interface {
 	// GetConfig retrieves the current Caddy configuration from the machine.
 	GetConfig(context.Context, *emptypb.Empty) (*GetCaddyConfigResponse, error)
+	// GetUpstreams retrieves the status of Caddy upstreams.
+	GetUpstreams(context.Context, *emptypb.Empty) (*GetCaddyUpstreamsResponse, error)
 	mustEmbedUnimplementedCaddyServer()
 }
 
@@ -67,6 +82,9 @@ type UnimplementedCaddyServer struct{}
 
 func (UnimplementedCaddyServer) GetConfig(context.Context, *emptypb.Empty) (*GetCaddyConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
+}
+func (UnimplementedCaddyServer) GetUpstreams(context.Context, *emptypb.Empty) (*GetCaddyUpstreamsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUpstreams not implemented")
 }
 func (UnimplementedCaddyServer) mustEmbedUnimplementedCaddyServer() {}
 func (UnimplementedCaddyServer) testEmbeddedByValue()               {}
@@ -107,6 +125,24 @@ func _Caddy_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Caddy_GetUpstreams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CaddyServer).GetUpstreams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Caddy_GetUpstreams_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CaddyServer).GetUpstreams(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Caddy_ServiceDesc is the grpc.ServiceDesc for Caddy service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -117,6 +153,10 @@ var Caddy_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetConfig",
 			Handler:    _Caddy_GetConfig_Handler,
+		},
+		{
+			MethodName: "GetUpstreams",
+			Handler:    _Caddy_GetUpstreams_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -10,6 +10,9 @@ import "google/protobuf/timestamp.proto";
 service Caddy {
   // GetConfig retrieves the current Caddy configuration from the machine.
   rpc GetConfig(google.protobuf.Empty) returns (GetCaddyConfigResponse);
+
+  // GetUpstreams retrieves the status of Caddy upstreams.
+  rpc GetUpstreams(google.protobuf.Empty) returns (GetCaddyUpstreamsResponse);
 }
 
 message GetCaddyConfigResponse {
@@ -17,4 +20,20 @@ message GetCaddyConfigResponse {
   string caddyfile = 1;
   // Timestamp when the config was last modified.
   google.protobuf.Timestamp modified_at = 2;
+}
+
+message GetCaddyUpstreamsResponse {
+  repeated HostUpstreams hosts = 1;
+}
+
+message HostUpstreams {
+  string host = 1;
+  repeated Upstream upstreams = 2;
+}
+
+message Upstream {
+  string address = 1;
+  string status = 2;
+  int64 fails = 3;
+  int64 num_requests = 4;
 }
