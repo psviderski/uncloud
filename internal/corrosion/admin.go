@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/netip"
 	"time"
@@ -255,4 +256,98 @@ func (c *AdminClient) ClusterMembershipStates(latest bool) ([]ClusterMembershipS
 		}
 	}
 	return states, parseErr
+}
+
+type MemberRTTStats struct {
+	Addr    netip.AddrPort
+	Average float64
+	StdDev  float64
+}
+
+// ClusterMemberRTTs returns the average and standard deviation of round-trip times to each cluster member.
+func (c *AdminClient) ClusterMemberRTTs() ([]MemberRTTStats, error) {
+	respCh, err := c.SendCommand([]byte("{\"Cluster\":\"Members\"}"))
+	if err != nil {
+		return nil, err
+	}
+
+	var stats []MemberRTTStats
+	var parseErr error
+
+	for r := range respCh {
+		if r.Err != nil {
+			return nil, r.Err
+		}
+
+		addr, rtts, err := parseClusterMemberRTT(r.JSON)
+		if err != nil {
+			parseErr = errors.Join(parseErr, err)
+			continue
+		}
+
+		if len(rtts) == 0 {
+			continue
+		}
+
+		var sum float64
+		for _, rtt := range rtts {
+			sum += rtt
+		}
+		avg := sum / float64(len(rtts))
+
+		var varianceSum float64
+		for _, rtt := range rtts {
+			diff := rtt - avg
+			varianceSum += diff * diff
+		}
+		stdDev := math.Sqrt(varianceSum / float64(len(rtts)))
+
+		stats = append(stats, MemberRTTStats{
+			Addr:    addr,
+			Average: avg,
+			StdDev:  stdDev,
+		})
+	}
+
+	return stats, parseErr
+}
+
+func parseClusterMemberRTT(json map[string]any) (netip.AddrPort, []float64, error) {
+	var addr netip.AddrPort
+	var rtts []float64
+	var err error
+
+	// Parse state to get Addr
+	stateObj, ok := json["state"].(map[string]any)
+	if !ok {
+		return addr, nil, fmt.Errorf("missing or invalid 'state' field")
+	}
+
+	if addrStr, ok := stateObj["addr"].(string); ok {
+		addr, err = netip.ParseAddrPort(addrStr)
+		if err != nil {
+			return addr, nil, fmt.Errorf("parse 'addr' field: %w", err)
+		}
+	} else {
+		return addr, nil, fmt.Errorf("missing or invalid 'addr' field in 'state'")
+	}
+
+	// Parse RTTs
+	if rttsVal, ok := json["rtts"]; ok {
+		if rttsSlice, ok := rttsVal.([]any); ok {
+			for _, v := range rttsSlice {
+				if f, ok := v.(float64); ok {
+					rtts = append(rtts, f)
+				} else {
+					return addr, nil, fmt.Errorf("invalid rtt value type: %T", v)
+				}
+			}
+		} else {
+			return addr, nil, fmt.Errorf("invalid 'rtts' field type: %T", rttsVal)
+		}
+	} else {
+		return addr, nil, fmt.Errorf("missing 'rtts' field")
+	}
+
+	return addr, rtts, nil
 }

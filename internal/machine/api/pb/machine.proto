@@ -78,6 +78,8 @@ message MachineDetails {
   MachineInfo machine = 2;
   // Current Corrosion cr-sqlite database version (Lamport timestamp) of the cluster store.
   int64 store_db_version = 3;
+  // Round-trip times to other machines in the cluster, keyed by peer machine ID.
+  map<string, RTTStats> rtts = 4;
 }
 
 message TokenResponse {
@@ -123,4 +125,9 @@ message WireGuardPeer {
   int64 receive_bytes = 4;
   int64 transmit_bytes = 5;
   repeated string allowed_ips = 6;
+}
+
+message RTTStats {
+  double average = 1;
+  double std_dev = 2;
 }
