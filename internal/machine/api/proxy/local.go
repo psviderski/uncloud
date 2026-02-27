@@ -10,9 +10,8 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// LocalBackend is a proxy.One2ManyResponder implementation that proxies to a local gRPC server listening on a Unix socket.
+// LocalBackend is a proxy.Backend implementation that proxies to a local gRPC server listening on a Unix socket.
 type LocalBackend struct {
-	One2ManyResponder
 	sockPath string
 
 	mu   sync.RWMutex
@@ -21,20 +20,15 @@ type LocalBackend struct {
 
 var _ proxy.Backend = (*LocalBackend)(nil)
 
-// NewLocalBackend returns a new LocalBackend for the given Unix socket path. The addr parameter is the local address
-// of the current machine which could be empty if it's not known. The address is used to populate response metadata
-// in one2many mode.
-func NewLocalBackend(sockPath, addr string) *LocalBackend {
+// NewLocalBackend returns a new LocalBackend for the given Unix socket path.
+func NewLocalBackend(sockPath string) *LocalBackend {
 	return &LocalBackend{
-		One2ManyResponder: One2ManyResponder{
-			machine: addr,
-		},
 		sockPath: sockPath,
 	}
 }
 
 func (b *LocalBackend) String() string {
-	return b.machine
+	return "unix://" + b.sockPath
 }
 
 // GetConnection returns a gRPC connection to the local server listening on the Unix socket.
@@ -62,6 +56,16 @@ func (b *LocalBackend) GetConnection(ctx context.Context, _ string) (context.Con
 	)
 
 	return outCtx, b.conn, err
+}
+
+// AppendInfo is a no-op for LocalBackend as it does not inject metadata.
+func (b *LocalBackend) AppendInfo(streaming bool, resp []byte) ([]byte, error) {
+	return resp, nil
+}
+
+// BuildError is a no-op for LocalBackend.
+func (b *LocalBackend) BuildError(streaming bool, err error) ([]byte, error) {
+	return nil, err
 }
 
 // Close closes the upstream gRPC connection.

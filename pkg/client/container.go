@@ -45,7 +45,7 @@ func (cli *Client) CreateContainer(
 	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
 
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = proxyToMachine(ctx, machine.Machine)
+	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := fmt.Sprintf("Container %s on %s", containerName, machine.Machine.Name)
@@ -234,27 +234,47 @@ func (cli *Client) InspectContainer(
 	return api.MachineServiceContainer{}, api.ErrNotFound
 }
 
-// StartContainer starts the specified container within the service.
-func (cli *Client) StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error {
+// containerOperationContext holds the context needed to perform an operation on a container.
+type containerOperationContext struct {
+	ctx         context.Context
+	containerID string
+	eventID     string
+}
+
+// resolveContainerOperation resolves a container by name/ID and prepares the context for an operation.
+func (cli *Client) resolveContainerOperation(
+	ctx context.Context, serviceNameOrID, containerNameOrID string,
+) (containerOperationContext, error) {
 	ctr, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
 	if err != nil {
-		return err
+		return containerOperationContext{}, err
 	}
 
 	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
 	if err != nil {
-		return fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
+		return containerOperationContext{}, fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
 	}
-	ctx = proxyToMachine(ctx, machine.Machine)
 
-	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
+	return containerOperationContext{
+		ctx:         cli.ProxyMachineContext(ctx, machine.Machine.Id),
+		containerID: ctr.Container.ID,
+		eventID:     fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name),
+	}, nil
+}
 
-	pw.Event(progress.StartingEvent(eventID))
-	if err = cli.Docker.StartContainer(ctx, ctr.Container.ID, container.StartOptions{}); err != nil {
+// StartContainer starts the specified container within the service.
+func (cli *Client) StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error {
+	op, err := cli.resolveContainerOperation(ctx, serviceNameOrID, containerNameOrID)
+	if err != nil {
 		return err
 	}
-	pw.Event(progress.StartedEvent(eventID))
+
+	pw := progress.ContextWriter(op.ctx)
+	pw.Event(progress.StartingEvent(op.eventID))
+	if err = cli.Docker.StartContainer(op.ctx, op.containerID, container.StartOptions{}); err != nil {
+		return err
+	}
+	pw.Event(progress.StartedEvent(op.eventID))
 
 	return nil
 }
@@ -263,25 +283,17 @@ func (cli *Client) StartContainer(ctx context.Context, serviceNameOrID, containe
 func (cli *Client) StopContainer(
 	ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions,
 ) error {
-	ctr, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
+	op, err := cli.resolveContainerOperation(ctx, serviceNameOrID, containerNameOrID)
 	if err != nil {
 		return err
 	}
 
-	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
-	if err != nil {
-		return fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
-	}
-	ctx = proxyToMachine(ctx, machine.Machine)
-
-	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
-
-	pw.Event(progress.StoppingEvent(eventID))
-	if err = cli.Docker.StopContainer(ctx, ctr.Container.ID, opts); err != nil {
+	pw := progress.ContextWriter(op.ctx)
+	pw.Event(progress.StoppingEvent(op.eventID))
+	if err = cli.Docker.StopContainer(op.ctx, op.containerID, opts); err != nil {
 		return err
 	}
-	pw.Event(progress.StoppedEvent(eventID))
+	pw.Event(progress.StoppedEvent(op.eventID))
 
 	return nil
 }
@@ -290,25 +302,17 @@ func (cli *Client) StopContainer(
 func (cli *Client) RemoveContainer(
 	ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions,
 ) error {
-	ctr, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
+	op, err := cli.resolveContainerOperation(ctx, serviceNameOrID, containerNameOrID)
 	if err != nil {
 		return err
 	}
 
-	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
-	if err != nil {
-		return fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
-	}
-	ctx = proxyToMachine(ctx, machine.Machine)
-
-	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
-
-	pw.Event(progress.RemovingEvent(eventID))
-	if err = cli.Docker.RemoveServiceContainer(ctx, ctr.Container.ID, opts); err != nil {
+	pw := progress.ContextWriter(op.ctx)
+	pw.Event(progress.RemovingEvent(op.eventID))
+	if err = cli.Docker.RemoveServiceContainer(op.ctx, op.containerID, opts); err != nil {
 		return err
 	}
-	pw.Event(progress.RemovedEvent(eventID))
+	pw.Event(progress.RemovedEvent(op.eventID))
 
 	return nil
 }
@@ -345,7 +349,7 @@ func (cli *Client) ExecContainer(
 	}
 
 	// Proxy Docker gRPC requests to the machine hosting the container
-	ctx = proxyToMachine(ctx, machine.Machine)
+	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
 
 	// Execute the command in the container
 	exitCode, err := cli.Docker.ExecContainer(ctx, machinedocker.ExecConfig{

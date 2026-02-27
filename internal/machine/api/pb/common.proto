@@ -11,11 +11,15 @@ import "google/rpc/status.proto";
 // about the machine that responded to the request.
 message Metadata {
   // Address of the machine the response came from.
-  string machine = 1;
+  string machine_addr = 1;
   // error is set if the request to upstream failed. The rest of the response is undefined.
   string error = 2;
   // error as a gRPC Status message.
   google.rpc.Status status = 3;
+  // ID of the machine the response came from.
+  string machine_id = 4;
+  // Name of the machine the response came from.
+  string machine_name = 5;
 }
 
 // A helper message for marshalling the metadata field and injecting it into the response by the gRPC proxy.

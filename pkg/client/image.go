@@ -49,10 +49,7 @@ func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.Mac
 // it lists images on all machines.
 func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]api.MachineImages, error) {
 	// Broadcast the image list request to the specified machines or all machines if none specified.
-	listCtx, machines, err := cli.ProxyMachinesContext(ctx, filter.Machines)
-	if err != nil {
-		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
-	}
+	listCtx := cli.ProxyMachinesContext(ctx, filter.Machines)
 
 	opts := image.ListOptions{Manifests: true}
 	if filter.Name != "" {
@@ -71,32 +68,31 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 		return nil, err
 	}
 
-	machineImages := make([]api.MachineImages, len(resp.Messages))
-	for i, msg := range resp.Messages {
-		machineImages[i].Metadata = msg.Metadata
-		// TODO: handle this in the grpc-proxy router and always provide Metadata if possible.
+	machineImages := make([]api.MachineImages, 0, len(resp.Messages))
+
+	for _, msg := range resp.Messages {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
 		if msg.Metadata == nil {
-			// Metadata can be nil if the request was broadcasted to only one machine.
-			machineImages[i].Metadata = &pb.Metadata{
-				Machine: machines[0].Machine.Id,
-			}
-		} else {
-			// Replace management IP with machine ID for friendlier error messages.
-			// TODO: migrate Metadata.Machine to use machine ID instead of IP in the grpc-proxy router.
-			if m := machines.FindByManagementIP(msg.Metadata.Machine); m != nil {
-				machineImages[i].Metadata.Machine = m.Machine.Id
-			}
-			if msg.Metadata.Error != "" {
-				continue
-			}
+			continue
+		}
+
+		if msg.Metadata.Error != "" {
+			// TODO: any reason to not return these and let the caller decide what to do?
+			continue
+		}
+
+		mi := api.MachineImages{
+			Metadata:        msg.Metadata,
+			ContainerdStore: msg.ContainerdStore,
 		}
 
 		if len(msg.Images) > 0 {
-			if err = json.Unmarshal(msg.Images, &machineImages[i].Images); err != nil {
+			if err = json.Unmarshal(msg.Images, &mi.Images); err != nil {
 				return nil, fmt.Errorf("unmarshal images: %w", err)
 			}
 		}
-		machineImages[i].ContainerdStore = msg.ContainerdStore
+
+		machineImages = append(machineImages, mi)
 	}
 
 	return machineImages, nil

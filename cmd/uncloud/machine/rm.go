@@ -54,15 +54,16 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	}
 	defer client.Close()
 
-	// Verify the machine exists and list all service containers on it including stopped ones.
-	mctx, machines, err := client.ProxyMachinesContext(ctx, []string{nameOrID})
+	// Verify the machine exists
+	member, err := client.InspectMachine(ctx, nameOrID)
 	if err != nil {
-		return err
-	}
-	if len(machines) == 0 {
 		return fmt.Errorf("machine '%s' not found in the cluster", nameOrID)
 	}
-	m := machines[0].Machine
+	m := member.Machine
+
+	// Create a proxy context for the machine being removed.
+	// This is used for calls that need to run directly on that machine.
+	rmCtx := client.ProxyMachineContext(ctx, m.Id)
 
 	// Verify if the machine being removed is the proxy machine we're connected to.
 	proxyMachine, err := client.MachineClient.Inspect(ctx, nil)
@@ -91,7 +92,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	if reset {
 		// Check if the machine is up and has service containers.
 		listOpts := container.ListOptions{All: true}
-		machineContainers, err := client.Docker.ListServiceContainers(mctx, "", listOpts)
+		machineContainers, err := client.Docker.ListServiceContainers(rmCtx, "", listOpts)
 		if err == nil {
 			reachable = true
 			containers = machineContainers[0].Containers
@@ -144,7 +145,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
 
 	if reset && reachable {
-		_, err = client.MachineClient.Reset(mctx, &pb.ResetRequest{})
+		_, err = client.MachineClient.Reset(rmCtx, &pb.ResetRequest{})
 		if err != nil {
 			fmt.Printf("WARNING: Failed to reset machine: %v\n", err)
 		} else {
