@@ -3,7 +3,10 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/netip"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +42,19 @@ func (c *Container) CreatedTime() time.Time {
 		c.created = created
 	}
 	return c.created
+}
+
+// HasHealthcheck returns true if the container has a health check configured.
+func (c *Container) HasHealthcheck() bool {
+	hc := c.Config.Healthcheck
+	if hc == nil {
+		return false
+	}
+
+	if len(hc.Test) > 0 && hc.Test[0] == "NONE" {
+		return false
+	}
+	return true
 }
 
 // Healthy determines if the container is running and healthy.
@@ -243,4 +259,61 @@ func (c *ServiceContainer) UnmarshalJSON(data []byte) error {
 	c.ServiceSpec = temp.ServiceSpec
 
 	return nil
+}
+
+// DefaultHealthMonitorPeriod is the default duration to wait before checking that the container is still running
+// and not restarting. Can be overridden with the UNCLOUD_DEFAULT_HEALTH_MONITOR_PERIOD_MS environment variable.
+var DefaultHealthMonitorPeriod = defaultHealthMonitorPeriod()
+
+func defaultHealthMonitorPeriod() time.Duration {
+	if v, ok := os.LookupEnv("UNCLOUD_DEFAULT_HEALTH_MONITOR_PERIOD_MS"); ok {
+		if ms, err := strconv.Atoi(v); err == nil {
+			return time.Duration(ms) * time.Millisecond
+		}
+	}
+
+	return 5 * time.Second
+}
+
+// WaitContainerHealthyOptions configures the behaviour of WaitContainerHealthy.
+type WaitContainerHealthyOptions struct {
+	// MonitorPeriod is how long to wait before checking that the container is still running and not restarting.
+	// Containers with a health check that become healthy before the period ends succeed early.
+	// nil means use the default DefaultHealthMonitorPeriod.
+	// Zero skips the monitoring and checks the container's health immediately after starting.
+	MonitorPeriod *time.Duration
+}
+
+// ExecOptions contains configuration for executing a command in a container.
+type ExecOptions struct {
+	// Command is the command to run in the container.
+	Command []string
+	// AttachStdin attaches the stdin stream to the exec session.
+	AttachStdin bool
+	// AttachStdout attaches the stdout stream to the exec session.
+	AttachStdout bool
+	// AttachStderr attaches the stderr stream to the exec session.
+	AttachStderr bool
+	// Tty allocates a pseudo-TTY for the exec session.
+	Tty bool
+	// Detach runs the command in the background without attaching to streams.
+	Detach bool
+
+	//// Not yet implemented fields
+	// User specifies the user to run the command as.
+	User string
+	// Privileged runs the command in privileged mode.
+	Privileged bool
+	// WorkingDir sets the working directory for the command.
+	WorkingDir string
+	// Env sets environment variables for the command.
+	Env []string
+
+	// Client-side only fields (not serialized, not sent to server)
+	// Stdin is the input stream. Defaults to os.Stdin if nil.
+	Stdin io.Reader `json:"-"`
+	// Stdout is the output stream. Defaults to os.Stdout if nil.
+	Stdout io.Writer `json:"-"`
+	// Stderr is the error stream. Defaults to os.Stderr if nil.
+	Stderr io.Writer `json:"-"`
 }

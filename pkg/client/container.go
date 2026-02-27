@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
@@ -16,6 +17,9 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/status"
 )
+
+// TODO: format container and machine IDs in 'Container %s on %s' events as bold.
+//  Consider formatting containers as <service_name>/<short-container-id>.
 
 // CreateContainer creates a new container for the given service on the specified machine.
 func (cli *Client) CreateContainer(
@@ -353,4 +357,151 @@ func (cli *Client) ExecContainer(
 	}
 
 	return exitCode, nil
+}
+
+// WaitContainerHealthy polls the container until it is considered running and healthy.
+//
+// For containers without a health check, it waits for the monitor period and then verifies the container
+// is still running and not restarting.
+//
+// For containers with a health check, it waits until Docker reports healthy or unhealthy. During the monitor period,
+// unhealthy status is treated as retryable (the container may be recovering from a transient crash).
+// After the monitor period, unhealthy becomes a permanent failure.
+func (cli *Client) WaitContainerHealthy(
+	ctx context.Context, serviceNameOrID, containerNameOrID string, opts api.WaitContainerHealthyOptions,
+) error {
+	// First inspect to get container info, machine name, and health check config.
+	mc, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
+	if err != nil {
+		return fmt.Errorf("inspect container: %w", err)
+	}
+
+	machine, err := cli.InspectMachine(ctx, mc.MachineID)
+	if err != nil {
+		return fmt.Errorf("inspect machine '%s': %w", mc.MachineID, err)
+	}
+
+	pw := progress.ContextWriter(ctx)
+	eventID := fmt.Sprintf("Container %s on %s", mc.Container.Name, machine.Machine.Name)
+
+	var monitor time.Duration
+	if opts.MonitorPeriod == nil {
+		monitor = api.DefaultHealthMonitorPeriod
+	} else {
+		monitor = *opts.MonitorPeriod
+	}
+	pw.Event(progress.NewEvent(eventID, progress.Working, fmt.Sprintf("Monitoring (%s)", monitor)))
+
+	// For containers without a health check, just wait for the monitor period and then check the container
+	// is still running and not restarting.
+	if !mc.Container.HasHealthcheck() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(monitor):
+		}
+
+		mc, err := cli.InspectContainer(ctx, serviceNameOrID, containerNameOrID)
+		if err != nil {
+			return fmt.Errorf("inspect container: %w", err)
+		}
+
+		if mc.Container.Healthy() {
+			pw.Event(progress.RunningEvent(eventID))
+			return nil
+		}
+
+		humanState, _ := mc.Container.HumanState()
+		pw.Event(progress.ErrorMessageEvent(eventID, fmt.Sprintf("Unhealthy (%s)", humanState)))
+
+		if mc.Container.State.Restarting {
+			return fmt.Errorf("container is restarting after monitor period (%s): exit_code=%d",
+				monitor, mc.Container.State.ExitCode)
+		}
+		return fmt.Errorf("container is unhealthy after monitor period (%s): %s", monitor, humanState)
+	}
+
+	// For containers with a health check, wait until Docker reports healthy or unhealthy.
+	mctx := proxyToMachine(ctx, machine.Machine)
+	mctx, cancel := context.WithTimeout(mctx, healthcheckTimeout(mc.Container.Config.Healthcheck))
+	defer cancel()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	monitorDeadline := time.Now().Add(monitor)
+
+	for {
+		select {
+		case <-mctx.Done():
+			return mctx.Err()
+		case <-ticker.C:
+			ctr, err := cli.Docker.InspectServiceContainer(mctx, mc.Container.ID)
+			if err != nil {
+				pw.Event(progress.NewEvent(eventID, progress.Working,
+					fmt.Sprintf("Health checking (failed to inspect container: %v)", err)))
+				continue
+			}
+
+			// Reset the event status if previous inspect failed.
+			eventStatus := fmt.Sprintf("Monitoring (%s)", monitor)
+			if time.Now().After(monitorDeadline) {
+				// TODO: provide more details about running checks or waiting so the user can see what's going on.
+				eventStatus = "Health checking"
+			}
+			pw.Event(progress.NewEvent(eventID, progress.Working, eventStatus))
+
+			if ctr.Healthy() {
+				pw.Event(progress.Healthy(eventID))
+				return nil
+			}
+			if time.Now().Before(monitorDeadline) {
+				continue
+			}
+
+			if ctr.State.Health.Status == container.Unhealthy {
+				humanState, _ := ctr.HumanState()
+				pw.Event(progress.ErrorMessageEvent(eventID, fmt.Sprintf("Unhealthy (%s)", humanState)))
+
+				if ctr.State.Restarting {
+					return fmt.Errorf("container is restarting after monitor period (%s): exit_code=%d",
+						monitor, ctr.State.ExitCode)
+				}
+				return fmt.Errorf("container is unhealthy after monitor period (%s): %s", monitor, humanState)
+			}
+		}
+	}
+}
+
+const (
+	// defaultDockerHealthcheckInterval is the default Docker interval between health check runs.
+	defaultDockerHealthcheckInterval = 30 * time.Second
+	// defaultDockerHealthcheckTimeout is the default Docker timeout for each health check run.
+	defaultDockerHealthcheckTimeout = 30 * time.Second
+	// defaultDockerHealthcheckRetries is the default Docker number of consecutive failures needed
+	// to consider the container unhealthy.
+	defaultDockerHealthcheckRetries = 3
+)
+
+// healthcheckTimeout computes the maximum time to wait for a container to become healthy based on
+// its health check config. This is the worst case timeout to stop polling in case something goes wrong and Docker
+// doesn't report the container as unhealthy after it should.
+func healthcheckTimeout(hc *container.HealthConfig) time.Duration {
+	if hc == nil {
+		return 0
+	}
+
+	interval := hc.Interval
+	if interval <= 0 {
+		interval = defaultDockerHealthcheckInterval
+	}
+	timeout := hc.Timeout
+	if timeout <= 0 {
+		timeout = defaultDockerHealthcheckTimeout
+	}
+	retries := hc.Retries
+	if retries <= 0 {
+		retries = defaultDockerHealthcheckRetries
+	}
+
+	// 5s is a buffer to account for scheduling delays.
+	return hc.StartPeriod + time.Duration(retries)*(interval+timeout) + 5*time.Second
 }
