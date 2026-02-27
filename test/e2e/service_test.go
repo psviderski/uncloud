@@ -56,10 +56,15 @@ func TestDeployment(t *testing.T) {
 			require.ErrorIs(t, err, api.ErrNotFound)
 		})
 
+		// Explicit short period as the default 5s is disabled in tests for faster test execution.
+		monitorPeriod := 1 * time.Second
 		spec := api.ServiceSpec{
 			Mode: api.ServiceModeGlobal,
 			Container: api.ContainerSpec{
 				Image: "portainer/pause:latest",
+			},
+			UpdateConfig: api.UpdateConfig{
+				MonitorPeriod: &monitorPeriod,
 			},
 		}
 		deployment := cli.NewDeployment(spec, nil)
@@ -73,7 +78,9 @@ func TestDeployment(t *testing.T) {
 		assert.NotEmpty(t, plan.ServiceName)
 		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 run
 
+		start := time.Now()
 		runPlan, err := deployment.Run(ctx)
+		duration := time.Since(start)
 		require.NoError(t, err)
 		assert.Equal(t, plan, runPlan)
 
@@ -87,6 +94,13 @@ func TestDeployment(t *testing.T) {
 		assert.Len(t, svc.Containers, 3)
 		machines := serviceMachines(svc)
 		assert.Len(t, machines.ToSlice(), 3, "Expected 1 container on each machine")
+
+		for _, ctr := range svc.Containers {
+			assert.True(t, ctr.Container.Healthy(), "Expected deployed containers to be healthy")
+		}
+		assert.True(t, duration >= 3*monitorPeriod,
+			"Expected deployment to wait for at least the health monitor period for each container "+
+				"before checking health")
 
 		// Deploy a published port.
 		initialContainers := serviceContainerIDs(svc)
@@ -105,6 +119,9 @@ func TestDeployment(t *testing.T) {
 					Mode:          api.PortModeHost,
 				},
 			},
+			UpdateConfig: api.UpdateConfig{
+				MonitorPeriod: &monitorPeriod,
+			},
 		}
 		deployment = cli.NewDeployment(specWithPort, nil)
 
@@ -112,7 +129,9 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, plan.SequenceOperation.Operations, 3) // 3 replace
 
+		start = time.Now()
 		_, err = deployment.Run(ctx)
+		duration = time.Since(start)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -125,6 +144,13 @@ func TestDeployment(t *testing.T) {
 		containers := serviceContainerIDs(svc)
 		assert.Empty(t, initialContainers.Intersect(containers).ToSlice(),
 			"All existing containers should be replaced")
+
+		for _, ctr := range svc.Containers {
+			assert.True(t, ctr.Container.Healthy(), "Expected redeployed containers to be healthy")
+		}
+		assert.True(t, duration >= 3*monitorPeriod,
+			"Expected deployment to wait for at least the health monitor period for each container "+
+				"before checking health")
 
 		// Deploy the same conflicting port but with container spec changes
 		initialContainers = containers
@@ -500,6 +526,8 @@ myapp.example.com {
 		})
 
 		// 1. Create a basic replicated service with 2 replicas.
+		// Explicit short period as the default 5s is disabled in tests for faster test execution.
+		monitorPeriod := 1 * time.Second
 		spec := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeReplicated,
@@ -507,6 +535,9 @@ myapp.example.com {
 				Image: "portainer/pause:latest",
 			},
 			Replicas: 2,
+			UpdateConfig: api.UpdateConfig{
+				MonitorPeriod: &monitorPeriod,
+			},
 		}
 		deployment := cli.NewDeployment(spec, nil)
 
@@ -519,7 +550,9 @@ myapp.example.com {
 		assert.Equal(t, name, plan.ServiceName)
 		assert.Len(t, plan.SequenceOperation.Operations, 2) // 2 run operations for 2 replicas
 
+		start := time.Now()
 		runPlan, err := deployment.Run(ctx)
+		duration := time.Since(start)
 		require.NoError(t, err)
 		assert.Equal(t, plan, runPlan)
 
@@ -533,6 +566,13 @@ myapp.example.com {
 		assert.Len(t, initialMachines.ToSlice(), 2, "Expected 2 containers on 2 different machines")
 		initialContainers := serviceContainerIDs(svc)
 
+		for _, ctr := range svc.Containers {
+			assert.True(t, ctr.Container.Healthy(), "Expected deployed containers to be healthy")
+		}
+		assert.True(t, duration >= 2*monitorPeriod,
+			"Expected deployment to wait for at least the health monitor period for each container "+
+				"before checking health")
+
 		// 2. Update the service with a new configuration.
 		init := true
 		updatedSpec := spec
@@ -543,7 +583,9 @@ myapp.example.com {
 		require.NoError(t, err)
 		assert.Len(t, plan.Operations, 2, "Expected 2 replace operations")
 
+		start = time.Now()
 		_, err = deployment.Run(ctx)
+		duration = time.Since(start)
 		require.NoError(t, err)
 
 		svc, err = cli.InspectService(ctx, name)
@@ -557,6 +599,13 @@ myapp.example.com {
 		containers := serviceContainerIDs(svc)
 		assert.Empty(t, initialContainers.Intersect(containers).ToSlice(),
 			"All existing containers should be replaced")
+
+		for _, ctr := range svc.Containers {
+			assert.True(t, ctr.Container.Healthy(), "Expected deployed containers to be healthy")
+		}
+		assert.True(t, duration >= 2*monitorPeriod,
+			"Expected deployment to wait for at least the health monitor period for each container "+
+				"before checking health")
 
 		// 3. Scale to 3 replicas.
 		initialMachines = machines
@@ -1213,6 +1262,9 @@ myapp.example.com {
 			Container: api.ContainerSpec{
 				Image: uniqueImage,
 			},
+			Placement: api.Placement{
+				Machines: []string{c.Machines[0].Name, c.Machines[1].Name},
+			},
 			Replicas: 2,
 		}
 
@@ -1262,6 +1314,168 @@ myapp.example.com {
 			assert.True(t, hasImage, "Machine %s with container should have image %s",
 				mi.Metadata.Machine, uniqueImage)
 		}
+	})
+
+	t.Run("healthcheck becomes healthy", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-health-ok"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		monitorPeriod := 60 * time.Second
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image:   "busybox:1.37.0-musl",
+				Command: []string{"sh", "-c", "sleep 3600"},
+				Healthcheck: &api.HealthcheckSpec{
+					Test:     []string{"CMD-SHELL", "exit 0"},
+					Interval: 1 * time.Second,
+					Retries:  2,
+				},
+			},
+			UpdateConfig: api.UpdateConfig{
+				MonitorPeriod: &monitorPeriod,
+			},
+		}
+		deployment := cli.NewDeployment(spec, nil)
+
+		start := time.Now()
+		_, err := deployment.Run(ctx)
+		duration := time.Since(start)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		assertServiceMatchesSpec(t, svc, spec)
+
+		assert.True(t, svc.Containers[0].Container.Healthy())
+		assert.True(t, duration >= 1*time.Second,
+			"Deployment should wait for at least one health check interval before marking container as healthy")
+		assert.True(t, duration < monitorPeriod,
+			"Deployment should mark container as healthy after first successful health check "+
+				"and not wait for the entire monitor period")
+	})
+
+	t.Run("healthcheck becomes unhealthy", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-health-fail"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		monitorPeriod := 1 * time.Second
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image:   "busybox:1.37.0-musl",
+				Command: []string{"sh", "-c", "sleep 3600"},
+				Healthcheck: &api.HealthcheckSpec{
+					Test:     []string{"CMD-SHELL", "exit 1"},
+					Interval: 1 * time.Second,
+					Retries:  2,
+				},
+			},
+			UpdateConfig: api.UpdateConfig{
+				MonitorPeriod: &monitorPeriod,
+			},
+		}
+		deployment := cli.NewDeployment(spec, nil)
+
+		start := time.Now()
+		_, err := deployment.Run(ctx)
+		duration := time.Since(start)
+		require.Error(t, err)
+
+		assert.ErrorContains(t, err, "unhealthy")
+		assert.True(t, duration >= monitorPeriod,
+			"Deployment should wait for at least the monitor period before checking health status")
+	})
+
+	t.Run("container crashes on startup with healthcheck", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-crash-startup-healthcheck"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		monitorPeriod := 1 * time.Second
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image:   "busybox:1.37.0-musl",
+				Command: []string{"false"},
+				Healthcheck: &api.HealthcheckSpec{
+					Test:     []string{"CMD-SHELL", "exit 0"},
+					Interval: 1 * time.Second,
+					Retries:  2,
+				},
+			},
+			UpdateConfig: api.UpdateConfig{
+				MonitorPeriod: &monitorPeriod,
+			},
+		}
+		deployment := cli.NewDeployment(spec, nil)
+
+		start := time.Now()
+		_, err := deployment.Run(ctx)
+		duration := time.Since(start)
+		require.Error(t, err)
+
+		assert.ErrorContains(t, err, "restarting")
+		assert.True(t, duration >= monitorPeriod,
+			"Deployment should wait for at least the monitor period before marking container as unhealthy")
+	})
+
+	t.Run("container crashes on startup without healthcheck", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-crash-startup-no-healthcheck"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, name)
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		monitorPeriod := 1 * time.Second
+		spec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image:   "busybox:1.37.0-musl",
+				Command: []string{"false"},
+			},
+			UpdateConfig: api.UpdateConfig{
+				MonitorPeriod: &monitorPeriod,
+			},
+		}
+		deployment := cli.NewDeployment(spec, nil)
+
+		start := time.Now()
+		_, err := deployment.Run(ctx)
+		duration := time.Since(start)
+		require.Error(t, err)
+
+		assert.ErrorContains(t, err, "restarting")
+		assert.True(t, duration >= monitorPeriod,
+			"Deployment should wait for at least the monitor period before marking container as unhealthy")
 	})
 
 	// TODO: test deployments with unreachable machines. See https://github.com/psviderski/uncloud/issues/29.

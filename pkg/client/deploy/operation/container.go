@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -24,7 +26,11 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 		return fmt.Errorf("start container: %w", err)
 	}
 
-	// TODO: wait for the container to become healthy
+	opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
+	if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
+		return fmt.Errorf("container '%s/%s' failed to become healthy: %w",
+			o.Spec.Name, stringid.TruncateID(resp.ID), err)
+	}
 
 	return nil
 }
@@ -111,14 +117,12 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 	stopFirst := o.Order == api.UpdateOrderStopFirst
 
 	if stopFirst {
+		// TODO: inspect and remember the current status of the old container.
 		if err := cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
 			return fmt.Errorf("stop old container: %w", err)
 		}
 	}
 
-	// TODO: Rollback support - if new container fails to start, stop new, collect logs, and restart old container (#24)
-	// TODO: When parallelism is added, rollback becomes more complex - need to track which containers
-	//       were stopped and restore them all on failure
 	resp, err := cli.CreateContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
 	if err != nil {
 		return fmt.Errorf("create container: %w", err)
@@ -127,11 +131,44 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		return fmt.Errorf("start container: %w", err)
 	}
 
-	// TODO: wait for the container to become healthy. If unhealthy, stop new container, collect logs, and start old.
+	opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
+	if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
+		// New container failed to become healthy. Stop it and roll back to the previous container.
+		// Don't remove the new stopped container to allow users to inspect logs and state.
+		// TODO: collect logs from the new container and include in the error message to speed up debugging.
+
+		// Use context without progress to not overwrite the container Unhealthy status with Stopped.
+		ctxWithoutProgress := progress.WithContextWriter(ctx, nil)
+		_ = cli.StopContainer(ctxWithoutProgress, o.ServiceID, resp.ID, container.StopOptions{})
+
+		newCtr := fmt.Sprintf("%s/%s", o.Spec.Name, stringid.TruncateID(resp.ID))
+		oldCtr := fmt.Sprintf("%s/%s", o.OldContainer.ServiceSpec.Name, o.OldContainer.ShortID())
+
+		if stopFirst {
+			// Restart the old container since we stopped it earlier.
+			// TODO: restart only if the old container was running before we stopped it to avoid starting the failed
+			//  or intentionally stopped container.
+			if rollbackErr := cli.StartContainer(ctx, o.ServiceID, o.OldContainer.ID); rollbackErr != nil {
+				return fmt.Errorf(
+					"new container '%s' failed to become healthy: %w; "+
+						"rolled back to previous container '%s' but failed to restart it: %w",
+					newCtr, rollbackErr, oldCtr, err,
+				)
+			}
+		}
+
+		return fmt.Errorf("new container '%s' failed to become healthy: %w. Rolled back to previous container '%s'. "+
+			"New container has been stopped and is available for inspection. Fetch logs with 'uc logs %s'",
+			newCtr, err, oldCtr, o.Spec.Name)
+	}
 
 	// For start-first, we need to stop before removing.
 	// For stop-first, the container is already stopped.
 	if !stopFirst {
+		// TODO: the new container is propagated to Caddy upstreams through the cluster store asynchronously.
+		//  There still might be a brief downtime (for a 1 replica service) when Caddy doesn't know about
+		//  the new container but we're stopping the old container. We should somehow ensure Caddy is updated
+		//  with the new container before we stop the old one to avoid this downtime.
 		if err := cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
 			return fmt.Errorf("stop old container: %w", err)
 		}

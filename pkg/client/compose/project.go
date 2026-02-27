@@ -6,13 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
+	"github.com/compose-spec/compose-go/v2/transform"
+	"github.com/compose-spec/compose-go/v2/tree"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/psviderski/uncloud/pkg/api"
 )
+
+var registerComposeOverrides sync.Once
 
 // LoadProject loads a Compose project from the default locations or the given paths.
 func LoadProject(ctx context.Context, paths []string, opts ...composecli.ProjectOptionsFn) (*types.Project, error) {
+	registerComposeOverrides.Do(func() {
+		transform.RegisterDefaultValue("services.*.deploy.update_config", setUpdateConfigDefaults)
+	})
+
 	defaultOpts := []composecli.ProjectOptionsFn{
 		// First apply os.Environment, always wins.
 		composecli.WithOsEnv,
@@ -91,4 +101,15 @@ func removeProjectPrefixFromNames(project *types.Project) {
 		vol.Name = strings.TrimPrefix(vol.Name, prefix)
 		project.Volumes[name] = vol
 	}
+}
+
+// setUpdateConfigDefaults sets default values for deploy.update_config attributes when not specified in the compose file.
+func setUpdateConfigDefaults(data any, _ tree.Path, _ bool) (any, error) {
+	switch v := data.(type) {
+	case map[string]any:
+		if _, ok := v["monitor"]; !ok {
+			v["monitor"] = api.DefaultHealthMonitorPeriod.String()
+		}
+	}
+	return data, nil
 }

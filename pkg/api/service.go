@@ -438,9 +438,14 @@ type LogDriver struct {
 // UpdateConfig configures how a service is updated during a deployment.
 type UpdateConfig struct {
 	// Order specifies the order of operations during an update.
-	// Valid values are "start-first" (default for stateless services) and "stop-first" (default for services with volumes).
-	// Empty value means the strategy will determine the order based on service characteristics.
+	// Valid values are "start-first" (default for stateless services) and "stop-first" (default for services with
+	// volumes). Empty value means the strategy will determine the order based on service characteristics.
 	Order string `json:",omitempty"`
+	// MonitorPeriod is how long to wait after starting a container before checking that it's still running
+	// and not restarting. Containers with a health check that become healthy before the period ends succeed early.
+	// nil means use the default api.DefaultHealthMonitorPeriod.
+	// Zero skips the monitoring and checks the container's health immediately after starting.
+	MonitorPeriod *time.Duration `json:",omitempty"`
 }
 
 type RunServiceResponse struct {

@@ -207,7 +207,8 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					},
 					Replicas: 3,
 					UpdateConfig: api.UpdateConfig{
-						Order: api.UpdateOrderStopFirst,
+						Order:         api.UpdateOrderStopFirst,
+						MonitorPeriod: &api.DefaultHealthMonitorPeriod,
 					},
 					Volumes: []api.VolumeSpec{
 						{
@@ -312,6 +313,8 @@ func TestServiceSpecFromCompose(t *testing.T) {
 }
 
 func TestServiceSpecFromCompose_Caddy(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -460,6 +463,8 @@ services:
 }
 
 func TestServiceSpecFromCompose_GPUs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		composeYAML        string
@@ -647,6 +652,8 @@ services:
 }
 
 func TestServiceSpecFromCompose_VolumeDriverOpts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		composeYAML    string
@@ -755,6 +762,8 @@ volumes:
 }
 
 func TestServiceSpecFromCompose_Ulimits(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -843,6 +852,8 @@ services:
 }
 
 func TestServiceSpecFromCompose_UpdateConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -859,6 +870,33 @@ services:
 			expected: api.UpdateConfig{},
 		},
 		{
+			name: "empty update_config",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config: {}
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
+			name: "update_config with unsupported attributes ignored",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        parallelism: 1
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
 			name: "update_config with stop-first order",
 			composeYAML: `
 services:
@@ -869,7 +907,8 @@ services:
         order: stop-first
 `,
 			expected: api.UpdateConfig{
-				Order: api.UpdateOrderStopFirst,
+				Order:         api.UpdateOrderStopFirst,
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
 			},
 		},
 		{
@@ -883,7 +922,8 @@ services:
         order: start-first
 `,
 			expected: api.UpdateConfig{
-				Order: api.UpdateOrderStartFirst,
+				Order:         api.UpdateOrderStartFirst,
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
 			},
 		},
 		{
@@ -899,18 +939,6 @@ services:
 			expectError: true,
 		},
 		{
-			name: "update_config with empty order",
-			composeYAML: `
-services:
-  test:
-    image: nginx
-    deploy:
-      update_config:
-        parallelism: 1
-`,
-			expected: api.UpdateConfig{},
-		},
-		{
 			name: "update_config with replicas and order",
 			composeYAML: `
 services:
@@ -922,7 +950,52 @@ services:
         order: stop-first
 `,
 			expected: api.UpdateConfig{
-				Order: api.UpdateOrderStopFirst,
+				Order:         api.UpdateOrderStopFirst,
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
+			name: "update_config with custom monitor",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        monitor: 10s
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: api.AsPtr(10 * time.Second),
+			},
+		},
+		{
+			name: "update_config with monitor and order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        order: start-first
+        monitor: 30s
+`,
+			expected: api.UpdateConfig{
+				Order:         api.UpdateOrderStartFirst,
+				MonitorPeriod: api.AsPtr(30 * time.Second),
+			},
+		},
+		{
+			name: "update_config with zero monitor skips monitoring",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        monitor: 0s
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: api.AsPtr(time.Duration(0)),
 			},
 		},
 	}
@@ -949,6 +1022,8 @@ services:
 }
 
 func TestServiceSpecFromCompose_XMachinesPlacement(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -1107,6 +1182,8 @@ services:
 }
 
 func TestServiceSpecFromCompose_Devices(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                 string
 		composeYAML          string
