@@ -262,11 +262,11 @@ func (c *ServiceContainer) UnmarshalJSON(data []byte) error {
 }
 
 // DefaultHealthMonitorPeriod is the default duration to wait before checking that the container is still running
-// and not restarting. Can be overridden with the UNCLOUD_DEFAULT_HEALTH_MONITOR_PERIOD_MS environment variable.
+// and not restarting. Can be overridden with the UNCLOUD_HEALTH_MONITOR_PERIOD_MS environment variable.
 var DefaultHealthMonitorPeriod = defaultHealthMonitorPeriod()
 
 func defaultHealthMonitorPeriod() time.Duration {
-	if v, ok := os.LookupEnv("UNCLOUD_DEFAULT_HEALTH_MONITOR_PERIOD_MS"); ok {
+	if v, ok := os.LookupEnv("UNCLOUD_HEALTH_MONITOR_PERIOD_MS"); ok {
 		if ms, err := strconv.Atoi(v); err == nil {
 			return time.Duration(ms) * time.Millisecond
 		}
