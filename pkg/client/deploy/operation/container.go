@@ -116,19 +116,27 @@ type ReplaceContainerOperation struct {
 func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) error {
 	stopFirst := o.Order == api.UpdateOrderStopFirst
 
+	wasRunning := false
 	if stopFirst {
-		// TODO: inspect and remember the current status of the old container.
-		if err := cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
-			return fmt.Errorf("stop old container: %w", err)
+		// Inspect the old container to remember its running state before stopping.
+		ctr, err := cli.InspectContainer(ctx, o.ServiceID, o.OldContainer.ID)
+		if err != nil {
+			return fmt.Errorf("inspect old container: %w", err)
+		}
+		wasRunning = ctr.Container.State.Running
+		if wasRunning {
+			if err = cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
+				return fmt.Errorf("stop old container: %w", err)
+			}
 		}
 	}
 
 	resp, err := cli.CreateContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
 	if err != nil {
-		return fmt.Errorf("create container: %w", err)
+		return fmt.Errorf("create new container: %w", err)
 	}
 	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
-		return fmt.Errorf("start container: %w", err)
+		return fmt.Errorf("start new container: %w", err)
 	}
 
 	opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
@@ -142,24 +150,23 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		_ = cli.StopContainer(ctxWithoutProgress, o.ServiceID, resp.ID, container.StopOptions{})
 
 		newCtr := fmt.Sprintf("%s/%s", o.Spec.Name, stringid.TruncateID(resp.ID))
-		oldCtr := fmt.Sprintf("%s/%s", o.OldContainer.ServiceSpec.Name, o.OldContainer.ShortID())
+		healthErr := fmt.Errorf(
+			"new container '%s' failed to become healthy: %w. "+
+				"It's stopped and available for inspection. Fetch logs with 'uc logs %s'",
+			newCtr, err, o.Spec.Name,
+		)
 
-		if stopFirst {
-			// Restart the old container since we stopped it earlier.
-			// TODO: restart only if the old container was running before we stopped it to avoid starting the failed
-			//  or intentionally stopped container.
+		if stopFirst && wasRunning {
+			// Restart the old container only if it was running before we stopped it.
+			oldCtr := fmt.Sprintf("%s/%s", o.OldContainer.ServiceSpec.Name, o.OldContainer.ShortID())
 			if rollbackErr := cli.StartContainer(ctx, o.ServiceID, o.OldContainer.ID); rollbackErr != nil {
-				return fmt.Errorf(
-					"new container '%s' failed to become healthy: %w; "+
-						"rolled back to previous container '%s' but failed to restart it: %w",
-					newCtr, rollbackErr, oldCtr, err,
-				)
+				return fmt.Errorf("%w. Rolled back to old container '%s' but failed to restart it: %w",
+					healthErr, oldCtr, rollbackErr)
 			}
+			return fmt.Errorf("%w. Rolled back to old container '%s'", healthErr, oldCtr)
 		}
 
-		return fmt.Errorf("new container '%s' failed to become healthy: %w. Rolled back to previous container '%s'. "+
-			"New container has been stopped and is available for inspection. Fetch logs with 'uc logs %s'",
-			newCtr, err, oldCtr, o.Spec.Name)
+		return healthErr
 	}
 
 	// For start-first, we need to stop before removing.
