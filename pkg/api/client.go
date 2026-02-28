@@ -44,6 +44,7 @@ type ImageClient interface {
 	RemoveImage(ctx context.Context, image string, opts image.RemoveOptions, machines []string) ([]MachineRemoveImageResponse, error)
 	PullImage(ctx context.Context, image string, opts image.PullOptions, machines []string) (<-chan MachinePullImageMessage, error)
 	PruneImages(ctx context.Context, filters filters.Args, machines []string) ([]MachinePruneImagesResponse, error)
+	TagImage(ctx context.Context, source, target string, machines []string) error
 }
 
 type MachineClient interface {

@@ -17,6 +17,7 @@ func NewRootCommand() *cobra.Command {
 		NewRemoveCommand(),
 		NewInspectCommand(),
 		NewPruneCommand(),
+		NewTagCommand(),
 	)
 
 	return cmd

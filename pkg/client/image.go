@@ -245,6 +245,20 @@ func (cli *Client) PruneImages(
 	return machineResponses, nil
 }
 
+// TagImage creates a tag for an image on the specified machines.
+func (cli *Client) TagImage(ctx context.Context, source, target string, machines []string) error {
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
+	if err != nil {
+		return fmt.Errorf("create request context to broadcast to machines: %w", err)
+	}
+
+	_, err = cli.Docker.GRPCClient.TagImage(listCtx, &pb.TagImageRequest{
+		Source: source,
+		Target: target,
+	})
+	return err
+}
+
 type PushImageOptions struct {
 	// AllMachines pushes the image to all machines in the cluster. Takes precedence over Machines field.
 	AllMachines bool

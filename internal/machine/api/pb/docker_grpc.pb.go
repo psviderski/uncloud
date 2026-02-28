@@ -34,6 +34,7 @@ const (
 	Docker_ListImages_FullMethodName              = "/api.Docker/ListImages"
 	Docker_RemoveImage_FullMethodName             = "/api.Docker/RemoveImage"
 	Docker_PruneImages_FullMethodName             = "/api.Docker/PruneImages"
+	Docker_TagImage_FullMethodName                = "/api.Docker/TagImage"
 	Docker_CreateVolume_FullMethodName            = "/api.Docker/CreateVolume"
 	Docker_ListVolumes_FullMethodName             = "/api.Docker/ListVolumes"
 	Docker_RemoveVolume_FullMethodName            = "/api.Docker/RemoveVolume"
@@ -63,6 +64,7 @@ type DockerClient interface {
 	ListImages(ctx context.Context, in *ListImagesRequest, opts ...grpc.CallOption) (*ListImagesResponse, error)
 	RemoveImage(ctx context.Context, in *RemoveImageRequest, opts ...grpc.CallOption) (*RemoveImageResponse, error)
 	PruneImages(ctx context.Context, in *PruneImagesRequest, opts ...grpc.CallOption) (*PruneImagesResponse, error)
+	TagImage(ctx context.Context, in *TagImageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*CreateVolumeResponse, error)
 	ListVolumes(ctx context.Context, in *ListVolumesRequest, opts ...grpc.CallOption) (*ListVolumesResponse, error)
 	RemoveVolume(ctx context.Context, in *RemoveVolumeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -241,6 +243,16 @@ func (c *dockerClient) PruneImages(ctx context.Context, in *PruneImagesRequest, 
 	return out, nil
 }
 
+func (c *dockerClient) TagImage(ctx context.Context, in *TagImageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Docker_TagImage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dockerClient) CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*CreateVolumeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateVolumeResponse)
@@ -331,6 +343,7 @@ type DockerServer interface {
 	ListImages(context.Context, *ListImagesRequest) (*ListImagesResponse, error)
 	RemoveImage(context.Context, *RemoveImageRequest) (*RemoveImageResponse, error)
 	PruneImages(context.Context, *PruneImagesRequest) (*PruneImagesResponse, error)
+	TagImage(context.Context, *TagImageRequest) (*emptypb.Empty, error)
 	CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error)
 	ListVolumes(context.Context, *ListVolumesRequest) (*ListVolumesResponse, error)
 	RemoveVolume(context.Context, *RemoveVolumeRequest) (*emptypb.Empty, error)
@@ -389,6 +402,9 @@ func (UnimplementedDockerServer) RemoveImage(context.Context, *RemoveImageReques
 }
 func (UnimplementedDockerServer) PruneImages(context.Context, *PruneImagesRequest) (*PruneImagesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PruneImages not implemented")
+}
+func (UnimplementedDockerServer) TagImage(context.Context, *TagImageRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TagImage not implemented")
 }
 func (UnimplementedDockerServer) CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateVolume not implemented")
@@ -659,6 +675,24 @@ func _Docker_PruneImages_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_TagImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TagImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).TagImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_TagImage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).TagImage(ctx, req.(*TagImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Docker_CreateVolume_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateVolumeRequest)
 	if err := dec(in); err != nil {
@@ -835,6 +869,10 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PruneImages",
 			Handler:    _Docker_PruneImages_Handler,
+		},
+		{
+			MethodName: "TagImage",
+			Handler:    _Docker_TagImage_Handler,
 		},
 		{
 			MethodName: "CreateVolume",

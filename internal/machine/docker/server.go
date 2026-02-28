@@ -492,6 +492,17 @@ func (s *Server) PruneImages(ctx context.Context, req *pb.PruneImagesRequest) (*
 	}, nil
 }
 
+// TagImage creates a tag for an image.
+func (s *Server) TagImage(ctx context.Context, req *pb.TagImageRequest) (*emptypb.Empty, error) {
+	if err := s.client.ImageTag(ctx, req.Source, req.Target); err != nil {
+		if errdefs.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "image '%s' not found", req.Source)
+		}
+		return nil, status.Errorf(codes.Internal, "tag image: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // CreateVolume creates a new volume with the given options.
 func (s *Server) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
 	var opts volume.CreateOptions

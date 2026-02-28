@@ -27,6 +27,7 @@ service Docker {
   rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
   rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse);
   rpc PruneImages(PruneImagesRequest) returns (PruneImagesResponse);
+  rpc TagImage(TagImageRequest) returns (google.protobuf.Empty);
 
   rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
   rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
@@ -248,6 +249,11 @@ message MachinePruneImagesResponse {
   Metadata metadata = 1;
   // JSON serialised image.PruneReport.
   bytes report = 2;
+}
+
+message TagImageRequest {
+  string source = 1;
+  string target = 2;
 }
 
 message CreateVolumeRequest {
