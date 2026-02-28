@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/netip"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -261,14 +260,15 @@ func (c *ServiceContainer) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// DefaultHealthMonitorPeriod is the default duration to wait before checking that the container is still running
-// and not restarting. Can be overridden with the UNCLOUD_HEALTH_MONITOR_PERIOD_MS environment variable.
+// DefaultHealthMonitorPeriod is the default duration (5 seconds) to wait before checking that the container is still
+// running and not restarting. Can be overridden with the UNCLOUD_HEALTH_MONITOR_PERIOD environment variable
+// (e.g. "10s" or "0").
 var DefaultHealthMonitorPeriod = defaultHealthMonitorPeriod()
 
 func defaultHealthMonitorPeriod() time.Duration {
-	if v, ok := os.LookupEnv("UNCLOUD_HEALTH_MONITOR_PERIOD_MS"); ok {
-		if ms, err := strconv.Atoi(v); err == nil {
-			return time.Duration(ms) * time.Millisecond
+	if v, ok := os.LookupEnv("UNCLOUD_HEALTH_MONITOR_PERIOD"); ok {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
 		}
 	}
 
