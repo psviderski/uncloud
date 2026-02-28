@@ -28,7 +28,11 @@ func NewPruneCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !opts.force {
-				fmt.Println("Are you sure you want to remove all dangling images?")
+				if opts.all {
+					fmt.Println("WARNING! This will remove all images without at least one container associated to them.")
+				} else {
+					fmt.Println("WARNING! This will remove all dangling images.")
+				}
 				confirmed, err := cli.Confirm()
 				if err != nil {
 					return err
