@@ -15,6 +15,8 @@ type RunContainerOperation struct {
 	ServiceID string
 	Spec      api.ServiceSpec
 	MachineID string
+	// SkipHealthMonitor skips the monitoring period and health checks after starting a container.
+	SkipHealthMonitor bool
 }
 
 func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
@@ -24,6 +26,10 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 	}
 	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
 		return fmt.Errorf("start container: %w", err)
+	}
+
+	if o.SkipHealthMonitor {
+		return nil
 	}
 
 	opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
@@ -111,6 +117,8 @@ type ReplaceContainerOperation struct {
 	OldContainer api.ServiceContainer
 	// Order specifies the update order: "start-first" or "stop-first".
 	Order string
+	// SkipHealthMonitor skips the monitoring period and health checks after starting a new container.
+	SkipHealthMonitor bool
 }
 
 func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) error {
@@ -139,34 +147,36 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		return fmt.Errorf("start new container: %w", err)
 	}
 
-	opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
-	if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
-		// New container failed to become healthy. Stop it and roll back to the previous container.
-		// Don't remove the new stopped container to allow users to inspect logs and state.
-		// TODO: collect logs from the new container and include in the error message to speed up debugging.
+	if !o.SkipHealthMonitor {
+		opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
+		if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
+			// New container failed to become healthy. Stop it and roll back to the previous container.
+			// Don't remove the new stopped container to allow users to inspect logs and state.
+			// TODO: collect logs from the new container and include in the error message to speed up debugging.
 
-		// Use context without progress to not overwrite the container Unhealthy status with Stopped.
-		ctxWithoutProgress := progress.WithContextWriter(ctx, nil)
-		_ = cli.StopContainer(ctxWithoutProgress, o.ServiceID, resp.ID, container.StopOptions{})
+			// Use context without progress to not overwrite the container Unhealthy status with Stopped.
+			ctxWithoutProgress := progress.WithContextWriter(ctx, nil)
+			_ = cli.StopContainer(ctxWithoutProgress, o.ServiceID, resp.ID, container.StopOptions{})
 
-		newCtr := fmt.Sprintf("%s/%s", o.Spec.Name, stringid.TruncateID(resp.ID))
-		healthErr := fmt.Errorf(
-			"new container '%s' failed to become healthy: %w. "+
-				"It's stopped and available for inspection. Fetch logs with 'uc logs %s'",
-			newCtr, err, o.Spec.Name,
-		)
+			newCtr := fmt.Sprintf("%s/%s", o.Spec.Name, stringid.TruncateID(resp.ID))
+			healthErr := fmt.Errorf(
+				"new container '%s' failed to become healthy: %w. "+
+					"It's stopped and available for inspection. Fetch logs with 'uc logs %s'",
+				newCtr, err, o.Spec.Name,
+			)
 
-		if stopFirst && wasRunning {
-			// Restart the old container only if it was running before we stopped it.
-			oldCtr := fmt.Sprintf("%s/%s", o.OldContainer.ServiceSpec.Name, o.OldContainer.ShortID())
-			if rollbackErr := cli.StartContainer(ctx, o.ServiceID, o.OldContainer.ID); rollbackErr != nil {
-				return fmt.Errorf("%w. Rolled back to old container '%s' but failed to restart it: %w",
-					healthErr, oldCtr, rollbackErr)
+			if stopFirst && wasRunning {
+				// Restart the old container only if it was running before we stopped it.
+				oldCtr := fmt.Sprintf("%s/%s", o.OldContainer.ServiceSpec.Name, o.OldContainer.ShortID())
+				if rollbackErr := cli.StartContainer(ctx, o.ServiceID, o.OldContainer.ID); rollbackErr != nil {
+					return fmt.Errorf("%w. Rolled back to old container '%s' but failed to restart it: %w",
+						healthErr, oldCtr, rollbackErr)
+				}
+				return fmt.Errorf("%w. Rolled back to old container '%s'", healthErr, oldCtr)
 			}
-			return fmt.Errorf("%w. Rolled back to old container '%s'", healthErr, oldCtr)
-		}
 
-		return healthErr
+			return healthErr
+		}
 	}
 
 	// For start-first, we need to stop before removing.

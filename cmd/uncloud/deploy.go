@@ -21,12 +21,13 @@ import (
 type deployOptions struct {
 	cli.BuildServicesOptions
 
-	files    []string
-	profiles []string
-	services []string
-	noBuild  bool
-	recreate bool
-	yes      bool
+	files      []string
+	profiles   []string
+	services   []string
+	noBuild    bool
+	recreate   bool
+	skipHealth bool
+	yes        bool
 }
 
 // NewDeployCommand creates a new command to deploy services from a Compose file.
@@ -61,6 +62,10 @@ func NewDeployCommand() *cobra.Command {
 		"One or more Compose profiles to enable.")
 	cmd.Flags().BoolVar(&opts.recreate, "recreate", false,
 		"Recreate containers even if their configuration and image haven't changed.")
+	cmd.Flags().BoolVar(&opts.skipHealth, "skip-health", false,
+		"Skip the monitoring period and health checks after starting new containers. Useful for faster emergency "+
+			"deployments.\n"+
+			"Warning: This may cause downtime if new containers fail to start properly.")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Auto-confirm deployment plan. Should be explicitly set when running non-interactively,\n"+
 			"e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
@@ -149,9 +154,9 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		fmt.Println()
 	}
 
-	var strategy deploy.Strategy
-	if opts.recreate {
-		strategy = &deploy.RollingStrategy{ForceRecreate: true}
+	strategy := &deploy.RollingStrategy{
+		ForceRecreate:     opts.recreate,
+		SkipHealthMonitor: opts.skipHealth,
 	}
 	composeDeploy, err := compose.NewDeploymentWithStrategy(ctx, clusterClient, project, strategy)
 	if err != nil {

@@ -29,6 +29,8 @@ type RollingStrategy struct {
 	// ForceRecreate indicates whether all containers should be recreated during the deployment,
 	// regardless of whether their specifications have changed.
 	ForceRecreate bool
+	// SkipHealthMonitor skips the monitoring period and health checks for faster emergency deployments.
+	SkipHealthMonitor bool
 
 	// state is the current and planned state of the cluster used for scheduling decisions.
 	state *scheduler.ClusterState
@@ -146,9 +148,10 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		if len(containers) == 0 {
 			// No more existing containers on this machine, create a new one.
 			plan.Operations = append(plan.Operations, &operation.RunContainerOperation{
-				ServiceID: plan.ServiceID,
-				Spec:      spec,
-				MachineID: m.Id,
+				ServiceID:         plan.ServiceID,
+				Spec:              spec,
+				MachineID:         m.Id,
+				SkipHealthMonitor: s.SkipHealthMonitor,
 			})
 			continue
 		}
@@ -166,11 +169,12 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		// Replace the old container with a new one.
 		order := determineUpdateOrder(ctr, spec)
 		plan.Operations = append(plan.Operations, &operation.ReplaceContainerOperation{
-			ServiceID:    plan.ServiceID,
-			Spec:         spec,
-			MachineID:    m.Id,
-			OldContainer: ctr,
-			Order:        order,
+			ServiceID:         plan.ServiceID,
+			Spec:              spec,
+			MachineID:         m.Id,
+			OldContainer:      ctr,
+			Order:             order,
+			SkipHealthMonitor: s.SkipHealthMonitor,
 		})
 	}
 
@@ -216,7 +220,8 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 
 	for _, m := range availableMachines {
 		containers := containersOnMachine[m.Info.Id]
-		ops, err := reconcileGlobalContainer(containers, spec, plan.ServiceID, m.Info.Id, s.ForceRecreate)
+		ops, err := reconcileGlobalContainer(
+			containers, spec, plan.ServiceID, m.Info.Id, s.ForceRecreate, s.SkipHealthMonitor)
 		if err != nil {
 			return plan, err
 		}
@@ -242,16 +247,18 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 // It ensures exactly one container with the desired spec is running on the machine by creating a new container and
 // removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
-	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string, forceRecreate bool,
+	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string,
+	forceRecreate, skipHealthCheck bool,
 ) ([]operation.Operation, error) {
 	var ops []operation.Operation
 
 	if len(containers) == 0 {
 		// No containers on this machine, create a new one.
 		ops = append(ops, &operation.RunContainerOperation{
-			ServiceID: serviceID,
-			Spec:      spec,
-			MachineID: machineID,
+			ServiceID:         serviceID,
+			Spec:              spec,
+			MachineID:         machineID,
+			SkipHealthMonitor: skipHealthCheck,
 		})
 		return ops, nil
 	}
@@ -322,11 +329,12 @@ func reconcileGlobalContainer(
 		// Replace the running container with a new one.
 		order := determineUpdateOrder(containerToReplace.Container, spec)
 		ops = append(ops, &operation.ReplaceContainerOperation{
-			ServiceID:    serviceID,
-			Spec:         spec,
-			MachineID:    machineID,
-			OldContainer: containerToReplace.Container,
-			Order:        order,
+			ServiceID:         serviceID,
+			Spec:              spec,
+			MachineID:         machineID,
+			OldContainer:      containerToReplace.Container,
+			Order:             order,
+			SkipHealthMonitor: skipHealthCheck,
 		})
 
 		// Remove any other containers (there shouldn't be any in normal operation).
@@ -342,9 +350,10 @@ func reconcileGlobalContainer(
 	} else {
 		// No running containers, create a new one and remove all stopped containers.
 		ops = append(ops, &operation.RunContainerOperation{
-			ServiceID: serviceID,
-			Spec:      spec,
-			MachineID: machineID,
+			ServiceID:         serviceID,
+			Spec:              spec,
+			MachineID:         machineID,
+			SkipHealthMonitor: skipHealthCheck,
 		})
 		for _, c := range containers {
 			ops = append(ops, &operation.RemoveContainerOperation{

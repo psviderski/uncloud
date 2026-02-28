@@ -401,7 +401,9 @@ func TestReconcileGlobalContainer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ops, err := reconcileGlobalContainer(tt.containers, tt.spec, "service-1", "machine-1", tt.forceRecreate)
+			ops, err := reconcileGlobalContainer(
+				tt.containers, tt.spec, "service-1", "machine-1", tt.forceRecreate, false,
+			)
 			assert.NoError(t, err)
 			assertOperationsEqual(t, tt.expectedOps, ops)
 		})
