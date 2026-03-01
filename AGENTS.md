@@ -1,10 +1,14 @@
 # AGENTS.md - Uncloud Project Guide
 
-This document provides comprehensive information about the Uncloud project for AI assistants to understand the codebase, architecture, and development practices.
+This document provides comprehensive information about the Uncloud project for AI assistants to understand the codebase,
+architecture, and development practices.
 
 ## Project Overview
 
-**Uncloud** is a lightweight clustering and container orchestration tool that enables deployment and management of web applications across cloud VMs and bare metal servers. It creates a secure WireGuard mesh network between Docker hosts and provides automatic service discovery, load balancing, HTTPS ingress, and simple CLI commands for application management.
+**Uncloud** is a lightweight clustering and container orchestration tool that enables deployment and management of web
+applications across cloud VMs and bare metal servers. It creates a secure WireGuard mesh network between Docker hosts
+and provides automatic service discovery, load balancing, HTTPS ingress, and simple CLI commands for application
+management.
 
 ### Key Characteristics
 
@@ -68,29 +72,29 @@ This document provides comprehensive information about the Uncloud project for A
 
 - **`cmd/`**: Contains main applications
 
-  - `uncloud/`: CLI tool with subcommands for machine, service, volume management
-  - `uncloudd/`: Daemon that runs on each machine
-  - `ucind/`: Development cluster management for testing
+    - `uncloud/`: CLI tool with subcommands for machine, service, volume management
+    - `uncloudd/`: Daemon that runs on each machine
+    - `ucind/`: Development cluster management for testing
 
 - **`internal/`**: Internal implementation packages
 
-  - `cli/`: Command-line interface logic
-  - `machine/`: Machine lifecycle and state management
-  - `daemon/`: Daemon implementation and gRPC services
-  - `dns/`: Internal DNS server for service discovery
+    - `cli/`: Command-line interface logic
+    - `machine/`: Machine lifecycle and state management
+    - `daemon/`: Daemon implementation and gRPC services
+    - `dns/`: Internal DNS server for service discovery
 
 - **`pkg/`**: Public API packages for external use
 
-  - `api/`: Core API types and definitions
-  - `client/`: Client libraries for interacting with Uncloud
+    - `api/`: Core API types and definitions
+    - `client/`: Client libraries for interacting with Uncloud
 
 - **`experiment/`**: Experimental features and prototypes
 - **`scripts/`**: Installation and utility scripts
 - **`test/`**: Test suites and test infrastructure
 - **`website/`**: Documentation website (Docusaurus)
 
-  - `landing/`: Landing page
-  - `docs/`: User documentation
+    - `landing/`: Landing page
+    - `docs/`: User documentation
 
 - **`misc/`**: Design documents and guides
 
@@ -100,25 +104,25 @@ This document provides comprehensive information about the Uncloud project for A
 
 ```go
 // Networking and orchestration
-github.com/docker/docker                   // Docker API client
-github.com/docker/compose/v2               // Docker Compose integration
-golang.zx2c4.com/wireguard                 // WireGuard implementation
-github.com/hashicorp/serf                  // Gossip protocol
+github.com/docker/docker // Docker API client
+github.com/docker/compose/v2 // Docker Compose integration
+golang.zx2c4.com/wireguard // WireGuard implementation
+github.com/hashicorp/serf // Gossip protocol
 
 // State management
-github.com/ipfs/go-ds-crdt                 // CRDT distributed storage
-github.com/dgraph-io/badger/v3             // Embedded database
+github.com/ipfs/go-ds-crdt // CRDT distributed storage
+github.com/dgraph-io/badger/v3 // Embedded database
 
 // Web proxy
-github.com/caddyserver/caddy/v2            // HTTP server and reverse proxy
+github.com/caddyserver/caddy/v2 // HTTP server and reverse proxy
 
 // CLI and UX
-github.com/spf13/cobra                     // CLI framework
-github.com/charmbracelet/huh               // Interactive forms
+github.com/spf13/cobra // CLI framework
+github.com/charmbracelet/huh // Interactive forms
 
 // gRPC and networking
 google.golang.org/grpc                     // gRPC framework
-github.com/siderolabs/grpc-proxy           // gRPC proxy for forwarding
+github.com/siderolabs/grpc-proxy // gRPC proxy for forwarding
 ```
 
 ## Development Workflow
@@ -189,9 +193,9 @@ uc context use <name>           # Switch context
 ### Testing
 
 - Test files and locations
-  - Unit tests alongside source files (`*_test.go`)
-  - Integration tests in `test/e2e/`
-  - Test fixtures in `test/fixtures/`
+    - Unit tests alongside source files (`*_test.go`)
+    - Integration tests in `test/e2e/`
+    - Test fixtures in `test/fixtures/`
 - Use table driven tests whenever possible
 
 ### Dependencies
@@ -225,8 +229,8 @@ uc context use <name>           # Switch context
 ### Logs and Monitoring
 
 - Systemd services (getting logs via `journalctl -u SERVICE_NAME`)
-  - `uncloud` -- Uncloud daemon
-  - `uncloud-corrosion` -- Corrosion process
+    - `uncloud` -- Uncloud daemon
+    - `uncloud-corrosion` -- Corrosion process
 - Machine daemon logs
 - Container logs via Docker
 
@@ -247,7 +251,8 @@ uc context use <name>           # Switch context
 - `Makefile`: Build and development tasks
 - `Dockerfile`: Container build instructions forUncloud-in-Docker (used for testing)
 
-This document should help AI assistants understand the project structure, make informed suggestions, and contribute effectively to the Uncloud codebase.
+This document should help AI assistants understand the project structure, make informed suggestions, and contribute
+effectively to the Uncloud codebase.
 
 ## Documentation
 
@@ -255,4 +260,6 @@ Instructions when generating documentation:
 
 - Use conversational language – write as if you were speaking to a friend.
 - Keep sentences simple, optimize for clarity and understanding.
-- Place the subject before the action whenever possible. Example: prefer “The function loads data” over “Data is loaded by the function.”
+- Do not use em dashes (—) or semicolons (;) in sentences. Instead, break complex sentences into simpler ones.
+- Place the subject before the action whenever possible. Example: prefer "The function loads data" over "Data is loaded
+  by the function."
