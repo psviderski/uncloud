@@ -426,7 +426,7 @@ func (cli *Client) WaitContainerHealthy(
 	}
 
 	// For containers with a health check, wait until Docker reports healthy or unhealthy.
-	mctx := proxyToMachine(ctx, machine.Machine)
+	mctx := cli.ProxyMachineContext(ctx, machine.Machine.Id)
 	mctx, cancel := context.WithTimeout(mctx, healthcheckTimeout(mc.Container.Config.Healthcheck))
 	defer cancel()
 	ticker := time.NewTicker(1 * time.Second)
