@@ -260,6 +260,9 @@ func (c *Cluster) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 		}
 	}
 	if req.Endpoints != nil {
+		if len(req.Endpoints) == 0 {
+			return nil, status.Error(codes.InvalidArgument, "endpoints cannot be empty")
+		}
 		updatedMachine.Network.Endpoints = req.Endpoints
 	}
 
