@@ -76,9 +76,6 @@ is typically enough for a process in a container to initialise all its dependenc
 You can change the monitoring period for a service with `deploy.update_config.monitor`. For example, increase it if your
 app takes longer to start or if you want to give it more time to recover from transient errors on startup.
 
-Set it to `0s` to skip monitoring entirely if you are confident the new containers will start correctly and want to
-speed up the deployment.
-
 ```yaml title="compose.yaml"
 services:
   app:
@@ -88,6 +85,9 @@ services:
         # Specified as duration: 500ms, 20s, 1m30s, 0s (skip)
         monitor: 10s
 ```
+
+Set it to `0s` to skip monitoring entirely if you are confident the new containers will start correctly and want to
+speed up the deployment. A safer alternative is to configure a [health check](#health-checks) instead.
 
 You can also change the default monitoring period (`5s`) for all services globally with an environment variable
 `UNCLOUD_HEALTH_MONITOR_PERIOD`:
@@ -99,14 +99,14 @@ export UNCLOUD_HEALTH_MONITOR_PERIOD=10s
 export UNCLOUD_HEALTH_MONITOR_PERIOD=0s
 ```
 
-`deploy.update_config.monitor` overrides the global default for each service.
+`deploy.update_config.monitor` overrides the global default for that service.
 
 ### Health checks
 
-If your container has a [`healthcheck`](https://github.com/compose-spec/compose-spec/blob/main/spec.md#healthcheck)
+If your service has a [`healthcheck`](https://github.com/compose-spec/compose-spec/blob/main/spec.md#healthcheck)
 configured, Uncloud also checks its health status during and after the monitoring period.
 
-If the container becomes `healthy` before the monitoring period ends, the deployment succeeds early and moves on to the
+If a container becomes `healthy` before the monitoring period ends, the deployment succeeds early and moves on to the
 next container. If the container is `unhealthy` after the monitoring period, Uncloud
 [rolls it back](#rollback-on-failure) and fails the deployment. Transient `unhealthy` states during the monitoring
 period are tolerated to give the container time to recover from startup issues.
