@@ -61,7 +61,7 @@ Here is a more advanced use case. Deploy a highly available web app with automat
 on-premises in just a couple minutes.
 
 <a href="https://uncloud.wistia.com/medias/k47uwt9uau?wvideo=k47uwt9uau">
-<img src="https://embed-ssl.wistia.com/deliveries/3cf7014a48b93afc556444bed3e39a8c.jpg?image_crop_resized=900x526&image_play_button_rounded=true&image_play_button_size=2x&image_play_button_color=18181Be0" alt="Uncloud demo" width="450" height="263" />
+<img src="https://embed-ssl.wistia.com/deliveries/4fb71ea442905b81b1ad4e25fc02132e.jpg?image_crop_resized=900x526&image_play_button_rounded=true&image_play_button_size=2x&image_play_button_color=18181Be0" alt="Uncloud demo" width="450" height="263" />
 </a>
 
 <br>
