@@ -4,29 +4,43 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strings"
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/spf13/cobra"
 )
 
 type updateOptions struct {
-	name     string
-	publicIP string
+	name      string
+	publicIP  string
+	endpoints []string
 }
 
 func NewUpdateCommand() *cobra.Command {
 	opts := updateOptions{}
 	cmd := &cobra.Command{
-		Use:   "update",
+		Use:   "update MACHINE [flags]",
 		Short: "Update machine configuration in the cluster.",
 		Long: `Update machine configuration in the cluster.
 
-This command allows setting various machine properties including:
-- Machine name (--name)
-- Public IP address (--public-ip)
+Change the name, public IP address, or WireGuard endpoints of an existing machine.
+At least one flag must be specified to perform an update.`,
+		Example: `  # Rename a machine.
+  uc machine update machine1 --name web-server
 
-At least one flag must be specified to perform an update operation.`,
+  # Set the public IP address of a machine.
+  uc machine update machine1 --public-ip 203.0.113.10
+
+  # Remove the public IP address from a machine.
+  uc machine update machine1 --public-ip none
+
+  # Update WireGuard endpoints for a machine.
+  uc machine update machine1 --endpoint 203.0.113.10 --endpoint 192.168.1.5
+
+  # Update multiple properties at once.
+  uc machine update machine1 --name web-server --public-ip 203.0.113.10`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
@@ -40,16 +54,24 @@ At least one flag must be specified to perform an update operation.`,
 	)
 	cmd.Flags().StringVar(
 		&opts.publicIP, "public-ip", "",
-		fmt.Sprintf("Public IP address of the machine for ingress configuration. Use '%s' or '' to remove the public IP.", PublicIPNone),
+		fmt.Sprintf("Public IP address of the machine for ingress configuration. Use '%s' or '' to remove the public IP.",
+			PublicIPNone),
+	)
+	cmd.Flags().StringSliceVar(
+		&opts.endpoints, "endpoint", nil,
+		fmt.Sprintf("WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. "+
+			"Default port %d is used if omitted.\n", network.WireGuardPort)+
+			"Other machines in the cluster will use these endpoints to establish a WireGuard connection to this machine.\n"+
+			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.",
 	)
 
 	return cmd
 }
 
 func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts updateOptions, machineNameOrID string) error {
-	// Check if at least one flag was explicitly set
-	if !cmd.Flags().Changed("name") && !cmd.Flags().Changed("public-ip") {
-		return fmt.Errorf("at least one update flag must be specified (--name, --public-ip)")
+	// Check if at least one flag was explicitly set.
+	if !cmd.Flags().Changed("endpoint") && !cmd.Flags().Changed("name") && !cmd.Flags().Changed("public-ip") {
+		return fmt.Errorf("at least one update flag must be specified (--endpoint, --name, --public-ip)")
 	}
 
 	client, err := uncli.ConnectCluster(ctx)
@@ -87,6 +109,29 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 		}
 	}
 
+	// Parse and set endpoints if the flag was explicitly provided.
+	if cmd.Flags().Changed("endpoint") {
+		expanded := cli.ExpandCommaSeparatedValues(opts.endpoints)
+		endpoints := make([]*pb.IPPort, 0, len(expanded))
+		for _, v := range expanded {
+			ap, err := netip.ParseAddrPort(v)
+			if err != nil {
+				// Try parsing as a bare IP address and use the default WireGuard port.
+				addr, addrErr := netip.ParseAddr(v)
+				if addrErr != nil {
+					return fmt.Errorf("invalid endpoint '%s': must be IP, IPv6, IP:PORT, or [IPv6]:PORT", v)
+				}
+				ap = netip.AddrPortFrom(addr, network.WireGuardPort)
+			}
+			endpoints = append(endpoints, pb.NewIPPort(ap))
+		}
+
+		if len(endpoints) == 0 {
+			return fmt.Errorf("at least one endpoint must be specified if --endpoint flag is used")
+		}
+		req.Endpoints = endpoints
+	}
+
 	// Perform the update operation
 	updatedMachine, err := client.UpdateMachine(ctx, req)
 	if err != nil {
@@ -113,8 +158,24 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 		}
 		changes = append(changes, fmt.Sprintf("public IP: %s -> %s", oldIP, newIP))
 	}
+	if cmd.Flags().Changed("endpoint") {
+		formatEndpoints := func(eps []*pb.IPPort) string {
+			if len(eps) == 0 {
+				return "none"
+			}
+			parts := make([]string, len(eps))
+			for i, ep := range eps {
+				ap, _ := ep.ToAddrPort()
+				parts[i] = ap.String()
+			}
+			return strings.Join(parts, ", ")
+		}
+		oldEndpoints := formatEndpoints(machine.Machine.Network.Endpoints)
+		newEndpoints := formatEndpoints(updatedMachine.Network.Endpoints)
+		changes = append(changes, fmt.Sprintf("endpoints: %s -> %s", oldEndpoints, newEndpoints))
+	}
 
-	fmt.Printf("Machine %q (ID: %s) configuration updated:\n", updatedMachine.Name, updatedMachine.Id)
+	fmt.Printf("Machine '%s' (ID: %s) configuration updated:\n", updatedMachine.Name, updatedMachine.Id)
 	for _, change := range changes {
 		fmt.Printf("  %s\n", change)
 	}
