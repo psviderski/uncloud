@@ -60,7 +60,7 @@ func selectConnection(uncli *cli.CLI) error {
 		return fmt.Errorf("save config: %w", err)
 	}
 
-	fmt.Printf("Default connection for context '%s' is now '%s'.\n", currentCtxName, selected)
+	fmt.Printf("Default connection for context '%s' is now '%s'.\n", currentCtxName, selected.String())
 	return nil
 }
 
