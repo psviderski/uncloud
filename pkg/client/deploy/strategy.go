@@ -8,6 +8,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
@@ -28,6 +29,8 @@ type RollingStrategy struct {
 	// ForceRecreate indicates whether all containers should be recreated during the deployment,
 	// regardless of whether their specifications have changed.
 	ForceRecreate bool
+	// SkipHealthMonitor skips the monitoring period and health checks for faster emergency deployments.
+	SkipHealthMonitor bool
 
 	// state is the current and planned state of the cluster used for scheduling decisions.
 	state *scheduler.ClusterState
@@ -144,10 +147,11 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 
 		if len(containers) == 0 {
 			// No more existing containers on this machine, create a new one.
-			plan.Operations = append(plan.Operations, &RunContainerOperation{
-				ServiceID: plan.ServiceID,
-				Spec:      spec,
-				MachineID: m.Id,
+			plan.Operations = append(plan.Operations, &operation.RunContainerOperation{
+				ServiceID:         plan.ServiceID,
+				Spec:              spec,
+				MachineID:         m.Id,
+				SkipHealthMonitor: s.SkipHealthMonitor,
 			})
 			continue
 		}
@@ -160,36 +164,24 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 				continue
 			}
 			// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
-
-			conflictingPorts, portsErr := ctr.ConflictingServicePorts(spec.Ports)
-			if portsErr != nil || len(conflictingPorts) > 0 {
-				// Stop the malformed container or the container with conflicting ports.
-				plan.Operations = append(plan.Operations, &StopContainerOperation{
-					ServiceID:   plan.ServiceID,
-					ContainerID: ctr.ID,
-					MachineID:   m.Id,
-				})
-			}
 		}
 
-		// Run a new container.
-		plan.Operations = append(plan.Operations, &RunContainerOperation{
-			ServiceID: plan.ServiceID,
-			Spec:      spec,
-			MachineID: m.Id,
-		})
-
-		// Remove the old container.
-		plan.Operations = append(plan.Operations, &RemoveContainerOperation{
-			MachineID: m.Id,
-			Container: ctr,
+		// Replace the old container with a new one.
+		order := determineUpdateOrder(ctr, spec)
+		plan.Operations = append(plan.Operations, &operation.ReplaceContainerOperation{
+			ServiceID:         plan.ServiceID,
+			Spec:              spec,
+			MachineID:         m.Id,
+			OldContainer:      ctr,
+			Order:             order,
+			SkipHealthMonitor: s.SkipHealthMonitor,
 		})
 	}
 
 	// Remove any remaining containers that are not needed.
 	for mid, containers := range containersOnMachine {
 		for _, c := range containers {
-			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
+			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID: mid,
 				Container: c,
 			})
@@ -228,7 +220,8 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 
 	for _, m := range availableMachines {
 		containers := containersOnMachine[m.Info.Id]
-		ops, err := reconcileGlobalContainer(containers, spec, plan.ServiceID, m.Info.Id, s.ForceRecreate)
+		ops, err := reconcileGlobalContainer(
+			containers, spec, plan.ServiceID, m.Info.Id, s.ForceRecreate, s.SkipHealthMonitor)
 		if err != nil {
 			return plan, err
 		}
@@ -240,7 +233,7 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 	// Remove any remaining containers on machines that don't match the new placement constraints.
 	for _, containers := range containersOnMachine {
 		for _, c := range containers {
-			plan.Operations = append(plan.Operations, &RemoveContainerOperation{
+			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID: c.MachineID,
 				Container: c.Container,
 			})
@@ -254,16 +247,18 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 // It ensures exactly one container with the desired spec is running on the machine by creating a new container and
 // removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
-	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string, forceRecreate bool,
-) ([]Operation, error) {
-	var ops []Operation
+	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string,
+	forceRecreate, skipHealthCheck bool,
+) ([]operation.Operation, error) {
+	var ops []operation.Operation
 
 	if len(containers) == 0 {
 		// No containers on this machine, create a new one.
-		ops = append(ops, &RunContainerOperation{
-			ServiceID: serviceID,
-			Spec:      spec,
-			MachineID: machineID,
+		ops = append(ops, &operation.RunContainerOperation{
+			ServiceID:         serviceID,
+			Spec:              spec,
+			MachineID:         machineID,
+			SkipHealthMonitor: skipHealthCheck,
 		})
 		return ops, nil
 	}
@@ -290,7 +285,7 @@ func reconcileGlobalContainer(
 				if i == j {
 					continue
 				}
-				ops = append(ops, &RemoveContainerOperation{
+				ops = append(ops, &operation.RemoveContainerOperation{
 					MachineID: old.MachineID,
 					Container: old.Container,
 				})
@@ -304,41 +299,100 @@ func reconcileGlobalContainer(
 	}
 
 	// The machine has containers but none of them match the new spec.
-	// Stop the old running containers that have conflicting ports with the new spec before running a new one.
-	for _, c := range containers {
+	// Find the first running container to replace (there should typically be only one).
+	var containerToReplace *api.MachineServiceContainer
+	for i, c := range containers {
 		if c.Container.State.Running {
-			conflictingPorts, err := c.Container.ConflictingServicePorts(spec.Ports)
-			if err != nil {
-				return nil, fmt.Errorf("check conflicting ports: %w", err)
-			}
-
-			if len(conflictingPorts) > 0 {
-				// Stop the running container with conflicting ports.
-				ops = append(ops, &StopContainerOperation{
-					ServiceID:   serviceID,
-					ContainerID: c.Container.ID,
-					MachineID:   c.MachineID,
-				})
-			}
+			containerToReplace = &containers[i]
+			break
 		}
 	}
 
-	// Run a new container.
-	ops = append(ops, &RunContainerOperation{
-		ServiceID: serviceID,
-		Spec:      spec,
-		MachineID: machineID,
-	})
+	if containerToReplace != nil {
+		// Stop any other running containers that have conflicting ports before replacing the container.
+		// This handles the edge case where multiple running containers exist (due to bugs or interrupted deployments)
+		// and more than one has ports that conflict with the new spec.
+		for _, c := range containers {
+			if c.Container.ID == containerToReplace.Container.ID || !c.Container.State.Running {
+				continue
+			}
+			conflictingPorts, err := c.Container.ConflictingServicePorts(spec.Ports)
+			if err != nil || len(conflictingPorts) > 0 {
+				ops = append(ops, &operation.StopContainerOperation{
+					ServiceID:   serviceID,
+					ContainerID: c.Container.ID,
+					MachineID:   machineID,
+				})
+			}
+		}
 
-	// Remove the old containers.
-	for _, c := range containers {
-		ops = append(ops, &RemoveContainerOperation{
-			MachineID: c.MachineID,
-			Container: c.Container,
+		// Replace the running container with a new one.
+		order := determineUpdateOrder(containerToReplace.Container, spec)
+		ops = append(ops, &operation.ReplaceContainerOperation{
+			ServiceID:         serviceID,
+			Spec:              spec,
+			MachineID:         machineID,
+			OldContainer:      containerToReplace.Container,
+			Order:             order,
+			SkipHealthMonitor: skipHealthCheck,
 		})
+
+		// Remove any other containers (there shouldn't be any in normal operation).
+		for _, c := range containers {
+			if c.Container.ID == containerToReplace.Container.ID {
+				continue
+			}
+			ops = append(ops, &operation.RemoveContainerOperation{
+				MachineID: c.MachineID,
+				Container: c.Container,
+			})
+		}
+	} else {
+		// No running containers, create a new one and remove all stopped containers.
+		ops = append(ops, &operation.RunContainerOperation{
+			ServiceID:         serviceID,
+			Spec:              spec,
+			MachineID:         machineID,
+			SkipHealthMonitor: skipHealthCheck,
+		})
+		for _, c := range containers {
+			ops = append(ops, &operation.RemoveContainerOperation{
+				MachineID: c.MachineID,
+				Container: c.Container,
+			})
+		}
 	}
 
 	return ops, nil
+}
+
+// determineUpdateOrder determines the update order for replacing a container based on the service spec
+// and current container state. The order can be explicitly set in UpdateConfig, or automatically determined:
+// - If the user explicitly set order, respect it
+// - Services with port conflicts require stop-first (ports must be freed first)
+// - Single-replica services with data volumes default to stop-first (prevents data corruption)
+// - Multi-replica services use start-first (concurrent access already happening)
+// - All other services default to start-first (minimizes downtime)
+func determineUpdateOrder(oldContainer api.ServiceContainer, spec api.ServiceSpec) string {
+	// User explicitly set order - respect it
+	if spec.UpdateConfig.Order != "" {
+		return spec.UpdateConfig.Order
+	}
+
+	// Port conflicts require stop-first
+	conflictingPorts, err := oldContainer.ConflictingServicePorts(spec.Ports)
+	if err != nil || len(conflictingPorts) > 0 {
+		return api.UpdateOrderStopFirst
+	}
+
+	// Single-replica services with data volumes default to stop-first to prevent data corruption.
+	// Multi-replica services already have concurrent access, so start-first is safe.
+	if spec.Replicas <= 1 && len(spec.MountedDockerVolumes()) > 0 {
+		return api.UpdateOrderStopFirst
+	}
+
+	// Default: start-first for minimal downtime
+	return api.UpdateOrderStartFirst
 }
 
 // newEmptyPlan creates a new empty plan for a service deployment with initialised service ID and name.

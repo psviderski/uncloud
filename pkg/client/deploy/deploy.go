@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
@@ -33,7 +34,7 @@ type Deployment struct {
 type Plan struct {
 	ServiceID   string
 	ServiceName string
-	SequenceOperation
+	operation.SequenceOperation
 }
 
 // NewDeployment creates a new deployment for the given service specification.

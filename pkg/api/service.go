@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/distribution/reference"
@@ -18,6 +19,13 @@ import (
 const (
 	ServiceModeReplicated = "replicated"
 	ServiceModeGlobal     = "global"
+
+	// UpdateOrderStartFirst starts the new container before stopping the old one.
+	// This minimizes downtime but briefly runs both containers.
+	UpdateOrderStartFirst = "start-first"
+	// UpdateOrderStopFirst stops the old container before starting the new one.
+	// This prevents data corruption for stateful services but causes brief downtime.
+	UpdateOrderStopFirst = "stop-first"
 
 	// PullPolicyAlways means the image is always pulled from the registry.
 	PullPolicyAlways = "always"
@@ -59,6 +67,8 @@ type ServiceSpec struct {
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
+	// UpdateConfig configures how the service is updated during a deployment.
+	UpdateConfig UpdateConfig `json:",omitempty"`
 	// Volumes is list of data volumes that can be mounted into the container.
 	Volumes []VolumeSpec
 	// Configs is list of configuration objects that can be mounted into the container.
@@ -234,8 +244,11 @@ type ContainerSpec struct {
 	// Entrypoint overrides the default ENTRYPOINT of the image.
 	Entrypoint []string
 	// Env defines the environment variables to set inside the container.
-	Env   EnvVars
-	Image string
+	Env EnvVars
+	// Healthcheck defines the health check configuration for the container or overrides the health check options
+	// defined in the image. If nil, the image's default health check is used.
+	Healthcheck *HealthcheckSpec `json:",omitempty"`
+	Image       string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
 	// LogDriver overrides the default logging driver for the container. Each Docker daemon can have its own default.
@@ -330,18 +343,23 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		spec.Entrypoint = make([]string, len(s.Entrypoint))
 		copy(spec.Entrypoint, s.Entrypoint)
 	}
+	if s.Env != nil {
+		spec.Env = make(EnvVars, len(s.Env))
+		for k, v := range s.Env {
+			spec.Env[k] = v
+		}
+	}
+	if s.Healthcheck != nil {
+		hc := *s.Healthcheck
+		hc.Test = slices.Clone(s.Healthcheck.Test)
+		spec.Healthcheck = &hc
+	}
 	if s.LogDriver != nil {
 		logDriver := *s.LogDriver
 		if s.LogDriver.Options != nil {
 			logDriver.Options = maps.Clone(s.LogDriver.Options)
 		}
 		spec.LogDriver = &logDriver
-	}
-	if s.Env != nil {
-		spec.Env = make(EnvVars, len(s.Env))
-		for k, v := range s.Env {
-			spec.Env[k] = v
-		}
 	}
 	if s.Volumes != nil {
 		spec.Volumes = make([]string, len(s.Volumes))
@@ -366,6 +384,13 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	if s.Resources.Ulimits != nil {
 		spec.Resources.Ulimits = maps.Clone(s.Resources.Ulimits)
 	}
+	if s.Resources.Devices != nil {
+		spec.Resources.Devices = slices.Clone(s.Resources.Devices)
+	}
+	if s.Resources.DeviceReservations != nil {
+		spec.Resources.DeviceReservations = slices.Clone(s.Resources.DeviceReservations)
+	}
+
 	return spec
 }
 
@@ -383,11 +408,44 @@ func (e EnvVars) ToSlice() []string {
 	return env
 }
 
+// HealthcheckSpec defines the health check configuration for a container.
+type HealthcheckSpec struct {
+	// Test is the command used to check health.
+	// Formats: ["CMD", args...], ["CMD-SHELL", "command"], or ["NONE"] to disable.
+	Test []string `json:",omitempty"`
+	// Interval is the time between health checks.
+	// Zero means to inherit the value from the image or use the Docker default (30s) if not defined in the image.
+	Interval time.Duration `json:",omitempty"`
+	// Timeout is how long to wait before considering the checck to have hung.
+	Timeout time.Duration `json:",omitempty"`
+	// StartPeriod is the initialisation time for a container before the retries start to count down.
+	StartPeriod time.Duration `json:",omitempty"`
+	// StartInterval is the time between health checks during the start period.
+	StartInterval time.Duration `json:",omitempty"`
+	// Retries is the number of consecutive failures needed to consider a container unhealthy.
+	Retries uint `json:",omitempty"`
+	// Disable disables the health check defined in the image. true is equivalent to setting Test to ["NONE"].
+	Disable bool `json:",omitempty"`
+}
+
 type LogDriver struct {
 	// Name of the logging driver to use.
 	Name string
 	// Options is the configuration options to pass to the logging driver.
 	Options map[string]string
+}
+
+// UpdateConfig configures how a service is updated during a deployment.
+type UpdateConfig struct {
+	// Order specifies the order of operations during an update.
+	// Valid values are "start-first" (default for stateless services) and "stop-first" (default for services with
+	// volumes). Empty value means the strategy will determine the order based on service characteristics.
+	Order string `json:",omitempty"`
+	// MonitorPeriod is how long to wait after starting a container before checking that it's still running
+	// and not restarting. Containers with a health check that become healthy before the period ends succeed early.
+	// nil means use the default api.DefaultHealthMonitorPeriod.
+	// Zero skips the monitoring and checks the container's health immediately after starting.
+	MonitorPeriod *time.Duration `json:",omitempty"`
 }
 
 type RunServiceResponse struct {

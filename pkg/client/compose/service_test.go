@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/docker/api/types/container"
@@ -93,7 +94,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 			},
 		},
 		{
-			name:     "full-spec",
+			name:     "full spec",
 			filename: "compose-full-spec.yaml",
 			want: map[string]api.ServiceSpec{
 				"test": {
@@ -108,6 +109,14 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							"BOOL":  "true",
 							"EMPTY": "",
 							"VAR":   "value",
+						},
+						Healthcheck: &api.HealthcheckSpec{
+							Test:          []string{"CMD", "curl", "-f", "http://localhost"},
+							Interval:      1*time.Minute + 30*time.Second,
+							Timeout:       10 * time.Second,
+							Retries:       5,
+							StartPeriod:   15 * time.Second,
+							StartInterval: 2 * time.Second,
 						},
 						Image: "nginx:latest",
 						Init:  &initTrue,
@@ -124,6 +133,17 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							CPU:               0.5 * api.Core,
 							Memory:            100 * units.MiB,
 							MemoryReservation: 50 * units.MiB,
+							Ulimits: map[string]api.Ulimit{
+								"nofile": {Soft: 20000, Hard: 40000},
+								"nproc":  {Soft: 65535, Hard: 65535},
+							},
+							Devices: []api.DeviceMapping{
+								{HostPath: "/dev/ttyUSB0", ContainerPath: "/dev/ttyUSB0", CgroupPermissions: "rw"},
+								{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "rwm"},
+							},
+							DeviceReservations: []container.DeviceRequest{
+								{Count: -1, Capabilities: [][]string{{"gpu"}}},
+							},
 						},
 						Sysctls: map[string]string{
 							"net.ipv4.ip_forward": "1",
@@ -138,6 +158,15 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							{
 								VolumeName:    "data1",
 								ContainerPath: "/data1",
+							},
+							{
+								VolumeName:    "bind-53f1acbf1de61e9e608c93effca23791674e463d02bb7aaca7c625804aef1926",
+								ContainerPath: "/path/in/container",
+								ReadOnly:      true,
+							},
+							{
+								VolumeName:    "data3-labeled",
+								ContainerPath: "/data3",
 							},
 							{
 								VolumeName:    "data2-alias",
@@ -173,8 +202,24 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							Mode:          api.PortModeHost,
 						},
 					},
+					Placement: api.Placement{
+						Machines: []string{"machine-1", "machine-2"},
+					},
 					Replicas: 3,
+					UpdateConfig: api.UpdateConfig{
+						Order:         api.UpdateOrderStopFirst,
+						MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+					},
 					Volumes: []api.VolumeSpec{
+						{
+							Name: "bind-53f1acbf1de61e9e608c93effca23791674e463d02bb7aaca7c625804aef1926",
+							Type: api.VolumeTypeBind,
+							BindOptions: &api.BindOptions{
+								HostPath:       "/path/on/host",
+								CreateHostPath: true,
+								Propagation:    mount.Propagation("rprivate"),
+							},
+						},
 						{
 							Name: "bind-bb6aed1683cea1e0a1ae5cd227aacd0734f2f87f7a78fcf1baeff978ce300b90",
 							Type: api.VolumeTypeBind,
@@ -208,10 +253,21 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							},
 						},
 						{
+							Name: "data3-labeled",
+							Type: api.VolumeTypeVolume,
+							VolumeOptions: &api.VolumeOptions{
+								Name:    "data3-labeled",
+								NoCopy:  true,
+								SubPath: "app/data",
+								Labels:  map[string]string{"env": "test"},
+							},
+						},
+						{
 							Name: "tmpfs-efa57ba8b6a1779674ac438de3af8729e2d55900b79eb929431cf9c5b0179542",
 							Type: api.VolumeTypeTmpfs,
 							TmpfsOptions: &mount.TmpfsOptions{
 								SizeBytes: 10 * units.MiB,
+								Mode:      os.FileMode(1770),
 							},
 						},
 					},
@@ -257,6 +313,8 @@ func TestServiceSpecFromCompose(t *testing.T) {
 }
 
 func TestServiceSpecFromCompose_Caddy(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -405,6 +463,8 @@ services:
 }
 
 func TestServiceSpecFromCompose_GPUs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		composeYAML        string
@@ -592,6 +652,8 @@ services:
 }
 
 func TestServiceSpecFromCompose_VolumeDriverOpts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		composeYAML    string
@@ -700,6 +762,8 @@ volumes:
 }
 
 func TestServiceSpecFromCompose_Ulimits(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -787,7 +851,179 @@ services:
 	}
 }
 
+func TestServiceSpecFromCompose_UpdateConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		composeYAML string
+		expected    api.UpdateConfig
+		expectError bool
+	}{
+		{
+			name: "no update_config",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+`,
+			expected: api.UpdateConfig{},
+		},
+		{
+			name: "empty update_config",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config: {}
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
+			name: "update_config with unsupported attributes ignored",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        parallelism: 1
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
+			name: "update_config with stop-first order",
+			composeYAML: `
+services:
+  test:
+    image: postgres
+    deploy:
+      update_config:
+        order: stop-first
+`,
+			expected: api.UpdateConfig{
+				Order:         api.UpdateOrderStopFirst,
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
+			name: "update_config with start-first order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        order: start-first
+`,
+			expected: api.UpdateConfig{
+				Order:         api.UpdateOrderStartFirst,
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
+			name: "update_config with invalid order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        order: invalid-order
+`,
+			expectError: true,
+		},
+		{
+			name: "update_config with replicas and order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      replicas: 3
+      update_config:
+        order: stop-first
+`,
+			expected: api.UpdateConfig{
+				Order:         api.UpdateOrderStopFirst,
+				MonitorPeriod: &api.DefaultHealthMonitorPeriod,
+			},
+		},
+		{
+			name: "update_config with custom monitor",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        monitor: 10s
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: api.AsPtr(10 * time.Second),
+			},
+		},
+		{
+			name: "update_config with monitor and order",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        order: start-first
+        monitor: 30s
+`,
+			expected: api.UpdateConfig{
+				Order:         api.UpdateOrderStartFirst,
+				MonitorPeriod: api.AsPtr(30 * time.Second),
+			},
+		},
+		{
+			name: "update_config with zero monitor skips monitoring",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    deploy:
+      update_config:
+        monitor: 0s
+`,
+			expected: api.UpdateConfig{
+				MonitorPeriod: api.AsPtr(time.Duration(0)),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "test")
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, spec.UpdateConfig)
+		})
+	}
+}
+
 func TestServiceSpecFromCompose_XMachinesPlacement(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -941,6 +1177,107 @@ services:
 				return
 			}
 			assert.Equal(t, tt.expected, spec.Placement)
+		})
+	}
+}
+
+func TestServiceSpecFromCompose_Devices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		composeYAML          string
+		expectedDevices      []api.DeviceMapping
+		expectedReservations []container.DeviceRequest
+	}{
+		{
+			name: "simple device",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - /dev/dri
+`,
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/dri", ContainerPath: "/dev/dri", CgroupPermissions: "rwm"},
+			},
+		},
+		{
+			name: "device with target and permissions",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - /dev/sda:/dev/xvda:r
+`,
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "r"},
+			},
+		},
+		{
+			name: "multiple devices",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0:rw"
+      - /dev/sda:/dev/xvda
+      - "/dev/dri"
+`,
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/ttyUSB0", ContainerPath: "/dev/ttyUSB0", CgroupPermissions: "rw"},
+				{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "rwm"},
+				{HostPath: "/dev/dri", ContainerPath: "/dev/dri", CgroupPermissions: "rwm"},
+			},
+		},
+		{
+			name: "CDI device",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - vendor.com/class=device1
+`,
+			expectedReservations: []container.DeviceRequest{
+				{Driver: "cdi", DeviceIDs: []string{"vendor.com/class=device1"}},
+			},
+		},
+		{
+			name: "mixed CDI and regular devices",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    devices:
+      - /dev/dri
+      - vendor.com/class=device1
+      - nvidia.com/gpu=0
+      - /dev/sda:/dev/xvda:r
+`,
+			expectedDevices: []api.DeviceMapping{
+				{HostPath: "/dev/dri", ContainerPath: "/dev/dri", CgroupPermissions: "rwm"},
+				{HostPath: "/dev/sda", ContainerPath: "/dev/xvda", CgroupPermissions: "r"},
+			},
+			expectedReservations: []container.DeviceRequest{
+				{Driver: "cdi", DeviceIDs: []string{"vendor.com/class=device1", "nvidia.com/gpu=0"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "test")
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedDevices, spec.Container.Resources.Devices)
+			assert.Equal(t, tt.expectedReservations, spec.Container.Resources.DeviceReservations)
 		})
 	}
 }

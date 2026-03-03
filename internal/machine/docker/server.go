@@ -567,6 +567,22 @@ func (s *Server) CreateServiceContainer(
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
 	}
+	if hc := spec.Container.Healthcheck; hc != nil {
+		if hc.Disable {
+			config.Healthcheck = &container.HealthConfig{
+				Test: []string{"NONE"},
+			}
+		} else {
+			config.Healthcheck = &container.HealthConfig{
+				Test:          hc.Test,
+				Interval:      hc.Interval,
+				Timeout:       hc.Timeout,
+				StartPeriod:   hc.StartPeriod,
+				StartInterval: hc.StartInterval,
+				Retries:       int(hc.Retries),
+			}
+		}
+	}
 
 	// TODO: do not set the ports as container labels once migrated to retrieve them from the spec in DB.
 	var err error
@@ -617,6 +633,7 @@ func (s *Server) CreateServiceContainer(
 			NanoCPUs:          spec.Container.Resources.CPU,
 			Memory:            spec.Container.Resources.Memory,
 			MemoryReservation: spec.Container.Resources.MemoryReservation,
+			Devices:           toDockerDevices(spec.Container.Resources.Devices),
 			DeviceRequests:    spec.Container.Resources.DeviceReservations,
 			Ulimits:           toDockerUlimits(spec.Container.Resources.Ulimits),
 		},
@@ -894,6 +911,23 @@ func toDockerUlimits(ulimits map[string]api.Ulimit) []*units.Ulimit {
 	}
 
 	return dockerUlimits
+}
+
+func toDockerDevices(devices []api.DeviceMapping) []container.DeviceMapping {
+	if len(devices) == 0 {
+		return nil
+	}
+
+	dockerDevices := make([]container.DeviceMapping, 0, len(devices))
+	for _, d := range devices {
+		dockerDevices = append(dockerDevices, container.DeviceMapping{
+			PathOnHost:        d.HostPath,
+			PathInContainer:   d.ContainerPath,
+			CgroupPermissions: d.CgroupPermissions,
+		})
+	}
+
+	return dockerDevices
 }
 
 // verifyDockerVolumesExist checks if the Docker named volumes referenced in the mounts exist on the machine.

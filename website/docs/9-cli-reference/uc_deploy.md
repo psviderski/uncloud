@@ -18,6 +18,8 @@ uc deploy [FLAGS] [SERVICE...] [flags]
       --no-cache                Do not use cache when building images.
   -p, --profile strings         One or more Compose profiles to enable.
       --recreate                Recreate containers even if their configuration and image haven't changed.
+      --skip-health             Skip the monitoring period and health checks after starting new containers. Useful for faster emergency deployments.
+                                Warning: This may cause downtime if new containers fail to start properly.
   -y, --yes                     Auto-confirm deployment plan. Should be explicitly set when running non-interactively,
                                 e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```

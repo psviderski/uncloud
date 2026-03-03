@@ -5,12 +5,14 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/opencontainers/go-digest"
 	"github.com/psviderski/uncloud/pkg/api"
+	cdi "tags.cncf.io/container-device-interface/pkg/parser"
 )
 
 func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.ServiceSpec, error) {
@@ -43,18 +45,19 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			CapAdd:     service.CapAdd,
-			CapDrop:    service.CapDrop,
-			Command:    service.Command,
-			Entrypoint: service.Entrypoint,
-			Env:        env,
-			Image:      service.Image,
-			Init:       service.Init,
-			Privileged: service.Privileged,
-			PullPolicy: pullPolicy,
-			Resources:  resourcesFromCompose(service),
-			Sysctls:    service.Sysctls,
-			User:       service.User,
+			CapAdd:      service.CapAdd,
+			CapDrop:     service.CapDrop,
+			Command:     service.Command,
+			Entrypoint:  service.Entrypoint,
+			Env:         env,
+			Healthcheck: healthcheckFromCompose(service.HealthCheck),
+			Image:       service.Image,
+			Init:        service.Init,
+			Privileged:  service.Privileged,
+			PullPolicy:  pullPolicy,
+			Resources:   resourcesFromCompose(service),
+			Sysctls:     service.Sysctls,
+			User:        service.User,
 		},
 		Name: serviceName,
 		Mode: api.ServiceModeReplicated,
@@ -97,6 +100,22 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		default:
 			return spec, fmt.Errorf("unsupported deploy mode: '%s'", service.Deploy.Mode)
 		}
+
+		if cfg := service.Deploy.UpdateConfig; cfg != nil {
+			switch cfg.Order {
+			case "":
+				// No order specified, use default behavior.
+			case "start-first":
+				spec.UpdateConfig.Order = api.UpdateOrderStartFirst
+			case "stop-first":
+				spec.UpdateConfig.Order = api.UpdateOrderStopFirst
+			default:
+				return spec, fmt.Errorf("unsupported deploy.update_config.order: '%s'", cfg.Order)
+			}
+
+			d := time.Duration(cfg.Monitor)
+			spec.UpdateConfig.MonitorPeriod = &d
+		}
 	}
 
 	// TODO: can service.tmpfs be handled as tmpfs volume mounts as well?
@@ -120,12 +139,61 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	return spec, nil
 }
 
+func healthcheckFromCompose(hc *types.HealthCheckConfig) *api.HealthcheckSpec {
+	if hc == nil {
+		return nil
+	}
+	if hc.Disable {
+		return &api.HealthcheckSpec{Disable: true}
+	}
+
+	spec := &api.HealthcheckSpec{Test: hc.Test}
+	if hc.Interval != nil {
+		spec.Interval = time.Duration(*hc.Interval)
+	}
+	if hc.Timeout != nil {
+		spec.Timeout = time.Duration(*hc.Timeout)
+	}
+	if hc.StartPeriod != nil {
+		spec.StartPeriod = time.Duration(*hc.StartPeriod)
+	}
+	if hc.StartInterval != nil {
+		spec.StartInterval = time.Duration(*hc.StartInterval)
+	}
+	if hc.Retries != nil {
+		spec.Retries = uint(*hc.Retries)
+	}
+
+	return spec
+}
+
 func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 	resources := api.ContainerResources{
 		CPU:               int64(service.CPUS * 1e9),
 		Memory:            int64(service.MemLimit),
 		MemoryReservation: int64(service.MemReservation),
 		Ulimits:           ulimitsFromCompose(service.Ulimits),
+	}
+
+	// Convert device mappings, separating CDI devices from regular device mappings.
+	// CDI devices are identified when Source == Target and the source is a qualified CDI name.
+	var cdiDeviceNames []string
+	for _, dev := range service.Devices {
+		if dev.Source == dev.Target && cdi.IsQualifiedName(dev.Source) {
+			cdiDeviceNames = append(cdiDeviceNames, dev.Source)
+			continue
+		}
+		resources.Devices = append(resources.Devices, api.DeviceMapping{
+			HostPath:          dev.Source,
+			ContainerPath:     dev.Target,
+			CgroupPermissions: dev.Permissions,
+		})
+	}
+	if len(cdiDeviceNames) > 0 {
+		resources.DeviceReservations = append(resources.DeviceReservations, container.DeviceRequest{
+			Driver:    "cdi",
+			DeviceIDs: cdiDeviceNames,
+		})
 	}
 
 	// Convert GPU device requests from compose format, appending "gpu" capability.

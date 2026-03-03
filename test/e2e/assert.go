@@ -58,6 +58,36 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 		assert.Contains(t, ctr.Config.Env, env)
 	}
 
+	// Healthcheck can only be compared if set in the spec. Otherwise, the container inherits it from the image.
+	if spec.Container.Healthcheck != nil {
+		hc := spec.Container.Healthcheck
+		require.NotNil(t, ctr.Config.Healthcheck)
+		if hc.Disable {
+			assert.Equal(t, []string{"NONE"}, ctr.Config.Healthcheck.Test)
+		} else {
+			// Only compare fields that are explicitly set in the spec as unset fields inherit their values
+			// from the image.
+			if hc.Test != nil {
+				assert.EqualValues(t, hc.Test, ctr.Config.Healthcheck.Test)
+			}
+			if hc.Interval != 0 {
+				assert.Equal(t, hc.Interval, ctr.Config.Healthcheck.Interval)
+			}
+			if hc.Timeout != 0 {
+				assert.Equal(t, hc.Timeout, ctr.Config.Healthcheck.Timeout)
+			}
+			if hc.StartPeriod != 0 {
+				assert.Equal(t, hc.StartPeriod, ctr.Config.Healthcheck.StartPeriod)
+			}
+			if hc.StartInterval != 0 {
+				assert.Equal(t, hc.StartInterval, ctr.Config.Healthcheck.StartInterval)
+			}
+			if hc.Retries != 0 {
+				assert.Equal(t, int(hc.Retries), ctr.Config.Healthcheck.Retries)
+			}
+		}
+	}
+
 	assert.Equal(t, spec.Container.Image, ctr.Config.Image)
 	assert.Equal(t, spec.Container.Init, ctr.HostConfig.Init)
 	assert.True(t, strings.HasPrefix(ctr.Name, spec.Name+"-"))

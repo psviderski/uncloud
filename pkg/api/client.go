@@ -21,11 +21,14 @@ type ContainerClient interface {
 	CreateContainer(
 		ctx context.Context, serviceID string, spec ServiceSpec, machineID string,
 	) (container.CreateResponse, error)
+	ExecContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, config ExecOptions) (int, error)
 	InspectContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) (MachineServiceContainer, error)
-	RemoveContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions) error
 	StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error
 	StopContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions) error
-	ExecContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, config ExecOptions) (int, error)
+	RemoveContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions) error
+	WaitContainerHealthy(
+		ctx context.Context, serviceNameOrID, containerNameOrID string, opts WaitContainerHealthyOptions,
+	) error
 }
 
 type DNSClient interface {
@@ -56,4 +59,9 @@ type VolumeClient interface {
 	CreateVolume(ctx context.Context, machineNameOrID string, opts volume.CreateOptions) (MachineVolume, error)
 	ListVolumes(ctx context.Context, filter *VolumeFilter) ([]MachineVolume, error)
 	RemoveVolume(ctx context.Context, machineNameOrID, volumeName string, force bool) error
+}
+
+// AsPtr returns a pointer to the given value. Useful for optional fields in API structs.
+func AsPtr[T any](v T) *T {
+	return &v
 }
