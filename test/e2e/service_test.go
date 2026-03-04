@@ -1414,7 +1414,7 @@ myapp.example.com {
 			}
 		})
 
-		monitorPeriod := 1 * time.Second
+		monitorPeriod := 2 * time.Second
 		spec := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeReplicated,
@@ -1454,7 +1454,8 @@ myapp.example.com {
 			}
 		})
 
-		monitorPeriod := 1 * time.Second
+		// 1 second is sometimes not enough for Docker to detect the crash and start restarting the container.
+		monitorPeriod := 2 * time.Second
 		spec := api.ServiceSpec{
 			Name: name,
 			Mode: api.ServiceModeReplicated,
