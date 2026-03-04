@@ -55,6 +55,8 @@ type ServiceSpec struct {
 	// Caddy is the optional Caddy reverse proxy configuration for the service.
 	// Caddy and Ports cannot be specified simultaneously.
 	Caddy *CaddySpec `json:",omitempty"`
+	// Configs is list of configuration objects that can be mounted into the container.
+	Configs []ConfigSpec
 	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
@@ -67,12 +69,13 @@ type ServiceSpec struct {
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
+	// StopGracePeriod is how long to wait after SIGTERM before sending SIGKILL when stopping a container.
+	// Default is 10 seconds if not specified.
+	StopGracePeriod *time.Duration `json:",omitempty"`
 	// UpdateConfig configures how the service is updated during a deployment.
 	UpdateConfig UpdateConfig `json:",omitempty"`
 	// Volumes is list of data volumes that can be mounted into the container.
 	Volumes []VolumeSpec
-	// Configs is list of configuration objects that can be mounted into the container.
-	Configs []ConfigSpec
 }
 
 // CaddyConfig returns the Caddy reverse proxy configuration for the service or an empty string if it's not defined.

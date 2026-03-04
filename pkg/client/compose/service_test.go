@@ -205,7 +205,8 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					Placement: api.Placement{
 						Machines: []string{"machine-1", "machine-2"},
 					},
-					Replicas: 3,
+					Replicas:        3,
+					StopGracePeriod: api.AsPtr(30 * time.Second),
 					UpdateConfig: api.UpdateConfig{
 						Order:         api.UpdateOrderStopFirst,
 						MonitorPeriod: &api.DefaultHealthMonitorPeriod,

@@ -3,6 +3,7 @@ package operation
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
@@ -53,13 +54,14 @@ func (o *RunContainerOperation) String() string {
 
 // StopContainerOperation stops a container on a specific machine.
 type StopContainerOperation struct {
-	ServiceID   string
-	ContainerID string
-	MachineID   string
+	ServiceID       string
+	ContainerID     string
+	MachineID       string
+	StopGracePeriod *time.Duration
 }
 
 func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error {
-	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, container.StopOptions{}); err != nil {
+	if err := cli.StopContainer(ctx, o.ServiceID, o.ContainerID, stopOptions(o.StopGracePeriod)); err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
 	return nil
@@ -78,15 +80,18 @@ func (o *StopContainerOperation) String() string {
 
 // RemoveContainerOperation stops and removes a container from a specific machine.
 type RemoveContainerOperation struct {
-	MachineID string
-	Container api.ServiceContainer
+	MachineID       string
+	Container       api.ServiceContainer
+	StopGracePeriod *time.Duration
 }
 
 func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) error {
-	if err := cli.StopContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.StopOptions{}); err != nil {
+	err := cli.StopContainer(ctx, o.Container.ServiceID(), o.Container.ID, stopOptions(o.StopGracePeriod))
+	if err != nil {
 		return fmt.Errorf("stop container: %w", err)
 	}
-	if err := cli.RemoveContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.RemoveOptions{
+
+	if err = cli.RemoveContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.RemoveOptions{
 		// Remove anonymous volumes created by the container.
 		RemoveVolumes: true,
 	}); err != nil {
@@ -119,6 +124,7 @@ type ReplaceContainerOperation struct {
 	Order string
 	// SkipHealthMonitor skips the monitoring period and health checks after starting a new container.
 	SkipHealthMonitor bool
+	StopGracePeriod   *time.Duration
 }
 
 func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) error {
@@ -133,7 +139,8 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		}
 		wasRunning = ctr.Container.State.Running
 		if wasRunning {
-			if err = cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
+			err = cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, stopOptions(o.StopGracePeriod))
+			if err != nil {
 				return fmt.Errorf("stop old container: %w", err)
 			}
 		}
@@ -156,7 +163,7 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 
 			// Use context without progress to not overwrite the container Unhealthy status with Stopped.
 			ctxWithoutProgress := progress.WithContextWriter(ctx, nil)
-			_ = cli.StopContainer(ctxWithoutProgress, o.ServiceID, resp.ID, container.StopOptions{})
+			_ = cli.StopContainer(ctxWithoutProgress, o.ServiceID, resp.ID, stopOptions(o.StopGracePeriod))
 
 			newCtr := fmt.Sprintf("%s/%s", o.Spec.Name, stringid.TruncateID(resp.ID))
 			healthErr := fmt.Errorf(
@@ -186,12 +193,12 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		//  There still might be a brief downtime (for a 1 replica service) when Caddy doesn't know about
 		//  the new container but we're stopping the old container. We should somehow ensure Caddy is updated
 		//  with the new container before we stop the old one to avoid this downtime.
-		if err := cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, container.StopOptions{}); err != nil {
+		if err = cli.StopContainer(ctx, o.ServiceID, o.OldContainer.ID, stopOptions(o.StopGracePeriod)); err != nil {
 			return fmt.Errorf("stop old container: %w", err)
 		}
 	}
 
-	if err := cli.RemoveContainer(ctx, o.ServiceID, o.OldContainer.ID, container.RemoveOptions{
+	if err = cli.RemoveContainer(ctx, o.ServiceID, o.OldContainer.ID, container.RemoveOptions{
 		RemoveVolumes: true,
 	}); err != nil {
 		return fmt.Errorf("remove old container: %w", err)
@@ -208,4 +215,13 @@ func (o *ReplaceContainerOperation) Format(resolver NameResolver) string {
 func (o *ReplaceContainerOperation) String() string {
 	return fmt.Sprintf("ReplaceContainerOperation[machine_id=%s service_id=%s old_container_id=%s order=%s]",
 		o.MachineID, o.ServiceID, o.OldContainer.ID, o.Order)
+}
+
+// stopOptions converts a stop grace period duration to Docker container stop options.
+func stopOptions(gracePeriod *time.Duration) container.StopOptions {
+	if gracePeriod == nil {
+		return container.StopOptions{}
+	}
+	t := int(gracePeriod.Seconds())
+	return container.StopOptions{Timeout: &t}
 }

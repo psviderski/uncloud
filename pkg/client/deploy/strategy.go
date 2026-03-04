@@ -175,6 +175,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 			OldContainer:      ctr,
 			Order:             order,
 			SkipHealthMonitor: s.SkipHealthMonitor,
+			StopGracePeriod:   spec.StopGracePeriod,
 		})
 	}
 
@@ -182,8 +183,9 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 	for mid, containers := range containersOnMachine {
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
-				MachineID: mid,
-				Container: c,
+				MachineID:       mid,
+				Container:       c,
+				StopGracePeriod: spec.StopGracePeriod,
 			})
 		}
 	}
@@ -234,8 +236,9 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 	for _, containers := range containersOnMachine {
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
-				MachineID: c.MachineID,
-				Container: c.Container,
+				MachineID:       c.MachineID,
+				Container:       c.Container,
+				StopGracePeriod: spec.StopGracePeriod,
 			})
 		}
 	}
@@ -286,8 +289,9 @@ func reconcileGlobalContainer(
 					continue
 				}
 				ops = append(ops, &operation.RemoveContainerOperation{
-					MachineID: old.MachineID,
-					Container: old.Container,
+					MachineID:       old.MachineID,
+					Container:       old.Container,
+					StopGracePeriod: spec.StopGracePeriod,
 				})
 			}
 			break
@@ -319,9 +323,10 @@ func reconcileGlobalContainer(
 			conflictingPorts, err := c.Container.ConflictingServicePorts(spec.Ports)
 			if err != nil || len(conflictingPorts) > 0 {
 				ops = append(ops, &operation.StopContainerOperation{
-					ServiceID:   serviceID,
-					ContainerID: c.Container.ID,
-					MachineID:   machineID,
+					ServiceID:       serviceID,
+					ContainerID:     c.Container.ID,
+					MachineID:       machineID,
+					StopGracePeriod: spec.StopGracePeriod,
 				})
 			}
 		}
@@ -335,6 +340,7 @@ func reconcileGlobalContainer(
 			OldContainer:      containerToReplace.Container,
 			Order:             order,
 			SkipHealthMonitor: skipHealthCheck,
+			StopGracePeriod:   spec.StopGracePeriod,
 		})
 
 		// Remove any other containers (there shouldn't be any in normal operation).
@@ -343,8 +349,9 @@ func reconcileGlobalContainer(
 				continue
 			}
 			ops = append(ops, &operation.RemoveContainerOperation{
-				MachineID: c.MachineID,
-				Container: c.Container,
+				MachineID:       c.MachineID,
+				Container:       c.Container,
+				StopGracePeriod: spec.StopGracePeriod,
 			})
 		}
 	} else {
@@ -357,8 +364,9 @@ func reconcileGlobalContainer(
 		})
 		for _, c := range containers {
 			ops = append(ops, &operation.RemoveContainerOperation{
-				MachineID: c.MachineID,
-				Container: c.Container,
+				MachineID:       c.MachineID,
+				Container:       c.Container,
+				StopGracePeriod: spec.StopGracePeriod,
 			})
 		}
 	}
