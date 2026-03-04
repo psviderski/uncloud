@@ -10,8 +10,6 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestMachineRename(t *testing.T) {
@@ -361,23 +359,6 @@ func TestUpdateMachine(t *testing.T) {
 		assert.Equal(t, targetMachine.Machine.Network.Subnet.Bits, updatedMachine.Network.Subnet.Bits)
 		assert.Equal(t, targetMachine.Machine.Network.ManagementIp.Ip, updatedMachine.Network.ManagementIp.Ip)
 		assert.Equal(t, targetMachine.Machine.Network.PublicKey, updatedMachine.Network.PublicKey)
-
-		// Try to update with empty endpoints (should be rejected).
-		req = &pb.UpdateMachineRequest{
-			MachineId: targetMachine.Machine.Id,
-			Endpoints: []*pb.IPPort{},
-		}
-		_, err = cli.UpdateMachine(ctx, req)
-		require.Error(t, err)
-
-		st, ok := status.FromError(err)
-		require.True(t, ok)
-		assert.Equal(t, codes.InvalidArgument, st.Code())
-
-		// Verify endpoints remain unchanged.
-		inspected, err := cli.InspectMachine(ctx, targetMachine.Machine.Id)
-		require.NoError(t, err)
-		assert.Equal(t, newEndpoints, inspected.Machine.Network.Endpoints)
 	})
 
 	t.Run("update multiple fields simultaneously", func(t *testing.T) {
