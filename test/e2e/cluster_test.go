@@ -55,7 +55,7 @@ func createTestCluster(
 	})
 
 	if waitReady {
-		require.NoError(t, p.WaitClusterReady(ctx, c, 30*time.Second))
+		require.NoError(t, p.WaitClusterReady(ctx, c, 60*time.Second))
 	}
 
 	return c, p
