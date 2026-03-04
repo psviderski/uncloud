@@ -73,14 +73,14 @@ mocks:
 .PHONY: test
 test:
 ifeq ($(TEST_NAME),)
-	go test -count=1 -v ./...
+	go test -shuffle=on -count=1 -v ./...
 else
-	go test -race -count=1 -v -run ^$(TEST_NAME)$$ ./...
+	go test -shuffle=on -race -count=1 -v -run ^$(TEST_NAME)$$ ./...
 endif
 
 .PHONY: test-e2e
 test-e2e:
-	go test -race -count=1 -v ./test/e2e
+	go test -shuffle=on -race -count=1 -v ./test/e2e
 
 .PHONY: test-clean
 test-clean:

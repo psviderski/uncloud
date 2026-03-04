@@ -75,24 +75,17 @@ func (cli *Client) CreateIngressRecords(ctx context.Context, serviceID string) (
 		close(reachableMachines)
 	}()
 
-	var ingressIPs []string
+	var machines []*pb.MachineInfo
 	for m := range reachableMachines {
-		ip, _ := m.PublicIp.ToAddr()
-		ingressIPs = append(ingressIPs, ip.String())
+		machines = append(machines, m)
 	}
-	if len(ingressIPs) == 0 {
+	if len(machines) == 0 {
 		return nil, ErrNoReachableMachines
 	}
 
-	req := &pb.CreateDomainRecordsRequest{
-		Records: []*pb.DNSRecord{
-			{
-				Name:   "*",
-				Type:   pb.DNSRecord_A,
-				Values: ingressIPs,
-			},
-			// TODO: Add AAAA record with routable IPv6 addresses of machines running Caddy containers.
-		},
+	req, err := getCreateDomainRecordsRequest(machines)
+	if err != nil {
+		return nil, fmt.Errorf("create CreateDomainRecordsRequest: %w", err)
 	}
 	resp, err := cli.CreateDomainRecords(ctx, req)
 	if err != nil {
@@ -100,6 +93,54 @@ func (cli *Client) CreateIngressRecords(ctx context.Context, serviceID string) (
 	}
 
 	return resp.Records, nil
+}
+
+func getCreateDomainRecordsRequest(machines []*pb.MachineInfo) (*pb.CreateDomainRecordsRequest, error) {
+	if len(machines) == 0 {
+		return nil, fmt.Errorf("at least one machine must be provided")
+	}
+
+	var ipv4IngressIPs []string
+	var ipv6IngressIPs []string
+	var errs error
+	for _, m := range machines {
+		ip, _ := m.PublicIp.ToAddr()
+		if ip.Is4() {
+			ipv4IngressIPs = append(ipv4IngressIPs, ip.String())
+		} else if ip.Is6() {
+			ipv6IngressIPs = append(ipv6IngressIPs, ip.String())
+		} else {
+			// This is just a save guard, in case some special case is ever missed.
+			errs = errors.Join(errs, fmt.Errorf("machine with name %s (and ID: %s) has the public IP address '%s' which is neither IPv4 nor IPv6", m.Name, m.Id, ip.String()))
+		}
+	}
+	if errs != nil {
+		return nil, errs
+	}
+
+	records := make([]*pb.DNSRecord, 0, 2)
+	if len(ipv4IngressIPs) > 0 {
+		records = append(records,
+			&pb.DNSRecord{
+				Name:   "*",
+				Type:   pb.DNSRecord_A,
+				Values: ipv4IngressIPs,
+			},
+		)
+	}
+	if len(ipv6IngressIPs) > 0 {
+		records = append(records,
+			&pb.DNSRecord{
+				Name:   "*",
+				Type:   pb.DNSRecord_AAAA,
+				Values: ipv6IngressIPs,
+			},
+		)
+	}
+
+	return &pb.CreateDomainRecordsRequest{
+		Records: records,
+	}, nil
 }
 
 // verifyCaddyReachable verifies that the Caddy service is reachable on the machine by its public IP.
