@@ -30,6 +30,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	versionpkg "github.com/psviderski/uncloud/pkg/api/versioncheck"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
@@ -268,6 +269,8 @@ func NewMachine(config *Config) (*Machine, error) {
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)
 	localProxyServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
+		grpc.UnaryInterceptor(versionpkg.ServerUnaryInterceptor),
+		grpc.StreamInterceptor(versionpkg.ServerStreamInterceptor),
 		grpc.UnknownServiceHandler(
 			proxy.TransparentHandler(proxyDirector.Director),
 		),
@@ -421,6 +424,8 @@ func (m *Machine) Run(ctx context.Context) error {
 			m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
 			proxyServer := grpc.NewServer(
 				grpc.ForceServerCodecV2(proxy.Codec()),
+				grpc.UnaryInterceptor(versionpkg.ServerUnaryInterceptor),
+				grpc.StreamInterceptor(versionpkg.ServerStreamInterceptor),
 				grpc.UnknownServiceHandler(
 					proxy.TransparentHandler(m.proxyDirector.Director),
 				),
