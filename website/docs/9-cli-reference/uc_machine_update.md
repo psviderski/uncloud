@@ -6,19 +6,38 @@ Update machine configuration in the cluster.
 
 Update machine configuration in the cluster.
 
-This command allows setting various machine properties including:
-- Machine name (--name)
-- Public IP address (--public-ip)
-
-At least one flag must be specified to perform an update operation.
+Change the name, public IP address, or WireGuard endpoints of an existing machine.
+At least one flag must be specified to perform an update.
 
 ```
-uc machine update [flags]
+uc machine update MACHINE [flags]
+```
+
+## Examples
+
+```
+  # Rename a machine.
+  uc machine update machine1 --name web-server
+
+  # Set the public IP address of a machine.
+  uc machine update machine1 --public-ip 203.0.113.10
+
+  # Remove the public IP address from a machine.
+  uc machine update machine1 --public-ip none
+
+  # Update WireGuard endpoints for a machine.
+  uc machine update machine1 --endpoint 203.0.113.10 --endpoint 192.168.1.5
+
+  # Update multiple properties at once.
+  uc machine update machine1 --name web-server --public-ip 203.0.113.10
 ```
 
 ## Options
 
 ```
+      --endpoint strings   WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port 51820 is used if omitted.
+                           Other machines in the cluster will use these endpoints to establish a WireGuard connection to this machine.
+                           Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
   -h, --help               help for update
       --name string        New name for the machine
       --public-ip string   Public IP address of the machine for ingress configuration. Use 'none' or '' to remove the public IP.
