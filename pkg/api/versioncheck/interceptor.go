@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/Masterminds/semver/v3"
+	"github.com/Masterminds/semver"
 	internalVersion "github.com/psviderski/uncloud/internal/version"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
