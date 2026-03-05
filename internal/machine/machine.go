@@ -30,7 +30,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
-	versionpkg "github.com/psviderski/uncloud/pkg/api/versioncheck"
+	versionpkg "github.com/psviderski/uncloud/pkg/versioncheck"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"

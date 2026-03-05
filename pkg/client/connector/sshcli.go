@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/docker/cli/cli/connhelper/commandconn"
-	"github.com/psviderski/uncloud/pkg/api/versioncheck"
+	"github.com/psviderski/uncloud/pkg/versioncheck"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

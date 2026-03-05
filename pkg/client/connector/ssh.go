@@ -9,7 +9,7 @@ import (
 
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/sshexec"
-	"github.com/psviderski/uncloud/pkg/api/versioncheck"
+	"github.com/psviderski/uncloud/pkg/versioncheck"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
