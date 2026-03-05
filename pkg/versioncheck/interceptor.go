@@ -32,6 +32,9 @@ var (
 	// Pre-parsed minimum versions for comparison
 	minCLIVersion    = semver.MustParse(MinCLIVersion)
 	minDaemonVersion = semver.MustParse(MinDaemonVersion)
+
+	// warned tracks if we've already printed the daemon version warning
+	warned bool
 )
 
 func extractVersion(md metadata.MD, key string) *semver.Version {
@@ -110,6 +113,11 @@ func ClientUnaryInterceptor(ctx context.Context, method string, req, reply inter
 func checkDaemonVersionInResponse(md metadata.MD) {
 	daemonVersion := extractVersion(md, MetadataKeyDaemonVersion)
 	if daemonVersion.LessThan(minDaemonVersion) {
+		if warned {
+			return
+		}
+		warned = true
+
 		msg := fmt.Sprintf("daemon version is below minimum required version %s. The daemon did not verify this CLI's minimum version requirement, so the operation may not have behaved as intended. Please upgrade the daemon: %s",
 			minDaemonVersion, ReleaseURL)
 		fmt.Fprintf(os.Stderr, "WARNING: %s\n", msg)
