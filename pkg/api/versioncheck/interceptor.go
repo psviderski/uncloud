@@ -2,7 +2,8 @@ package versioncheck
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
+	"os"
 
 	"github.com/Masterminds/semver"
 	internalVersion "github.com/psviderski/uncloud/internal/version"
@@ -25,23 +26,19 @@ const (
 
 var (
 	// currentVersion is the version of this binary (CLI or daemon)
-	currentVersion = mustParseVersion(internalVersion.String())
+	currentVersion = semver.MustParse(internalVersion.String())
 	// zeroVersion is used when no version is specified (treated as 0.0.0)
 	zeroVersion = semver.MustParse("0.0.0")
 	// Pre-parsed minimum versions for comparison
-	minCLIVersion    = mustParseVersion(MinCLIVersion)
-	minDaemonVersion = mustParseVersion(MinDaemonVersion)
+	minCLIVersion    = semver.MustParse(MinCLIVersion)
+	minDaemonVersion = semver.MustParse(MinDaemonVersion)
 )
 
-func mustParseVersion(v string) *semver.Version {
-	sv, err := semver.NewVersion(v)
-	if err != nil {
-		panic("invalid hardcoded version constant: " + v)
+func extractVersion(md metadata.MD, key string) *semver.Version {
+	if md == nil {
+		return zeroVersion
 	}
-	return sv
-}
-
-func parseVersion(values []string) *semver.Version {
+	values := md.Get(key)
 	if len(values) == 0 || values[0] == "" {
 		return zeroVersion
 	}
@@ -53,19 +50,16 @@ func parseVersion(values []string) *semver.Version {
 }
 
 func checkClientVersionHeaders(ctx context.Context) error {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return status.Error(codes.Internal, "version check failed: no gRPC metadata in context")
-	}
+	md, _ := metadata.FromIncomingContext(ctx)
 
-	actualCLIVersion := parseVersion(md.Get(MetadataKeyCLIVersion))
+	actualCLIVersion := extractVersion(md, MetadataKeyCLIVersion)
 	if actualCLIVersion.LessThan(minCLIVersion) {
 		return status.Errorf(codes.FailedPrecondition,
-			"version check failed: client version %s is below minimum %s. Please upgrade: %s",
-			actualCLIVersion, minCLIVersion, ReleaseURL)
+			"version check failed: client version is below minimum %s. Please upgrade: %s",
+			minCLIVersion, ReleaseURL)
 	}
 
-	requiredMinDaemon := parseVersion(md.Get(MetadataKeyMinDaemonVersion))
+	requiredMinDaemon := extractVersion(md, MetadataKeyMinDaemonVersion)
 	if currentVersion.LessThan(requiredMinDaemon) {
 		return status.Errorf(codes.FailedPrecondition,
 			"version check failed: daemon version %s is below client's minimum required version %s. Please upgrade the daemon: %s",
@@ -75,7 +69,7 @@ func checkClientVersionHeaders(ctx context.Context) error {
 	return nil
 }
 
-func ServerUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func ServerUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	if err := checkClientVersionHeaders(ctx); err != nil {
 		return nil, err
 	}
@@ -107,21 +101,18 @@ func ClientUnaryInterceptor(ctx context.Context, method string, req, reply inter
 		return err
 	}
 
-	respMD, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return status.Error(codes.Internal, "version check failed: no gRPC metadata in response context")
-	}
-
+	respMD, _ := metadata.FromIncomingContext(ctx)
 	checkDaemonVersionInResponse(respMD)
 
 	return nil
 }
 
 func checkDaemonVersionInResponse(md metadata.MD) {
-	daemonVersions := md.Get(MetadataKeyDaemonVersion)
-	if len(daemonVersions) == 0 || daemonVersions[0] == "" {
-		slog.Warn("daemon response missing version metadata - please upgrade daemon",
-			"upgrade_url", ReleaseURL)
+	daemonVersion := extractVersion(md, MetadataKeyDaemonVersion)
+	if daemonVersion.LessThan(minDaemonVersion) {
+		msg := fmt.Sprintf("daemon version is below minimum required version %s. The daemon did not verify this CLI's minimum version requirement, so the operation may not have behaved as intended. Please upgrade the daemon: %s",
+			minDaemonVersion, ReleaseURL)
+		fmt.Fprintf(os.Stderr, "WARNING: %s\n", msg)
 	}
 }
 
