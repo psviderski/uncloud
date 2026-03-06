@@ -701,20 +701,29 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 			return nil, status.Errorf(codes.Internal, "generate machine name: %v", err)
 		}
 	}
-	// Use the public and all routable IPs as endpoints.
-	ips, err := network.ListRoutableIPs()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list routable IPs: %v", err)
-	}
+
+	// Use explicitly provided WireGuard endpoints, or use the routable IPs on the machine and its public IP
+	// if not provided. The IPs are auto-detected.
+	var endpoints []*pb.IPPort
 	publicIP, pubIPErr := network.GetPublicIP()
-	// Ignore the error if failed to get the public IP using API services.
-	if pubIPErr == nil && !slices.Contains(ips, publicIP) {
-		ips = append(ips, publicIP)
-	}
-	endpoints := make([]*pb.IPPort, len(ips))
-	for i, addr := range ips {
-		addrPort := netip.AddrPortFrom(addr, network.WireGuardPort)
-		endpoints[i] = pb.NewIPPort(addrPort)
+
+	if len(req.WireguardEndpoints) > 0 {
+		endpoints = req.WireguardEndpoints
+	} else {
+		ips, err := network.ListRoutableIPs()
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "list routable IPs: %v", err)
+		}
+		// Ignore the error if failed to get the public IP using API services.
+		if pubIPErr == nil && !slices.Contains(ips, publicIP) {
+			ips = append(ips, publicIP)
+		}
+
+		endpoints = make([]*pb.IPPort, len(ips))
+		for i, addr := range ips {
+			addrPort := netip.AddrPortFrom(addr, network.WireGuardPort)
+			endpoints[i] = pb.NewIPPort(addrPort)
+		}
 	}
 
 	// Register the new machine in the cluster to populate the state and get its ID and subnet.

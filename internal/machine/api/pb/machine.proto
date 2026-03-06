@@ -55,6 +55,9 @@ message InitClusterRequest {
     IP public_ip = 3;
     bool public_ip_auto = 4;
   }
+
+  // Optional WireGuard endpoints other machines will use to connect to this machine instead of auto-discovered ones.
+  repeated IPPort wireguard_endpoints = 5;
 }
 
 message InitClusterResponse {

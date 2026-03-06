@@ -14,19 +14,21 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type addOptions struct {
-	name      string
-	noCaddy   bool
-	noInstall bool
-	publicIP  string
-	sshKey    string
-	version   string
-	yes       bool
+	name        string
+	noCaddy     bool
+	noInstall   bool
+	publicIP    string
+	sshKey      string
+	version     string
+	wgEndpoints []string
+	yes         bool
 }
 
 func NewAddCommand() *cobra.Command {
@@ -90,6 +92,14 @@ Connection methods:
 		&opts.version, "version", "latest",
 		"Version of the Uncloud daemon to install on the machine.",
 	)
+	cmd.Flags().StringSliceVar(
+		&opts.wgEndpoints, "wg-endpoint", nil,
+		fmt.Sprintf("WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. "+
+			"Default port %d is used if omitted.\n", network.WireGuardPort)+
+			"Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.\n"+
+			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.\n"+
+			"If not specified, the machine's routable IPs and public IP are auto-detected and used as endpoints.",
+	)
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
 			"Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
@@ -112,14 +122,24 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		publicIP = &ip
 	}
 
-	clusterClient, machineClient, err := uncli.AddMachine(ctx, cli.AddMachineOptions{
+	addOpts := cli.AddMachineOptions{
 		MachineName:   opts.name,
 		PublicIP:      publicIP,
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
 		AutoConfirm:   opts.yes,
-	})
+	}
+	if len(opts.wgEndpoints) > 0 {
+		expanded := cli.ExpandCommaSeparatedValues(opts.wgEndpoints)
+		endpoints, err := cli.ParseWireGuardEndpoints(expanded)
+		if err != nil {
+			return fmt.Errorf("parse WireGuard endpoint (--wg-endpoint): %w", err)
+		}
+		addOpts.WireguardEndpoints = endpoints
+	}
+
+	clusterClient, machineClient, err := uncli.AddMachine(ctx, addOpts)
 	if err != nil {
 		return err
 	}

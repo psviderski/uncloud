@@ -155,14 +155,15 @@ func (cli *CLI) ConnectClusterWithOptions(ctx context.Context, opts ConnectOptio
 }
 
 type InitClusterOptions struct {
-	Context       string
-	MachineName   string
-	Network       netip.Prefix
-	PublicIP      *netip.Addr
-	RemoteMachine *RemoteMachine
-	SkipInstall   bool
-	Version       string
-	AutoConfirm   bool
+	Context            string
+	MachineName        string
+	Network            netip.Prefix
+	PublicIP           *netip.Addr
+	RemoteMachine      *RemoteMachine
+	SkipInstall        bool
+	Version            string
+	AutoConfirm        bool
+	WireguardEndpoints []*pb.IPPort
 }
 
 // InitCluster initialises a new cluster on a remote machine and returns a client to interact with the cluster.
@@ -220,8 +221,9 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 	}
 
 	req := &pb.InitClusterRequest{
-		MachineName: opts.MachineName,
-		Network:     pb.NewIPPrefix(opts.Network),
+		MachineName:        opts.MachineName,
+		Network:            pb.NewIPPrefix(opts.Network),
+		WireguardEndpoints: opts.WireguardEndpoints,
 	}
 	if opts.PublicIP != nil {
 		if opts.PublicIP.IsValid() {
@@ -298,12 +300,13 @@ func (cli *CLI) newContextName(name string) (string, error) {
 }
 
 type AddMachineOptions struct {
-	MachineName   string
-	PublicIP      *netip.Addr
-	RemoteMachine *RemoteMachine
-	SkipInstall   bool
-	Version       string
-	AutoConfirm   bool
+	MachineName        string
+	PublicIP           *netip.Addr
+	RemoteMachine      *RemoteMachine
+	SkipInstall        bool
+	Version            string
+	AutoConfirm        bool
+	WireguardEndpoints []*pb.IPPort
 }
 
 // AddMachine provisions a remote machine and adds it to the cluster. It returns a cluster client and a machine client.
@@ -380,10 +383,16 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		return nil, nil, fmt.Errorf("parse remote machine token: %w", err)
 	}
 
-	// Register the machine in the cluster using its public key and endpoints from the token.
-	endpoints := make([]*pb.IPPort, len(token.Endpoints))
-	for i, addrPort := range token.Endpoints {
-		endpoints[i] = pb.NewIPPort(addrPort)
+	// Register the machine in the cluster using its public key and WireGuard endpoints from the token,
+	// or use the explicitly provided WireGuard endpoints if any.
+	var endpoints []*pb.IPPort
+	if len(opts.WireguardEndpoints) > 0 {
+		endpoints = opts.WireguardEndpoints
+	} else {
+		endpoints = make([]*pb.IPPort, len(token.Endpoints))
+		for i, addrPort := range token.Endpoints {
+			endpoints[i] = pb.NewIPPort(addrPort)
+		}
 	}
 	addReq := &pb.AddMachineRequest{
 		Name: opts.MachineName,
