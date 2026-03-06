@@ -13,9 +13,9 @@ import (
 )
 
 type updateOptions struct {
-	name      string
-	publicIP  string
-	endpoints []string
+	name        string
+	publicIP    string
+	wgEndpoints []string
 }
 
 func NewUpdateCommand() *cobra.Command {
@@ -37,7 +37,7 @@ At least one flag must be specified to perform an update.`,
   uc machine update machine1 --public-ip none
 
   # Update WireGuard endpoints for a machine.
-  uc machine update machine1 --endpoint 203.0.113.10 --endpoint 192.168.1.5
+  uc machine update machine1 --wg-endpoint 203.0.113.10 --wg-endpoint 192.168.1.5
 
   # Update multiple properties at once.
   uc machine update machine1 --name web-server --public-ip 203.0.113.10`,
@@ -58,10 +58,10 @@ At least one flag must be specified to perform an update.`,
 			PublicIPNone),
 	)
 	cmd.Flags().StringSliceVar(
-		&opts.endpoints, "endpoint", nil,
+		&opts.wgEndpoints, "wg-endpoint", nil,
 		fmt.Sprintf("WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. "+
 			"Default port %d is used if omitted.\n", network.WireGuardPort)+
-			"Other machines in the cluster will use these endpoints to establish a WireGuard connection to this machine.\n"+
+			"Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.\n"+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.",
 	)
 
@@ -70,8 +70,8 @@ At least one flag must be specified to perform an update.`,
 
 func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts updateOptions, machineNameOrID string) error {
 	// Check if at least one flag was explicitly set.
-	if !cmd.Flags().Changed("endpoint") && !cmd.Flags().Changed("name") && !cmd.Flags().Changed("public-ip") {
-		return fmt.Errorf("at least one update flag must be specified (--endpoint, --name, --public-ip)")
+	if !cmd.Flags().Changed("name") && !cmd.Flags().Changed("public-ip") && !cmd.Flags().Changed("wg-endpoint") {
+		return fmt.Errorf("at least one update flag must be specified (--name, --public-ip, --wg-endpoint)")
 	}
 
 	client, err := uncli.ConnectCluster(ctx)
@@ -110,24 +110,14 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 	}
 
 	// Parse and set endpoints if the flag was explicitly provided.
-	if cmd.Flags().Changed("endpoint") {
-		expanded := cli.ExpandCommaSeparatedValues(opts.endpoints)
-		endpoints := make([]*pb.IPPort, 0, len(expanded))
-		for _, v := range expanded {
-			ap, err := netip.ParseAddrPort(v)
-			if err != nil {
-				// Try parsing as a bare IP address and use the default WireGuard port.
-				addr, addrErr := netip.ParseAddr(v)
-				if addrErr != nil {
-					return fmt.Errorf("invalid endpoint '%s': must be IP, IPv6, IP:PORT, or [IPv6]:PORT", v)
-				}
-				ap = netip.AddrPortFrom(addr, network.WireGuardPort)
-			}
-			endpoints = append(endpoints, pb.NewIPPort(ap))
+	if cmd.Flags().Changed("wg-endpoint") {
+		expanded := cli.ExpandCommaSeparatedValues(opts.wgEndpoints)
+		endpoints, err := cli.ParseWireGuardEndpoints(expanded)
+		if err != nil {
+			return err
 		}
-
 		if len(endpoints) == 0 {
-			return fmt.Errorf("at least one endpoint must be specified if --endpoint flag is used")
+			return fmt.Errorf("at least one endpoint must be specified if --wg-endpoint flag is used")
 		}
 		req.Endpoints = endpoints
 	}
@@ -158,7 +148,7 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 		}
 		changes = append(changes, fmt.Sprintf("public IP: %s -> %s", oldIP, newIP))
 	}
-	if cmd.Flags().Changed("endpoint") {
+	if cmd.Flags().Changed("wg-endpoint") {
 		formatEndpoints := func(eps []*pb.IPPort) string {
 			if len(eps) == 0 {
 				return "none"
