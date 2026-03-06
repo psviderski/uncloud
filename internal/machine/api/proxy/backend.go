@@ -4,15 +4,18 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
-// One2ManyResponder converts upstream responses into messages from upstreams, so that multiple
-// successful and failure responses might be returned in One2Many mode.
-type One2ManyResponder struct {
-	machine string
+// MetadataBackend wraps a proxy.Backend and injects machine metadata into responses in One2Many mode.
+type MetadataBackend struct {
+	proxy.Backend
+	MachineID   string
+	MachineName string
+	MachineAddr string
 }
 
 // AppendInfo is called to enhance response from the backend with additional data.
@@ -59,10 +62,12 @@ type One2ManyResponder struct {
 // cuts field header, rest is representation of some reply. Marshal 'Empty' as protobuf,
 // which builds 'common.Metadata' field, append it to original response message, build new header
 // for new length of some response, and add back new field header.
-func (b *One2ManyResponder) AppendInfo(streaming bool, resp []byte) ([]byte, error) {
+func (b *MetadataBackend) AppendInfo(streaming bool, resp []byte) ([]byte, error) {
 	payload, err := proto.Marshal(&pb.Empty{
 		Metadata: &pb.Metadata{
-			Machine: b.machine,
+			MachineAddr: b.MachineAddr,
+			MachineId:   b.MachineID,
+			MachineName: b.MachineName,
 		},
 	})
 
@@ -124,12 +129,14 @@ func (b *One2ManyResponder) AppendInfo(streaming bool, resp []byte) ([]byte, err
 //
 // Streaming responses are not wrapped into Empty, so we simply marshall EmptyResponse
 // message.
-func (b *One2ManyResponder) BuildError(streaming bool, err error) ([]byte, error) {
+func (b *MetadataBackend) BuildError(streaming bool, err error) ([]byte, error) {
 	var resp proto.Message = &pb.Empty{
 		Metadata: &pb.Metadata{
-			Machine: b.machine,
-			Error:   err.Error(),
-			Status:  status.Convert(err).Proto(),
+			MachineAddr: b.MachineAddr,
+			MachineId:   b.MachineID,
+			MachineName: b.MachineName,
+			Error:       err.Error(),
+			Status:      status.Convert(err).Proto(),
 		},
 	}
 

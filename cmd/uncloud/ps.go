@@ -182,18 +182,7 @@ func printContainers(containers []containerInfo) error {
 }
 
 func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
-	listCtx, machines, err := cli.ProxyMachinesContext(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("proxy machines context: %w", err)
-	}
-
-	// Create a map of IP to machine name for resolving response metadata
-	machinesNamesByIP := make(map[string]string)
-	for _, m := range machines {
-		if addr, err := m.Machine.Network.ManagementIp.ToAddr(); err == nil {
-			machinesNamesByIP[addr.String()] = m.Machine.Name
-		}
-	}
+	listCtx := cli.ProxyMachinesContext(ctx, nil)
 
 	// List all service containers across all machines in the cluster.
 	machineContainers, err := cli.Docker.ListServiceContainers(
@@ -205,29 +194,17 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 
 	var containers []containerInfo
 	for _, msc := range machineContainers {
-		// Metadata can be nil if the request was broadcasted to only one machine.
-		if msc.Metadata == nil && len(machineContainers) > 1 {
-			return nil, fmt.Errorf("something went wrong with gRPC proxy: metadata is missing for a machine response")
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
+		if msc.Metadata == nil {
+			client.PrintWarning("metadata is missing in response from unknown server")
+			continue
 		}
 
-		machineName := "unknown"
-		if msc.Metadata != nil {
-			var ok bool
-			machineName, ok = machinesNamesByIP[msc.Metadata.Machine]
-			if !ok {
-				// Fallback to machine's IP as name.
-				machineName = msc.Metadata.Machine
-			}
-		} else {
-			// Fallback to the first available machine name.
-			if len(machines) > 0 {
-				machineName = machines[0].Machine.Name
-			}
-		}
+		machineName := msc.Metadata.MachineName
 
-		if msc.Metadata != nil && msc.Metadata.Error != "" {
-			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName,
-				msc.Metadata.Error))
+		if msc.Metadata.Error != "" {
+			client.PrintWarning(fmt.Sprintf("failed to list service containers on machine %s: %s",
+				machineName, msc.Metadata.Error))
 			continue
 		}
 

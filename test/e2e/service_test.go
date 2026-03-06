@@ -1295,7 +1295,7 @@ myapp.example.com {
 
 		for _, mi := range machineImages {
 			// Checking only DockerImages because the machines in ucind cluster don't use the containerd image store.
-			if !machinesWithContainers.Contains(mi.Metadata.Machine) {
+			if !machinesWithContainers.Contains(mi.Metadata.MachineId) {
 				// This is the machine without service containers, it should not have the unique image.
 				for _, img := range mi.Images {
 					assert.NotContains(t, img.RepoTags, uniqueImage)
@@ -1312,7 +1312,7 @@ myapp.example.com {
 				}
 			}
 			assert.True(t, hasImage, "Machine %s with container should have image %s",
-				mi.Metadata.Machine, uniqueImage)
+				mi.Metadata.MachineAddr, uniqueImage)
 		}
 	})
 
