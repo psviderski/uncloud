@@ -93,18 +93,19 @@ func ServerStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.S
 }
 
 func ClientUnaryInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	md := metadata.Pairs(
+	ctx = metadata.AppendToOutgoingContext(ctx,
 		MetadataKeyCLIVersion, currentVersion.String(),
 		MetadataKeyMinDaemonVersion, MinDaemonVersion,
 	)
-	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	var respMD metadata.MD
+	opts = append(opts, grpc.Header(&respMD))
 
 	err := invoker(ctx, method, req, reply, cc, opts...)
 	if err != nil {
 		return err
 	}
 
-	respMD, _ := metadata.FromIncomingContext(ctx)
 	checkDaemonVersionInResponse(respMD)
 
 	return nil
@@ -125,11 +126,10 @@ func checkDaemonVersionInResponse(md metadata.MD) {
 }
 
 func ClientStreamInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-	md := metadata.Pairs(
+	ctx = metadata.AppendToOutgoingContext(ctx,
 		MetadataKeyCLIVersion, currentVersion.String(),
 		MetadataKeyMinDaemonVersion, MinDaemonVersion,
 	)
-	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	stream, err := streamer(ctx, desc, cc, method, opts...)
 	if err != nil {
