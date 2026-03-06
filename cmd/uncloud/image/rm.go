@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/docker/docker/api/types/image"
@@ -59,10 +60,11 @@ func remove(ctx context.Context, uncli *cli.CLI, images []string, opts removeOpt
 		PruneChildren: !opts.noPrune,
 	}
 
+	var removeErr error
 	for _, img := range images {
 		responses, err := clusterClient.RemoveImage(ctx, img, removeOpts, machines)
 		if err != nil {
-			fmt.Printf("Error removing image '%s': %v\n", img, err)
+			removeErr = errors.Join(removeErr, fmt.Errorf("remove image '%s': %w", img, err))
 			continue
 		}
 
@@ -73,14 +75,14 @@ func remove(ctx context.Context, uncli *cli.CLI, images []string, opts removeOpt
 			}
 
 			if resp.Metadata.Error != "" {
-				fmt.Printf("[%s] Error: %s\n", machineName, resp.Metadata.Error)
+				removeErr = errors.Join(removeErr, fmt.Errorf("[%s] %s", machineName, resp.Metadata.Error))
 				continue
 			}
 
-			// If no specific response items (e.g. image not found but no error returned?), just print success?
-			// Docker usually returns items.
+			// TODO: Consider removing this - Docker only reports what was actually removed.
+			// An empty response without error is an edge case (image doesn't exist locally).
 			if len(resp.Response) == 0 {
-				fmt.Printf("[%s] Image '%s' not found or not removed.\n", machineName, img)
+				fmt.Printf("[%s] No layers removed for '%s'\n", machineName, img)
 				continue
 			}
 
@@ -95,5 +97,5 @@ func remove(ctx context.Context, uncli *cli.CLI, images []string, opts removeOpt
 		}
 	}
 
-	return nil
+	return removeErr
 }

@@ -3,9 +3,11 @@ package image
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -63,9 +65,13 @@ func inspect(ctx context.Context, uncli *cli.CLI, images []string) error {
 			continue
 		}
 
-		// If not found on cluster, try remote inspect
-		// TODO: differentiate between "not found" and other errors?
-		// InspectRemoteImage checks remote registry.
+		// If not found on cluster, try remote inspect from registry.
+		// For other errors (network, auth, etc.), report them directly.
+		if !errors.Is(err, api.ErrNotFound) {
+			fmt.Printf("Error inspecting image '%s': %v\n", img, err)
+			continue
+		}
+
 		remoteImages, err := clusterClient.InspectRemoteImage(ctx, img)
 		if err != nil {
 			fmt.Printf("Error inspecting image '%s': %v\n", img, err)

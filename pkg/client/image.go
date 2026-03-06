@@ -107,7 +107,7 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 func (cli *Client) RemoveImage(
 	ctx context.Context, image string, opts image.RemoveOptions, machines []string,
 ) ([]api.MachineRemoveImageResponse, error) {
-	listCtx, _, err := api.ProxyMachinesContext(ctx, cli, machines)
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
 	}
@@ -146,7 +146,7 @@ func (cli *Client) RemoveImage(
 func (cli *Client) PullImage(
 	ctx context.Context, imageName string, opts image.PullOptions, machines []string,
 ) (<-chan api.MachinePullImageMessage, error) {
-	listCtx, _, err := api.ProxyMachinesContext(ctx, cli, machines)
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
 	}
@@ -211,7 +211,7 @@ func (cli *Client) PullImage(
 func (cli *Client) PruneImages(
 	ctx context.Context, filtersArgs filters.Args, machines []string,
 ) ([]api.MachinePruneImagesResponse, error) {
-	listCtx, _, err := api.ProxyMachinesContext(ctx, cli, machines)
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
 	}

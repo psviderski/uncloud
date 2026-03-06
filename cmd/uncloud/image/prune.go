@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -88,6 +89,7 @@ func prune(ctx context.Context, uncli *cli.CLI, opts pruneOptions) error {
 		return fmt.Errorf("prune images: %w", err)
 	}
 
+	var pruneErr error
 	for _, resp := range responses {
 		machineName := resp.Metadata.Machine
 		if m := allMachines.FindByNameOrID(machineName); m != nil {
@@ -95,7 +97,7 @@ func prune(ctx context.Context, uncli *cli.CLI, opts pruneOptions) error {
 		}
 
 		if resp.Metadata.Error != "" {
-			fmt.Printf("[%s] Error: %s\n", machineName, resp.Metadata.Error)
+			pruneErr = errors.Join(pruneErr, fmt.Errorf("[%s] %s", machineName, resp.Metadata.Error))
 			continue
 		}
 
@@ -110,11 +112,11 @@ func prune(ctx context.Context, uncli *cli.CLI, opts pruneOptions) error {
 					fmt.Printf("deleted: %s\n", item.Deleted)
 				}
 			}
-			fmt.Printf("\n")
+			fmt.Println()
 		}
 
 		fmt.Printf("[%s] Total reclaimed space: %s\n", machineName, units.HumanSize(float64(report.SpaceReclaimed)))
 	}
 
-	return nil
+	return pruneErr
 }
