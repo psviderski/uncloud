@@ -26,7 +26,7 @@ uc machine update MACHINE [flags]
   uc machine update machine1 --public-ip none
 
   # Update WireGuard endpoints for a machine.
-  uc machine update machine1 --endpoint 203.0.113.10 --endpoint 192.168.1.5
+  uc machine update machine1 --wg-endpoint 203.0.113.10 --wg-endpoint 192.168.1.5
 
   # Update multiple properties at once.
   uc machine update machine1 --name web-server --public-ip 203.0.113.10
@@ -35,12 +35,12 @@ uc machine update MACHINE [flags]
 ## Options
 
 ```
-      --endpoint strings   WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port 51820 is used if omitted.
-                           Other machines in the cluster will use these endpoints to establish a WireGuard connection to this machine.
-                           Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
-  -h, --help               help for update
-      --name string        New name for the machine
-      --public-ip string   Public IP address of the machine for ingress configuration. Use 'none' or '' to remove the public IP.
+  -h, --help                  help for update
+      --name string           New name for the machine
+      --public-ip string      Public IP address of the machine for ingress configuration. Use 'none' or '' to remove the public IP.
+      --wg-endpoint strings   WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port 51820 is used if omitted.
+                              Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.
+                              Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
 ```
 
 ## Options inherited from parent commands

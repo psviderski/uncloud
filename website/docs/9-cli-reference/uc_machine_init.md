@@ -46,6 +46,10 @@ uc machine init [schema://]USER@HOST[:PORT] [flags]
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
       --version string        Version of the Uncloud daemon to install on the machine. (default "latest")
+      --wg-endpoint strings   WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port 51820 is used if omitted.
+                              Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.
+                              Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
+                              If not specified, the machine's routable IPs and public IP are auto-detected and used as endpoints.
   -y, --yes                   Auto-confirm prompts (e.g., resetting an already initialised machine).
                               Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
