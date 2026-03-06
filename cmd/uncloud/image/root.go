@@ -13,6 +13,11 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(
 		NewListCommand(),
 		NewPushCommand(),
+		NewPullCommand(),
+		NewRemoveCommand(),
+		NewInspectCommand(),
+		NewPruneCommand(),
+		NewTagCommand(),
 	)
 
 	return cmd
