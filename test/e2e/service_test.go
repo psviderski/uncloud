@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -2021,5 +2022,154 @@ func TestServiceLifecycle(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "machines not found")
+	})
+
+	t.Run("internal DNS", func(t *testing.T) {
+		t.Parallel()
+
+		// Deploy a global service so each machine gets one container.
+		serviceName := "test-dns-service"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, serviceName)
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		spec := api.ServiceSpec{
+			Name: serviceName,
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+		}
+		_, err := cli.RunService(ctx, spec)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, serviceName)
+		require.NoError(t, err)
+
+		// Deploy a test service to run DNS queries from.
+		queryServiceName := "test-dns-query-service"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, queryServiceName)
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+		querySvcSpec := api.ServiceSpec{
+			Name:     queryServiceName,
+			Mode:     api.ServiceModeReplicated,
+			Replicas: 1,
+			Placement: api.Placement{
+				Machines: []string{c.Machines[0].Name},
+			},
+			Container: api.ContainerSpec{
+				Image:   "alpine:3.20",
+				Command: []string{"sleep", "infinity"},
+			},
+		}
+		_, err = cli.RunService(ctx, querySvcSpec)
+		require.NoError(t, err)
+
+		querySvc, err := cli.InspectService(ctx, queryServiceName)
+		require.NoError(t, err)
+		queryContainer := querySvc.Containers[0]
+
+		runNslookup := func(t *testing.T, dnsQuery string) string {
+			dnsOutput, err := execInContainerAndReadOutput(
+				t, ctx, cli, queryServiceName, queryContainer.Container.ID,
+				[]string{"nslookup", dnsQuery},
+			)
+			require.NoError(t, err)
+			return dnsOutput
+		}
+
+		assertNoDNSErrors := func(t *testing.T, dnsOutput string) {
+			assert.NotContains(t, dnsOutput, "server can't find", "DNS query should not contain NXDOMAIN/SERVFAIL errors")
+		}
+
+		t.Run("service name resolves to all container IPs", func(t *testing.T) {
+			dnsOutput := runNslookup(t, serviceName+".internal")
+			t.Logf("DNS query output:\n%s", dnsOutput)
+
+			for _, ctr := range svc.Containers {
+				containerIP := ctr.Container.UncloudNetworkIP().String()
+				assert.Contains(t, dnsOutput, containerIP,
+					"Service DNS should resolve to container IP %s", containerIP)
+			}
+
+			assertNoDNSErrors(t, dnsOutput)
+		})
+
+		t.Run("machine-specific service DNS lookups", func(t *testing.T) {
+			for _, targetContainer := range svc.Containers {
+				targetMachineID := targetContainer.MachineID
+				targetContainerIP := targetContainer.Container.UncloudNetworkIP().String()
+
+				machineSpecificDNS := targetMachineID + ".m." + serviceName + ".internal"
+
+				dnsOutput := runNslookup(t, machineSpecificDNS)
+				t.Logf("Machine-specific DNS query output for %s:\n%s", machineSpecificDNS, dnsOutput)
+
+				assert.Contains(t, dnsOutput, targetContainerIP,
+					"Machine-specific DNS %s should resolve to container IP %s",
+					machineSpecificDNS, targetContainerIP)
+
+				// Machine-specific lookup should return only the container on that machine.
+				for _, ctr := range svc.Containers {
+					if ctr.MachineID != targetMachineID {
+						otherContainerIP := ctr.Container.UncloudNetworkIP().String()
+						assert.NotContains(t, dnsOutput, otherContainerIP,
+							"Machine-specific DNS %s should not resolve to other container IP %s",
+							machineSpecificDNS, otherContainerIP)
+					}
+				}
+
+				assertNoDNSErrors(t, dnsOutput)
+			}
+		})
+
+		t.Run("service ID DNS lookup", func(t *testing.T) {
+			dnsOutput := runNslookup(t, svc.ID+".internal")
+			t.Logf("Service ID DNS query output:\n%s", dnsOutput)
+
+			for _, ctr := range svc.Containers {
+				containerIP := ctr.Container.UncloudNetworkIP().String()
+				assert.Contains(t, dnsOutput, containerIP,
+					"Service ID DNS should resolve to container IP %s", containerIP)
+			}
+
+			assertNoDNSErrors(t, dnsOutput)
+		})
+
+		t.Run("nearest mode prioritizes local subnet IPs", func(t *testing.T) {
+			var localIP string
+			for _, ctr := range svc.Containers {
+				if ctr.MachineID == queryContainer.MachineID {
+					localIP = ctr.Container.UncloudNetworkIP().String()
+					break
+				}
+			}
+			require.NotEmpty(t, localIP, "Should find local container IP on query machine %s", queryContainer.MachineID)
+
+			// Extracts the first IP from nslookup output after the "Name:" line.
+			re := regexp.MustCompile(`(?m)Name:\s+[\w\.\-]+\s+Address:\s+([\d\.]+)`)
+
+			// The default mode randomizes IP order, so run multiple times to reduce the chance of passing by coincidence.
+			for range 5 {
+				dnsOutput := runNslookup(t, "nearest."+serviceName+".internal")
+				t.Logf("Nearest mode DNS query output:\n%s", dnsOutput)
+
+				matches := re.FindStringSubmatch(dnsOutput)
+				require.Len(t, matches, 2, "Should find Name's Address in DNS output")
+				firstIP := matches[1]
+				assert.Equal(t, localIP, firstIP,
+					"Nearest mode should return local subnet IP first (query machine: %s, local IP: %s, first DNS result: %s)",
+					queryContainer.MachineID, localIP, firstIP)
+
+				assertNoDNSErrors(t, dnsOutput)
+			}
+		})
 	})
 }
