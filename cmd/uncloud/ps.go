@@ -6,10 +6,9 @@ import (
 	"sort"
 	"time"
 
-	lipgloss "charm.land/lipgloss/v2"
+	"charm.land/huh/v2/spinner"
+	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
-	"github.com/charmbracelet/huh/spinner"
-	lipglossv1 "github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
@@ -86,7 +85,12 @@ func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
 	err = spinner.New().
 		Title(" Collecting container info...").
 		Type(spinner.MiniDot).
-		Style(lipglossv1.NewStyle().Foreground(lipglossv1.Color("3"))).
+		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
+			return &spinner.Styles{
+				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
+				Title:   lipgloss.NewStyle(),
+			}
+		})).
 		ActionWithErr(func(ctx context.Context) error {
 			containers, err = collectContainers(ctx, clusterClient)
 			return err

@@ -5,7 +5,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/charmbracelet/huh"
+	"charm.land/huh/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/spf13/cobra"
 )

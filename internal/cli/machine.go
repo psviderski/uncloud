@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/huh/v2"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/charmbracelet/huh"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"google.golang.org/protobuf/types/known/emptypb"

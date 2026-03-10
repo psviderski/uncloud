@@ -7,10 +7,9 @@ import (
 	"os"
 	"time"
 
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	lipglossv1 "github.com/charmbracelet/lipgloss"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -126,7 +125,7 @@ type showSpinnerMsg struct{}
 func newConnectModel(ctx context.Context, conn config.MachineConnection) connectModel {
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
-	s.Style = lipglossv1.NewStyle().Foreground(lipglossv1.Color("3")) // the same yellow as in compose progress
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Yellow) // the same yellow as in compose progress
 
 	return connectModel{
 		ctx:     ctx,
@@ -188,8 +187,8 @@ func (m connectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			m.result.err = fmt.Errorf("connection cancelled")
 			m.done = true
 			return m, tea.Quit
@@ -199,15 +198,15 @@ func (m connectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m connectModel) View() string {
+func (m connectModel) View() tea.View {
 	// Don't show anything if done or spinner not yet visible.
 	if m.done || !m.showSpinner {
-		return ""
+		return tea.NewView("")
 	}
 
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color("153"))
-	return fmt.Sprintf("%s %s\n",
+	return tea.NewView(fmt.Sprintf("%s %s\n",
 		m.spinner.View(),
 		fmt.Sprintf("Connecting to %s", style.Render(m.conn.String())),
-	)
+	))
 }

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/huh/spinner"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/huh/v2/spinner"
+	"charm.land/lipgloss/v2"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -154,8 +154,12 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	err = spinner.New().
 		Title(" Waiting for the machine to join the cluster...").
 		Type(spinner.MiniDot).
-		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
-		TitleStyle(lipgloss.NewStyle()).
+		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
+			return &spinner.Styles{
+				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
+				Title:   lipgloss.NewStyle(),
+			}
+		})).
 		ActionWithErr(func(ctx context.Context) error {
 			return machineClient.WaitClusterReady(ctx, 5*time.Minute)
 		}).
