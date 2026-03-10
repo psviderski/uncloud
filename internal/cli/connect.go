@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "charm.land/lipgloss/v2"
 	lipglossv1 "github.com/charmbracelet/lipgloss"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"

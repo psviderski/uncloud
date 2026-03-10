@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/charmbracelet/huh/spinner"
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
+	"github.com/charmbracelet/huh/spinner"
 	lipglossv1 "github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-units"

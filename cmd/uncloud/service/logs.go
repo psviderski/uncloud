@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	"image/color"
 
 	"charm.land/lipgloss/v2"
 	mapset "github.com/deckarep/golang-set/v2"
