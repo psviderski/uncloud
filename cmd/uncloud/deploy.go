@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"

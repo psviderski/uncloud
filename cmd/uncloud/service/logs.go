@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"image/color"
+
+	"charm.land/lipgloss/v2"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -205,17 +207,17 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 }
 
 // Available colors for machine/service differentiation.
-var colorPalette = []lipgloss.Color{
-	lipgloss.Color("10"), // Bright green
-	lipgloss.Color("11"), // Bright yellow
-	lipgloss.Color("12"), // Bright blue
-	lipgloss.Color("13"), // Bright magenta
-	lipgloss.Color("14"), // Bright cyan
-	lipgloss.Color("2"),  // Green
-	lipgloss.Color("3"),  // Yellow
-	lipgloss.Color("4"),  // Blue
-	lipgloss.Color("5"),  // Magenta
-	lipgloss.Color("6"),  // Cyan
+var colorPalette = []color.Color{
+	lipgloss.BrightGreen,
+	lipgloss.BrightYellow,
+	lipgloss.BrightBlue,
+	lipgloss.BrightMagenta,
+	lipgloss.BrightCyan,
+	lipgloss.Green,
+	lipgloss.Yellow,
+	lipgloss.Blue,
+	lipgloss.Magenta,
+	lipgloss.Cyan,
 }
 
 // logFormatter handles formatting and printing of log entries with dynamic column alignment.

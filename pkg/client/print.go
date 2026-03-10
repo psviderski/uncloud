@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func PrintWarning(msg string) {

@@ -3,17 +3,19 @@ package image
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/containerd/platforms"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/go-units"
-	"github.com/muesli/termenv"
+
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -222,7 +224,7 @@ func formatPlatforms(platforms []string) string {
 		Foreground(lipgloss.Color("0")).
 		Background(lipgloss.Color("152"))
 	// Use fancy pill borders only if the output is a terminal with color support.
-	if lipgloss.ColorProfile() != termenv.Ascii {
+	if colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII {
 		platformStyle = platformStyle.Border(lipgloss.Border{Left: "", Right: ""}, false, true, false, true)
 	}
 

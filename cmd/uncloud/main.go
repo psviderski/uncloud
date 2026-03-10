@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"

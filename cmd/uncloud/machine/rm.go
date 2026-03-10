@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/tree"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/tree"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"

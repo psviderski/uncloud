@@ -9,7 +9,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "charm.land/lipgloss/v2"
+	lipglossv1 "github.com/charmbracelet/lipgloss"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -125,7 +126,7 @@ type showSpinnerMsg struct{}
 func newConnectModel(ctx context.Context, conn config.MachineConnection) connectModel {
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // the same yellow as in compose progress
+	s.Style = lipglossv1.NewStyle().Foreground(lipglossv1.Color("3")) // the same yellow as in compose progress
 
 	return connectModel{
 		ctx:     ctx,

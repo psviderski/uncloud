@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
