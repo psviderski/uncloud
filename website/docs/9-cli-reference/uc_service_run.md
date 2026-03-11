@@ -31,6 +31,11 @@ uc service run IMAGE [COMMAND...] [flags]
                               -p 53:5353/udp@host            Bind UDP port 5353 to host port 53
       --pull string         Pull image from the registry before running service containers ('always', 'missing', 'never'). (default "missing")
       --replicas uint       Number of containers to run for the service. Only valid for a replicated service. (default 1)
+      --ulimit strings      Set resource limits for service containers. Can be specified multiple times.
+                            Format: type=soft_limit[:hard_limit]. If hard limit is not specified, soft limit is used for both.
+                            Examples:
+                              --ulimit nofile=1024:2048  Set soft limit to 1024 and hard limit to 2048 for number of open files
+                              --ulimit nproc=65535       Set both soft and hard limits to 65535 for number of processes
   -u, --user string         User name or UID and optionally group name or GID used for running the command inside service containers.
                             Format: USER[:GROUP] or UID[:GID]. If not specified, the user is set to the default user of the image.
   -v, --volume strings      Mount a data volume or host path into service containers. Service containers will be scheduled on the machine(s) where
