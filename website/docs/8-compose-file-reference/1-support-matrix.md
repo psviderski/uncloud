@@ -46,6 +46,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `stop_grace_period` | ✅ Supported        | Time to wait after SIGTERM before SIGKILL                                                                      |
 | `storage_opt`       | ❌ Not supported    |                                                                                                                |
 | `sysctls`           | ✅ Supported        | Namespaced kernel parameters                                                                                   |
+| `ulimits`           | ✅ Supported        | Resource limits                                                                                                |
 | `user`              | ✅ Supported        | Set container user                                                                                             |
 | `volumes`           | ✅ Supported        | Named volumes, bind mounts, tmpfs                                                                              |
 | **Deploy**          |                    |                                                                                                                |
