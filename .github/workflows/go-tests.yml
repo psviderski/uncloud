@@ -63,7 +63,7 @@ jobs:
       - name: Install Mise
         uses: jdx/mise-action@13abe502c30c1559a5c37dff303831bab82c9402 # v2.2.3
         with:
-          version: "2025.9.6"
+          version: "2026.3.7"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
