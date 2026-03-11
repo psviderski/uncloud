@@ -1,7 +1,14 @@
 # Compose support matrix
 
 Uncloud supports a subset of the [Compose specification](https://compose-spec.io/) with some extensions and limitations.
-The following table shows the support status for main Compose features:
+The following table shows the support status for main Compose features.
+
+:::info
+
+If you rely on a specific Compose feature that is not supported by Uncloud, please submit a feature request in
+[GitHub Discussions](https://github.com/psviderski/uncloud/discussions) or on [Discord](https://uncloud.run/discord).
+
+:::
 
 | Feature             | Support Status     | Notes                                                                                                          |
 |---------------------|--------------------|----------------------------------------------------------------------------------------------------------------|
