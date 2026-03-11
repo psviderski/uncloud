@@ -9,6 +9,7 @@ import (
 	dockeropts "github.com/docker/cli/opts"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/daemon/names"
+	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -32,6 +33,7 @@ type runOptions struct {
 	publish           []string
 	pull              string
 	replicas          uint
+	ulimits           []string
 	user              string
 	volumes           []string
 }
@@ -102,6 +104,12 @@ func NewRunCommand(groupID string) *cobra.Command {
 	cmd.Flags().StringVarP(&opts.user, "user", "u", "",
 		"User name or UID and optionally group name or GID used for running the command inside service containers.\n"+
 			"Format: USER[:GROUP] or UID[:GID]. If not specified, the user is set to the default user of the image.")
+	cmd.Flags().StringSliceVar(&opts.ulimits, "ulimit", nil,
+		"Set resource limits for service containers. Can be specified multiple times.\n"+
+			"Format: type=soft_limit[:hard_limit]. If hard limit is not specified, soft limit is used for both.\n"+
+			"Examples:\n"+
+			"  --ulimit nofile=1024:2048  Set soft limit to 1024 and hard limit to 2048 for number of open files\n"+
+			"  --ulimit nproc=65535       Set both soft and hard limits to 65535 for number of processes")
 	cmd.Flags().StringSliceVarP(&opts.volumes, "volume", "v", nil,
 		"Mount a data volume or host path into service containers. Service containers will be scheduled on the machine(s) where\n"+
 			"the volume is located. Can be specified multiple times.\n"+
@@ -194,13 +202,18 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 		ports[i] = port
 	}
 
-	volumes, mounts, err := parseVolumeFlags(opts.volumes)
+	placement := api.Placement{
+		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
+	}
+
+	ulimits, err := parseUlimits(opts.ulimits)
 	if err != nil {
 		return spec, err
 	}
 
-	placement := api.Placement{
-		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
+	volumes, mounts, err := parseVolumeFlags(opts.volumes)
+	if err != nil {
+		return spec, err
 	}
 
 	spec = api.ServiceSpec{
@@ -211,8 +224,9 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 			Privileged: opts.privileged,
 			PullPolicy: opts.pull,
 			Resources: api.ContainerResources{
-				CPU:    opts.cpu.Value(),
-				Memory: opts.memory.Value(),
+				CPU:     opts.cpu.Value(),
+				Memory:  opts.memory.Value(),
+				Ulimits: ulimits,
 			},
 			User:         opts.user,
 			VolumeMounts: mounts,
@@ -300,6 +314,24 @@ func parseVolumeFlags(volumes []string) ([]api.VolumeSpec, []api.VolumeMount, er
 	}
 
 	return specs, mounts, nil
+}
+
+// parseUlimits parses ulimit flag values in Docker CLI format (type=soft[:hard]).
+func parseUlimits(ulimits []string) (map[string]api.Ulimit, error) {
+	if len(ulimits) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]api.Ulimit, len(ulimits))
+	for _, u := range ulimits {
+		parsed, err := units.ParseUlimit(u)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ulimit '%s': %w", u, err)
+		}
+		result[parsed.Name] = api.Ulimit{Soft: parsed.Soft, Hard: parsed.Hard}
+	}
+
+	return result, nil
 }
 
 func parseVolumeFlagValue(volume string) (api.VolumeSpec, api.VolumeMount, error) {
