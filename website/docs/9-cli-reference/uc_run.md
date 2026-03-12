@@ -16,7 +16,8 @@ uc run IMAGE [COMMAND...] [flags]
                             Format: VAR=value or just VAR to use the value from the local environment.
   -h, --help                help for run
   -m, --machine strings     Placement constraint by machine names, limiting which machines the service can run on. Can be specified multiple times or as a comma-separated list of machine names. (default is any suitable machine)
-      --memory bytes        Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.
+      --memory bytes        Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g).
+                            Default unit is bytes if no suffix specified.
                             Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)
       --mode string         Replication mode of the service: either 'replicated' (a specified number of containers across the machines) or 'global' (one container on every machine). (default "replicated")
   -n, --name string         Assign a name to the service. A random name is generated if not specified.
@@ -31,6 +32,9 @@ uc run IMAGE [COMMAND...] [flags]
                               -p 53:5353/udp@host            Bind UDP port 5353 to host port 53
       --pull string         Pull image from the registry before running service containers ('always', 'missing', 'never'). (default "missing")
       --replicas uint       Number of containers to run for the service. Only valid for a replicated service. (default 1)
+      --shm-size bytes      Maximum amount of shared memory (mounted at /dev/shm) a service container can use. Value is a positive integer
+                            with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.
+                            Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)
       --ulimit strings      Set resource limits for service containers. Can be specified multiple times.
                             Format: type=soft_limit[:hard_limit]. If hard limit is not specified, soft limit is used for both.
                             Examples:

@@ -642,6 +642,7 @@ func (s *Server) CreateServiceContainer(
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyUnlessStopped,
 		},
+		ShmSize: spec.Container.Resources.SharedMemory,
 		Sysctls: spec.Container.Sysctls,
 	}
 

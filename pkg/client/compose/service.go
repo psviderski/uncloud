@@ -177,6 +177,7 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 		CPU:               int64(service.CPUS * 1e9),
 		Memory:            int64(service.MemLimit),
 		MemoryReservation: int64(service.MemReservation),
+		SharedMemory:      int64(service.ShmSize),
 		Ulimits:           ulimitsFromCompose(service.Ulimits),
 	}
 

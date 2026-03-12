@@ -34,6 +34,7 @@ services:
         max-file: 3
     mem_limit: 100M
     mem_reservation: 50M
+    shm_size: 268435456
     privileged: true
     pull_policy: always
     scale: 3

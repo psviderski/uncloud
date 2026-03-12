@@ -28,6 +28,7 @@ type runOptions struct {
 	machines          []string
 	memory            dockeropts.MemBytes
 	mode              string
+	shmSize           dockeropts.MemBytes
 	name              string
 	privileged        bool
 	publish           []string
@@ -78,8 +79,12 @@ func NewRunCommand(groupID string) *cobra.Command {
 		"Placement constraint by machine names, limiting which machines the service can run on. Can be specified "+
 			"multiple times or as a comma-separated list of machine names. (default is any suitable machine)")
 	cmd.Flags().VarP(&opts.memory, "memory", "",
-		"Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix "+
-			"(b, k, m, g). Default unit is bytes if no suffix specified.\n"+
+		"Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g).\n"+
+			"Default unit is bytes if no suffix specified.\n"+
+			"Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)")
+	cmd.Flags().VarP(&opts.shmSize, "shm-size", "",
+		"Maximum amount of shared memory (mounted at /dev/shm) a service container can use. Value is a positive integer\n"+
+			"with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.\n"+
 			"Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)")
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "",
 		"Assign a name to the service. A random name is generated if not specified.")
@@ -224,9 +229,10 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 			Privileged: opts.privileged,
 			PullPolicy: opts.pull,
 			Resources: api.ContainerResources{
-				CPU:     opts.cpu.Value(),
-				Memory:  opts.memory.Value(),
-				Ulimits: ulimits,
+				CPU:          opts.cpu.Value(),
+				Memory:       opts.memory.Value(),
+				SharedMemory: opts.shmSize.Value(),
+				Ulimits:      ulimits,
 			},
 			User:         opts.user,
 			VolumeMounts: mounts,

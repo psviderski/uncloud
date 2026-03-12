@@ -133,6 +133,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							CPU:               0.5 * api.Core,
 							Memory:            100 * units.MiB,
 							MemoryReservation: 50 * units.MiB,
+							SharedMemory:      256 * units.MiB,
 							Ulimits: map[string]api.Ulimit{
 								"nofile": {Soft: 20000, Hard: 40000},
 								"nproc":  {Soft: 65535, Hard: 65535},

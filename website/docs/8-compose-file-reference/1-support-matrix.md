@@ -43,6 +43,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `pull_policy`       | ✅ Supported        | `always`, `missing`, `never`                                                                                   |
 | `secrets`           | ❌ Not supported    | Use configs or environment variables                                                                           |
 | `security_opt`      | ❌ Not supported    |                                                                                                                |
+| `shm_size`          | ✅ Supported        | Shared memory size                                                                                             |
 | `stop_grace_period` | ✅ Supported        | Time to wait after SIGTERM before SIGKILL                                                                      |
 | `storage_opt`       | ❌ Not supported    |                                                                                                                |
 | `sysctls`           | ✅ Supported        | Namespaced kernel parameters                                                                                   |
