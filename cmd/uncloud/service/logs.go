@@ -107,6 +107,9 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		if err != nil {
 			return fmt.Errorf("load Compose file(s): %w", err)
 		}
+
+		uncli.SetClusterContextIfUnset(compose.ClusterContext(project))
+
 		// View logs for all services, including disabled by inactive profiles.
 		serviceNames = append(project.ServiceNames(), project.DisabledServiceNames()...)
 		if len(serviceNames) == 0 {

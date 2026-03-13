@@ -322,6 +322,24 @@ Choose unique names to avoid conflicts with services deployed from other Compose
 
 :::
 
+## Deploy to a specific cluster context
+
+If you manage multiple clusters, you can set `x-context` in your Compose file to make sure it always deploys to the
+correct one. You won't need to remember to manually switch clusters with `uc ctx` or `--context`.
+
+```yaml title="compose.yaml"
+x-context: prod
+
+services:
+  web:
+    image: myapp:latest
+```
+
+With this configuration, `uc deploy` and other commands using the Compose file will always target the `prod` context,
+regardless of your currently active context. You can still override it with the `--context` flag if needed.
+
+See [`x-context`](../../8-compose-file-reference/1-support-matrix.md#x-context) for more details.
+
 ## Use a different Compose file location
 
 If your Compose file has a different name or location, use the `-f/--file` flag to specify its path:

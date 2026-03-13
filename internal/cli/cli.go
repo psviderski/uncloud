@@ -561,6 +561,15 @@ func provisionOrConnectRemoteMachine(
 	return machineClient, nil
 }
 
+// SetClusterContextIfUnset sets the cluster context override only if no --context flag was used
+// and no --connect direct connection is active.
+func (cli *CLI) SetClusterContextIfUnset(name string) {
+	if name == "" || cli.contextOverride != "" || cli.conn != nil {
+		return
+	}
+	cli.contextOverride = name
+}
+
 // ProgressOut returns an output stream for progress writer.
 func (cli *CLI) ProgressOut() *streams.Out {
 	return streams.NewOut(os.Stdout)

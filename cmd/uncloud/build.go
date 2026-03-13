@@ -98,6 +98,8 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
 
+	uncli.SetClusterContextIfUnset(compose.ClusterContext(project))
+
 	servicesToBuild, err := cli.ServicesThatNeedBuild(project, opts.Services, opts.Deps)
 	if err != nil {
 		return fmt.Errorf("determine services to build: %w", err)

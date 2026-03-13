@@ -72,6 +72,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | External configs    | ❌ Not supported    | Not supported                                                                                                  |
 | Short syntax        | ❌ Not supported    | Use long syntax only                                                                                           |
 | **Extensions**      |                    |                                                                                                                |
+| `x-context`         | ✅ Uncloud-specific | Cluster context override                                                                                       |
 | `x-caddy`           | ✅ Uncloud-specific | Custom Caddy configuration                                                                                     |
 | `x-machines`        | ✅ Uncloud-specific | Machine placement constraints                                                                                  |
 | `x-ports`           | ✅ Uncloud-specific | Service port publishing                                                                                        |
@@ -85,6 +86,25 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 ## Uncloud extensions
 
 Uncloud provides several custom extensions to enhance the Compose experience:
+
+### `x-context`
+
+Set the cluster context for all commands that use the Compose file, such as `deploy`, `build`, and `logs`. This is
+useful when you manage multiple clusters and want to make sure a Compose file is always deployed to the right one.
+No need to remember to manually switch clusters with `uc ctx` or `--context`.
+
+`x-context` is a top-level key, not a service-level attribute.
+
+```yaml
+x-context: prod
+
+services:
+  web:
+    image: nginx
+```
+
+The `--context` and `--connect` flags take precedence over `x-context`. If you don't specify any of these, the current
+context from your Uncloud config (`--uncloud-config`) is used.
 
 ### `x-ports`
 
