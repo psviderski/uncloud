@@ -1,12 +1,15 @@
 package sshexec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type SSHCLIRemote struct {
@@ -25,15 +28,18 @@ func NewSSHCLIRemote(user, host string, port int, keyPath string) *SSHCLIRemote 
 	}
 }
 
-// TODO: Refactor and reuse this with buildDialArgs and buildSSHArgs from
-// SSHCLI Connector.
-func (r *SSHCLIRemote) buildSSHArgs() []string {
-	args := []string{"-o", "ConnectTimeout=5"}
+// newSSHCommand creates an exec.Cmd for ssh that sends SIGINT on context cancellation, giving the
+// remote process a chance to exit gracefully before being killed.
+func (r *SSHCLIRemote) newSSHCommand(ctx context.Context, cmd string) *exec.Cmd {
+	args := []string{
+		"-o", "ConnectTimeout=5",
+		// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
+		"-T",
+	}
 
 	if r.port != 0 {
 		args = append(args, "-p", strconv.Itoa(r.port))
 	}
-
 	if r.keyPath != "" {
 		args = append(args, "-i", r.keyPath)
 	}
@@ -42,36 +48,39 @@ func (r *SSHCLIRemote) buildSSHArgs() []string {
 	if r.user != "" {
 		dst = fmt.Sprintf("%s@%s", r.user, dst)
 	}
-	args = append(args, dst)
+	args = append(args, dst, cmd)
 
-	return args
+	execCmd := exec.CommandContext(ctx, "ssh", args...)
+	execCmd.Cancel = func() error {
+		return execCmd.Process.Signal(os.Interrupt)
+	}
+	execCmd.WaitDelay = 5 * time.Second
+
+	return execCmd
 }
 
 func (r *SSHCLIRemote) Run(ctx context.Context, cmd string) (string, error) {
-	args := r.buildSSHArgs()
-	args = append(args, cmd)
-
-	execCmd := exec.CommandContext(ctx, "ssh", args...)
-	output, err := execCmd.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	err := r.Stream(ctx, cmd, &stdout, &stderr)
+	out := strings.TrimSpace(stdout.String())
 	if err != nil {
-		return strings.TrimSpace(string(output)),
-			fmt.Errorf("run command on remote host: %w: %s", err, string(output))
+		return out, fmt.Errorf("%w: %s", err, stderr.String())
 	}
-	return strings.TrimSpace(string(output)), nil
+	return out, nil
 }
 
 func (r *SSHCLIRemote) Stream(ctx context.Context, cmd string, stdout, stderr io.Writer) error {
-	args := r.buildSSHArgs()
-	args = append(args, cmd)
+	sshCmd := r.newSSHCommand(ctx, cmd)
+	sshCmd.Stdout = stdout
+	sshCmd.Stderr = stderr
 
-	execCmd := exec.CommandContext(ctx, "ssh", args...)
-	execCmd.Stdout = stdout
-	execCmd.Stderr = stderr
-
-	return execCmd.Run()
+	if err := sshCmd.Run(); err != nil {
+		return fmt.Errorf("run command on remote host: %w", err)
+	}
+	return nil
 }
 
-// no-op as there is no persistent connection.
+// Close is no-op as there is no persistent connection.
 func (r *SSHCLIRemote) Close() error {
 	return nil
 }
