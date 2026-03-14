@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/siderolabs/grpc-proxy/proxy"
@@ -15,27 +17,22 @@ type Director struct {
 	localBackend   *LocalBackend
 	remotePort     uint16
 	remoteBackends sync.Map
-	// mu synchronizes access to localAddress.
-	mu           sync.RWMutex
-	localAddress string
+	localAddress   string
+	mapper         MachineMapper
 }
 
-func NewDirector(localSockPath string, remotePort uint16) *Director {
+func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) *Director {
 	return &Director{
-		localBackend: NewLocalBackend(localSockPath, ""),
+		localBackend: NewLocalBackend(localSockPath),
 		remotePort:   remotePort,
+		mapper:       mapper,
 	}
 }
 
 // UpdateLocalAddress updates the local machine address used to identify which requests should be proxied
 // to the local gRPC server.
 func (d *Director) UpdateLocalAddress(addr string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	d.localAddress = addr
-	// Replace the local backend with the one that has local address set.
-	d.localBackend = NewLocalBackend(d.localBackend.sockPath, addr)
 }
 
 // Director implements proxy.StreamDirector for grpc-proxy, routing requests to local or remote backends based
@@ -51,37 +48,76 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
 	}
 	// If the request metadata doesn't contain machines to proxy to, send it to the local backend.
-	machines, ok := md["machines"]
-	if !ok {
+	machines, hasMachines := md["machines"]
+	machine, hasMachine := md["machine"]
+	if !hasMachines && !hasMachine {
 		return proxy.One2One, []proxy.Backend{d.localBackend}, nil
 	}
+
+	// Handle singular "machine" case (One2One, no metadata injection)
+	if hasMachine && len(machine) > 0 {
+		targets, err := d.mapper.MapMachines(ctx, machine)
+		if err != nil {
+			return proxy.One2One, nil, mapErrorToStatus(err)
+		}
+
+		backend, err := d.getBackend(targets[0].Addr)
+		if err != nil {
+			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
+		}
+
+		// For One2One, we don't wrap in MetadataBackend as we don't inject metadata.
+		return proxy.One2One, []proxy.Backend{backend}, nil
+	}
+
+	// Handle plural "machines" case (One2Many, always metadata injection)
 	if len(machines) == 0 {
 		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "no machines specified")
 	}
 
-	d.mu.RLock()
-	localAddress := d.localAddress
-	localBackend := d.localBackend
-	d.mu.RUnlock()
+	targets, err := d.mapper.MapMachines(ctx, machines)
+	if err != nil {
+		return proxy.One2One, nil, mapErrorToStatus(err)
+	}
 
-	backends := make([]proxy.Backend, len(machines))
-	for i, addr := range machines {
-		if addr == localAddress {
-			backends[i] = localBackend
-			continue
-		}
-
-		backend, err := d.remoteBackend(addr)
+	backends := make([]proxy.Backend, len(targets))
+	for i, t := range targets {
+		backend, err := d.getBackend(t.Addr)
 		if err != nil {
 			return proxy.One2One, nil, status.Error(codes.Internal, err.Error())
 		}
-		backends[i] = backend
+
+		// Wrap with metadata injector
+		backends[i] = &MetadataBackend{
+			Backend:     backend,
+			MachineID:   t.ID,
+			MachineName: t.Name,
+			MachineAddr: t.Addr,
+		}
 	}
 
-	if len(backends) == 1 {
-		return proxy.One2One, backends, nil
-	}
 	return proxy.One2Many, backends, nil
+}
+
+// mapErrorToStatus converts mapper errors to appropriate gRPC status errors.
+func mapErrorToStatus(err error) error {
+	var notFound *MachinesNotFoundError
+	if errors.As(err, &notFound) {
+		return status.Error(codes.InvalidArgument, notFound.Error())
+	}
+	// Check if already a gRPC status error.
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+	return status.Error(codes.Internal, fmt.Sprintf("failed to resolve machines: %v", err))
+}
+
+// getBackend returns a backend for the given address, utilizing local backend if matching local address.
+func (d *Director) getBackend(addr string) (proxy.Backend, error) {
+	if addr == d.localAddress {
+		return d.localBackend, nil
+	}
+	return d.remoteBackend(addr)
 }
 
 // remoteBackend returns a RemoteBackend for the given address from the cache or creates a new one.
