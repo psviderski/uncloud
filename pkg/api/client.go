@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
@@ -38,6 +40,11 @@ type DNSClient interface {
 type ImageClient interface {
 	InspectImage(ctx context.Context, id string) ([]MachineImage, error)
 	InspectRemoteImage(ctx context.Context, id string) ([]MachineRemoteImage, error)
+	ListImages(ctx context.Context, filter ImageFilter) ([]MachineImages, error)
+	RemoveImage(ctx context.Context, image string, opts image.RemoveOptions, machines []string) ([]MachineRemoveImageResponse, error)
+	PullImage(ctx context.Context, image string, opts image.PullOptions, machines []string) (<-chan MachinePullImageMessage, error)
+	PruneImages(ctx context.Context, filters filters.Args, machines []string) ([]MachinePruneImagesResponse, error)
+	TagImage(ctx context.Context, source, target string, machines []string) error
 }
 
 type MachineClient interface {

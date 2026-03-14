@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"runtime"
 	"strconv"
@@ -100,6 +101,162 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	}
 
 	return machineImages, nil
+}
+
+// RemoveImage removes an image from the specified machines.
+func (cli *Client) RemoveImage(
+	ctx context.Context, image string, opts image.RemoveOptions, machines []string,
+) ([]api.MachineRemoveImageResponse, error) {
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
+	if err != nil {
+		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
+	}
+
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	resp, err := cli.Docker.GRPCClient.RemoveImage(listCtx, &pb.RemoveImageRequest{
+		Image:   image,
+		Options: optsBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	machineResponses := make([]api.MachineRemoveImageResponse, len(resp.Messages))
+	for i, msg := range resp.Messages {
+		machineResponses[i].Metadata = msg.Metadata
+		if msg.Metadata.Error != "" {
+			continue
+		}
+
+		if len(msg.Response) > 0 {
+			if err = json.Unmarshal(msg.Response, &machineResponses[i].Response); err != nil {
+				return nil, fmt.Errorf("unmarshal response: %w", err)
+			}
+		}
+	}
+
+	return machineResponses, nil
+}
+
+// PullImage pulls an image on the specified machines.
+func (cli *Client) PullImage(
+	ctx context.Context, imageName string, opts image.PullOptions, machines []string,
+) (<-chan api.MachinePullImageMessage, error) {
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
+	if err != nil {
+		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
+	}
+
+	if opts.RegistryAuth == "" {
+		// Try to retrieve the authentication token for the image from the default local Docker config file.
+		if encodedAuth, err := docker.RetrieveLocalDockerRegistryAuth(imageName); err == nil {
+			opts.RegistryAuth = encodedAuth
+		}
+	}
+
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal options: %w", err)
+	}
+
+	stream, err := cli.Docker.GRPCClient.PullImage(listCtx, &pb.PullImageRequest{
+		Image:   imageName,
+		Options: optsBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan api.MachinePullImageMessage)
+	go func() {
+		defer close(ch)
+		for {
+			msg, err := stream.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				ch <- api.MachinePullImageMessage{Err: err}
+				return
+			}
+
+			var jm jsonmessage.JSONMessage
+			if err := json.Unmarshal(msg.Message, &jm); err != nil {
+				ch <- api.MachinePullImageMessage{Err: fmt.Errorf("unmarshal message: %w", err)}
+				return
+			}
+
+			pullMsg := api.MachinePullImageMessage{Message: jm}
+			if jm.Error != nil {
+				pullMsg.Err = errors.New(jm.Error.Message)
+			}
+
+			select {
+			case <-ctx.Done():
+				ch <- api.MachinePullImageMessage{Err: ctx.Err()}
+				return
+			case ch <- pullMsg:
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
+// PruneImages prunes unused images on the specified machines.
+func (cli *Client) PruneImages(
+	ctx context.Context, filtersArgs filters.Args, machines []string,
+) ([]api.MachinePruneImagesResponse, error) {
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
+	if err != nil {
+		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
+	}
+
+	filtersBytes, err := json.Marshal(filtersArgs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal filters: %w", err)
+	}
+
+	resp, err := cli.Docker.GRPCClient.PruneImages(listCtx, &pb.PruneImagesRequest{
+		Filters: filtersBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	machineResponses := make([]api.MachinePruneImagesResponse, len(resp.Messages))
+	for i, msg := range resp.Messages {
+		machineResponses[i].Metadata = msg.Metadata
+		if msg.Metadata.Error != "" {
+			continue
+		}
+
+		if len(msg.Report) > 0 {
+			if err = json.Unmarshal(msg.Report, &machineResponses[i].Report); err != nil {
+				return nil, fmt.Errorf("unmarshal report: %w", err)
+			}
+		}
+	}
+
+	return machineResponses, nil
+}
+
+// TagImage creates a tag for an image on the specified machines.
+func (cli *Client) TagImage(ctx context.Context, source, target string, machines []string) error {
+	listCtx, _, err := cli.ProxyMachinesContext(ctx, machines)
+	if err != nil {
+		return fmt.Errorf("create request context to broadcast to machines: %w", err)
+	}
+
+	_, err = cli.Docker.GRPCClient.TagImage(listCtx, &pb.TagImageRequest{
+		Source: source,
+		Target: target,
+	})
+	return err
 }
 
 type PushImageOptions struct {
