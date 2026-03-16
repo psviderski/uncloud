@@ -14,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/docker/docker/pkg/stringid"
+	"github.com/psviderski/uncloud/cmd/uncloud/internal/logs"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -21,18 +22,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type logsOptions struct {
-	files    []string
-	follow   bool
-	tail     string
-	since    string
-	until    string
-	utc      bool
-	machines []string
-}
-
 func NewLogsCommand(groupID string) *cobra.Command {
-	var options logsOptions
+	var options logs.Options
 
 	cmd := &cobra.Command{
 		Use:     "logs [SERVICE...]",
@@ -72,38 +63,17 @@ If no services are specified, streams logs from all services defined in the Comp
 		GroupID: groupID,
 	}
 
-	cmd.Flags().StringSliceVar(&options.files, "file", nil,
-		"One or more Compose files to load service names from when no services are specified. (default compose.yaml)")
-	cmd.Flags().BoolVarP(&options.follow, "follow", "f", false,
-		"Continually stream new logs.")
-	cmd.Flags().StringSliceVarP(&options.machines, "machine", "m", nil,
-		"Filter logs by machine name or ID. Can be specified multiple times or as a comma-separated list.")
-	cmd.Flags().StringVar(&options.since, "since", "",
-		"Show logs generated on or after the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
-			"Examples:\n"+
-			"  --since 2m30s                      Relative duration (2 minutes 30 seconds ago)\n"+
-			"  --since 1h                         Relative duration (1 hour ago)\n"+
-			"  --since 2025-11-24                 RFC 3339 date only (midnight using local timezone)\n"+
-			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using local timezone\n"+
-			"  --since 2024-01-31T10:30:00Z       RFC 3339 date/time in UTC\n"+
-			"  --since 1763953966                 Unix timestamp (seconds since January 1, 1970)")
-	cmd.Flags().StringVarP(&options.tail, "tail", "n", "100",
-		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.")
-	cmd.Flags().StringVar(&options.until, "until", "",
-		"Show logs generated before the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
-			"See --since for examples.")
-	cmd.Flags().BoolVar(&options.utc, "utc", false,
-		"Print timestamps in UTC instead of local timezone.")
+	cmd.Flags().AddFlagSet(logs.Flags(&options))
 
 	return cmd
 }
 
-func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logsOptions) error {
+func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logs.Options) error {
 	// If no services specified, try to load them from the Compose file(s).
 	fromCompose := false
 	if len(serviceNames) == 0 {
 		fromCompose = true
-		project, err := compose.LoadProject(ctx, opts.files)
+		project, err := compose.LoadProject(ctx, opts.Files)
 		if err != nil {
 			return fmt.Errorf("load Compose file(s): %w", err)
 		}
@@ -116,10 +86,10 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 
 	// Parse tail option.
 	tail := -1
-	if opts.tail != "all" {
-		tailInt, err := strconv.Atoi(opts.tail)
+	if opts.Tail != "all" {
+		tailInt, err := strconv.Atoi(opts.Tail)
 		if err != nil {
-			return fmt.Errorf("invalid --tail value '%s': %w", opts.tail, err)
+			return fmt.Errorf("invalid --tail value '%s': %w", opts.Tail, err)
 		}
 		tail = tailInt
 	}
@@ -131,11 +101,11 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 	defer c.Close()
 
 	logsOpts := api.ServiceLogsOptions{
-		Follow:   opts.follow,
+		Follow:   opts.Follow,
 		Tail:     tail,
-		Since:    opts.since,
-		Until:    opts.until,
-		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
+		Since:    opts.Since,
+		Until:    opts.Until,
+		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
 	// Collect log streams from all services. When service names come from a Compose file,
@@ -163,7 +133,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 	if fromCompose {
 		if len(foundServices) == 0 {
 			return fmt.Errorf("stream logs for services defined in %s: no services found in the cluster",
-				strings.Join(opts.files, ", "))
+				strings.Join(opts.Files, ", "))
 		}
 		serviceNames = foundServices
 
@@ -191,7 +161,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		machineNames = append(machineNames, m.Machine.Name)
 	}
 
-	formatter := newLogFormatter(machineNames, serviceNames, opts.utc)
+	formatter := newLogFormatter(machineNames, serviceNames, opts.UTC)
 
 	// Print merged logs.
 	for entry := range stream {
