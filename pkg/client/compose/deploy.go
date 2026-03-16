@@ -28,7 +28,33 @@ type Deployment struct {
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
-	plan         *operation.SequenceOperation
+	plan         *Plan
+}
+
+// Plan holds the compose-level deployment plan with typed volume and service operations.
+type Plan struct {
+	Volumes  []*operation.CreateVolumeOperation
+	Services []*deploy.ServicePlan
+}
+
+// IsEmpty returns true if the plan has no volume or service operations.
+func (p *Plan) IsEmpty() bool {
+	return len(p.Volumes) == 0 && len(p.Services) == 0
+}
+
+// Execute runs all volume operations followed by all service operations.
+func (p *Plan) Execute(ctx context.Context, cli operation.Client) error {
+	for _, op := range p.Volumes {
+		if err := op.Execute(ctx, cli); err != nil {
+			return err
+		}
+	}
+	for _, sp := range p.Services {
+		if err := sp.Execute(ctx, cli); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
@@ -59,11 +85,11 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 	}, nil
 }
 
-func (d *Deployment) Plan(ctx context.Context) (operation.SequenceOperation, error) {
+func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	if d.plan != nil {
 		return *d.plan, nil
 	}
-	plan := operation.SequenceOperation{}
+	var plan Plan
 
 	// Generate service specs for all services in the project.
 	var serviceSpecs []api.ServiceSpec
@@ -90,9 +116,7 @@ func (d *Deployment) Plan(ctx context.Context) (operation.SequenceOperation, err
 	if err != nil {
 		return plan, err
 	}
-	for _, op := range volumeOps {
-		plan.Operations = append(plan.Operations, op)
-	}
+	plan.Volumes = volumeOps
 
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
@@ -105,7 +129,7 @@ func (d *Deployment) Plan(ctx context.Context) (operation.SequenceOperation, err
 
 		// Skip no-op (up-to-date) service plans.
 		if len(servicePlan.Operations) > 0 {
-			plan.Operations = append(plan.Operations, &servicePlan)
+			plan.Services = append(plan.Services, &servicePlan)
 		}
 	}
 

@@ -39,7 +39,8 @@ func TestComposeConfigs(t *testing.T) {
 
 		plan, err := deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service deployment")
+		assert.Len(t, plan.Services, 1, "Expected 1 service deployment")
+		assert.Empty(t, plan.Volumes, "Expected no volume operations")
 
 		err = deploy.Run(ctx)
 		require.NoError(t, err)
@@ -93,7 +94,7 @@ func TestComposeConfigs(t *testing.T) {
 
 		plan, err = deploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 0, "Expected no new operations after configs deployment")
+		assert.True(t, plan.IsEmpty(), "Expected no new operations after configs deployment")
 
 		// Verify the config files are actually created in the container and contain expected content
 		containerName := svc.Containers[0].Container.Name
@@ -116,7 +117,8 @@ func TestComposeConfigs(t *testing.T) {
 			groupId:     1000,
 		}, configContentSecond)
 
-		configContentThird, err := readFileInfoInContainer(t, cli, name, containerName, "/etc/new-dir/config-from-file.conf")
+		configContentThird, err := readFileInfoInContainer(t, cli, name, containerName,
+			"/etc/new-dir/config-from-file.conf")
 		require.NoError(t, err)
 		assert.Equal(t, fileInfo{
 			permissions: 0o644,

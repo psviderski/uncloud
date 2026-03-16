@@ -20,7 +20,7 @@ type Strategy interface {
 	// Plan returns the operation to reconcile the service to the desired state.
 	// If the service does not exist (new deployment), svc will be nil. state provides the current and planned state
 	// of the cluster for scheduling decisions.
-	Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (Plan, error)
+	Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (ServicePlan, error)
 }
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
@@ -40,9 +40,9 @@ func (s *RollingStrategy) Type() string {
 	return "rolling"
 }
 
-func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (Plan, error) {
+func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
 	if state == nil {
-		return Plan{}, fmt.Errorf("cluster state must be provided")
+		return ServicePlan{}, fmt.Errorf("cluster state must be provided")
 	}
 	s.state = state
 
@@ -53,7 +53,7 @@ func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, 
 	case api.ServiceModeGlobal:
 		return s.planGlobal(svc, spec)
 	default:
-		return Plan{}, fmt.Errorf("unsupported service mode: '%s'", spec.Mode)
+		return ServicePlan{}, fmt.Errorf("unsupported service mode: '%s'", spec.Mode)
 	}
 }
 
@@ -61,8 +61,8 @@ func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, 
 // For replicated services, we want to maintain a specific number of containers (replicas) across the available machines
 // in the cluster.
 // TODO: schedule containers only on machines that contain the image if pull policy is set to 'never'.
-func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
-	plan, err := newEmptyPlan(svc, spec)
+func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
+	plan, err := newEmptyServicePlan(svc, spec)
 	if err != nil {
 		return plan, err
 	}
@@ -198,8 +198,8 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 // possible. If the new container would have port conflicts with the existing one, the old container is removed first.
 // It handles multiple containers per machine (though this should not occur in normal operation) and skips machines
 // that are down.
-func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
-	plan, err := newEmptyPlan(svc, spec)
+func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
+	plan, err := newEmptyServicePlan(svc, spec)
 	if err != nil {
 		return plan, err
 	}
@@ -403,9 +403,9 @@ func determineUpdateOrder(oldContainer api.ServiceContainer, spec api.ServiceSpe
 	return api.UpdateOrderStartFirst
 }
 
-// newEmptyPlan creates a new empty plan for a service deployment with initialised service ID and name.
-func newEmptyPlan(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
-	var plan Plan
+// newEmptyServicePlan creates a new empty plan for a service deployment with initialised service ID and name.
+func newEmptyServicePlan(svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
+	var plan ServicePlan
 
 	// Generate a new service ID for the initial service deployment if it doesn't exist yet.
 	if svc != nil {

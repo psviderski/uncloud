@@ -14,7 +14,6 @@ import (
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
-	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/spf13/cobra"
 )
 
@@ -170,7 +169,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return fmt.Errorf("plan deployment: %w", err)
 	}
 
-	if len(plan.Operations) == 0 {
+	if plan.IsEmpty() {
 		fmt.Println("Services are up to date.")
 		return nil
 	}
@@ -206,14 +205,12 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}, uncli.ProgressOut(), "Deploying services")
 }
 
-func printPlan(ctx context.Context, cli *client.Client, plan operation.SequenceOperation) error {
-	for _, op := range plan.Operations {
-		svcPlan, ok := op.(*deploy.Plan)
-		if !ok {
-			fmt.Println("- " + op.Format(nil))
-			continue
-		}
+func printPlan(ctx context.Context, cli *client.Client, plan compose.Plan) error {
+	for _, op := range plan.Volumes {
+		fmt.Println("- " + op.Format(nil))
+	}
 
+	for _, svcPlan := range plan.Services {
 		svc, err := cli.InspectService(ctx, svcPlan.ServiceID)
 		if err != nil && !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect service: %w", err)

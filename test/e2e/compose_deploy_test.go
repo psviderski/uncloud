@@ -40,7 +40,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 3, "Expected 3 services to deploy")
+		assert.Len(t, plan.Services, 3, "Expected 3 services to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -168,7 +168,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		redeployPlan, err := redeploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, redeployPlan.Operations, 0, "Expected no operations - deployment should be up to date")
+		assert.True(t, redeployPlan.IsEmpty(), "Expected no operations - deployment should be up to date")
 
 		// Deploy with ForceRecreate - should recreate all service containers.
 		strategy := &deploy.RollingStrategy{ForceRecreate: true}
@@ -177,7 +177,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		recreatePlan, err := recreateDeploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, recreatePlan.Operations, 3, "Expected 3 services to be recreated")
+		assert.Len(t, recreatePlan.Services, 3, "Expected 3 services to be recreated")
 
 		err = recreateDeploy.Run(ctx)
 		require.NoError(t, err)
@@ -242,7 +242,8 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 5, "Expected 2 volumes creation and 3 services to deploy")
+		assert.Len(t, plan.Volumes, 2, "Expected 2 volume creation operations")
+		assert.Len(t, plan.Services, 3, "Expected 3 services to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -384,7 +385,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 0, "Expected no new operations after deployment")
+		assert.True(t, plan.IsEmpty(), "Expected no new operations after deployment")
 	})
 
 	t.Run("x-machines placement constraint", func(t *testing.T) {
@@ -403,7 +404,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -456,7 +457,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -504,7 +505,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -556,7 +557,8 @@ volumes:
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 
-		assert.Len(t, plan.Operations, 2, "Expected 1 volume creation and 1 service to deploy")
+		assert.Len(t, plan.Volumes, 1, "Expected 1 volume creation operation")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 	})
 
 	t.Run("global service auto-creates volumes on all machines", func(t *testing.T) {

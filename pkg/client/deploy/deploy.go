@@ -26,12 +26,12 @@ type Deployment struct {
 	Spec     api.ServiceSpec
 	Strategy Strategy
 	cli      Client
-	plan     *Plan
+	plan     *ServicePlan
 	// state is an optional current and planned cluster state used for scheduling decisions.
 	state *scheduler.ClusterState
 }
 
-type Plan struct {
+type ServicePlan struct {
 	ServiceID   string
 	ServiceName string
 	operation.SequenceOperation
@@ -63,19 +63,19 @@ func NewDeploymentWithClusterState(
 
 // Plan returns a plan of operations to reconcile the service to the desired state.
 // If a plan has already been created, the same plan will be returned.
-func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
+func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
 	if d.plan != nil {
 		return *d.plan, nil
 	}
 
 	// Validate the user-provided spec before resolving it.
 	if err := d.Validate(ctx); err != nil {
-		return Plan{}, fmt.Errorf("invalid deployment: %w", err)
+		return ServicePlan{}, fmt.Errorf("invalid deployment: %w", err)
 	}
 
 	clusterDomain, err := d.cli.GetDomain(ctx)
 	if err != nil && !errors.Is(err, api.ErrNotFound) {
-		return Plan{}, fmt.Errorf("get cluster domain: %w", err)
+		return ServicePlan{}, fmt.Errorf("get cluster domain: %w", err)
 	}
 	specResolver := &ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
@@ -84,19 +84,19 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 
 	resolvedSpec, err := specResolver.Resolve(d.Spec)
 	if err != nil {
-		return Plan{}, fmt.Errorf("resolve service spec: %w", err)
+		return ServicePlan{}, fmt.Errorf("resolve service spec: %w", err)
 	}
 
 	if d.state == nil {
 		d.state, err = scheduler.InspectClusterState(ctx, d.cli)
 		if err != nil {
-			return Plan{}, fmt.Errorf("inspect cluster state: %w", err)
+			return ServicePlan{}, fmt.Errorf("inspect cluster state: %w", err)
 		}
 	}
 
 	plan, err := d.Strategy.Plan(d.state, d.Service, resolvedSpec)
 	if err != nil {
-		return Plan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
+		return ServicePlan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
 	}
 	d.plan = &plan
 
@@ -143,7 +143,7 @@ func (d *Deployment) Validate(ctx context.Context) error {
 // It will create a new plan if one hasn't been created yet. The deployment will either create a new service or update
 // the existing one to match the desired specification.
 // TODO: forbid to run the same deployment more than once.
-func (d *Deployment) Run(ctx context.Context) (Plan, error) {
+func (d *Deployment) Run(ctx context.Context) (ServicePlan, error) {
 	plan, err := d.Plan(ctx)
 	if err != nil {
 		return plan, fmt.Errorf("create plan: %w", err)
