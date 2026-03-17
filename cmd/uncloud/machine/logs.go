@@ -1,4 +1,4 @@
-package service
+package machine
 
 import (
 	"context"
@@ -20,36 +20,26 @@ func NewLogsCommand(groupID string) *cobra.Command {
 	var options logs.Options
 
 	cmd := &cobra.Command{
-		Use:     "logs [SERVICE...]",
+		Use:     "logs [UNIT]",
 		Aliases: []string{"log"},
-		Short:   "View service logs.",
-		Long: `View logs from all replicas of the specified service(s) across all machines in the cluster.
+		Short:   "View deamon logs.",
+		Long: `View logs from all replicas of the specified unit across all machines in the cluster.
 
-If no services are specified, streams logs from all services defined in the Compose file
-(compose.yaml by default or the file(s) specified with --file).`,
-		Example: `  # View recent logs for a service.
-  uc logs web
+The allowed units are 'uncloud', 'docker' or 'corrosion'. If none are specified 'uncloud' is assumed.`,
+		Example: `  # View recent logs for the uncloud daemon.
+  uc machine logs uncloud
 
-  # Stream logs in real-time (follow mode).
-  uc logs -f web
+  # Stream logs in real-time (follow mode), using the default unit (=uncloud).
+  uc machine logs -f
 
-  # View logs from multiple services.
-  uc logs web api db
+  # Show last 20 lines of docker logs (default is 100).
+  uc machine logs -n 20 docker
 
-  # View logs from all services in compose.yaml.
-  uc logs
-
-  # Show last 20 lines per replica (default is 100).
-  uc logs -n 20 web
-
-  # Show all logs without line limit.
-  uc logs -n all web
-
-  # View logs from a specific time range.
-  uc logs --since 3h --until 1h30m web
+  # Show all logs without line limit of corrosion
+  uc machine logs -n all corrosion
 
   # View logs only from replicas running on specific machines.
-  uc logs -m machine1,machine2 web api`,
+  uc machine logs -m machine1,machine2 uncloud`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return runLogs(cmd.Context(), uncli, args, options)

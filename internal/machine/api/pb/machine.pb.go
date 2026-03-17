@@ -23,52 +23,52 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type LogsRequestService int32
+type LogsRequestUnit int32
 
 const (
-	LogsRequest_UNCLOUD   LogsRequestService = 0
-	LogsRequest_DOCKER    LogsRequestService = 1
-	LogsRequest_CORROSION LogsRequestService = 2
+	LogsRequest_UNCLOUD   LogsRequestUnit = 0
+	LogsRequest_DOCKER    LogsRequestUnit = 1
+	LogsRequest_CORROSION LogsRequestUnit = 2
 )
 
-// Enum value maps for LogsRequestService.
+// Enum value maps for LogsRequestUnit.
 var (
-	LogsRequestService_name = map[int32]string{
+	LogsRequestUnit_name = map[int32]string{
 		0: "UNCLOUD",
 		1: "DOCKER",
 		2: "CORROSION",
 	}
-	LogsRequestService_value = map[string]int32{
+	LogsRequestUnit_value = map[string]int32{
 		"UNCLOUD":   0,
 		"DOCKER":    1,
 		"CORROSION": 2,
 	}
 )
 
-func (x LogsRequestService) Enum() *LogsRequestService {
-	p := new(LogsRequestService)
+func (x LogsRequestUnit) Enum() *LogsRequestUnit {
+	p := new(LogsRequestUnit)
 	*p = x
 	return p
 }
 
-func (x LogsRequestService) String() string {
+func (x LogsRequestUnit) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (LogsRequestService) Descriptor() protoreflect.EnumDescriptor {
+func (LogsRequestUnit) Descriptor() protoreflect.EnumDescriptor {
 	return file_internal_machine_api_pb_machine_proto_enumTypes[0].Descriptor()
 }
 
-func (LogsRequestService) Type() protoreflect.EnumType {
+func (LogsRequestUnit) Type() protoreflect.EnumType {
 	return &file_internal_machine_api_pb_machine_proto_enumTypes[0]
 }
 
-func (x LogsRequestService) Number() protoreflect.EnumNumber {
+func (x LogsRequestUnit) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use LogsRequestService.Descriptor instead.
-func (LogsRequestService) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use LogsRequestUnit.Descriptor instead.
+func (LogsRequestUnit) EnumDescriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{15, 0}
 }
 
@@ -1274,13 +1274,13 @@ const file_internal_machine_api_pb_machine_proto_rawDesc = "" +
 	"\rreceive_bytes\x18\x04 \x01(\x03R\freceiveBytes\x12%\n" +
 	"\x0etransmit_bytes\x18\x05 \x01(\x03R\rtransmitBytes\x12\x1f\n" +
 	"\vallowed_ips\x18\x06 \x03(\tR\n" +
-	"allowedIps\"\x98\x01\n" +
+	"allowedIps\"\x95\x01\n" +
 	"\vLogsRequest\x12\x16\n" +
 	"\x06follow\x18\x02 \x01(\bR\x06follow\x12\x12\n" +
 	"\x04tail\x18\x03 \x01(\x05R\x04tail\x12\x14\n" +
 	"\x05since\x18\x04 \x01(\tR\x05since\x12\x14\n" +
-	"\x05until\x18\x05 \x01(\tR\x05until\"1\n" +
-	"\aservice\x12\v\n" +
+	"\x05until\x18\x05 \x01(\tR\x05until\".\n" +
+	"\x04unit\x12\v\n" +
 	"\aUNCLOUD\x10\x00\x12\n" +
 	"\n" +
 	"\x06DOCKER\x10\x01\x12\r\n" +
@@ -1324,7 +1324,7 @@ func file_internal_machine_api_pb_machine_proto_rawDescGZIP() []byte {
 var file_internal_machine_api_pb_machine_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_internal_machine_api_pb_machine_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_internal_machine_api_pb_machine_proto_goTypes = []any{
-	(LogsRequestService)(0),                 // 0: api.LogsRequest.service
+	(LogsRequestUnit)(0),                    // 0: api.LogsRequest.unit
 	(LogEntry_StreamType)(0),                // 1: api.LogEntry.StreamType
 	(*MachineInfo)(nil),                     // 2: api.MachineInfo
 	(*NetworkConfig)(nil),                   // 3: api.NetworkConfig

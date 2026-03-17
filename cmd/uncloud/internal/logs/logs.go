@@ -1,6 +1,11 @@
 package logs
 
-import "github.com/spf13/pflag"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+	"github.com/spf13/pflag"
+)
 
 // Options describes how and what logs we are requesting.
 type Options struct {
@@ -40,4 +45,18 @@ func Flags(options *Options) *pflag.FlagSet {
 		"Print timestamps in UTC instead of local timezone.")
 
 	return set
+}
+
+// Available colors for machine/service differentiation.
+var Palette = []color.Color{
+	lipgloss.BrightGreen,
+	lipgloss.BrightYellow,
+	lipgloss.BrightBlue,
+	lipgloss.BrightMagenta,
+	lipgloss.BrightCyan,
+	lipgloss.Green,
+	lipgloss.Yellow,
+	lipgloss.Blue,
+	lipgloss.Magenta,
+	lipgloss.Cyan,
 }

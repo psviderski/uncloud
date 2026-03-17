@@ -132,7 +132,7 @@ message WireGuardPeer {
 
 
 message LogsRequest {
-  enum service {
+  enum unit {
     UNCLOUD = 0;
     DOCKER = 1;
     CORROSION = 2;
