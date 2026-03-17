@@ -72,11 +72,13 @@ func (cli *CLI) SetCurrentContext(name string) error {
 }
 
 func (cli *CLI) GetContextOverrideOrCurrent() string {
-	contextName := cli.contextOverride
-	if contextName == "" {
-		contextName = cli.Config.CurrentContext
+	if cli.contextOverride != "" {
+		return cli.contextOverride
 	}
-	return contextName
+	if cli.Config != nil {
+		return cli.Config.CurrentContext
+	}
+	return ""
 }
 
 // ConnectCluster connects to a cluster using the context override or the current context if not specified.
