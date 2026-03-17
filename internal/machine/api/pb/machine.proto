@@ -24,6 +24,8 @@ service Machine {
   rpc Reset(ResetRequest) returns (google.protobuf.Empty);
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
+
+  rpc Log(LogsRequest) returns (stream LogEntry);
 }
 
 message MachineInfo {
@@ -126,4 +128,31 @@ message WireGuardPeer {
   int64 receive_bytes = 4;
   int64 transmit_bytes = 5;
   repeated string allowed_ips = 6;
+}
+
+
+message LogsRequest {
+  enum service {
+    UNCLOUD = 0;
+    DOCKER = 1;
+    CORROSION = 2;
+  }
+  bool follow = 2;
+  int32 tail = 3;
+  string since = 4;
+  string until = 5;
+}
+
+// Similar to ContainerLogEntry.
+message LogEntry {
+  enum StreamType {
+    UNKNOWN = 0;
+    STDOUT = 1;
+    STDERR = 2;
+    HEARTBEAT = 3;
+  }
+  StreamType stream = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  // Log line content. Empty for heartbeat entries.
+  bytes message = 3;
 }
