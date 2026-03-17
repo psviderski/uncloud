@@ -2,58 +2,37 @@ package journal
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os/exec"
-	"strings"
 	"time"
 
-	nodeapi "github.com/virtual-kubelet/virtual-kubelet/node/api"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const journalctl = "journalctl"
 
-func Reader(namespace, name, container string, logOpts nodeapi.ContainerLogOpts) (io.ReadCloser, func() error, error) {
-	fnlog := log.
-		WithField("podNamespace", namespace).
-		WithField("podName", name).
-		WithField("containerName", container)
-
-	fnlog.Infof("calling for container logs with options %+v", logOpts)
+func Reader(unit string, opts api.ServiceLogsOptions) (io.ReadCloser, func() error, error) {
 	cancel := func() error { return nil } // initialize as noop
 
-	unitName := strings.Join([]string{unitPrefix(namespace, name), container, "service"}, separator)
-
 	// Handle all the options.
-	args := []string{"-u", unitName, "--no-hostname"} // only works with -o short-xxx options.
-	if logOpts.Tail > 0 {
+	args := []string{"-u", unit, "--no-hostname"} // only works with -o short-xxx options.
+	if opts.Tail > 0 {
 		args = append(args, "-n")
-		args = append(args, fmt.Sprintf("%d", logOpts.Tail))
+		args = append(args, fmt.Sprintf("%d", opts.Tail))
 	}
-	if logOpts.Follow {
+	if opts.Follow {
 		args = append(args, "-f")
 	}
-	if !logOpts.Timestamps {
-		args = append(args, "-o")
-		args = append(args, "cat")
-	} else {
-		args = append(args, "-o")
-		args = append(args, "short-full") // this is _not_ the default Go timestamp output
-	}
-	if logOpts.SinceSeconds > 0 {
-		args = append(args, "-S")
-		args = append(args, fmt.Sprintf("-%ds", logOpts.SinceSeconds))
-	}
-	if !logOpts.SinceTime.IsZero() {
-		args = append(args, "-S")
-		args = append(args, logOpts.SinceTime.Format(time.RFC3339))
-	}
-	// Previous might not be possible to implement
-	// TODO(pires,miek) show logs from the current Pod alone https://github.com/virtual-kubelet/systemk/issues/5#issuecomment-765278538
-	// LimitBytes - unsure (maybe a io.CopyBuffer?)
 
-	fnlog.Debugf("getting container logs via: %q %v", journalctl, args)
+	args = append(args, "-o")
+	args = append(args, "short-full") // this is _not_ the default Go timestamp output
+
+	if opts.Since != "" {
+		args = append(args, "-S")
+		args = append(args, opts.Since)
+	}
+
 	cmd := exec.Command(journalctl, args...)
 	p, err := cmd.StdoutPipe()
 	if err != nil {
@@ -67,7 +46,7 @@ func Reader(namespace, name, container string, logOpts nodeapi.ContainerLogOpts)
 	cancel = func() error {
 		go func() {
 			if err := cmd.Wait(); err != nil {
-				fnlog.Debugf("wait for %q failed: %s", journalctl, err)
+				// log, error?
 			}
 		}()
 		return cmd.Process.Kill()
@@ -76,11 +55,9 @@ func Reader(namespace, name, container string, logOpts nodeapi.ContainerLogOpts)
 	return p, cancel, nil
 }
 
-var ErrExpired = errors.New("timeout expired")
-
-// journalFollow synchronously follows the io.Reader, writing each new journal entry to writer. The
+// Follow synchronously follows the io.Reader, writing each new journal entry to writer. The
 // follow will continue until a single time.Time is received on the until channel (or it's closed).
-func journalFollow(until <-chan time.Time, reader io.Reader, writer io.Writer) error {
+func Follow(until <-chan time.Time, reader io.Reader, writer io.Writer) error {
 	scanner := bufio.NewScanner(reader)
 	bufch := make(chan []byte)
 	errch := make(chan error)
@@ -102,7 +79,7 @@ func journalFollow(until <-chan time.Time, reader io.Reader, writer io.Writer) e
 	for {
 		select {
 		case <-until:
-			return ErrExpired
+			return fmt.Errorf("timeout expired")
 
 		case err := <-errch:
 			return err
