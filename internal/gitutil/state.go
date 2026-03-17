@@ -2,7 +2,6 @@ package gitutil
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -39,7 +38,6 @@ func InspectGitState(dir string) (GitState, error) {
 
 	// Check if the repository has any commits. An initialised but empty repo has no HEAD yet.
 	if !hasCommits(dir) {
-		fmt.Fprintln(os.Stdout, "Warning: git repository has no commits, ignoring git state.")
 		state.IsRepo = false
 		return state, nil
 	}
