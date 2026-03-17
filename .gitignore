@@ -42,3 +42,4 @@ node_modules/
 .devcontainer/
 
 .zed/
+uncloudd-linux-amd64
