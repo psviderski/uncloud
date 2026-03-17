@@ -1,4 +1,4 @@
-package provider
+package journal
 
 import (
 	"bufio"
@@ -14,7 +14,7 @@ import (
 
 const journalctl = "journalctl"
 
-func journalReader(namespace, name, container string, logOpts nodeapi.ContainerLogOpts) (io.ReadCloser, func() error, error) {
+func Reader(namespace, name, container string, logOpts nodeapi.ContainerLogOpts) (io.ReadCloser, func() error, error) {
 	fnlog := log.
 		WithField("podNamespace", namespace).
 		WithField("podName", name).

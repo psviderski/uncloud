@@ -2,17 +2,14 @@ package machine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/psviderski/uncloud/cmd/uncloud/internal/logs"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
-	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/spf13/cobra"
 )
 
@@ -52,23 +49,16 @@ The allowed units are 'uncloud', 'docker' or 'corrosion'. If none are specified 
 	return cmd
 }
 
-func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logs.Options) error {
-	// If no services specified, try to load them from the Compose file(s).
-	fromCompose := false
-	if len(serviceNames) == 0 {
-		fromCompose = true
-		project, err := compose.LoadProject(ctx, opts.Files)
-		if err != nil {
-			return fmt.Errorf("load Compose file(s): %w", err)
-		}
-		// View logs for all services, including disabled by inactive profiles.
-		serviceNames = append(project.ServiceNames(), project.DisabledServiceNames()...)
-		if len(serviceNames) == 0 {
-			return errors.New("no services found in Compose file(s)")
+func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Options) error {
+	// units... we only allow 1...
+	unit := int32(pb.MachineLogsRequest_UNCLOUD)
+	if len(units) > 0 {
+		unit, ok := pb.MachineLogsRequest_Unit_value[units[0]]
+		if !ok {
+			return fmt.Errorf("invalid unit: '%s'", unit)
 		}
 	}
 
-	// Parse tail option.
 	tail := -1
 	if opts.Tail != "all" {
 		tailInt, err := strconv.Atoi(opts.Tail)
@@ -84,7 +74,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 	}
 	defer c.Close()
 
-	logsOpts := api.ServiceLogsOptions{
+	logsOpts := api.MachineLogsOptions{
 		Follow:   opts.Follow,
 		Tail:     tail,
 		Since:    opts.Since,
@@ -92,50 +82,16 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
-	// Collect log streams from all services. When service names come from a Compose file,
-	// skip the ones that are not found in the cluster (they may have been removed or not deployed yet).
+	// Collect log streams from the unit.
 	machineIDsSet := mapset.NewSet[string]()
-	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceNames))
-	var foundServices, notFoundServices []string
-
-	for _, serviceName := range serviceNames {
-		svc, ch, err := c.ServiceLogs(ctx, serviceName, logsOpts)
-		if err != nil {
-			if errors.Is(err, api.ErrNotFound) && fromCompose {
-				notFoundServices = append(notFoundServices, serviceName)
-				continue
-			}
-			return fmt.Errorf("stream logs for service '%s': %w", serviceName, err)
-		}
-		svcStreams = append(svcStreams, ch)
-		foundServices = append(foundServices, serviceName)
-
-		machineIDs := svc.MachineIDs()
-		machineIDsSet.Append(machineIDs...)
+	stream, err := c.MachineLogs(ctx, unit, logsOpts)
+	if err != nil {
+		return fmt.Errorf("stream logs for unit '%s': %w", unit, err)
 	}
+	//		machineIDs := svc.MachineIDs()
+	//		machineIDsSet.Append(machineIDs...)
 
-	if fromCompose {
-		if len(foundServices) == 0 {
-			return fmt.Errorf("stream logs for services defined in %s: no services found in the cluster",
-				strings.Join(opts.Files, ", "))
-		}
-		serviceNames = foundServices
-
-		for _, name := range notFoundServices {
-			client.PrintWarning(fmt.Sprintf("service '%s' not found in the cluster, skipping", name))
-		}
-	}
-
-	var stream <-chan api.ServiceLogEntry
-	if len(serviceNames) == 1 {
-		stream = svcStreams[0]
-	} else {
-		// Merge all service streams into a single sorted stream without stall detection as its handled per-service.
-		merger := client.NewLogMerger(svcStreams, client.LogMergerOptions{})
-		stream = merger.Stream()
-	}
-
-	// Fetch machine names for all machines (machineIDsSet) service containers are running on.
+	// Fetch machine names for all machines (machineIDsSet) units are running on.
 	machines, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: machineIDsSet.ToSlice()})
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
@@ -145,15 +101,15 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		machineNames = append(machineNames, m.Machine.Name)
 	}
 
-	formatter := logs.NewFormatter(machineNames, serviceNames, opts.UTC)
+	formatter := logs.NewFormatter(machineNames, pb.MachineLogsRequest_Unit_name[unit], opts.UTC)
 
 	// Print merged logs.
 	for entry := range stream {
 		if entry.Err != nil {
-			formatter.printError(entry)
+			formatter.PrintError(entry)
 			continue
 		}
-		formatter.printEntry(entry)
+		formatter.PrintEntry(entry)
 	}
 
 	return nil

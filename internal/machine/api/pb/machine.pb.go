@@ -23,73 +23,73 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type LogsRequestUnit int32
+type MachineLogsRequest_Unit int32
 
 const (
-	LogsRequest_UNCLOUD   LogsRequestUnit = 0
-	LogsRequest_DOCKER    LogsRequestUnit = 1
-	LogsRequest_CORROSION LogsRequestUnit = 2
+	MachineLogsRequest_UNCLOUD   MachineLogsRequest_Unit = 0
+	MachineLogsRequest_DOCKER    MachineLogsRequest_Unit = 1
+	MachineLogsRequest_CORROSION MachineLogsRequest_Unit = 2
 )
 
-// Enum value maps for LogsRequestUnit.
+// Enum value maps for MachineLogsRequest_Unit.
 var (
-	LogsRequestUnit_name = map[int32]string{
+	MachineLogsRequest_Unit_name = map[int32]string{
 		0: "UNCLOUD",
 		1: "DOCKER",
 		2: "CORROSION",
 	}
-	LogsRequestUnit_value = map[string]int32{
+	MachineLogsRequest_Unit_value = map[string]int32{
 		"UNCLOUD":   0,
 		"DOCKER":    1,
 		"CORROSION": 2,
 	}
 )
 
-func (x LogsRequestUnit) Enum() *LogsRequestUnit {
-	p := new(LogsRequestUnit)
+func (x MachineLogsRequest_Unit) Enum() *MachineLogsRequest_Unit {
+	p := new(MachineLogsRequest_Unit)
 	*p = x
 	return p
 }
 
-func (x LogsRequestUnit) String() string {
+func (x MachineLogsRequest_Unit) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (LogsRequestUnit) Descriptor() protoreflect.EnumDescriptor {
+func (MachineLogsRequest_Unit) Descriptor() protoreflect.EnumDescriptor {
 	return file_internal_machine_api_pb_machine_proto_enumTypes[0].Descriptor()
 }
 
-func (LogsRequestUnit) Type() protoreflect.EnumType {
+func (MachineLogsRequest_Unit) Type() protoreflect.EnumType {
 	return &file_internal_machine_api_pb_machine_proto_enumTypes[0]
 }
 
-func (x LogsRequestUnit) Number() protoreflect.EnumNumber {
+func (x MachineLogsRequest_Unit) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use LogsRequestUnit.Descriptor instead.
-func (LogsRequestUnit) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use MachineLogsRequest_Unit.Descriptor instead.
+func (MachineLogsRequest_Unit) EnumDescriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{15, 0}
 }
 
-type LogEntry_StreamType int32
+type MachineLogEntry_StreamType int32
 
 const (
-	LogEntry_UNKNOWN   LogEntry_StreamType = 0
-	LogEntry_STDOUT    LogEntry_StreamType = 1
-	LogEntry_STDERR    LogEntry_StreamType = 2
-	LogEntry_HEARTBEAT LogEntry_StreamType = 3
+	MachineLogEntry_UNKNOWN   MachineLogEntry_StreamType = 0
+	MachineLogEntry_STDOUT    MachineLogEntry_StreamType = 1
+	MachineLogEntry_STDERR    MachineLogEntry_StreamType = 2
+	MachineLogEntry_HEARTBEAT MachineLogEntry_StreamType = 3
 )
 
-// Enum value maps for LogEntry_StreamType.
+// Enum value maps for MachineLogEntry_StreamType.
 var (
-	LogEntry_StreamType_name = map[int32]string{
+	MachineLogEntry_StreamType_name = map[int32]string{
 		0: "UNKNOWN",
 		1: "STDOUT",
 		2: "STDERR",
 		3: "HEARTBEAT",
 	}
-	LogEntry_StreamType_value = map[string]int32{
+	MachineLogEntry_StreamType_value = map[string]int32{
 		"UNKNOWN":   0,
 		"STDOUT":    1,
 		"STDERR":    2,
@@ -97,30 +97,30 @@ var (
 	}
 )
 
-func (x LogEntry_StreamType) Enum() *LogEntry_StreamType {
-	p := new(LogEntry_StreamType)
+func (x MachineLogEntry_StreamType) Enum() *MachineLogEntry_StreamType {
+	p := new(MachineLogEntry_StreamType)
 	*p = x
 	return p
 }
 
-func (x LogEntry_StreamType) String() string {
+func (x MachineLogEntry_StreamType) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (LogEntry_StreamType) Descriptor() protoreflect.EnumDescriptor {
+func (MachineLogEntry_StreamType) Descriptor() protoreflect.EnumDescriptor {
 	return file_internal_machine_api_pb_machine_proto_enumTypes[1].Descriptor()
 }
 
-func (LogEntry_StreamType) Type() protoreflect.EnumType {
+func (MachineLogEntry_StreamType) Type() protoreflect.EnumType {
 	return &file_internal_machine_api_pb_machine_proto_enumTypes[1]
 }
 
-func (x LogEntry_StreamType) Number() protoreflect.EnumNumber {
+func (x MachineLogEntry_StreamType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use LogEntry_StreamType.Descriptor instead.
-func (LogEntry_StreamType) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use MachineLogEntry_StreamType.Descriptor instead.
+func (MachineLogEntry_StreamType) EnumDescriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{16, 0}
 }
 
@@ -1020,30 +1020,31 @@ func (x *WireGuardPeer) GetAllowedIps() []string {
 	return nil
 }
 
-type LogsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Follow        bool                   `protobuf:"varint,2,opt,name=follow,proto3" json:"follow,omitempty"`
-	Tail          int32                  `protobuf:"varint,3,opt,name=tail,proto3" json:"tail,omitempty"`
-	Since         string                 `protobuf:"bytes,4,opt,name=since,proto3" json:"since,omitempty"`
-	Until         string                 `protobuf:"bytes,5,opt,name=until,proto3" json:"until,omitempty"`
+type MachineLogsRequest struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Unit          MachineLogsRequest_Unit `protobuf:"varint,1,opt,name=unit,proto3,enum=api.MachineLogsRequest_Unit" json:"unit,omitempty"`
+	Follow        bool                    `protobuf:"varint,2,opt,name=follow,proto3" json:"follow,omitempty"`
+	Tail          int32                   `protobuf:"varint,3,opt,name=tail,proto3" json:"tail,omitempty"`
+	Since         string                  `protobuf:"bytes,4,opt,name=since,proto3" json:"since,omitempty"`
+	Until         string                  `protobuf:"bytes,5,opt,name=until,proto3" json:"until,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *LogsRequest) Reset() {
-	*x = LogsRequest{}
+func (x *MachineLogsRequest) Reset() {
+	*x = MachineLogsRequest{}
 	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *LogsRequest) String() string {
+func (x *MachineLogsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*LogsRequest) ProtoMessage() {}
+func (*MachineLogsRequest) ProtoMessage() {}
 
-func (x *LogsRequest) ProtoReflect() protoreflect.Message {
+func (x *MachineLogsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1055,33 +1056,40 @@ func (x *LogsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LogsRequest.ProtoReflect.Descriptor instead.
-func (*LogsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use MachineLogsRequest.ProtoReflect.Descriptor instead.
+func (*MachineLogsRequest) Descriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *LogsRequest) GetFollow() bool {
+func (x *MachineLogsRequest) GetUnit() MachineLogsRequest_Unit {
+	if x != nil {
+		return x.Unit
+	}
+	return MachineLogsRequest_UNCLOUD
+}
+
+func (x *MachineLogsRequest) GetFollow() bool {
 	if x != nil {
 		return x.Follow
 	}
 	return false
 }
 
-func (x *LogsRequest) GetTail() int32 {
+func (x *MachineLogsRequest) GetTail() int32 {
 	if x != nil {
 		return x.Tail
 	}
 	return 0
 }
 
-func (x *LogsRequest) GetSince() string {
+func (x *MachineLogsRequest) GetSince() string {
 	if x != nil {
 		return x.Since
 	}
 	return ""
 }
 
-func (x *LogsRequest) GetUntil() string {
+func (x *MachineLogsRequest) GetUntil() string {
 	if x != nil {
 		return x.Until
 	}
@@ -1089,30 +1097,30 @@ func (x *LogsRequest) GetUntil() string {
 }
 
 // Similar to ContainerLogEntry.
-type LogEntry struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Stream    LogEntry_StreamType    `protobuf:"varint,1,opt,name=stream,proto3,enum=api.LogEntry_StreamType" json:"stream,omitempty"`
-	Timestamp *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+type MachineLogEntry struct {
+	state     protoimpl.MessageState     `protogen:"open.v1"`
+	Stream    MachineLogEntry_StreamType `protobuf:"varint,1,opt,name=stream,proto3,enum=api.MachineLogEntry_StreamType" json:"stream,omitempty"`
+	Timestamp *timestamppb.Timestamp     `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	// Log line content. Empty for heartbeat entries.
 	Message       []byte `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *LogEntry) Reset() {
-	*x = LogEntry{}
+func (x *MachineLogEntry) Reset() {
+	*x = MachineLogEntry{}
 	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *LogEntry) String() string {
+func (x *MachineLogEntry) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*LogEntry) ProtoMessage() {}
+func (*MachineLogEntry) ProtoMessage() {}
 
-func (x *LogEntry) ProtoReflect() protoreflect.Message {
+func (x *MachineLogEntry) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_machine_api_pb_machine_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1124,26 +1132,26 @@ func (x *LogEntry) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LogEntry.ProtoReflect.Descriptor instead.
-func (*LogEntry) Descriptor() ([]byte, []int) {
+// Deprecated: Use MachineLogEntry.ProtoReflect.Descriptor instead.
+func (*MachineLogEntry) Descriptor() ([]byte, []int) {
 	return file_internal_machine_api_pb_machine_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *LogEntry) GetStream() LogEntry_StreamType {
+func (x *MachineLogEntry) GetStream() MachineLogEntry_StreamType {
 	if x != nil {
 		return x.Stream
 	}
-	return LogEntry_UNKNOWN
+	return MachineLogEntry_UNKNOWN
 }
 
-func (x *LogEntry) GetTimestamp() *timestamppb.Timestamp {
+func (x *MachineLogEntry) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
 	}
 	return nil
 }
 
-func (x *LogEntry) GetMessage() []byte {
+func (x *MachineLogEntry) GetMessage() []byte {
 	if x != nil {
 		return x.Message
 	}
@@ -1274,19 +1282,20 @@ const file_internal_machine_api_pb_machine_proto_rawDesc = "" +
 	"\rreceive_bytes\x18\x04 \x01(\x03R\freceiveBytes\x12%\n" +
 	"\x0etransmit_bytes\x18\x05 \x01(\x03R\rtransmitBytes\x12\x1f\n" +
 	"\vallowed_ips\x18\x06 \x03(\tR\n" +
-	"allowedIps\"\x95\x01\n" +
-	"\vLogsRequest\x12\x16\n" +
+	"allowedIps\"\xce\x01\n" +
+	"\x12MachineLogsRequest\x120\n" +
+	"\x04unit\x18\x01 \x01(\x0e2\x1c.api.MachineLogsRequest.UnitR\x04unit\x12\x16\n" +
 	"\x06follow\x18\x02 \x01(\bR\x06follow\x12\x12\n" +
 	"\x04tail\x18\x03 \x01(\x05R\x04tail\x12\x14\n" +
 	"\x05since\x18\x04 \x01(\tR\x05since\x12\x14\n" +
 	"\x05until\x18\x05 \x01(\tR\x05until\".\n" +
-	"\x04unit\x12\v\n" +
+	"\x04Unit\x12\v\n" +
 	"\aUNCLOUD\x10\x00\x12\n" +
 	"\n" +
 	"\x06DOCKER\x10\x01\x12\r\n" +
-	"\tCORROSION\x10\x02\"\xd2\x01\n" +
-	"\bLogEntry\x120\n" +
-	"\x06stream\x18\x01 \x01(\x0e2\x18.api.LogEntry.StreamTypeR\x06stream\x128\n" +
+	"\tCORROSION\x10\x02\"\xe0\x01\n" +
+	"\x0fMachineLogEntry\x127\n" +
+	"\x06stream\x18\x01 \x01(\x0e2\x1f.api.MachineLogEntry.StreamTypeR\x06stream\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\fR\amessage\"@\n" +
 	"\n" +
@@ -1296,7 +1305,7 @@ const file_internal_machine_api_pb_machine_proto_rawDesc = "" +
 	"\x06STDOUT\x10\x01\x12\n" +
 	"\n" +
 	"\x06STDERR\x10\x02\x12\r\n" +
-	"\tHEARTBEAT\x10\x032\x8d\x05\n" +
+	"\tHEARTBEAT\x10\x032\xa3\x05\n" +
 	"\aMachine\x12M\n" +
 	"\x12CheckPrerequisites\x12\x16.google.protobuf.Empty\x1a\x1f.api.CheckPrerequisitesResponse\x12@\n" +
 	"\vInitCluster\x12\x17.api.InitClusterRequest\x1a\x18.api.InitClusterResponse\x12>\n" +
@@ -1306,8 +1315,8 @@ const file_internal_machine_api_pb_machine_proto_rawDesc = "" +
 	"\x0eInspectMachine\x12\x16.google.protobuf.Empty\x1a\x1b.api.InspectMachineResponse\x12W\n" +
 	"\x17InspectWireGuardNetwork\x12\x16.google.protobuf.Empty\x1a$.api.InspectWireGuardNetworkResponse\x122\n" +
 	"\x05Reset\x12\x11.api.ResetRequest\x1a\x16.google.protobuf.Empty\x12I\n" +
-	"\x0eInspectService\x12\x1a.api.InspectServiceRequest\x1a\x1b.api.InspectServiceResponse\x12(\n" +
-	"\x03Log\x12\x10.api.LogsRequest\x1a\r.api.LogEntry0\x01B7Z5github.com/psviderski/uncloud/internal/machine/api/pbb\x06proto3"
+	"\x0eInspectService\x12\x1a.api.InspectServiceRequest\x1a\x1b.api.InspectServiceResponse\x12>\n" +
+	"\vMachineLogs\x12\x17.api.MachineLogsRequest\x1a\x14.api.MachineLogEntry0\x01B7Z5github.com/psviderski/uncloud/internal/machine/api/pbb\x06proto3"
 
 var (
 	file_internal_machine_api_pb_machine_proto_rawDescOnce sync.Once
@@ -1324,8 +1333,8 @@ func file_internal_machine_api_pb_machine_proto_rawDescGZIP() []byte {
 var file_internal_machine_api_pb_machine_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_internal_machine_api_pb_machine_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_internal_machine_api_pb_machine_proto_goTypes = []any{
-	(LogsRequestUnit)(0),                    // 0: api.LogsRequest.unit
-	(LogEntry_StreamType)(0),                // 1: api.LogEntry.StreamType
+	(MachineLogsRequest_Unit)(0),            // 0: api.MachineLogsRequest.Unit
+	(MachineLogEntry_StreamType)(0),         // 1: api.MachineLogEntry.StreamType
 	(*MachineInfo)(nil),                     // 2: api.MachineInfo
 	(*NetworkConfig)(nil),                   // 3: api.NetworkConfig
 	(*CheckPrerequisitesResponse)(nil),      // 4: api.CheckPrerequisitesResponse
@@ -1341,8 +1350,8 @@ var file_internal_machine_api_pb_machine_proto_goTypes = []any{
 	(*InspectServiceResponse)(nil),          // 14: api.InspectServiceResponse
 	(*InspectWireGuardNetworkResponse)(nil), // 15: api.InspectWireGuardNetworkResponse
 	(*WireGuardPeer)(nil),                   // 16: api.WireGuardPeer
-	(*LogsRequest)(nil),                     // 17: api.LogsRequest
-	(*LogEntry)(nil),                        // 18: api.LogEntry
+	(*MachineLogsRequest)(nil),              // 17: api.MachineLogsRequest
+	(*MachineLogEntry)(nil),                 // 18: api.MachineLogEntry
 	(*Service_Container)(nil),               // 19: api.Service.Container
 	(*IP)(nil),                              // 20: api.IP
 	(*IPPrefix)(nil),                        // 21: api.IPPrefix
@@ -1370,33 +1379,34 @@ var file_internal_machine_api_pb_machine_proto_depIdxs = []int32{
 	12, // 15: api.InspectServiceResponse.service:type_name -> api.Service
 	16, // 16: api.InspectWireGuardNetworkResponse.peers:type_name -> api.WireGuardPeer
 	24, // 17: api.WireGuardPeer.last_handshake_time:type_name -> google.protobuf.Timestamp
-	1,  // 18: api.LogEntry.stream:type_name -> api.LogEntry.StreamType
-	24, // 19: api.LogEntry.timestamp:type_name -> google.protobuf.Timestamp
-	25, // 20: api.Machine.CheckPrerequisites:input_type -> google.protobuf.Empty
-	5,  // 21: api.Machine.InitCluster:input_type -> api.InitClusterRequest
-	7,  // 22: api.Machine.JoinCluster:input_type -> api.JoinClusterRequest
-	25, // 23: api.Machine.Token:input_type -> google.protobuf.Empty
-	25, // 24: api.Machine.Inspect:input_type -> google.protobuf.Empty
-	25, // 25: api.Machine.InspectMachine:input_type -> google.protobuf.Empty
-	25, // 26: api.Machine.InspectWireGuardNetwork:input_type -> google.protobuf.Empty
-	11, // 27: api.Machine.Reset:input_type -> api.ResetRequest
-	13, // 28: api.Machine.InspectService:input_type -> api.InspectServiceRequest
-	17, // 29: api.Machine.Log:input_type -> api.LogsRequest
-	4,  // 30: api.Machine.CheckPrerequisites:output_type -> api.CheckPrerequisitesResponse
-	6,  // 31: api.Machine.InitCluster:output_type -> api.InitClusterResponse
-	25, // 32: api.Machine.JoinCluster:output_type -> google.protobuf.Empty
-	10, // 33: api.Machine.Token:output_type -> api.TokenResponse
-	2,  // 34: api.Machine.Inspect:output_type -> api.MachineInfo
-	8,  // 35: api.Machine.InspectMachine:output_type -> api.InspectMachineResponse
-	15, // 36: api.Machine.InspectWireGuardNetwork:output_type -> api.InspectWireGuardNetworkResponse
-	25, // 37: api.Machine.Reset:output_type -> google.protobuf.Empty
-	14, // 38: api.Machine.InspectService:output_type -> api.InspectServiceResponse
-	18, // 39: api.Machine.Log:output_type -> api.LogEntry
-	30, // [30:40] is the sub-list for method output_type
-	20, // [20:30] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	0,  // 18: api.MachineLogsRequest.unit:type_name -> api.MachineLogsRequest.Unit
+	1,  // 19: api.MachineLogEntry.stream:type_name -> api.MachineLogEntry.StreamType
+	24, // 20: api.MachineLogEntry.timestamp:type_name -> google.protobuf.Timestamp
+	25, // 21: api.Machine.CheckPrerequisites:input_type -> google.protobuf.Empty
+	5,  // 22: api.Machine.InitCluster:input_type -> api.InitClusterRequest
+	7,  // 23: api.Machine.JoinCluster:input_type -> api.JoinClusterRequest
+	25, // 24: api.Machine.Token:input_type -> google.protobuf.Empty
+	25, // 25: api.Machine.Inspect:input_type -> google.protobuf.Empty
+	25, // 26: api.Machine.InspectMachine:input_type -> google.protobuf.Empty
+	25, // 27: api.Machine.InspectWireGuardNetwork:input_type -> google.protobuf.Empty
+	11, // 28: api.Machine.Reset:input_type -> api.ResetRequest
+	13, // 29: api.Machine.InspectService:input_type -> api.InspectServiceRequest
+	17, // 30: api.Machine.MachineLogs:input_type -> api.MachineLogsRequest
+	4,  // 31: api.Machine.CheckPrerequisites:output_type -> api.CheckPrerequisitesResponse
+	6,  // 32: api.Machine.InitCluster:output_type -> api.InitClusterResponse
+	25, // 33: api.Machine.JoinCluster:output_type -> google.protobuf.Empty
+	10, // 34: api.Machine.Token:output_type -> api.TokenResponse
+	2,  // 35: api.Machine.Inspect:output_type -> api.MachineInfo
+	8,  // 36: api.Machine.InspectMachine:output_type -> api.InspectMachineResponse
+	15, // 37: api.Machine.InspectWireGuardNetwork:output_type -> api.InspectWireGuardNetworkResponse
+	25, // 38: api.Machine.Reset:output_type -> google.protobuf.Empty
+	14, // 39: api.Machine.InspectService:output_type -> api.InspectServiceResponse
+	18, // 40: api.Machine.MachineLogs:output_type -> api.MachineLogEntry
+	31, // [31:41] is the sub-list for method output_type
+	21, // [21:31] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_internal_machine_api_pb_machine_proto_init() }

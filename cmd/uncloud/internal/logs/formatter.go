@@ -74,7 +74,7 @@ func (f *Formatter) formatMachine(name string) string {
 			i = len(f.machineNames) - 1
 		}
 
-		style = style.Foreground(logs.Palette[i%len(logs.Palette)])
+		style = style.Foreground(Palette[i%len(Palette)])
 	}
 
 	return style.Render(name)
@@ -99,7 +99,7 @@ func (f *Formatter) formatServiceContainer(serviceName, containerID string) stri
 }
 
 // printEntry prints a single log entry with proper formatting.
-func (f *Formatter) printEntry(entry api.ServiceLogEntry) {
+func (f *Formatter) PrintEntry(entry api.ServiceLogEntry) {
 	if entry.Stream != api.LogStreamStdout && entry.Stream != api.LogStreamStderr {
 		return
 	}
@@ -129,8 +129,8 @@ func (f *Formatter) printEntry(entry api.ServiceLogEntry) {
 	}
 }
 
-// printError prints an error entry (e.g., stalled stream warning).
-func (f *Formatter) printError(entry api.ServiceLogEntry) {
+// PrintError prints an error entry (e.g., stalled stream warning).
+func (f *Formatter) PrintError(entry api.ServiceLogEntry) {
 	if entry.Metadata.ContainerID != "" {
 		msg := fmt.Sprintf("WARNING: log stream from %s[%s] on machine '%s'",
 			entry.Metadata.ServiceName,

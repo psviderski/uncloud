@@ -25,7 +25,7 @@ service Machine {
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
 
-  rpc Log(LogsRequest) returns (stream LogEntry);
+  rpc MachineLogs(MachineLogsRequest) returns (stream MachineLogEntry);
 }
 
 message MachineInfo {
@@ -131,12 +131,13 @@ message WireGuardPeer {
 }
 
 
-message LogsRequest {
-  enum unit {
+message MachineLogsRequest {
+  enum Unit {
     UNCLOUD = 0;
     DOCKER = 1;
     CORROSION = 2;
   }
+  Unit unit = 1;
   bool follow = 2;
   int32 tail = 3;
   string since = 4;
@@ -144,7 +145,7 @@ message LogsRequest {
 }
 
 // Similar to ContainerLogEntry.
-message LogEntry {
+message MachineLogEntry {
   enum StreamType {
     UNKNOWN = 0;
     STDOUT = 1;
