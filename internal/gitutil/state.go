@@ -2,6 +2,7 @@ package gitutil
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -36,6 +37,13 @@ func InspectGitState(dir string) (GitState, error) {
 		return state, nil
 	}
 
+	// Check if the repository has any commits. An initialised but empty repo has no HEAD yet.
+	if !hasCommits(dir) {
+		fmt.Fprintln(os.Stdout, "Warning: git repository has no commits, ignoring git state.")
+		state.IsRepo = false
+		return state, nil
+	}
+
 	// Get the current commit SHA.
 	sha, err := gitCommand(dir, "rev-parse", "HEAD")
 	if err != nil {
@@ -67,6 +75,13 @@ func InspectGitState(dir string) (GitState, error) {
 // isGitRepo checks if the directory is a Git repository.
 func isGitRepo(dir string) bool {
 	_, err := gitCommand(dir, "rev-parse", "--git-dir")
+	return err == nil
+}
+
+// hasCommits checks if the git repository has at least one commit.
+// An initialised but empty repository has no HEAD and returns false.
+func hasCommits(dir string) bool {
+	_, err := gitCommand(dir, "rev-parse", "--verify", "HEAD")
 	return err == nil
 }
 
