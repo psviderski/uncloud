@@ -53,6 +53,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Healthcheck: healthcheckFromCompose(service.HealthCheck),
 			Image:       service.Image,
 			Init:        service.Init,
+			Pid:         container.PidMode(service.Pid),
 			Privileged:  service.Privileged,
 			PullPolicy:  pullPolicy,
 			Resources:   resourcesFromCompose(service),
