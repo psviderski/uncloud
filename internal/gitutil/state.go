@@ -36,16 +36,12 @@ func InspectGitState(dir string) (GitState, error) {
 		return state, nil
 	}
 
-	// Check if the repository has any commits. An initialised but empty repo has no HEAD yet.
-	if !hasCommits(dir) {
+	// Get the current commit SHA. An initialised but empty repo has no HEAD yet,
+	// so treat it as a non-repo so callers can fall back to non-git logic.
+	sha, err := gitCommand(dir, "rev-parse", "--verify", "HEAD")
+	if err != nil {
 		state.IsRepo = false
 		return state, nil
-	}
-
-	// Get the current commit SHA.
-	sha, err := gitCommand(dir, "rev-parse", "HEAD")
-	if err != nil {
-		return state, fmt.Errorf("get current commit SHA: %w", err)
 	}
 	state.SHA = strings.TrimSpace(sha)
 
@@ -73,13 +69,6 @@ func InspectGitState(dir string) (GitState, error) {
 // isGitRepo checks if the directory is a Git repository.
 func isGitRepo(dir string) bool {
 	_, err := gitCommand(dir, "rev-parse", "--git-dir")
-	return err == nil
-}
-
-// hasCommits checks if the git repository has at least one commit.
-// An initialised but empty repository has no HEAD and returns false.
-func hasCommits(dir string) bool {
-	_, err := gitCommand(dir, "rev-parse", "--verify", "HEAD")
 	return err == nil
 }
 
