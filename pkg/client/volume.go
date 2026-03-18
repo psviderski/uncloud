@@ -7,6 +7,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/volume"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -70,7 +71,7 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 	for _, mv := range machineVolumes {
 		if mv.Metadata != nil && mv.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
-			PrintWarning(fmt.Sprintf("failed to list volumes on machine '%s': %s",
+			tui.PrintWarning(fmt.Sprintf("failed to list volumes on machine '%s': %s",
 				mv.Metadata.Machine, mv.Metadata.Error))
 			continue
 		}

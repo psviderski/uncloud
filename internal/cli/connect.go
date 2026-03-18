@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/connector"
@@ -33,7 +34,7 @@ func ConnectCluster(ctx context.Context, conn config.MachineConnection, opts Con
 // If the stdout is not a terminal, it falls back to simple progress logs to stderr.
 func connectClusterWithProgress(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
 	// If stdout is not a terminal, fall back to simple progress logs.
-	if !IsStdoutTerminal() {
+	if !tui.IsStdoutTerminal() {
 		fmt.Fprintln(os.Stderr, "Connecting to", conn.String())
 		cli, err := connectCluster(ctx, conn)
 		if err != nil {

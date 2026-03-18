@@ -14,6 +14,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -224,7 +225,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		fmt.Println()
 
 		if !opts.yes {
-			confirmed, err := cli.Confirm()
+			confirmed, err := tui.Confirm("")
 			if err != nil {
 				return fmt.Errorf("confirm deployment: %w", err)
 			}

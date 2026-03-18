@@ -71,12 +71,20 @@ func (cli *CLI) SetCurrentContext(name string) error {
 	return cli.Config.Save()
 }
 
-func (cli *CLI) GetContextOverrideOrCurrent() string {
+func (cli *CLI) ContextOverrideOrCurrent() string {
 	if cli.contextOverride != "" {
 		return cli.contextOverride
 	}
 	if cli.Config != nil {
 		return cli.Config.CurrentContext
+	}
+	return ""
+}
+
+// DirectConnection returns the connection string if --connect or UNCLOUD_CONNECT was specified.
+func (cli *CLI) DirectConnection() string {
+	if cli.conn != nil {
+		return cli.conn.String()
 	}
 	return ""
 }
@@ -316,7 +324,7 @@ type AddMachineOptions struct {
 // cluster. The machine client is connected to the new machine and can be used to interact with it.
 // Both client should be closed after use by the caller.
 func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client.Client, *client.Client, error) {
-	contextName := cli.GetContextOverrideOrCurrent()
+	contextName := cli.ContextOverrideOrCurrent()
 	c, err := cli.ConnectCluster(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)

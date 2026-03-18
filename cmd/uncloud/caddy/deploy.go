@@ -12,6 +12,7 @@ import (
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -135,7 +136,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		fmt.Println(plan.Format(resolver))
 		fmt.Println()
 
-		confirmed, err := cli.Confirm()
+		confirmed, err := tui.Confirm("")
 		if err != nil {
 			return fmt.Errorf("confirm deployment: %w", err)
 		}

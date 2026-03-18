@@ -14,6 +14,7 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -118,7 +119,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	}
 
 	if !opts.yes {
-		confirmed, err := cli.Confirm()
+		confirmed, err := tui.Confirm("")
 		if err != nil {
 			return fmt.Errorf("confirm removal: %w", err)
 		}
@@ -154,7 +155,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 
 	// Remove the connection to the machine from the uncloud config if it exists.
 	if uncli.Config != nil {
-		contextName := uncli.GetContextOverrideOrCurrent()
+		contextName := uncli.ContextOverrideOrCurrent()
 		if context, ok := uncli.Config.Contexts[contextName]; ok {
 			for i, c := range context.Connections {
 				if c.MachineID == m.Id {
