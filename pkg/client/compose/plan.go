@@ -41,7 +41,7 @@ func (p *Plan) Format(resolvers map[string]operation.NameResolver) string {
 	for _, svcPlan := range p.Services {
 		resolver := resolvers[svcPlan.ServiceID]
 		out.WriteString(svcPlan.Format(resolver))
-		out.WriteString("\n\n")
+		out.WriteString("\n")
 	}
 
 	// Format summary footer.
