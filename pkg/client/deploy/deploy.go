@@ -4,7 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
+	"github.com/distribution/reference"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
@@ -34,7 +39,181 @@ type Deployment struct {
 type ServicePlan struct {
 	ServiceID   string
 	ServiceName string
+	// Spec is the desired service spec being deployed.
+	Spec api.ServiceSpec
 	operation.SequenceOperation
+}
+
+// Format renders the service plan as a styled block with a spec diff and nested container operations.
+func (sp *ServicePlan) Format(resolver operation.NameResolver) string {
+	// Determine service-level operation type and extract the old spec from container operations.
+	// Assume replace operations precede remove operations (rolling strategy) so the first replace operation
+	// (if exists) determines the old spec for the diff. Otherwise, fallback to the first remove operation.
+	var hasRun, hasReplace, hasRemove bool
+	var oldSpec *api.ServiceSpec
+	for _, op := range sp.Operations {
+		switch o := op.(type) {
+		case *operation.RunContainerOperation:
+			hasRun = true
+		case *operation.ReplaceContainerOperation:
+			hasReplace = true
+			if oldSpec == nil {
+				oldSpec = &o.OldContainer.ServiceSpec
+			}
+		case *operation.RemoveContainerOperation:
+			hasRemove = true
+			if oldSpec == nil {
+				oldSpec = &o.Container.ServiceSpec
+			}
+		}
+	}
+
+	// Service line modifier and verb.
+	var modifier, verb string
+	switch {
+	case hasRun && !hasReplace && !hasRemove:
+		modifier = tui.BoldGreen.Render("+")
+		verb = "create"
+	// TODO: when service removal via a deployment is supported, handle "remove" verb here as well.
+	default:
+		modifier = tui.BoldYellow.Render("~")
+		verb = "update"
+	}
+
+	var out strings.Builder
+	line := modifier + " " + verb + " service " + tui.NameStyle.Render(sp.ServiceName)
+	if sp.Spec.Mode == api.ServiceModeGlobal {
+		line += " " + tui.Faint.Render("(global)")
+	}
+	out.WriteString(line)
+	out.WriteString("\n")
+
+	// Build spec diff table: columns are [modifier, attribute, value or change].
+	// TODO: print diff for all changed attributes, not just image and replicas.
+	//  Consider reusing the logic in EvalContainerSpecChange to return a structured diff.
+	specTable := table.New().
+		Border(lipgloss.Border{}).
+		BorderTop(false).BorderBottom(false).
+		BorderLeft(false).BorderRight(false).
+		BorderHeader(false).BorderColumn(false).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			switch col {
+			case 0: // Modifier column.
+				return tui.Yellow.Width(2)
+			case 1: // Attribute column.
+				return tui.Faint.PaddingRight(1)
+			default:
+				return lipgloss.NewStyle()
+			}
+		})
+
+	// Image row.
+	if oldSpec == nil {
+		specTable.Row("", "image:", formatImageDiff("", sp.Spec.Container.Image))
+	} else {
+		mod := ""
+		if oldSpec.Container.Image != sp.Spec.Container.Image {
+			mod = "~"
+		}
+		specTable.Row(mod, "image:", formatImageDiff(oldSpec.Container.Image, sp.Spec.Container.Image))
+	}
+
+	// Replicas row for replicated services.
+	if sp.Spec.Mode == api.ServiceModeReplicated {
+		replicasStr := fmt.Sprintf("%d", sp.Spec.Replicas)
+		if oldSpec == nil {
+			specTable.Row("", "replicas:", tui.Green.Render(replicasStr))
+		} else if sp.Spec.Replicas > 1 || hasRun || hasRemove {
+			mod := ""
+			if hasRun || hasRemove {
+				mod = "~"
+				replicasStr = tui.Green.Render(replicasStr)
+			}
+			specTable.Row(mod, "replicas:", replicasStr)
+		}
+	}
+
+	// Stack "  │ " tree prefixes vertically, then join horizontally with the table.
+	tableStr := specTable.String()
+	treePrefix := tui.Faint.Render("  │ ")
+	treeColRows := make([]string, specTable.GetData().Rows())
+	for i := range treeColRows {
+		treeColRows[i] = treePrefix
+	}
+	treeCol := lipgloss.JoinVertical(lipgloss.Left, treeColRows...)
+
+	out.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, treeCol, tableStr))
+	out.WriteString("\n")
+
+	// Blank separator line before container operations.
+	out.WriteString(tui.Faint.Render("  │"))
+	out.WriteString("\n")
+
+	// Format each container operation.
+	opsCount := len(sp.Operations)
+	for i, op := range sp.Operations {
+		connector := tui.Faint.Render("  ├──")
+		if i == opsCount-1 {
+			connector = tui.Faint.Render("  ╰──")
+		}
+		out.WriteString(connector + " " + op.Format(resolver))
+		out.WriteString("\n")
+	}
+
+	return out.String()
+}
+
+// formatImageDiff formats the image for display. If oldImage is empty, it formats newImage as a new (green) value.
+// Otherwise, it renders the diff between oldImage and newImage.
+func formatImageDiff(oldImage, newImage string) string {
+	newRef, _ := reference.ParseDockerRef(newImage) // ignore error since the image was already validated
+
+	// Create case: no old image.
+	if oldImage == "" {
+		return styledImage(newRef, tui.Green)
+	}
+
+	// Update case: no change.
+	if oldImage == newImage {
+		return styledImage(newRef, lipgloss.NewStyle())
+	}
+
+	oldRef, _ := reference.ParseDockerRef(oldImage)
+
+	// If either uses a digest, show full old → new.
+	_, oldDigested := oldRef.(reference.Digested)
+	_, newDigested := newRef.(reference.Digested)
+	if oldDigested || newDigested {
+		return styledImage(oldRef, tui.Red) + " " +
+			tui.Faint.Render("→") + " " +
+			styledImage(newRef, tui.Green)
+	}
+
+	// If repos match and both are tagged, show only tag diff.
+	oldTagged, oldOk := oldRef.(reference.NamedTagged)
+	newTagged, newOk := newRef.(reference.NamedTagged)
+	if oldOk && newOk && reference.FamiliarName(oldRef) == reference.FamiliarName(newRef) {
+		return reference.FamiliarName(newRef) +
+			tui.Faint.Render(":") +
+			tui.Red.Render(oldTagged.Tag()) + " " +
+			tui.Faint.Render("→") + " " +
+			tui.Green.Render(newTagged.Tag())
+	}
+
+	// Different repos: full old → new.
+	return styledImage(oldRef, tui.Red) + " " +
+		tui.Faint.Render("→") + " " +
+		styledImage(newRef, tui.Green)
+}
+
+// styledImage renders a parsed image reference with the given style, using a faint colon separator for tagged images.
+func styledImage(image reference.Named, style lipgloss.Style) string {
+	if tagged, ok := image.(reference.NamedTagged); ok {
+		return style.Render(reference.FamiliarName(image)) +
+			tui.Faint.Render(":") +
+			style.Render(tagged.Tag())
+	}
+	return style.Render(reference.FamiliarString(image))
 }
 
 // NewDeployment creates a new deployment for the given service specification.

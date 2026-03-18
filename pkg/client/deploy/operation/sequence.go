@@ -21,12 +21,12 @@ func (o *SequenceOperation) Execute(ctx context.Context, cli Client) error {
 }
 
 func (o *SequenceOperation) Format(resolver NameResolver) string {
-	ops := make([]string, len(o.Operations))
+	lines := make([]string, len(o.Operations))
 	for i, op := range o.Operations {
-		ops[i] = "- " + op.Format(resolver)
+		lines[i] = op.Format(resolver)
 	}
 
-	return strings.Join(ops, "\n")
+	return strings.Join(lines, "\n")
 }
 
 func (o *SequenceOperation) String() string {

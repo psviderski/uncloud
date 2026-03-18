@@ -31,32 +31,6 @@ type Deployment struct {
 	plan         *Plan
 }
 
-// Plan holds the compose-level deployment plan with typed volume and service operations.
-type Plan struct {
-	Volumes  []*operation.CreateVolumeOperation
-	Services []*deploy.ServicePlan
-}
-
-// IsEmpty returns true if the plan has no volume or service operations.
-func (p *Plan) IsEmpty() bool {
-	return len(p.Volumes) == 0 && len(p.Services) == 0
-}
-
-// Execute runs all volume operations followed by all service operations.
-func (p *Plan) Execute(ctx context.Context, cli operation.Client) error {
-	for _, op := range p.Volumes {
-		if err := op.Execute(ctx, cli); err != nil {
-			return err
-		}
-	}
-	for _, sp := range p.Services {
-		if err := sp.Execute(ctx, cli); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
 	return NewDeploymentWithStrategy(ctx, cli, project, nil)
 }

@@ -405,7 +405,9 @@ func determineUpdateOrder(oldContainer api.ServiceContainer, spec api.ServiceSpe
 
 // newEmptyServicePlan creates a new empty plan for a service deployment with initialised service ID and name.
 func newEmptyServicePlan(svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
-	var plan ServicePlan
+	plan := ServicePlan{
+		Spec: spec,
+	}
 
 	// Generate a new service ID for the initial service deployment if it doesn't exist yet.
 	if svc != nil {

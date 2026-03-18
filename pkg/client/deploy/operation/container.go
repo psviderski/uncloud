@@ -8,6 +8,7 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stringid"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -44,7 +45,11 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 
 func (o *RunContainerOperation) Format(resolver NameResolver) string {
 	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Run container [image=%s]", machineName, o.Spec.Container.Image)
+	return tui.BoldGreen.Render("+") + "   " +
+		tui.Faint.Render("run container") + " " +
+		o.Spec.Name + " " +
+		tui.Faint.Render("on") + " " +
+		machineName
 }
 
 func (o *RunContainerOperation) String() string {
@@ -69,8 +74,14 @@ func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error 
 
 func (o *StopContainerOperation) Format(resolver NameResolver) string {
 	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Stop container [id=%s name=%s]", machineName,
-		o.ContainerID[:12], resolver.ContainerName(o.ContainerID))
+	// TODO: pass service name to format the display name consistently with other operations.
+	displayName := stringid.TruncateID(o.ContainerID)
+
+	return tui.BoldRed.Render("-") + "   " +
+		tui.Faint.Render("stop container") + " " +
+		displayName + " " +
+		tui.Faint.Render("on") + " " +
+		machineName
 }
 
 func (o *StopContainerOperation) String() string {
@@ -103,8 +114,13 @@ func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) erro
 
 func (o *RemoveContainerOperation) Format(resolver NameResolver) string {
 	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Remove container [id=%s image=%s]",
-		machineName, o.Container.ShortID(), o.Container.Config.Image)
+	displayName := o.Container.ServiceSpec.Name + tui.Faint.Render("/") + o.Container.ShortID()
+
+	return tui.BoldRed.Render("-") + "   " +
+		tui.Faint.Render("remove container") + " " +
+		displayName + " " +
+		tui.Faint.Render("on") + " " +
+		machineName
 }
 
 func (o *RemoveContainerOperation) String() string {
@@ -208,8 +224,22 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 }
 
 func (o *ReplaceContainerOperation) Format(resolver NameResolver) string {
-	return fmt.Sprintf("%s: Replace container [id=%s image=%s order=%s]",
-		resolver.MachineName(o.MachineID), o.OldContainer.ShortID(), o.Spec.Container.Image, o.Order)
+	machineName := resolver.MachineName(o.MachineID)
+	displayName := o.Spec.Name + tui.Faint.Render("/") + o.OldContainer.ShortID()
+
+	if o.Order == api.UpdateOrderStopFirst {
+		return tui.BoldYellow.Render("-") + tui.Yellow.Render("/") + tui.BoldYellow.Render("+") + " " +
+			tui.Faint.Render("replace container") + " " +
+			displayName + " " +
+			tui.Faint.Render("on") + " " +
+			machineName + " " +
+			tui.Yellow.Render("(stop-first)")
+	}
+	return tui.BoldGreen.Render("+") + tui.Green.Render("/") + tui.BoldGreen.Render("-") + " " +
+		tui.Faint.Render("replace container") + " " +
+		displayName + " " +
+		tui.Faint.Render("on") + " " +
+		machineName
 }
 
 func (o *ReplaceContainerOperation) String() string {
