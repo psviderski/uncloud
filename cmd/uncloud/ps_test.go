@@ -39,25 +39,25 @@ func (m *mockClusterClient) ListMachines(ctx context.Context, in *emptypb.Empty,
 
 func TestCollectContainers_NilMetadata(t *testing.T) {
 	// Setup container data
-	containerData := map[string]interface{}{
+	containerData := map[string]any{
 		"Id":   "container1",
 		"Name": "test-container",
-		"Config": map[string]interface{}{
+		"Config": map[string]any{
 			"Image": "test-image",
 		},
-		"State": map[string]interface{}{
+		"State": map[string]any{
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
-		"NetworkSettings": map[string]interface{}{
-			"Networks": map[string]interface{}{},
+		"NetworkSettings": map[string]any{
+			"Networks": map[string]any{},
 		},
 	}
 	containerJSON, err := json.Marshal(containerData)
 	require.NoError(t, err)
 
-	serviceSpecJSON, err := json.Marshal(map[string]interface{}{})
+	serviceSpecJSON, err := json.Marshal(map[string]any{})
 	require.NoError(t, err)
 
 	// Setup mocks
@@ -120,28 +120,28 @@ func TestCollectContainers_NilMetadata_MultipleMachines_Error(t *testing.T) {
 	// If we have multiple machines but receive nil metadata, it should return an error as it is ambiguous
 
 	// Setup container data
-	containerData1 := map[string]interface{}{
+	containerData1 := map[string]any{
 		"Id": "container1",
 	}
 	containerJSON1, _ := json.Marshal(containerData1)
 
-	containerData2 := map[string]interface{}{
+	containerData2 := map[string]any{
 		"Id": "container2",
-		"Config": map[string]interface{}{
+		"Config": map[string]any{
 			"Image": "test-image",
 		},
-		"State": map[string]interface{}{
+		"State": map[string]any{
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
-		"NetworkSettings": map[string]interface{}{
-			"Networks": map[string]interface{}{},
+		"NetworkSettings": map[string]any{
+			"Networks": map[string]any{},
 		},
 	}
 	containerJSON2, _ := json.Marshal(containerData2)
 
-	serviceSpecJSON, _ := json.Marshal(map[string]interface{}{})
+	serviceSpecJSON, _ := json.Marshal(map[string]any{})
 
 	// Setup mocks
 	mockDocker := &mockDockerClient{
@@ -210,41 +210,41 @@ func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
 	// Verify correct mapping of containers to machines when metadata is present
 
 	// Setup container data
-	containerData1 := map[string]interface{}{
+	containerData1 := map[string]any{
 		"Id":   "container1",
 		"Name": "container-1",
-		"Config": map[string]interface{}{
+		"Config": map[string]any{
 			"Image": "image-1",
 		},
-		"State": map[string]interface{}{
+		"State": map[string]any{
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
-		"NetworkSettings": map[string]interface{}{
-			"Networks": map[string]interface{}{},
+		"NetworkSettings": map[string]any{
+			"Networks": map[string]any{},
 		},
 	}
 	containerJSON1, _ := json.Marshal(containerData1)
 
-	containerData2 := map[string]interface{}{
+	containerData2 := map[string]any{
 		"Id":   "container2",
 		"Name": "container-2",
-		"Config": map[string]interface{}{
+		"Config": map[string]any{
 			"Image": "image-2",
 		},
-		"State": map[string]interface{}{
+		"State": map[string]any{
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
-		"NetworkSettings": map[string]interface{}{
-			"Networks": map[string]interface{}{},
+		"NetworkSettings": map[string]any{
+			"Networks": map[string]any{},
 		},
 	}
 	containerJSON2, _ := json.Marshal(containerData2)
 
-	serviceSpecJSON, _ := json.Marshal(map[string]interface{}{})
+	serviceSpecJSON, _ := json.Marshal(map[string]any{})
 
 	// Setup mocks
 	mockDocker := &mockDockerClient{
@@ -321,22 +321,22 @@ func TestCollectContainers_MetadataPresent_MultipleMachines(t *testing.T) {
 func TestCollectContainers_NilMetadata_NoMachines(t *testing.T) {
 	// Case: 1 msc with nil metadata but no machines at all
 
-	containerData := map[string]interface{}{
+	containerData := map[string]any{
 		"Id": "container1",
-		"Config": map[string]interface{}{
+		"Config": map[string]any{
 			"Image": "test-image",
 		},
-		"State": map[string]interface{}{
+		"State": map[string]any{
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
-		"NetworkSettings": map[string]interface{}{
-			"Networks": map[string]interface{}{},
+		"NetworkSettings": map[string]any{
+			"Networks": map[string]any{},
 		},
 	}
 	containerJSON, _ := json.Marshal(containerData)
-	serviceSpecJSON, _ := json.Marshal(map[string]interface{}{})
+	serviceSpecJSON, _ := json.Marshal(map[string]any{})
 
 	mockDocker := &mockDockerClient{
 		listResp: &pb.ListServiceContainersResponse{
@@ -378,22 +378,22 @@ func TestCollectContainers_NilMetadata_NoMachines(t *testing.T) {
 func TestCollectContainers_MetadataPresent_NotInMapping(t *testing.T) {
 	// Case: msc with metadata that is not in the IP-to-name mapping
 
-	containerData := map[string]interface{}{
+	containerData := map[string]any{
 		"Id": "container1",
-		"Config": map[string]interface{}{
+		"Config": map[string]any{
 			"Image": "test-image",
 		},
-		"State": map[string]interface{}{
+		"State": map[string]any{
 			"Status":     "running",
 			"StartedAt":  "2023-01-01T12:00:00Z",
 			"FinishedAt": "0001-01-01T00:00:00Z",
 		},
-		"NetworkSettings": map[string]interface{}{
-			"Networks": map[string]interface{}{},
+		"NetworkSettings": map[string]any{
+			"Networks": map[string]any{},
 		},
 	}
 	containerJSON, _ := json.Marshal(containerData)
-	serviceSpecJSON, _ := json.Marshal(map[string]interface{}{})
+	serviceSpecJSON, _ := json.Marshal(map[string]any{})
 
 	mockDocker := &mockDockerClient{
 		listResp: &pb.ListServiceContainersResponse{

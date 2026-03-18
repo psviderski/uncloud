@@ -26,7 +26,7 @@ type RecordResponse struct {
 type AuthErrorResponse struct {
 	Status  int           `json:"status,omitempty"`
 	Message string        `json:"msg,omitempty"`
-	Data    authErrorData `json:"data,omitempty"`
+	Data    authErrorData `json:"data"`
 }
 
 type authErrorData struct {

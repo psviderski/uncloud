@@ -226,12 +226,13 @@ func (g *CaddyfileGenerator) Generate(
 
 	// Append error summary as comment if there were any invalid configs.
 	if len(configErrors) > 0 {
-		errorsComment := "# Skipped invalid user-defined configs:\n"
+		var errorsComment strings.Builder
+		errorsComment.WriteString("# Skipped invalid user-defined configs:\n")
 		for _, e := range configErrors {
-			errorsComment += fmt.Sprintf("# - %s\n", e)
+			errorsComment.WriteString(fmt.Sprintf("# - %s\n", e))
 		}
 
-		caddyfile += "\n" + errorsComment
+		caddyfile += "\n" + errorsComment.String()
 	}
 
 	return caddyfileHeader + "\n" + caddyfile, nil
