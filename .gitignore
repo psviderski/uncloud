@@ -8,7 +8,9 @@
 *.so
 *.dylib
 /uncloud
+/uncloud-*
 /uncloudd
+/uncloudd-*
 
 # OS X
 .DS_Store
@@ -42,4 +44,3 @@ node_modules/
 .devcontainer/
 
 .zed/
-uncloudd-linux-amd64
