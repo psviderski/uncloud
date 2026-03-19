@@ -67,6 +67,12 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		return plan, err
 	}
 
+	// Build a machine ID to name map from the cluster state to resolve IDs for operations.
+	machineNames := make(map[string]string, len(s.state.Machines))
+	for _, m := range s.state.Machines {
+		machineNames[m.Info.Id] = m.Info.Name
+	}
+
 	sched := scheduler.NewServiceScheduler(s.state, spec)
 	// TODO: return a detailed report on required constraints and which ones are satisfied?
 	availableMachines, err := sched.EligibleMachines()
@@ -151,6 +157,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 				ServiceID:         plan.ServiceID,
 				Spec:              spec,
 				MachineID:         m.Id,
+				MachineName:       m.Name,
 				SkipHealthMonitor: s.SkipHealthMonitor,
 			})
 			continue
@@ -172,6 +179,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 			ServiceID:         plan.ServiceID,
 			Spec:              spec,
 			MachineID:         m.Id,
+			MachineName:       m.Name,
 			OldContainer:      ctr,
 			Order:             order,
 			SkipHealthMonitor: s.SkipHealthMonitor,
@@ -184,6 +192,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID:       mid,
+				MachineName:     machineNames[mid],
 				Container:       c,
 				StopGracePeriod: spec.StopGracePeriod,
 			})
@@ -202,6 +211,12 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Se
 	plan, err := newEmptyServicePlan(svc, spec)
 	if err != nil {
 		return plan, err
+	}
+
+	// Build a machine ID to name map from the cluster state to resolve IDs for operations.
+	machineNames := make(map[string]string, len(s.state.Machines))
+	for _, m := range s.state.Machines {
+		machineNames[m.Info.Id] = m.Info.Name
 	}
 
 	// Map machineID to service containers on that machine. For the global mode, there should be at most one
@@ -223,7 +238,13 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Se
 	for _, m := range availableMachines {
 		containers := containersOnMachine[m.Info.Id]
 		ops, err := reconcileGlobalContainer(
-			containers, spec, plan.ServiceID, m.Info.Id, s.ForceRecreate, s.SkipHealthMonitor)
+			containers,
+			spec,
+			plan.ServiceID,
+			m.Info,
+			s.ForceRecreate,
+			s.SkipHealthMonitor,
+		)
 		if err != nil {
 			return plan, err
 		}
@@ -237,6 +258,7 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Se
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID:       c.MachineID,
+				MachineName:     machineNames[c.MachineID],
 				Container:       c.Container,
 				StopGracePeriod: spec.StopGracePeriod,
 			})
@@ -250,7 +272,10 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Se
 // It ensures exactly one container with the desired spec is running on the machine by creating a new container and
 // removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
-	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string,
+	containers []api.MachineServiceContainer,
+	spec api.ServiceSpec,
+	serviceID string,
+	machine *pb.MachineInfo,
 	forceRecreate, skipHealthCheck bool,
 ) ([]operation.Operation, error) {
 	var ops []operation.Operation
@@ -260,7 +285,8 @@ func reconcileGlobalContainer(
 		ops = append(ops, &operation.RunContainerOperation{
 			ServiceID:         serviceID,
 			Spec:              spec,
-			MachineID:         machineID,
+			MachineID:         machine.Id,
+			MachineName:       machine.Name,
 			SkipHealthMonitor: skipHealthCheck,
 		})
 		return ops, nil
@@ -290,6 +316,7 @@ func reconcileGlobalContainer(
 				}
 				ops = append(ops, &operation.RemoveContainerOperation{
 					MachineID:       old.MachineID,
+					MachineName:     machine.Name,
 					Container:       old.Container,
 					StopGracePeriod: spec.StopGracePeriod,
 				})
@@ -325,7 +352,8 @@ func reconcileGlobalContainer(
 				ops = append(ops, &operation.StopContainerOperation{
 					ServiceID:       serviceID,
 					ContainerID:     c.Container.ID,
-					MachineID:       machineID,
+					MachineID:       machine.Id,
+					MachineName:     machine.Name,
 					StopGracePeriod: spec.StopGracePeriod,
 				})
 			}
@@ -336,7 +364,8 @@ func reconcileGlobalContainer(
 		ops = append(ops, &operation.ReplaceContainerOperation{
 			ServiceID:         serviceID,
 			Spec:              spec,
-			MachineID:         machineID,
+			MachineID:         machine.Id,
+			MachineName:       machine.Name,
 			OldContainer:      containerToReplace.Container,
 			Order:             order,
 			SkipHealthMonitor: skipHealthCheck,
@@ -350,6 +379,7 @@ func reconcileGlobalContainer(
 			}
 			ops = append(ops, &operation.RemoveContainerOperation{
 				MachineID:       c.MachineID,
+				MachineName:     machine.Name,
 				Container:       c.Container,
 				StopGracePeriod: spec.StopGracePeriod,
 			})
@@ -359,12 +389,14 @@ func reconcileGlobalContainer(
 		ops = append(ops, &operation.RunContainerOperation{
 			ServiceID:         serviceID,
 			Spec:              spec,
-			MachineID:         machineID,
+			MachineID:         machine.Id,
+			MachineName:       machine.Name,
 			SkipHealthMonitor: skipHealthCheck,
 		})
 		for _, c := range containers {
 			ops = append(ops, &operation.RemoveContainerOperation{
 				MachineID:       c.MachineID,
+				MachineName:     machine.Name,
 				Container:       c.Container,
 				StopGracePeriod: spec.StopGracePeriod,
 			})

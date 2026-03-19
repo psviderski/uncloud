@@ -25,12 +25,12 @@ func (p *Plan) IsEmpty() bool {
 }
 
 // Format renders the entire deployment plan as a styled tree with a summary footer.
-func (p *Plan) Format(resolvers map[string]operation.NameResolver) string {
+func (p *Plan) Format() string {
 	var out strings.Builder
 
 	// Format volume operations.
 	for _, op := range p.Volumes {
-		out.WriteString(op.Format(nil))
+		out.WriteString(op.Format())
 		out.WriteString("\n")
 	}
 	if len(p.Volumes) > 0 {
@@ -39,8 +39,7 @@ func (p *Plan) Format(resolvers map[string]operation.NameResolver) string {
 
 	// Format service plans.
 	for _, svcPlan := range p.Services {
-		resolver := resolvers[svcPlan.ServiceID]
-		out.WriteString(svcPlan.Format(resolver))
+		out.WriteString(svcPlan.Format())
 		out.WriteString("\n")
 	}
 

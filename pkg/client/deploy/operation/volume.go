@@ -13,7 +13,7 @@ import (
 type CreateVolumeOperation struct {
 	VolumeSpec api.VolumeSpec
 	MachineID  string
-	// MachineName is used for formatting the operation output only.
+	// MachineName is used for formatting the operation as part of the deployment plan.
 	MachineName string
 }
 
@@ -40,7 +40,7 @@ func (o *CreateVolumeOperation) Execute(ctx context.Context, cli Client) error {
 	return nil
 }
 
-func (o *CreateVolumeOperation) Format(_ NameResolver) string {
+func (o *CreateVolumeOperation) Format() string {
 	return fmt.Sprintf("%s create volume %s %s %s",
 		tui.BoldGreen.Render("+"),
 		tui.NameStyle.Render(o.VolumeSpec.DockerVolumeName()),

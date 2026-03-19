@@ -20,10 +20,10 @@ func (o *SequenceOperation) Execute(ctx context.Context, cli Client) error {
 	return nil
 }
 
-func (o *SequenceOperation) Format(resolver NameResolver) string {
+func (o *SequenceOperation) Format() string {
 	lines := make([]string, len(o.Operations))
 	for i, op := range o.Operations {
-		lines[i] = op.Format(resolver)
+		lines[i] = op.Format()
 	}
 
 	return strings.Join(lines, "\n")

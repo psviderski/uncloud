@@ -11,11 +11,9 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
-	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/spf13/cobra"
 )
 
@@ -193,10 +191,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		fmt.Println()
 	}
 
-	if err = printPlan(ctx, clusterClient, plan); err != nil {
-		return fmt.Errorf("print deployment plan: %w", err)
-	}
-	fmt.Println()
+	fmt.Println(plan.Format())
 
 	// Ask for plan confirmation before proceeding with the deployment unless auto-confirmed with --yes.
 	if !opts.yes {
@@ -234,21 +229,4 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 		return nil
 	}, uncli.ProgressOut(), title)
-}
-
-func printPlan(ctx context.Context, cli *client.Client, plan compose.Plan) error {
-	resolvers := make(map[string]operation.NameResolver)
-	for _, svcPlan := range plan.Services {
-		svc, err := cli.InspectService(ctx, svcPlan.ServiceID)
-		if err != nil && !errors.Is(err, api.ErrNotFound) {
-			return fmt.Errorf("inspect service: %w", err)
-		}
-		resolver, err := cli.ServiceOperationNameResolver(ctx, svc)
-		if err != nil {
-			return fmt.Errorf("create resolver for service '%s': %w", svcPlan.ServiceName, err)
-		}
-		resolvers[svcPlan.ServiceID] = resolver
-	}
-	fmt.Print(plan.Format(resolvers))
-	return nil
 }

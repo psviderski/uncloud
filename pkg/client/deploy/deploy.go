@@ -45,7 +45,7 @@ type ServicePlan struct {
 }
 
 // Format renders the service plan as a styled block with a spec diff and nested container operations.
-func (sp *ServicePlan) Format(resolver operation.NameResolver) string {
+func (sp *ServicePlan) Format() string {
 	// Determine service-level operation type and extract the old spec from container operations.
 	// Assume replace operations precede remove operations (rolling strategy) so the first replace operation
 	// (if exists) determines the old spec for the diff. Otherwise, fallback to the first remove operation.
@@ -156,7 +156,7 @@ func (sp *ServicePlan) Format(resolver operation.NameResolver) string {
 		if i == opsCount-1 {
 			connector = tui.Faint.Render("  ╰──")
 		}
-		out.WriteString(connector + " " + op.Format(resolver))
+		out.WriteString(connector + " " + op.Format())
 		out.WriteString("\n")
 	}
 

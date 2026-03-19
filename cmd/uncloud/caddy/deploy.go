@@ -125,15 +125,9 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 			}
 		}
 
-		// Initialise a machine and container name resolver to properly format the plan output.
-		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, svc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
-
 		fmt.Println()
 		fmt.Println("Deployment plan:")
-		fmt.Println(plan.Format(resolver))
+		fmt.Println(plan.Format())
 		fmt.Println()
 
 		confirmed, err := tui.Confirm("")

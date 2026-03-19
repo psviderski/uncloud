@@ -17,6 +17,8 @@ type RunContainerOperation struct {
 	ServiceID string
 	Spec      api.ServiceSpec
 	MachineID string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName string
 	// SkipHealthMonitor skips the monitoring period and health checks after starting a container.
 	SkipHealthMonitor bool
 }
@@ -43,13 +45,12 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 	return nil
 }
 
-func (o *RunContainerOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
+func (o *RunContainerOperation) Format() string {
 	return tui.BoldGreen.Render("+") + "   " +
 		tui.Faint.Render("run container") + " " +
 		o.Spec.Name + " " +
 		tui.Faint.Render("on") + " " +
-		machineName
+		o.MachineName
 }
 
 func (o *RunContainerOperation) String() string {
@@ -59,9 +60,11 @@ func (o *RunContainerOperation) String() string {
 
 // StopContainerOperation stops a container on a specific machine.
 type StopContainerOperation struct {
-	ServiceID       string
-	ContainerID     string
-	MachineID       string
+	ServiceID   string
+	ContainerID string
+	MachineID   string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName     string
 	StopGracePeriod *time.Duration
 }
 
@@ -72,8 +75,7 @@ func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error 
 	return nil
 }
 
-func (o *StopContainerOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
+func (o *StopContainerOperation) Format() string {
 	// TODO: pass service name to format the display name consistently with other operations.
 	displayName := stringid.TruncateID(o.ContainerID)
 
@@ -81,7 +83,7 @@ func (o *StopContainerOperation) Format(resolver NameResolver) string {
 		tui.Faint.Render("stop container") + " " +
 		displayName + " " +
 		tui.Faint.Render("on") + " " +
-		machineName
+		o.MachineName
 }
 
 func (o *StopContainerOperation) String() string {
@@ -91,7 +93,9 @@ func (o *StopContainerOperation) String() string {
 
 // RemoveContainerOperation stops and removes a container from a specific machine.
 type RemoveContainerOperation struct {
-	MachineID       string
+	MachineID string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName     string
 	Container       api.ServiceContainer
 	StopGracePeriod *time.Duration
 }
@@ -112,15 +116,14 @@ func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) erro
 	return nil
 }
 
-func (o *RemoveContainerOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
+func (o *RemoveContainerOperation) Format() string {
 	displayName := o.Container.ServiceSpec.Name + tui.Faint.Render("/") + o.Container.ShortID()
 
 	return tui.BoldRed.Render("-") + "   " +
 		tui.Faint.Render("remove container") + " " +
 		displayName + " " +
 		tui.Faint.Render("on") + " " +
-		machineName
+		o.MachineName
 }
 
 func (o *RemoveContainerOperation) String() string {
@@ -132,9 +135,11 @@ func (o *RemoveContainerOperation) String() string {
 // For start-first: starts new container, then removes old container.
 // For stop-first: stops old container, starts new container, then removes old container.
 type ReplaceContainerOperation struct {
-	ServiceID    string
-	Spec         api.ServiceSpec
-	MachineID    string
+	ServiceID string
+	Spec      api.ServiceSpec
+	MachineID string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName  string
 	OldContainer api.ServiceContainer
 	// Order specifies the update order: "start-first" or "stop-first".
 	Order string
@@ -223,8 +228,7 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 	return nil
 }
 
-func (o *ReplaceContainerOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
+func (o *ReplaceContainerOperation) Format() string {
 	displayName := o.Spec.Name + tui.Faint.Render("/") + o.OldContainer.ShortID()
 
 	if o.Order == api.UpdateOrderStopFirst {
@@ -232,14 +236,14 @@ func (o *ReplaceContainerOperation) Format(resolver NameResolver) string {
 			tui.Faint.Render("replace container") + " " +
 			displayName + " " +
 			tui.Faint.Render("on") + " " +
-			machineName + " " +
+			o.MachineName + " " +
 			tui.Yellow.Render("(stop-first)")
 	}
 	return tui.BoldGreen.Render("+") + tui.Green.Render("/") + tui.BoldGreen.Render("-") + " " +
 		tui.Faint.Render("replace container") + " " +
 		displayName + " " +
 		tui.Faint.Render("on") + " " +
-		machineName
+		o.MachineName
 }
 
 func (o *ReplaceContainerOperation) String() string {

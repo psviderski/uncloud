@@ -91,14 +91,8 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 	}
 
 	if opts.replicas < currentReplicas {
-		// Initialise a machine and container name resolver to properly format the plan output.
-		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, svc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
-
 		fmt.Printf("Scaling plan for service %s (%d → %d replicas):\n", svc.Name, currentReplicas, opts.replicas)
-		fmt.Println(plan.Format(resolver))
+		fmt.Println(plan.Format())
 		fmt.Println()
 
 		// Ask for confirmation before scaling down as it may cause data loss.

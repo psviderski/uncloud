@@ -214,15 +214,8 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	if len(plan.Operations) == 0 {
 		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
 	} else {
-		// Initialise a machine and container name resolver to properly format the plan output.
-		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, caddySvc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
-
 		fmt.Println("caddy deployment plan:")
-		fmt.Println(plan.Format(resolver))
-		fmt.Println()
+		fmt.Println(plan.Format())
 
 		if !opts.yes {
 			confirmed, err := tui.Confirm("")
