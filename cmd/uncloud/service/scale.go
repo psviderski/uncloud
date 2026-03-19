@@ -2,12 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 
-	"charm.land/huh/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -15,6 +19,7 @@ import (
 type scaleOptions struct {
 	service  string
 	replicas uint
+	yes      bool
 }
 
 func NewScaleCommand(groupID string) *cobra.Command {
@@ -22,9 +27,11 @@ func NewScaleCommand(groupID string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scale SERVICE REPLICAS",
 		Short: "Scale a replicated service by changing the number of replicas.",
-		Long:  "Scale a replicated service by changing the number of replicas. Scaling down requires confirmation.",
+		Long:  "Scale a replicated service by changing the number of replicas.",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
+
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			opts.service = args[0]
@@ -38,6 +45,10 @@ func NewScaleCommand(groupID string) *cobra.Command {
 		},
 		GroupID: groupID,
 	}
+
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
+		"Auto-confirm scaling plan. Should be explicitly set when running non-interactively,\n"+
+			"e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	return cmd
 }
@@ -71,7 +82,8 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 	currentReplicas := uint(len(svc.Containers))
 
 	if currentReplicas == opts.replicas {
-		fmt.Printf("Service '%s' already has %d replicas. No changes required.\n", svc.Name, currentReplicas)
+		fmt.Printf("Service %s already has %s replicas. No changes required.\n",
+			tui.NameStyle.Render(svc.Name), tui.Bold.Render(fmt.Sprintf("%d", currentReplicas)))
 		return nil
 	}
 
@@ -86,17 +98,51 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 	}
 
 	if len(plan.Operations) == 0 {
-		fmt.Printf("Service '%s' is already scaled to %d replicas.\n", svc.Name, opts.replicas)
+		fmt.Printf("Service %s is already scaled to %d replicas.\n", tui.NameStyle.Render(svc.Name), opts.replicas)
 		return nil
 	}
 
-	if opts.replicas < currentReplicas {
-		fmt.Printf("Scaling plan for service %s (%d → %d replicas):\n", svc.Name, currentReplicas, opts.replicas)
-		fmt.Println(plan.Format())
-		fmt.Println()
+	fmt.Println(tui.Bold.Underline(true).Render("Scaling plan"))
+	fmt.Println()
 
-		// Ask for confirmation before scaling down as it may cause data loss.
-		confirmed, err := confirm()
+	directConn := uncli.DirectConnection()
+	contextName := uncli.ContextOverrideOrCurrent()
+	deployTarget := ""
+	if directConn != "" {
+		deployTarget = directConn
+		fmt.Println(tui.Faint.Render("connection: ") + tui.NameStyle.Render(directConn))
+		fmt.Println()
+	} else if contextName != "" && len(uncli.Config.Contexts) > 1 {
+		// Only show context if there's more than one to avoid unnecessary clutter.
+		deployTarget = contextName
+		fmt.Println(tui.Faint.Render("context: ") + tui.NameStyle.Render(contextName))
+		fmt.Println()
+	}
+
+	fmt.Println(plan.Format())
+
+	summary := plan.FormatSummary()
+	fmt.Println(tui.Faint.Render(strings.Repeat("─", lipgloss.Width(summary))))
+	fmt.Println(summary)
+	fmt.Println()
+
+	// Ask for confirmation unless auto-confirmed with --yes.
+	if !opts.yes {
+		if !tui.IsStdinTerminal() {
+			return errors.New("cannot ask to confirm scaling plan in non-interactive mode, " +
+				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
+		}
+
+		title := "Proceed with scaling?"
+		// Include the direct connection or context name in the confirmation prompt to avoid accidentally
+		// scaling on the wrong cluster.
+		if deployTarget != "" {
+			isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+			confirmStyle := tui.ThemeConfirm().Theme(isDark).Focused.Title
+			title = "Proceed with scaling on " + tui.NameStyle.Render(deployTarget) + confirmStyle.Render("?")
+		}
+
+		confirmed, err := tui.Confirm(title)
 		if err != nil {
 			return fmt.Errorf("confirm scaling: %w", err)
 		}
@@ -106,7 +152,8 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 		}
 	}
 
-	title := fmt.Sprintf("Scaling service %s (%d → %d replicas)", svc.Name, currentReplicas, opts.replicas)
+	title := fmt.Sprintf("Scaling service %s (%d → %d replicas)",
+		tui.NameStyle.Render(svc.Name), currentReplicas, opts.replicas)
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		if _, err = deployment.Run(ctx); err != nil {
 			return fmt.Errorf("deploy service: %w", err)
@@ -118,24 +165,4 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 	}
 
 	return nil
-}
-
-func confirm() (bool, error) {
-	var confirmed bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(
-					"Do you want to continue?",
-				).
-				Affirmative("Yes!").
-				Negative("No").
-				Value(&confirmed),
-		),
-	).WithAccessible(true)
-	if err := form.Run(); err != nil {
-		return false, err
-	}
-
-	return confirmed, nil
 }
