@@ -446,6 +446,7 @@ func newEmptyServicePlan(svc *api.Service, spec api.ServiceSpec) (ServicePlan, e
 		plan.ServiceID = svc.ID
 		plan.ServiceName = svc.Name
 	} else {
+		plan.IsNewService = true
 		var err error
 		plan.ServiceID, err = secret.NewID()
 		if err != nil {

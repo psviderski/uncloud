@@ -40,6 +40,8 @@ type Deployment struct {
 type ServicePlan struct {
 	ServiceID   string
 	ServiceName string
+	// IsNewService indicates this plan creates a new service (first deployment) rather than updating an existing one.
+	IsNewService bool
 	// Spec is the desired service spec being deployed.
 	Spec api.ServiceSpec
 	operation.SequenceOperation
@@ -50,14 +52,13 @@ func (sp *ServicePlan) Format() string {
 	// Determine service-level operation type and extract the old spec from container operations.
 	// Assume replace operations precede remove operations (rolling strategy) so the first replace operation
 	// (if exists) determines the old spec for the diff. Otherwise, fallback to the first remove operation.
-	var hasRun, hasReplace, hasRemove bool
+	var hasRun, hasRemove bool
 	var oldSpec *api.ServiceSpec
 	for _, op := range sp.Operations {
 		switch o := op.(type) {
 		case *operation.RunContainerOperation:
 			hasRun = true
 		case *operation.ReplaceContainerOperation:
-			hasReplace = true
 			if oldSpec == nil {
 				oldSpec = &o.OldContainer.ServiceSpec
 			}
@@ -72,7 +73,7 @@ func (sp *ServicePlan) Format() string {
 	// Service line modifier and verb.
 	var modifier, verb string
 	switch {
-	case hasRun && !hasReplace && !hasRemove:
+	case sp.IsNewService:
 		modifier = tui.BoldGreen.Render("+")
 		verb = "create"
 	// TODO: when service removal via a deployment is supported, handle "remove" verb here as well.
@@ -110,7 +111,11 @@ func (sp *ServicePlan) Format() string {
 
 	// Image row.
 	if oldSpec == nil {
-		specTable.Row("", "image:", formatImageDiff("", sp.Spec.Container.Image))
+		if sp.IsNewService {
+			specTable.Row("", "image:", tui.FormatImage(sp.Spec.Container.Image, tui.Green))
+		} else {
+			specTable.Row("", "image:", tui.FormatImage(sp.Spec.Container.Image, lipgloss.NewStyle()))
+		}
 	} else {
 		mod := ""
 		if oldSpec.Container.Image != sp.Spec.Container.Image {
@@ -122,8 +127,10 @@ func (sp *ServicePlan) Format() string {
 	// Replicas row for replicated services.
 	if sp.Spec.Mode == api.ServiceModeReplicated {
 		replicasStr := fmt.Sprintf("%d", sp.Spec.Replicas)
-		if oldSpec == nil {
-			specTable.Row("", "replicas:", tui.Green.Render(replicasStr))
+		if sp.IsNewService {
+			if sp.Spec.Replicas > 1 {
+				specTable.Row("", "replicas:", tui.Green.Render(replicasStr))
+			}
 		} else if sp.Spec.Replicas > 1 || hasRun || hasRemove {
 			mod := ""
 			if hasRun || hasRemove {
@@ -221,27 +228,24 @@ func (sp *ServicePlan) FormatSummary() string {
 // formatImageDiff formats the image for display. If oldImage is empty, it formats newImage as a new (green) value.
 // Otherwise, it renders the diff between oldImage and newImage.
 func formatImageDiff(oldImage, newImage string) string {
-	newRef, _ := reference.ParseDockerRef(newImage) // ignore error since the image was already validated
-
-	// Create case: no old image.
 	if oldImage == "" {
-		return tui.FormatImage(newRef, tui.Green)
+		return tui.FormatImage(newImage, tui.Green)
 	}
 
-	// Update case: no change.
 	if oldImage == newImage {
-		return tui.FormatImage(newRef, lipgloss.NewStyle())
+		return tui.FormatImage(newImage, lipgloss.NewStyle())
 	}
 
 	oldRef, _ := reference.ParseDockerRef(oldImage)
+	newRef, _ := reference.ParseDockerRef(newImage)
 
 	// If either uses a digest, show full old → new.
 	_, oldDigested := oldRef.(reference.Digested)
 	_, newDigested := newRef.(reference.Digested)
 	if oldDigested || newDigested {
-		return tui.FormatImage(oldRef, tui.Red) + " " +
+		return tui.FormatImage(oldImage, tui.Red) + " " +
 			tui.Faint.Render("→") + " " +
-			tui.FormatImage(newRef, tui.Green)
+			tui.FormatImage(newImage, tui.Green)
 	}
 
 	// If repos match and both are tagged, show only tag diff.
@@ -256,9 +260,9 @@ func formatImageDiff(oldImage, newImage string) string {
 	}
 
 	// Different repos: full old → new.
-	return tui.FormatImage(oldRef, tui.Red) + " " +
+	return tui.FormatImage(oldImage, tui.Red) + " " +
 		tui.Faint.Render("→") + " " +
-		tui.FormatImage(newRef, tui.Green)
+		tui.FormatImage(newImage, tui.Green)
 }
 
 // NewDeployment creates a new deployment for the given service specification.

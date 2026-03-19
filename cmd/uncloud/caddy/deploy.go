@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/distribution/reference"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -89,20 +88,17 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		if len(currentImages) > 1 {
 			formattedImages := make([]string, len(currentImages))
 			for i, img := range currentImages {
-				ref, _ := reference.ParseDockerRef(img)
-				formattedImages[i] = tui.FormatImage(ref, lipgloss.NewStyle())
+				formattedImages[i] = tui.FormatImage(img, lipgloss.NewStyle())
 			}
 			fmt.Println(tui.Faint.Render("current images (multiple versions detected): ") +
 				strings.Join(formattedImages, tui.Faint.Render(", ")))
 		} else {
-			ref, _ := reference.ParseDockerRef(currentImages[0])
-			fmt.Println(tui.Faint.Render("current image: ") + tui.FormatImage(ref, lipgloss.NewStyle()))
+			fmt.Println(tui.Faint.Render("current image: ") + tui.FormatImage(currentImages[0], lipgloss.NewStyle()))
 		}
 	}
 
 	if opts.image != "" {
-		ref, _ := reference.ParseDockerRef(opts.image)
-		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(ref, tui.Green))
+		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(opts.image, tui.Green))
 	}
 
 	fmt.Println()
@@ -117,8 +113,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	if opts.image == "" {
-		ref, _ := reference.ParseDockerRef(d.Spec.Container.Image)
-		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(ref,
+		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(d.Spec.Container.Image,
 			tui.Green) + tui.Faint.Render(" (latest stable)"))
 	}
 

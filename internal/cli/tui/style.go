@@ -20,11 +20,17 @@ var (
 )
 
 // FormatImage renders an image reference with the given style, using a faint colon separator for tagged images.
-func FormatImage(image reference.Named, style lipgloss.Style) string {
-	if tagged, ok := image.(reference.NamedTagged); ok {
-		return style.Render(reference.FamiliarName(image)) +
+// Returns the styled original string if parsing fails.
+func FormatImage(image string, style lipgloss.Style) string {
+	ref, err := reference.ParseDockerRef(image)
+	if err != nil {
+		return style.Render(image)
+	}
+
+	if tagged, ok := ref.(reference.NamedTagged); ok {
+		return style.Render(reference.FamiliarName(ref)) +
 			Faint.Render(":") +
 			style.Render(tagged.Tag())
 	}
-	return style.Render(reference.FamiliarString(image))
+	return style.Render(reference.FamiliarString(ref))
 }
