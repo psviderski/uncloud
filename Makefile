@@ -1,3 +1,5 @@
+# TODO: Makefile is deprecated, add new targets as mise tasks in mise.toml instead.
+
 CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
 
@@ -42,13 +44,7 @@ ucind-cluster:
 
 .PHONY: proto
 proto:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		--proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
-
-.PHONY: proto-mise
-proto-mise:
-	mise exec -- protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		--proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
+	mise run proto
 
 .PHONY: corrosion-image
 corrosion-image:
@@ -84,12 +80,12 @@ test-e2e:
 
 .PHONY: test-clean
 test-clean:
-	@CONTAINERS=$$(docker ps --filter "name=ucind-test" -q); \
+	@CONTAINERS=$$(docker ps --filter "label=ucind.managed" -q); \
 	if [ -n "$$CONTAINERS" ]; then \
 		echo "Killing containers..."; \
 		docker kill $$CONTAINERS; \
 	fi; \
-	CONTAINERS_STOPPED=$$(docker ps -a --filter "name=ucind-test" -q); \
+	CONTAINERS_STOPPED=$$(docker ps -a --filter "label=ucind.managed" -q); \
 	if [ -n "$$CONTAINERS_STOPPED" ]; then \
 		echo "Removing stopped containers..."; \
 		docker rm $$CONTAINERS_STOPPED; \
