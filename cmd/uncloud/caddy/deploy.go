@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/lipgloss/v2"
+	"github.com/distribution/reference"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -71,9 +73,11 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		if !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect caddy service: %w", err)
 		}
-		fmt.Printf("Service: %s (not running)\n", client.CaddyServiceName)
+		fmt.Println(tui.Faint.Render("service: ") + tui.NameStyle.Render(client.CaddyServiceName) +
+			tui.Faint.Render(" (not running)"))
 	} else {
-		fmt.Printf("Service: %s (%s mode)\n", svc.Name, svc.Mode)
+		fmt.Println(tui.Faint.Render("service: ") + tui.NameStyle.Render(svc.Name) +
+			tui.Faint.Render(" ("+svc.Mode+" mode)"))
 
 		// Collect unique images of all containers in the running caddy service.
 		images := make(map[string]struct{}, len(svc.Containers))
@@ -83,15 +87,22 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		currentImages := slices.Collect(maps.Keys(images))
 
 		if len(currentImages) > 1 {
-			commaSeparatedImages := strings.Join(currentImages, ", ")
-			fmt.Printf("Current images (multiple versions detected): %s\n", commaSeparatedImages)
+			formattedImages := make([]string, len(currentImages))
+			for i, img := range currentImages {
+				ref, _ := reference.ParseDockerRef(img)
+				formattedImages[i] = tui.FormatImage(ref, lipgloss.NewStyle())
+			}
+			fmt.Println(tui.Faint.Render("current images (multiple versions detected): ") +
+				strings.Join(formattedImages, tui.Faint.Render(", ")))
 		} else {
-			fmt.Printf("Current image: %s\n", currentImages[0])
+			ref, _ := reference.ParseDockerRef(currentImages[0])
+			fmt.Println(tui.Faint.Render("current image: ") + tui.FormatImage(ref, lipgloss.NewStyle()))
 		}
 	}
 
 	if opts.image != "" {
-		fmt.Printf("Target image: %s\n", opts.image)
+		ref, _ := reference.ParseDockerRef(opts.image)
+		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(ref, tui.Green))
 	}
 
 	fmt.Println()
@@ -106,7 +117,9 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	if opts.image == "" {
-		fmt.Printf("Target image: %s (latest stable)\n", d.Spec.Container.Image)
+		ref, _ := reference.ParseDockerRef(d.Spec.Container.Image)
+		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(ref,
+			tui.Green) + tui.Faint.Render(" (latest stable)"))
 	}
 
 	plan, err := d.Plan(ctx)
@@ -126,11 +139,40 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 
 		fmt.Println()
-		fmt.Println("Deployment plan:")
-		fmt.Println(plan.Format())
+		fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
 		fmt.Println()
 
-		confirmed, err := tui.Confirm("")
+		directConn := uncli.DirectConnection()
+		contextName := uncli.ContextOverrideOrCurrent()
+		deployTarget := ""
+		if directConn != "" {
+			deployTarget = directConn
+			fmt.Println(tui.Faint.Render("connection: ") + tui.NameStyle.Render(directConn))
+			fmt.Println()
+		} else if contextName != "" && len(uncli.Config.Contexts) > 1 {
+			// Only show context if there's more than one to avoid unnecessary clutter.
+			deployTarget = contextName
+			fmt.Println(tui.Faint.Render("context: ") + tui.NameStyle.Render(contextName))
+			fmt.Println()
+		}
+
+		fmt.Println(plan.Format())
+
+		summary := plan.FormatSummary()
+		fmt.Println(tui.Faint.Render(strings.Repeat("─", lipgloss.Width(summary))))
+		fmt.Println(summary)
+		fmt.Println()
+
+		title := "Proceed with deployment?"
+		// Include the direct connection or context name in the confirmation prompt to avoid accidentally
+		// deploying to the wrong cluster.
+		if deployTarget != "" {
+			isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+			confirmStyle := tui.ThemeConfirm().Theme(isDark).Focused.Title
+			title = "Proceed with deployment to " + tui.NameStyle.Render(deployTarget) + confirmStyle.Render("?")
+		}
+
+		confirmed, err := tui.Confirm(title)
 		if err != nil {
 			return fmt.Errorf("confirm deployment: %w", err)
 		}

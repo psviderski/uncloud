@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -163,6 +164,60 @@ func (sp *ServicePlan) Format() string {
 	return out.String()
 }
 
+// FormatSummary counts operations in the service plan and renders a styled summary line.
+func (sp *ServicePlan) FormatSummary() string {
+	var createCount, startFirstCount, stopFirstCount, removeCount int
+	machines := make(map[string]struct{})
+
+	for _, op := range sp.Operations {
+		switch o := op.(type) {
+		case *operation.RunContainerOperation:
+			machines[o.MachineID] = struct{}{}
+			createCount++
+		case *operation.ReplaceContainerOperation:
+			machines[o.MachineID] = struct{}{}
+			if o.Order == api.UpdateOrderStopFirst {
+				stopFirstCount++
+			} else {
+				startFirstCount++
+			}
+		case *operation.RemoveContainerOperation:
+			machines[o.MachineID] = struct{}{}
+			removeCount++
+		case *operation.StopContainerOperation:
+			machines[o.MachineID] = struct{}{}
+			removeCount++
+		}
+	}
+
+	var parts []string
+	if createCount > 0 {
+		parts = append(parts,
+			tui.BoldGreen.Render(strconv.Itoa(createCount))+" "+tui.Green.Render("create"))
+	}
+	if startFirstCount > 0 {
+		parts = append(parts,
+			tui.BoldGreen.Render(strconv.Itoa(startFirstCount))+" "+tui.Green.Render("replace (start-first)"))
+	}
+	if stopFirstCount > 0 {
+		parts = append(parts,
+			tui.BoldYellow.Render(strconv.Itoa(stopFirstCount))+" "+tui.Yellow.Render("replace (stop-first)"))
+	}
+	if removeCount > 0 {
+		parts = append(parts,
+			tui.BoldRed.Render(strconv.Itoa(removeCount))+" "+tui.Red.Render("remove"))
+	}
+
+	machinesWord := "machines"
+	if len(machines) == 1 {
+		machinesWord = "machine"
+	}
+	parts = append(parts, fmt.Sprintf("across %s %s", tui.Bold.Render(strconv.Itoa(len(machines))), machinesWord))
+
+	sep := " " + tui.Faint.Render("·") + " "
+	return strings.Join(parts, sep)
+}
+
 // formatImageDiff formats the image for display. If oldImage is empty, it formats newImage as a new (green) value.
 // Otherwise, it renders the diff between oldImage and newImage.
 func formatImageDiff(oldImage, newImage string) string {
@@ -170,12 +225,12 @@ func formatImageDiff(oldImage, newImage string) string {
 
 	// Create case: no old image.
 	if oldImage == "" {
-		return styledImage(newRef, tui.Green)
+		return tui.FormatImage(newRef, tui.Green)
 	}
 
 	// Update case: no change.
 	if oldImage == newImage {
-		return styledImage(newRef, lipgloss.NewStyle())
+		return tui.FormatImage(newRef, lipgloss.NewStyle())
 	}
 
 	oldRef, _ := reference.ParseDockerRef(oldImage)
@@ -184,9 +239,9 @@ func formatImageDiff(oldImage, newImage string) string {
 	_, oldDigested := oldRef.(reference.Digested)
 	_, newDigested := newRef.(reference.Digested)
 	if oldDigested || newDigested {
-		return styledImage(oldRef, tui.Red) + " " +
+		return tui.FormatImage(oldRef, tui.Red) + " " +
 			tui.Faint.Render("→") + " " +
-			styledImage(newRef, tui.Green)
+			tui.FormatImage(newRef, tui.Green)
 	}
 
 	// If repos match and both are tagged, show only tag diff.
@@ -201,19 +256,9 @@ func formatImageDiff(oldImage, newImage string) string {
 	}
 
 	// Different repos: full old → new.
-	return styledImage(oldRef, tui.Red) + " " +
+	return tui.FormatImage(oldRef, tui.Red) + " " +
 		tui.Faint.Render("→") + " " +
-		styledImage(newRef, tui.Green)
-}
-
-// styledImage renders a parsed image reference with the given style, using a faint colon separator for tagged images.
-func styledImage(image reference.Named, style lipgloss.Style) string {
-	if tagged, ok := image.(reference.NamedTagged); ok {
-		return style.Render(reference.FamiliarName(image)) +
-			tui.Faint.Render(":") +
-			style.Render(tagged.Tag())
-	}
-	return style.Render(reference.FamiliarString(image))
+		tui.FormatImage(newRef, tui.Green)
 }
 
 // NewDeployment creates a new deployment for the given service specification.

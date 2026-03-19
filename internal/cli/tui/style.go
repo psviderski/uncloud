@@ -1,6 +1,9 @@
 package tui
 
-import "charm.land/lipgloss/v2"
+import (
+	"charm.land/lipgloss/v2"
+	"github.com/distribution/reference"
+)
 
 var (
 	Faint  = lipgloss.NewStyle().Faint(true)
@@ -15,3 +18,13 @@ var (
 
 	NameStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("152"))
 )
+
+// FormatImage renders an image reference with the given style, using a faint colon separator for tagged images.
+func FormatImage(image reference.Named, style lipgloss.Style) string {
+	if tagged, ok := image.(reference.NamedTagged); ok {
+		return style.Render(reference.FamiliarName(image)) +
+			Faint.Render(":") +
+			style.Render(tagged.Tag())
+	}
+	return style.Render(reference.FamiliarString(image))
+}

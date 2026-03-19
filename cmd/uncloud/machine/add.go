@@ -200,6 +200,8 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		}
 	}
 
+	fmt.Println()
+	fmt.Println("Preparing Caddy deployment...")
 	d, err := clusterClient.NewCaddyDeployment(caddyImage, "", api.Placement{})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
@@ -210,15 +212,20 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		return fmt.Errorf("plan caddy deployment: %w", err)
 	}
 
-	fmt.Println()
 	if len(plan.Operations) == 0 {
 		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
 	} else {
-		fmt.Println("caddy deployment plan:")
-		fmt.Println(plan.Format())
+		fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
+		fmt.Println()
+		fmt.Print(plan.Format())
+
+		summary := plan.FormatSummary()
+		fmt.Println(tui.Faint.Render(strings.Repeat("─", lipgloss.Width(summary))))
+		fmt.Println(summary)
+		fmt.Println()
 
 		if !opts.yes {
-			confirmed, err := tui.Confirm("")
+			confirmed, err := tui.Confirm("Proceed with deployment?")
 			if err != nil {
 				return fmt.Errorf("confirm deployment: %w", err)
 			}
