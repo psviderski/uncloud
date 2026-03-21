@@ -478,6 +478,14 @@ func (s *Service) MachineIDs() []string {
 	return ids.ToSlice()
 }
 
+func (s *Service) Statuses() []string {
+	statuses := make([]string, len(s.Containers))
+	for i, ctr := range s.Containers {
+		statuses[i] = ctr.Container.State.Status
+	}
+	return statuses
+}
+
 // Images returns a sorted list of unique images used by the service containers.
 func (s *Service) Images() []string {
 	images := make(map[string]struct{})

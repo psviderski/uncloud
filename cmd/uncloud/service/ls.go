@@ -58,10 +58,11 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			return fmt.Errorf("write header: %w", err)
 		}
 	}
-	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tIMAGE\tENDPOINTS"); err != nil {
+	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tIMAGE\tENDPOINTS\tSTATUS"); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	for _, s := range services {
+		statuses := strings.Join(s.Statuses(), ", ")
 		images := strings.Join(s.Images(), ", ")
 		endpoints := strings.Join(s.Endpoints(), ", ")
 
@@ -79,8 +80,8 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 				return fmt.Errorf("write row: %w", err)
 			}
 		}
-		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\n",
-			s.Name, s.Mode, len(s.Containers), images, endpoints); err != nil {
+		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\t%s\n",
+			s.Name, s.Mode, len(s.Containers), images, endpoints, statuses); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}
