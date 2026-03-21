@@ -83,5 +83,14 @@ type ContainerLogEntry struct {
 	Err error
 }
 
+// MachineLogsOptions specifies the parameters for MachinesLogs.
+type MachineLogsOptions ServiceLogsOptions
+
+// MachineLogEntry represents a single log entry for a daemon.
+type MachineLogEntry struct {
+	Metadata ServiceLogEntryMetadata
+	ContainerLogEntry
+}
+
 // ErrLogStreamStalled indicates that a log stream stopped sending data and may be unresponsive.
 var ErrLogStreamStalled = errors.New("log stream stopped responding")

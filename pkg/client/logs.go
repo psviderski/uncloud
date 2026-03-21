@@ -139,6 +139,69 @@ func (cli *Client) ContainerLogs(
 	return ch, nil
 }
 
+// ,MachineLogs streams log entries from a unit on a specified machine.
+func (cli *Client) MachineLogs(
+	ctx context.Context, machineNameOrID string, unit pb.MachineLogsRequest_Unit, opts api.MachineLogsOptions,
+) (<-chan api.MachineLogEntry, error) {
+	proxyCtx, _, err := cli.ProxyMachinesContext(ctx, []string{machineNameOrID})
+	if err != nil {
+		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineNameOrID, err)
+	}
+
+	req := &pb.MachineLogsRequest{
+		Unit:   unit,
+		Follow: opts.Follow,
+		Tail:   int32(opts.Tail),
+		Since:  opts.Since,
+		Until:  opts.Until,
+	}
+	if !opts.Follow && opts.Tail == 0 {
+		// If not following and tail is 0, set tail to -1 to return all logs.
+		// Otherwise, no logs will be returned at all.
+		req.Tail = -1
+	}
+
+	stream, err := cli.MachineClient.MachineLogs(proxyCtx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan api.MachineLogEntry)
+
+	go func() {
+		defer close(ch)
+
+		for {
+			pbEntry, err := stream.Recv()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				ch <- api.MachineLogEntry{
+					ContainerLogEntry: api.ContainerLogEntry{Err: err},
+				}
+				return
+			}
+
+			entry := api.MachineLogEntry{
+				ContainerLogEntry: api.ContainerLogEntry{
+					Stream:    api.LogStreamTypeFromProto(pb.ContainerLogEntry_StreamType(pbEntry.Stream)),
+					Message:   pbEntry.Message,
+					Timestamp: pbEntry.Timestamp.AsTime(),
+				},
+			}
+
+			select {
+			case ch <- entry:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
 // logsStreamWithServiceMetadata wraps a container logs stream and enriches each log entry with service metadata.
 func logsStreamWithServiceMetadata(
 	stream <-chan api.ContainerLogEntry, metadata api.ServiceLogEntryMetadata,
