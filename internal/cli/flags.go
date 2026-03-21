@@ -20,7 +20,7 @@ func ExpandCommaSeparatedValues(values []string) []string {
 
 	var expanded []string
 	for _, value := range values {
-		for _, v := range strings.Split(value, ",") {
+		for v := range strings.SplitSeq(value, ",") {
 			if v = strings.TrimSpace(v); v != "" {
 				expanded = append(expanded, v)
 			}

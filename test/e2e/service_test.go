@@ -1052,7 +1052,7 @@ myapp.example.com {
 		// Machine 0: vol1, vol2
 		// Machine 1: vol1, vol2
 		// Machine 2: vol1
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			_, err := cli.CreateVolume(ctx, c.Machines[i].Name, volume.CreateOptions{Name: vol1Name})
 			require.NoError(t, err)
 			if i < 2 {

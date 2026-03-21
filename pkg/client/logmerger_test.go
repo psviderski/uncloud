@@ -264,7 +264,7 @@ func TestLogMerger_UnevenStreams(t *testing.T) {
 	baseTime := time.Now()
 
 	// Stream 1 sends many entries quickly (0ms - 104ms).
-	for i := 0; i < numFastEntries; i++ {
+	for i := range numFastEntries {
 		ch1 <- testEntry(api.LogStreamStdout, baseTime.Add(time.Duration(i)*time.Millisecond), "fast")
 	}
 

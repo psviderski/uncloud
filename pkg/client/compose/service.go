@@ -346,9 +346,7 @@ func dockerVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig, volume
 func mergeLabels(labels ...types.Labels) types.Labels {
 	merged := types.Labels{}
 	for _, l := range labels {
-		for k, v := range l {
-			merged[k] = v
-		}
+		maps.Copy(merged, l)
 	}
 	return merged
 }
