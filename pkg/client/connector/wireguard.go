@@ -12,6 +12,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/network/tunnel"
 	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/psviderski/uncloud/pkg/versioncheck"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -70,6 +71,8 @@ func (c *WireGuardConnector) Connect(ctx context.Context) (*grpc.ClientConn, err
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return c.tun.DialContext(ctx, "tcp", addr)
 		}),
+		grpc.WithUnaryInterceptor(versioncheck.ClientUnaryInterceptor),
+		grpc.WithStreamInterceptor(versioncheck.ClientStreamInterceptor),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("connect to machine API through WireGuard tunnel: %w", err)
