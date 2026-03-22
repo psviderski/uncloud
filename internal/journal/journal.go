@@ -70,10 +70,6 @@ func follow(until <-chan time.Time, reader io.Reader, writer io.Writer) error {
 			}
 			bufch <- scanner.Bytes()
 		}
-		// When the context is Done() the 'until' channel is closed, this kicks in the defers in the GetContainerLogsHandler method.
-		// this cleans up the journalctl, and closes all file descripters. Scan() then stops with an error (before any reads,
-		// hence the above if err .. .isn't triggered). In the end this go-routine exits.
-		// the error here is "read |0: file already closed".
 	}()
 
 	for {
