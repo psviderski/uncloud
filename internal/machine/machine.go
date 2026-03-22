@@ -14,12 +14,15 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/journal"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	apiproxy "github.com/psviderski/uncloud/internal/machine/api/proxy"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
@@ -30,6 +33,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
@@ -1072,4 +1076,94 @@ func (m *Machine) InspectService(
 		Containers: containers,
 	}
 	return &pb.InspectServiceResponse{Service: svc}, nil
+}
+
+// logsHeartbeatInterval is the interval at which heartbeat entries are sent when there are no logs to stream.
+const logsHeartbeatInterval = 200 * time.Millisecond
+
+// MachineLogs streams logs from a container.
+func (s *Machine) MachineLogs(
+	req *pb.LogsRequest, stream grpc.ServerStreamingServer[pb.LogEntry],
+) error {
+	// TODO(miek): almost duplicate of docker/server.ContainerLogs
+	ctx := stream.Context()
+
+	opts := api.ServiceLogsOptions{
+		Follow: req.Follow,
+		Tail:   int(req.Tail),
+		Since:  req.Since,
+		Until:  req.Until,
+	}
+
+	logsCh, err := journal.Logs(ctx, req.Id, opts)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return status.Error(codes.NotFound, err.Error())
+		}
+		return status.Errorf(codes.Internal, "get journal logs: %v", err)
+	}
+
+	log := slog.With("unit", req.Id, "stream_id", fmt.Sprintf("%p", stream)[2:])
+	log.Debug("Starting container logs streaming.",
+		"follow", req.Follow, "tail", req.Tail, "since", req.Since, "until", req.Until)
+
+	// Heartbeats are needed only when following logs to let the client know when there are no new log entries
+	// to allow it to advance the watermark of last received log timestamp.
+	var heartbeatCh <-chan time.Time
+	if req.Follow {
+		heartbeatTicker := time.NewTicker(logsHeartbeatInterval)
+		defer heartbeatTicker.Stop()
+		heartbeatCh = heartbeatTicker.C
+	}
+
+	started := time.Now()
+	lastSent := time.Time{}
+
+	for {
+		select {
+		case entry, ok := <-logsCh:
+			if !ok {
+				// Channel closed, no more log entries.
+				return nil
+			}
+
+			if entry.Err != nil {
+				return status.Error(codes.Internal, entry.Err.Error())
+			}
+
+			pbEntry := &pb.LogEntry{
+				Stream:    api.LogStreamTypeToProto(entry.Stream),
+				Timestamp: timestamppb.New(entry.Timestamp),
+				Message:   entry.Message,
+			}
+			if err = stream.Send(pbEntry); err != nil {
+				return status.Errorf(codes.Internal, "send log entry: %v", err)
+			}
+			lastSent = entry.Timestamp
+
+		case now := <-heartbeatCh:
+			// Only send heartbeat if no log entries have been sent since the last heartbeat interval or
+			// if no log entries have been sent at all for at least a heartbeat interval since starting.
+			if now.Sub(lastSent) < logsHeartbeatInterval ||
+				(lastSent.IsZero() && now.Sub(started) < logsHeartbeatInterval) {
+				continue
+			}
+
+			// Use the timestamp one heartbeat in the past to be conservative. This reduces the chance of sending
+			// a timestamp that is greater than a log entry currently being parsed but not yet sent, which would
+			// cause the client to incorrectly believe it has received all logs up to that point.
+			heartbeat := &pb.LogEntry{
+				Stream:    pb.LogEntry_HEARTBEAT,
+				Timestamp: timestamppb.New(now.Add(-logsHeartbeatInterval)),
+			}
+			if err = stream.Send(heartbeat); err != nil {
+				return status.Errorf(codes.Internal, "send log stream heartbeat: %v", err)
+			}
+			lastSent = heartbeat.Timestamp.AsTime()
+			log.Debug("Sent log stream heartbeat.", "timestamp", lastSent)
+
+		case <-ctx.Done():
+			return status.Error(codes.Canceled, ctx.Err().Error())
+		}
+	}
 }

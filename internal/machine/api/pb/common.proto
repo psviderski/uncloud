@@ -6,6 +6,7 @@ option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
 // Vendored at internal/machine/api/vendor/google/rpc/status.proto.
 import "google/rpc/status.proto";
+import "google/protobuf/timestamp.proto";
 
 // Common metadata message nested in all reply message types, injected by the gRPC proxy to provide information
 // about the machine that responded to the request.
@@ -41,4 +42,26 @@ message IPPort {
 message IPPrefix {
   IP ip = 1;
   uint32 bits = 2;
+}
+
+message LogsRequest {
+  string id = 1;
+  // Options for logs retrieval.
+  bool follow = 2;
+  int32 tail = 3; // -1 means all
+  string since = 4; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or Go duration string
+  string until = 5; // https://www.rfc-editor.org/rfc/rfc3339.html timestamp or Go duration string
+}
+
+message LogEntry {
+  enum StreamType {
+    UNKNOWN = 0;
+    STDOUT = 1;
+    STDERR = 2;
+    HEARTBEAT = 3;
+  }
+  StreamType stream = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  // Log line content. Empty for heartbeat entries.
+  bytes message = 3;
 }
