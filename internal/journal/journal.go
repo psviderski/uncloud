@@ -2,10 +2,10 @@ package journal
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
-	"time"
 
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -13,10 +13,9 @@ import (
 const journalctl = "journalctl"
 
 func logs(unit string, opts api.ServiceLogsOptions) (io.ReadCloser, func() error, error) {
-	cancel := func() error { return nil } // initialize as noop
+	cancel := func() error { return nil }
 
-	// Handle all the options.
-	args := []string{"-u", unit, "--no-hostname"} // only works with -o short-xxx options.
+	args := []string{"-u", unit, "--no-hostname"}
 	if opts.Tail > 0 {
 		args = append(args, "-n")
 		args = append(args, fmt.Sprintf("%d", opts.Tail))
@@ -57,7 +56,7 @@ func logs(unit string, opts api.ServiceLogsOptions) (io.ReadCloser, func() error
 
 // follow synchronously follows the io.Reader, writing each new journal entry to writer. The
 // follow will continue until a single time.Time is received on the until channel (or it's closed).
-func follow(until <-chan time.Time, reader io.Reader, writer io.Writer) error {
+func follow(ctx context.Context, reader io.Reader, writer io.Writer) error {
 	scanner := bufio.NewScanner(reader)
 	bufch := make(chan []byte)
 	errch := make(chan error)
@@ -74,8 +73,8 @@ func follow(until <-chan time.Time, reader io.Reader, writer io.Writer) error {
 
 	for {
 		select {
-		case <-until:
-			return fmt.Errorf("timeout expired")
+		case <-ctx.Done():
+			return nil
 
 		case err := <-errch:
 			return err

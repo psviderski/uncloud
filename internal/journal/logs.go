@@ -19,21 +19,36 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 
 	outCh := make(chan api.LogEntry)
 
-	go func() {
-		defer close(outCh)
-		defer cancel()
+	switch opts.Follow {
+	case false:
 
-		scanner := bufio.NewScanner(reader)
-		for scanner.Scan() {
-			outCh <- entry(scanner.Bytes())
-		}
+		go func() {
+			defer close(outCh)
+			defer cancel()
 
-		if err := scanner.Err(); err != nil {
-			outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
-		}
-	}()
+			scanner := bufio.NewScanner(reader)
+			for scanner.Scan() {
+				outCh <- entry(scanner.Bytes())
+			}
 
-	// Close the reader when the context is done to cancel StdCopy if it's still running.
+			if err := scanner.Err(); err != nil {
+				outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
+			}
+		}()
+
+	case true:
+		fw := &FollowWriter{outCh}
+
+		go func() {
+			defer close(outCh)
+
+			err := follow(ctx, reader, fw)
+			if err != nil {
+				outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
+			}
+		}()
+	}
+
 	go func() {
 		<-ctx.Done()
 		reader.Close()
@@ -63,4 +78,13 @@ func entry(data []byte) api.LogEntry {
 		Message:   message,
 		Stream:    api.LogStreamStdout,
 	}
+}
+
+type FollowWriter struct {
+	ch chan api.LogEntry
+}
+
+func (fw *FollowWriter) Write(p []byte) (int, error) {
+	fw.ch <- entry(p)
+	return len(p), nil
 }
