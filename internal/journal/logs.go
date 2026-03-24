@@ -12,7 +12,7 @@ import (
 
 // Logs streams logs from a service and returns entries via a channel.
 func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
-	reader, cancel, err := logs(unit, opts)
+	reader, cancel, err := logs(ctx, unit, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func entry(data []byte) api.LogEntry {
 		timestampPart, messagePart, found := bytes.Cut(data, []byte(" "))
 		var err error
 		if found {
-			timestamp, err = time.Parse(time.RFC3339, string(timestampPart))
+			timestamp, err = time.Parse(time.RFC3339Nano, string(timestampPart))
 			if err != nil {
 				timestamp = time.Time{}
 			}

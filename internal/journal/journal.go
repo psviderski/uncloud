@@ -12,27 +12,33 @@ import (
 
 const journalctl = "journalctl"
 
-func logs(unit string, opts api.ServiceLogsOptions) (io.ReadCloser, func() error, error) {
+func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.ReadCloser, func() error, error) {
 	cancel := func() error { return nil }
 
 	args := []string{"-u", unit, "--no-hostname"}
-	if opts.Tail > 0 {
-		args = append(args, "-n")
+	args = append(args, "-n")
+	if opts.Tail > -1 {
 		args = append(args, fmt.Sprintf("%d", opts.Tail))
+	} else {
+		args = append(args, "all")
 	}
 	if opts.Follow {
 		args = append(args, "-f")
 	}
 
 	args = append(args, "-o")
-	args = append(args, "short-iso")
+	args = append(args, "short-iso-precise")
 
 	if opts.Since != "" {
 		args = append(args, "-S")
 		args = append(args, opts.Since)
 	}
+	if opts.Until != "" {
+		args = append(args, "-U")
+		args = append(args, opts.Until)
+	}
 
-	cmd := exec.Command(journalctl, args...)
+	cmd := exec.CommandContext(ctx, journalctl, args...)
 	p, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, cancel, err
