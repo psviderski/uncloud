@@ -88,7 +88,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 	if service.StopGracePeriod != nil {
 		d := time.Duration(*service.StopGracePeriod)
-		spec.StopGracePeriod = &d
+		spec.Container.StopGracePeriod = &d
 	}
 
 	if service.Scale != nil {

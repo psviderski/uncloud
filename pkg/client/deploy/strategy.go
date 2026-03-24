@@ -183,7 +183,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 			OldContainer:      ctr,
 			Order:             order,
 			SkipHealthMonitor: s.SkipHealthMonitor,
-			StopGracePeriod:   spec.StopGracePeriod,
+			StopGracePeriod:   spec.Container.StopGracePeriod,
 		})
 	}
 
@@ -194,7 +194,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 				MachineID:       mid,
 				MachineName:     machineNames[mid],
 				Container:       c,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
 	}
@@ -260,7 +260,7 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Se
 				MachineID:       c.MachineID,
 				MachineName:     machineNames[c.MachineID],
 				Container:       c.Container,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
 	}
@@ -318,7 +318,7 @@ func reconcileGlobalContainer(
 					MachineID:       old.MachineID,
 					MachineName:     machine.Name,
 					Container:       old.Container,
-					StopGracePeriod: spec.StopGracePeriod,
+					StopGracePeriod: spec.Container.StopGracePeriod,
 				})
 			}
 			break
@@ -354,7 +354,7 @@ func reconcileGlobalContainer(
 					ContainerID:     c.Container.ID,
 					MachineID:       machine.Id,
 					MachineName:     machine.Name,
-					StopGracePeriod: spec.StopGracePeriod,
+					StopGracePeriod: spec.Container.StopGracePeriod,
 				})
 			}
 		}
@@ -369,7 +369,7 @@ func reconcileGlobalContainer(
 			OldContainer:      containerToReplace.Container,
 			Order:             order,
 			SkipHealthMonitor: skipHealthCheck,
-			StopGracePeriod:   spec.StopGracePeriod,
+			StopGracePeriod:   spec.Container.StopGracePeriod,
 		})
 
 		// Remove any other containers (there shouldn't be any in normal operation).
@@ -381,7 +381,7 @@ func reconcileGlobalContainer(
 				MachineID:       c.MachineID,
 				MachineName:     machine.Name,
 				Container:       c.Container,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
 	} else {
@@ -398,7 +398,7 @@ func reconcileGlobalContainer(
 				MachineID:       c.MachineID,
 				MachineName:     machine.Name,
 				Container:       c.Container,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
 	}

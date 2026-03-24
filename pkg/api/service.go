@@ -69,9 +69,6 @@ type ServiceSpec struct {
 	Ports []PortSpec
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
-	// StopGracePeriod is how long to wait after SIGTERM before sending SIGKILL when stopping a container.
-	// Default is 10 seconds if not specified.
-	StopGracePeriod *time.Duration `json:",omitempty"`
 	// UpdateConfig configures how the service is updated during a deployment.
 	UpdateConfig UpdateConfig
 	// Volumes is list of data volumes that can be mounted into the container.
@@ -265,6 +262,9 @@ type ContainerSpec struct {
 	PullPolicy string
 	// Resource allocation for the container.
 	Resources ContainerResources
+	// StopGracePeriod is how long to wait after SIGTERM before sending SIGKILL when stopping the container.
+	// Default is 10 seconds if not specified.
+	StopGracePeriod *time.Duration `json:",omitempty"`
 	// Namespaced kernel parameters to be set in the container.
 	Sysctls map[string]string
 	// User overrides the default user of the image used to run the container. Format: user|UID[:group|GID].

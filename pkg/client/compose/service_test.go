@@ -147,6 +147,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 								{Count: -1, Capabilities: [][]string{{"gpu"}}},
 							},
 						},
+						StopGracePeriod: new(30 * time.Second),
 						Sysctls: map[string]string{
 							"net.ipv4.ip_forward": "1",
 						},
@@ -207,8 +208,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					Placement: api.Placement{
 						Machines: []string{"machine-1", "machine-2"},
 					},
-					Replicas:        3,
-					StopGracePeriod: api.AsPtr(30 * time.Second),
+					Replicas: 3,
 					UpdateConfig: api.UpdateConfig{
 						Order:         api.UpdateOrderStopFirst,
 						MonitorPeriod: &api.DefaultHealthMonitorPeriod,
