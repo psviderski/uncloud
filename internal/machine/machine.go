@@ -1081,7 +1081,7 @@ func (m *Machine) InspectService(
 // logsHeartbeatInterval is the interval at which heartbeat entries are sent when there are no logs to stream.
 const logsHeartbeatInterval = 200 * time.Millisecond
 
-// MachineLogs streams logs from a container.
+// MachineLogs streams logs from a systemd service.
 func (s *Machine) MachineLogs(
 	req *pb.LogsRequest, stream grpc.ServerStreamingServer[pb.LogEntry],
 ) error {
