@@ -78,6 +78,24 @@ If tests leave leftover containers, clean them up with:
 make test-clean
 ```
 
+### Manual testing on dev machines
+
+After making changes to the daemon code, you may want to test them in your dev cluster. Build and install `uncloudd` on
+one or multiple dev machines over SSH with:
+
+```shell
+mise run dev:install user@host1 user@host2/arm64
+```
+
+It will also restart the `uncloud.service` daemon on those machines to pick up the new version. The host format is
+`[user@]host[/arch]`. The architecture of a machine defaults to `amd64` if not specified.
+
+To stop the daemon and wipe all Uncloud data on the dev machines, run:
+
+```shell
+mise run dev:reset user@host1 user@host2
+```
+
 ## Linting and formatting
 
 Lint and format the code:
