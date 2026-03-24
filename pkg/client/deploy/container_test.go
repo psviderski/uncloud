@@ -57,9 +57,9 @@ func TestEvalContainerSpecChange_ContainerPid(t *testing.T) {
 	}
 	newSpec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Image:  "nginx:latest",
+			Image:   "nginx:latest",
 			PidMode: "host",
-			CapAdd: []string{"NET_ADMIN"},
+			CapAdd:  []string{"NET_ADMIN"},
 		},
 	}
 
