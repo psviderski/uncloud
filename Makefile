@@ -3,19 +3,9 @@
 CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
 
-demo-reset:
-	rm -fv ~/.config/uncloud/config.yaml
-	ssh ubuntu@152.67.101.197 "AUTO_CONFIRM=true sudo -E uncloud-uninstall && docker rmi caddy:2.9.1"
-	ssh root@5.223.45.199 "AUTO_CONFIRM=true sudo -E uncloud-uninstall"
-	ssh spy@192.168.40.243 "AUTO_CONFIRM=true sudo -E uncloud-uninstall"
-
 .PHONY: ucind-cluster
 ucind-cluster:
 	go run ./cmd/ucind cluster rm && go run ./cmd/ucind cluster create -m $(if $(MACHINES_COUNT),$(MACHINES_COUNT),3)
-
-.PHONY: proto
-proto:
-	mise run proto
 
 .PHONY: corrosion-image
 corrosion-image:
