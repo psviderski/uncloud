@@ -47,7 +47,7 @@ func TestEvalContainerSpecChange_ContainerCapDrop(t *testing.T) {
 	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
 }
 
-func TestEvalContainerSpecChange_ContainerPid(t *testing.T) {
+func TestEvalContainerSpecChange_ContainerPidMode(t *testing.T) {
 	t.Parallel()
 
 	currentSpec := api.ServiceSpec{
@@ -59,7 +59,6 @@ func TestEvalContainerSpecChange_ContainerPid(t *testing.T) {
 		Container: api.ContainerSpec{
 			Image:   "nginx:latest",
 			PidMode: "host",
-			CapAdd:  []string{"NET_ADMIN"},
 		},
 	}
 
