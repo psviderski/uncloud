@@ -1104,7 +1104,7 @@ func (s *Machine) MachineLogs(
 	}
 
 	log := slog.With("unit", req.Id, "stream_id", fmt.Sprintf("%p", stream)[2:])
-	log.Debug("Starting service logs streaming.",
+	log.Debug("Starting systemd service logs streaming.",
 		"follow", req.Follow, "tail", req.Tail, "since", req.Since, "until", req.Until)
 
 	// Heartbeats are needed only when following logs to let the client know when there are no new log entries
