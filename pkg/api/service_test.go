@@ -206,7 +206,7 @@ func TestContainerSpec_Clone(t *testing.T) {
 	original := ContainerSpec{
 		CapAdd:     []string{"NET_ADMIN"},
 		CapDrop:    []string{"ALL"},
-		Pid:        container.PidMode("host"),
+		PidMode:    "host",
 		Command:    []string{"sh", "-c", "echo hello"},
 		Entrypoint: []string{"/bin/bash"},
 		Env: EnvVars{

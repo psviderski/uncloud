@@ -127,7 +127,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 								"max-file": "3",
 							},
 						},
-						Pid:        "host",
+						PidMode:    "host",
 						Privileged: true,
 						PullPolicy: api.PullPolicyAlways,
 						Resources: api.ContainerResources{

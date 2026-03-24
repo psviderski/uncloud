@@ -627,7 +627,7 @@ func (s *Server) CreateServiceContainer(
 		Binds:        spec.Container.Volumes,
 		Init:         spec.Container.Init,
 		Mounts:       mounts,
-		PidMode:      spec.Container.Pid,
+		PidMode:      container.PidMode(spec.Container.PidMode),
 		PortBindings: portBindings,
 		Privileged:   spec.Container.Privileged,
 		Resources: container.Resources{
