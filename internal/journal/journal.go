@@ -12,6 +12,8 @@ import (
 
 const journalctl = "journalctl"
 
+var commandContext = exec.CommandContext // overidable for the test
+
 func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.ReadCloser, error) {
 	args := []string{"-u", unit, "--no-hostname"}
 	args = append(args, "-n")
@@ -36,7 +38,7 @@ func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.Rea
 		args = append(args, opts.Until)
 	}
 
-	cmd := exec.CommandContext(ctx, journalctl, args...)
+	cmd := commandContext(ctx, journalctl, args...)
 	p, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err

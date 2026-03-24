@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/psviderski/uncloud/pkg/api"
@@ -71,7 +72,7 @@ func entry(data []byte) api.LogEntry {
 
 	return api.LogEntry{
 		Timestamp: timestamp,
-		Message:   message,
+		Message:   slices.Clone(message), // scanner controls the buffer
 		Stream:    api.LogStreamStdout,
 	}
 }
