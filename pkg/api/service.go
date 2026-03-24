@@ -11,6 +11,7 @@ import (
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/distribution/reference"
+	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -256,6 +257,8 @@ type ContainerSpec struct {
 	Init *bool
 	// LogDriver overrides the default logging driver for the container. Each Docker daemon can have its own default.
 	LogDriver *LogDriver
+	// Pid allows setting the PID name space, currently only "" or "host" is supported.
+	Pid container.PidMode
 	// Privileged gives extended privileges to the container. This is a security risk and should be used with caution.
 	Privileged bool
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.
