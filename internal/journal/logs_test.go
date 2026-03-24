@@ -4,11 +4,16 @@ import (
 	"context"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLogs(t *testing.T) {
+	t.Parallel()
+
 	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 		return exec.CommandContext(ctx, "/usr/bin/tail", "testdata/logs")
 	}
@@ -18,17 +23,32 @@ func TestLogs(t *testing.T) {
 	defer cancel()
 
 	ch, err := Logs(ctx, "notused", api.ServiceLogsOptions{})
-	if err != nil {
-		t.Fatalf("got error from Logs: %s", err)
-	}
+	require.NoError(t, err)
 
-	// testdata/logs is 6 lines.
 	i := 0
 	for range ch {
 		i++
-		// TODO(miek): check entry's content?
 	}
-	if i != 6 {
-		t.Fatalf("expected %d entries, got %d", 6, i)
+	assert.Equal(t, i, 6)
+}
+
+func TestLogs_Tail(t *testing.T) {
+	t.Parallel()
+
+	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "/usr/bin/tail", "-f", "testdata/logs")
 	}
+
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	go func() { time.Sleep(1 * time.Second); cancel() }()
+
+	ch, err := Logs(ctx, "notused", api.ServiceLogsOptions{})
+	require.NoError(t, err)
+
+	i := 0
+	for range ch {
+		i++
+	}
+	assert.Equal(t, i, 6) // still six is hardbeats are not written here.
 }
