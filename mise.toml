@@ -13,6 +13,13 @@ protoc-gen-go-grpc = "1.5.1"
 [env]
 _.file = ".env"
 
+[tasks.proto]
+description = "Regenerate gRPC API code from .proto files"
+run = """
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+  --proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
+"""
+
 [tasks.mise-lock]
 description = "Update mise.lock with hashes for all platforms"
 run = "mise lock --platform linux-x64,macos-arm64"

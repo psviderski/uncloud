@@ -46,6 +46,22 @@ func TestInspectGitState_NotARepo(t *testing.T) {
 	assert.False(t, state.IsDirty)
 }
 
+func TestInspectGitState_EmptyRepo(t *testing.T) {
+	// Create a temporary git repo with no commits.
+	tmpDir := t.TempDir()
+	initGitRepo(t, tmpDir)
+
+	state, err := InspectGitState(tmpDir)
+	require.NoError(t, err)
+
+	// An empty repo should be treated as a non-repo so that callers fall back to non-git logic.
+	assert.False(t, state.IsRepo)
+	assert.Empty(t, state.SHA)
+	assert.Empty(t, state.ShortSHA(7))
+	assert.True(t, state.Date.IsZero())
+	assert.False(t, state.IsDirty)
+}
+
 func TestInspectGitState_CleanRepo(t *testing.T) {
 	// Create a temporary git repo.
 	tmpDir := t.TempDir()

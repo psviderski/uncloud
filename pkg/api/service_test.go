@@ -9,12 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// boolPtr is a convenience function to create a pointer to a uint64 value
-// TODO: Make this a generic function that works for any type
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -220,7 +214,7 @@ func TestContainerSpec_Clone(t *testing.T) {
 			"BAZ": "qux",
 		},
 		Image: "nginx:latest",
-		Init:  boolPtr(true),
+		Init:  new(true),
 		LogDriver: &LogDriver{
 			Name: "json-file",
 			Options: map[string]string{

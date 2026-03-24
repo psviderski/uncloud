@@ -62,6 +62,8 @@ type VolumeClient interface {
 }
 
 // AsPtr returns a pointer to the given value. Useful for optional fields in API structs.
+//
+//go:fix inline
 func AsPtr[T any](v T) *T {
-	return &v
+	return new(v)
 }

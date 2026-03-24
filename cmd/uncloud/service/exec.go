@@ -7,6 +7,7 @@ import (
 
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -83,7 +84,7 @@ If the service has multiple replicas and no container ID is specified, the comma
 
 func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execCliOptions) error {
 	// Disable TTY allocation if not connected to a terminal
-	if !cli.IsStdoutTerminal() {
+	if !tui.IsStdoutTerminal() {
 		opts.noTty = true
 	}
 

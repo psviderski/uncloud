@@ -116,7 +116,7 @@ func (p *Proxy) handleConnection(ctx context.Context, localConn net.Conn) {
 	}()
 
 	// Wait for both copies to complete or context cancel.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-ctx.Done():
 			// Close connections to abort ongoing copies.

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"os"
 
 	"charm.land/lipgloss/v2"
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
@@ -174,20 +174,42 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return nil
 	}
 
-	fmt.Println(lipgloss.NewStyle().Bold(true).Render("Deployment plan"))
-	if err = printPlan(ctx, clusterClient, plan); err != nil {
-		return fmt.Errorf("print deployment plan: %w", err)
-	}
+	fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
 	fmt.Println()
+
+	directConn := uncli.DirectConnection()
+	contextName := uncli.ContextOverrideOrCurrent()
+	deployTarget := ""
+	if directConn != "" {
+		deployTarget = directConn
+		fmt.Println(tui.Faint.Render("connection: ") + tui.NameStyle.Render(directConn))
+		fmt.Println()
+	} else if contextName != "" && len(uncli.Config.Contexts) > 1 {
+		// Only show context if there's more than one to avoid unnecessary clutter.
+		deployTarget = contextName
+		fmt.Println(tui.Faint.Render("context: ") + tui.NameStyle.Render(contextName))
+		fmt.Println()
+	}
+
+	fmt.Println(plan.Format())
 
 	// Ask for plan confirmation before proceeding with the deployment unless auto-confirmed with --yes.
 	if !opts.yes {
-		if !cli.IsStdinTerminal() {
+		if !tui.IsStdinTerminal() {
 			return errors.New("cannot ask to confirm deployment plan in non-interactive mode, " +
 				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
 		}
 
-		confirmed, err := cli.Confirm()
+		title := "Proceed with deployment?"
+		// Include the direct connection or context name in the confirmation prompt to avoid accidentally
+		// deploying to the wrong cluster.
+		if deployTarget != "" {
+			isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+			confirmStyle := tui.ThemeConfirm().Theme(isDark).Focused.Title
+			title = "Proceed with deployment to " + tui.NameStyle.Render(deployTarget) + confirmStyle.Render("?")
+		}
+
+		confirmed, err := tui.Confirm(title)
 		if err != nil {
 			return fmt.Errorf("confirm deployment: %w", err)
 		}
@@ -197,41 +219,14 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 	}
 
+	title := "Deploying"
+	if deployTarget != "" {
+		title += " to " + tui.NameStyle.Render(deployTarget)
+	}
 	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		if err := plan.Execute(ctx, clusterClient); err != nil {
 			return fmt.Errorf("deploy services: %w", err)
 		}
 		return nil
-	}, uncli.ProgressOut(), "Deploying services")
-}
-
-func printPlan(ctx context.Context, cli *client.Client, plan compose.Plan) error {
-	for _, op := range plan.Volumes {
-		fmt.Println("- " + op.Format(nil))
-	}
-
-	for _, svcPlan := range plan.Services {
-		svc, err := cli.InspectService(ctx, svcPlan.ServiceID)
-		if err != nil && !errors.Is(err, api.ErrNotFound) {
-			return fmt.Errorf("inspect service: %w", err)
-		}
-		// Initialise a machine and container name resolver to properly format the service plan output.
-		resolver, err := cli.ServiceOperationNameResolver(ctx, svc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
-
-		fmt.Printf("- Deploy service [name=%s]\n", svcPlan.ServiceName)
-		fmt.Println(indent(svcPlan.Format(resolver), "  "))
-	}
-
-	return nil
-}
-
-func indent(text, prefix string) string {
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		lines[i] = prefix + line
-	}
-	return strings.Join(lines, "\n")
+	}, uncli.ProgressOut(), title)
 }

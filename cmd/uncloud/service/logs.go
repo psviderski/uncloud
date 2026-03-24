@@ -15,6 +15,7 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
@@ -171,7 +172,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		serviceNames = foundServices
 
 		for _, name := range notFoundServices {
-			client.PrintWarning(fmt.Sprintf("service '%s' not found in the cluster, skipping", name))
+			tui.PrintWarning(fmt.Sprintf("service '%s' not found in the cluster, skipping", name))
 		}
 	}
 

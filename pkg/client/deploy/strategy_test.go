@@ -6,6 +6,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/stretchr/testify/assert"
@@ -315,8 +316,9 @@ func TestReconcileGlobalContainer(t *testing.T) {
 			},
 			expectedOps: []operation.Operation{
 				&operation.RunContainerOperation{
-					ServiceID: "service-1",
-					MachineID: "machine-1",
+					ServiceID:   "service-1",
+					MachineID:   "machine-1",
+					MachineName: "machine-1",
 				},
 			},
 		},
@@ -335,6 +337,7 @@ func TestReconcileGlobalContainer(t *testing.T) {
 				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
+					MachineName:  "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
@@ -358,16 +361,19 @@ func TestReconcileGlobalContainer(t *testing.T) {
 					ServiceID:   "service-1",
 					ContainerID: "container-2",
 					MachineID:   "machine-1",
+					MachineName: "machine-1",
 				},
 				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
+					MachineName:  "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
 				&operation.RemoveContainerOperation{
-					MachineID: "machine-1",
-					Container: container2WithPort9090,
+					MachineID:   "machine-1",
+					MachineName: "machine-1",
+					Container:   container2WithPort9090,
 				},
 			},
 		},
@@ -388,12 +394,14 @@ func TestReconcileGlobalContainer(t *testing.T) {
 				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
+					MachineName:  "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
 				&operation.RemoveContainerOperation{
-					MachineID: "machine-1",
-					Container: container2WithPort3000,
+					MachineID:   "machine-1",
+					MachineName: "machine-1",
+					Container:   container2WithPort3000,
 				},
 			},
 		},
@@ -402,7 +410,12 @@ func TestReconcileGlobalContainer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ops, err := reconcileGlobalContainer(
-				tt.containers, tt.spec, "service-1", "machine-1", tt.forceRecreate, false,
+				tt.containers,
+				tt.spec,
+				"service-1",
+				&pb.MachineInfo{Id: "machine-1", Name: "machine-1"},
+				tt.forceRecreate,
+				false,
 			)
 			assert.NoError(t, err)
 			assertOperationsEqual(t, tt.expectedOps, ops)

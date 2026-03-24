@@ -14,6 +14,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -199,6 +200,8 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		}
 	}
 
+	fmt.Println()
+	fmt.Println("Preparing Caddy deployment...")
 	d, err := clusterClient.NewCaddyDeployment(caddyImage, "", api.Placement{})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
@@ -209,22 +212,20 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		return fmt.Errorf("plan caddy deployment: %w", err)
 	}
 
-	fmt.Println()
 	if len(plan.Operations) == 0 {
 		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
 	} else {
-		// Initialise a machine and container name resolver to properly format the plan output.
-		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, caddySvc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
+		fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
+		fmt.Println()
+		fmt.Print(plan.Format())
 
-		fmt.Println("caddy deployment plan:")
-		fmt.Println(plan.Format(resolver))
+		summary := plan.FormatSummary()
+		fmt.Println(tui.Faint.Render(strings.Repeat("─", lipgloss.Width(summary))))
+		fmt.Println(summary)
 		fmt.Println()
 
 		if !opts.yes {
-			confirmed, err := cli.Confirm()
+			confirmed, err := tui.Confirm("Proceed with deployment?")
 			if err != nil {
 				return fmt.Errorf("confirm deployment: %w", err)
 			}

@@ -74,7 +74,7 @@ type ServiceSpec struct {
 	// Default is 10 seconds if not specified.
 	StopGracePeriod *time.Duration `json:",omitempty"`
 	// UpdateConfig configures how the service is updated during a deployment.
-	UpdateConfig UpdateConfig `json:",omitempty"`
+	UpdateConfig UpdateConfig
 	// Volumes is list of data volumes that can be mounted into the container.
 	Volumes []VolumeSpec
 }
@@ -351,9 +351,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	}
 	if s.Env != nil {
 		spec.Env = make(EnvVars, len(s.Env))
-		for k, v := range s.Env {
-			spec.Env[k] = v
-		}
+		maps.Copy(spec.Env, s.Env)
 	}
 	if s.Healthcheck != nil {
 		hc := *s.Healthcheck
@@ -383,9 +381,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	}
 	if s.Sysctls != nil {
 		spec.Sysctls = make(map[string]string, len(s.Sysctls))
-		for k, v := range s.Sysctls {
-			spec.Sysctls[k] = v
-		}
+		maps.Copy(spec.Sysctls, s.Sysctls)
 	}
 	if s.Resources.Ulimits != nil {
 		spec.Resources.Ulimits = maps.Clone(s.Resources.Ulimits)

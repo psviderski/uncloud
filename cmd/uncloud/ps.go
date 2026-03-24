@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2/table"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-units"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
 
 	"github.com/psviderski/uncloud/internal/cli"
@@ -231,7 +232,7 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 		}
 
 		if msc.Metadata != nil && msc.Metadata.Error != "" {
-			client.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName,
+			tui.PrintWarning(fmt.Sprintf("failed to list containers on machine %s: %s", machineName,
 				msc.Metadata.Error))
 			continue
 		}

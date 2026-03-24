@@ -69,7 +69,7 @@ jobs:
 
       - name: Generate Protobuf files
         run: |
-          make proto
-          # check if the generated files are up to date
+          mise run proto
+          # Check if the generated files are up to date.
           git diff --exit-code ||
-            (echo "Generated protobuf files are not up to date. Please run 'make proto' and commit the changes." && exit 1)
+            (echo "Generated protobuf files are not up to date. Please run 'mise run proto' and commit the changes." && exit 1)

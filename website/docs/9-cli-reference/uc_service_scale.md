@@ -4,7 +4,7 @@ Scale a replicated service by changing the number of replicas.
 
 ## Synopsis
 
-Scale a replicated service by changing the number of replicas. Scaling down requires confirmation.
+Scale a replicated service by changing the number of replicas.
 
 ```
 uc service scale SERVICE REPLICAS [flags]
@@ -14,6 +14,8 @@ uc service scale SERVICE REPLICAS [flags]
 
 ```
   -h, --help   help for scale
+  -y, --yes    Auto-confirm scaling plan. Should be explicitly set when running non-interactively,
+               e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
 
 ## Options inherited from parent commands

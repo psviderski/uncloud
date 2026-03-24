@@ -358,8 +358,8 @@ func parseVolumeFlagValue(volume string) (api.VolumeSpec, api.VolumeMount, error
 		volumeNoCopy := false
 
 		if len(parts) == 3 {
-			opts := strings.Split(parts[2], ",")
-			for _, opt := range opts {
+			opts := strings.SplitSeq(parts[2], ",")
+			for opt := range opts {
 				switch opt {
 				case "ro", "readonly":
 					mount.ReadOnly = true
