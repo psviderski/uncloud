@@ -12,7 +12,7 @@ import (
 
 // Logs streams logs from a service and returns entries via a channel.
 func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
-	reader, cancel, err := logs(ctx, unit, opts)
+	reader, err := logs(ctx, unit, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +24,6 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 
 		go func() {
 			defer close(outCh)
-			defer cancel()
 
 			scanner := bufio.NewScanner(reader)
 			for scanner.Scan() {
@@ -37,12 +36,10 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 		}()
 
 	case true:
-		fw := &FollowWriter{outCh}
-
 		go func() {
 			defer close(outCh)
 
-			err := follow(ctx, reader, fw)
+			err := follow(ctx, reader, outCh)
 			if err != nil {
 				outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
 			}
@@ -51,7 +48,6 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 
 	go func() {
 		<-ctx.Done()
-		reader.Close()
 	}()
 
 	return outCh, nil
@@ -78,13 +74,4 @@ func entry(data []byte) api.LogEntry {
 		Message:   message,
 		Stream:    api.LogStreamStdout,
 	}
-}
-
-type FollowWriter struct {
-	ch chan api.LogEntry
-}
-
-func (fw *FollowWriter) Write(p []byte) (int, error) {
-	fw.ch <- entry(p)
-	return len(p), nil
 }

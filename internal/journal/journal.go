@@ -12,9 +12,7 @@ import (
 
 const journalctl = "journalctl"
 
-func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.ReadCloser, func() error, error) {
-	cancel := func() error { return nil }
-
+func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.ReadCloser, error) {
 	args := []string{"-u", unit, "--no-hostname"}
 	args = append(args, "-n")
 	if opts.Tail > -1 {
@@ -41,39 +39,30 @@ func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.Rea
 	cmd := exec.CommandContext(ctx, journalctl, args...)
 	p, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, cancel, err
+		return nil, err
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, cancel, err
+		return nil, err
 	}
 
-	cancel = func() error {
-		go func() {
-			if err := cmd.Wait(); err != nil {
-				// log, error?
-			}
-		}()
-		return cmd.Process.Kill()
-	}
-
-	return p, cancel, nil
+	return p, nil
 }
 
 // follow synchronously follows the io.Reader, writing each new journal entry to writer. The
 // follow will continue until a single time.Time is received on the until channel (or it's closed).
-func follow(ctx context.Context, reader io.Reader, writer io.Writer) error {
+func follow(ctx context.Context, reader io.Reader, outCh chan api.LogEntry) error {
 	scanner := bufio.NewScanner(reader)
-	bufch := make(chan []byte)
-	errch := make(chan error)
 
 	go func() {
 		for scanner.Scan() {
+			outCh <- entry(scanner.Bytes())
+		}
+		if err := scanner.Err(); err != nil {
 			if err := scanner.Err(); err != nil {
-				errch <- err
-				return
+				outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
 			}
-			bufch <- scanner.Bytes()
+			return
 		}
 	}()
 
@@ -81,17 +70,6 @@ func follow(ctx context.Context, reader io.Reader, writer io.Writer) error {
 		select {
 		case <-ctx.Done():
 			return nil
-
-		case err := <-errch:
-			return err
-
-		case buf := <-bufch:
-			if _, err := writer.Write(buf); err != nil {
-				return err
-			}
-			if _, err := io.WriteString(writer, "\n"); err != nil {
-				return err
-			}
 		}
 	}
 }
