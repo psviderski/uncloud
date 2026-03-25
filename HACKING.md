@@ -47,6 +47,16 @@ Windows:
 GOOS=linux GOARCH=amd64 go build -o uncloudd ./cmd/uncloudd
 ```
 
+## Docker in Docker (ucind)
+
+When running ucind and running in trouble, you must manually remove the cluster, by running:
+
+```shell
+docker stop CONTAINERID
+docker rm CONTAINERID
+docker network rm CLUSTERNAME
+```
+
 ## Testing
 
 Run all tests (unit and e2e):

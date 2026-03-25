@@ -39,10 +39,11 @@ CMD ["corrosion", "agent"]
 
 FROM alpine:${ALPINE_VERSION} AS corrosion-image-tarball
 ARG CORROSION_IMAGE="ghcr.io/psviderski/corrosion:latest"
+ARG TARGETOS
+ARG TARGETARCH
 
 RUN apk --no-cache add crane
-RUN crane pull "${CORROSION_IMAGE}" /corrosion.tar
-
+RUN crane pull --platform ${TARGETOS}/${TARGETARCH} "${CORROSION_IMAGE}" /corrosion.tar
 
 # Uncloud-in-Docker (ucind) image for running Uncloud test clusters using Docker.
 FROM docker:27.3.1-dind AS ucind
