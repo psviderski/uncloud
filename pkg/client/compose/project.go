@@ -13,6 +13,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/tree"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 )
 
 var registerComposeOverrides sync.Once
@@ -67,7 +68,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 	}
 
 	if err = validateServicesFeatures(project); err != nil {
-		return nil, err
+		client.PrintWarning(err.Error())
 	}
 
 	// Process image templates in services to expand Go template expressions using git repo state.
