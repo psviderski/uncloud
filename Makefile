@@ -15,10 +15,6 @@ corrosion-image:
 corrosion-multiarch-image-push:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(CORROSION_IMAGE)" --target corrosion .
 
-.PHONY: ucind-image
-ucind-image:
-	docker build -t "$(UCIND_IMAGE)" --target ucind .
-
 .PHONY: ucind-multiarch-image-push
 ucind-multiarch-image-push:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(UCIND_IMAGE)" --target ucind .

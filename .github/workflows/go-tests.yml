@@ -18,6 +18,8 @@ on:
       - "test/**"
 permissions:
   contents: read
+env:
+  MISE_VERSION: "2026.3.7"
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -28,7 +30,7 @@ jobs:
       - name: Install Mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          version: "2026.3.7"
+          version: ${{ env.MISE_VERSION }}
 
       - name: Install dependencies
         run: |
@@ -61,11 +63,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Mise
-        uses: jdx/mise-action@13abe502c30c1559a5c37dff303831bab82c9402 # v2.2.3
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          version: "2026.3.7"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          version: ${{ env.MISE_VERSION }}
+
+      # TODO: figure out how to properly lock all platforms in the lockfile and remove this hack.
+      # `mise lock` (mise run mise:lock) doesn't generate checksums for some of the tools, e.g. protoc*
+      - name: Reset changes in mise.lock after fresh mise install
+        run: git checkout mise.lock
 
       - name: Generate Protobuf files
         run: |
