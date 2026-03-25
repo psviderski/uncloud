@@ -47,16 +47,6 @@ Windows:
 GOOS=linux GOARCH=amd64 go build -o uncloudd ./cmd/uncloudd
 ```
 
-## Docker in Docker (ucind)
-
-When running ucind and running in trouble, you must manually remove the cluster, by running:
-
-```shell
-docker stop CONTAINERID
-docker rm CONTAINERID
-docker network rm CLUSTERNAME
-```
-
 ## Testing
 
 Run all tests (unit and e2e):
@@ -67,10 +57,10 @@ make test
 
 ### End-to-end tests
 
-E2e tests run inside Docker using the [`ucind`](Dockerfile) (Uncloud-in-Docker) image. Build it first:
+E2e tests run inside Docker using the [Uncloud-in-Docker](#uncloud-in-docker-ucind) image. Build it first:
 
 ```shell
-make ucind-image
+mise ucind:image
 ```
 
 ⚠️ NOTE: You need to rebuild the `ucind` image every time you make changes to the daemon code if you want to test them
@@ -126,4 +116,39 @@ Regenerate mocks:
 
 ```shell
 make mocks
+```
+
+## Uncloud in Docker (UCinD)
+
+The [`ucind`](./cmd/ucind) CLI lets you run Uncloud clusters locally using Docker containers instead of real machines.
+Each cluster machine runs as a Docker container connected to a shared Docker network.
+
+Cluster machines use the `ghcr.io/psviderski/ucind:latest` Docker image by default. It may not always have the
+latest changes to the `uncloudd` daemon code as it's not automatically rebuilt on CI yet.
+
+You can rebuild it locally to pick up the latest changes, including your work in progress, and test them in a UCinD
+cluster:
+
+```shell
+mise ucind:image
+```
+
+Create a cluster with 3 machines:
+
+```shell
+mise ucind cluster create -m 3
+```
+
+This also sets the new cluster as the active context, so you can interact with it using the `uc` CLI right away.
+
+Remove the cluster when you're done:
+
+```shell
+mise ucind cluster rm
+```
+
+Sometimes crashed tests or interrupted runs can leave orphaned containers and networks behind. Clean them all up with:
+
+```shell
+mise ucind:cleanup
 ```

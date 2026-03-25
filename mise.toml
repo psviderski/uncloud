@@ -10,6 +10,9 @@ protoc = "27.3"
 protoc-gen-go = "1.34.2"
 protoc-gen-go-grpc = "1.5.1"
 
+[vars]
+ucind_image = "ghcr.io/psviderski/ucind:latest"
+
 [env]
 _.file = ".env"
 
@@ -41,6 +44,18 @@ run = """
 protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
   --proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
 """
+
+[tasks.uc]
+description = "Run the Uncloud CLI"
+run = "go run ./cmd/uncloud"
+
+[tasks.ucind]
+description = "Run ucind CLI for managing local Docker-based clusters"
+run = "go run ./cmd/ucind"
+
+[tasks."ucind:image"]
+description = "Build the ucind Docker image"
+run = "docker build -t {{vars.ucind_image}} --target ucind ."
 
 [tasks."ucind:cleanup"]
 description = "Remove ucind managed containers and networks"
