@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	MetadataKeyCLIVersion       = "x-uncloud-cli-version"
-	MetadataKeyMinDaemonVersion = "x-uncloud-min-daemon-version"
-	MetadataKeyDaemonVersion    = "x-uncloud-daemon-version"
+	MetadataKeyCLIVersion       = "uncloud-client-version"
+	MetadataKeyMinDaemonVersion = "uncloud-min-server-version"
+	MetadataKeyDaemonVersion    = "uncloud-server-version"
 
 	MinCLIVersion    = "0.0.0"
 	MinDaemonVersion = "0.0.0"
