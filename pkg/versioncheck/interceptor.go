@@ -86,7 +86,7 @@ func ServerStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.S
 	if err := checkClientVersionHeaders(ss.Context()); err != nil {
 		return err
 	}
-	if err := grpc.SetHeader(ss.Context(), metadata.Pairs(MetadataKeyDaemonVersion, currentVersion.String())); err != nil {
+	if err := ss.SetHeader(metadata.Pairs(MetadataKeyDaemonVersion, currentVersion.String())); err != nil {
 		return err
 	}
 	return handler(srv, ss)
