@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -189,6 +190,12 @@ REDIS_URL=redis://localhost:6379
 
 // TestLoadProject_Unsupported checks that unsupported features lead to an error.
 func TestLoadProject_Unsupported(t *testing.T) {
+	requireWarning := func(t *testing.T, r io.Reader) {
+		p := make([]byte, 15) // also room for the (color) escapes
+		io.ReadFull(r, p)
+		require.Contains(t, string(p), "WARNING:")
+	}
+
 	tests := []struct {
 		name        string
 		composeYAML string
@@ -202,8 +209,16 @@ func TestLoadProject_Unsupported(t *testing.T) {
     dns: 8.8.8.8
 `,
 			verify: func(t *testing.T, projectDir string) {
+				old := os.Stderr
+				var r io.ReadCloser
+				defer func() { os.Stderr = old }()
+				r, os.Stderr, _ = os.Pipe()
+				defer r.Close()
+				defer os.Stderr.Close()
+
 				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
-				require.Error(t, err)
+				require.NoError(t, err)
+				requireWarning(t, r)
 			},
 		},
 		{
@@ -218,8 +233,16 @@ networks:
   frontend:
 `,
 			verify: func(t *testing.T, projectDir string) {
+				old := os.Stderr
+				var r io.ReadCloser
+				defer func() { os.Stderr = old }()
+				r, os.Stderr, _ = os.Pipe()
+				defer r.Close()
+				defer os.Stderr.Close()
+
 				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
-				require.Error(t, err)
+				require.NoError(t, err)
+				requireWarning(t, r)
 			},
 		},
 		{
