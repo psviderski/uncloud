@@ -186,3 +186,69 @@ REDIS_URL=redis://localhost:6379
 		})
 	}
 }
+
+// TestLoadProject_Unsupported checks that unsupported features lead to an error.
+func TestLoadProject_Unsupported(t *testing.T) {
+	tests := []struct {
+		name        string
+		composeYAML string
+		verify      func(t *testing.T, projectDir string)
+	}{
+		{
+			name: "unsupported dns",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    dns: 8.8.8.8
+`,
+			verify: func(t *testing.T, projectDir string) {
+				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
+				require.Error(t, err)
+			},
+		},
+		{
+			name: "unsupported networks",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    networks:
+      - frontend
+
+networks:
+  frontend:
+`,
+			verify: func(t *testing.T, projectDir string) {
+				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
+				require.Error(t, err)
+			},
+		},
+		{
+			name: "supported networks",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    networks:
+      - default
+
+networks:
+  default: {}
+`,
+			verify: func(t *testing.T, projectDir string) {
+				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+
+			composeFile := filepath.Join(tempDir, "compose.yaml")
+			err := os.WriteFile(composeFile, []byte(tt.composeYAML), 0o644)
+			require.NoError(t, err)
+
+			tt.verify(t, tempDir)
+		})
+	}
+}
