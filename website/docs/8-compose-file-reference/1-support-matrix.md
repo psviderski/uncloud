@@ -113,6 +113,13 @@ services:
 The `--context` and `--connect` flags take precedence over `x-context`. If you don't specify any of these, the current
 context from your Uncloud config (`--uncloud-config`) is used.
 
+:::warning
+
+If you share the Compose file with other users, make sure to use the same context name for the target cluster in your
+Uncloud configs.
+
+:::
+
 ### `x-ports`
 
 Expose HTTP/HTTPS service ports via the Caddy reverse proxy, or bind TCP/UDP ports directly to the host:
