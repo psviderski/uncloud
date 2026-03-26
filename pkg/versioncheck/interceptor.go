@@ -98,6 +98,8 @@ func ClientUnaryInterceptor(ctx context.Context, method string, req, reply any, 
 		MetadataKeyMinDaemonVersion, MinDaemonVersion,
 	)
 
+	// TODO: remove when checkDaemonVersionInResponse is no longer needed,
+	// as we'll no longer need to extract headers from the response here.
 	var respMD metadata.MD
 	opts = append(opts, grpc.Header(&respMD))
 
@@ -106,11 +108,16 @@ func ClientUnaryInterceptor(ctx context.Context, method string, req, reply any, 
 		return err
 	}
 
+	// TODO: Remove eventually (see note on method below)
 	checkDaemonVersionInResponse(respMD)
 
 	return nil
 }
 
+// This is just needed as a warning during the transition to version checking
+// releases. It warns the user when they just communicated with a daemon that did
+// not check the version requirements.
+// TODO: Remove this in some later release, after users have upgraded.
 func checkDaemonVersionInResponse(md metadata.MD) {
 	daemonVersion := extractVersion(md, MetadataKeyDaemonVersion)
 	if daemonVersion.LessThan(minDaemonVersion) {
@@ -136,13 +143,18 @@ func ClientStreamInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grp
 		return nil, err
 	}
 
+	// TODO: Wrapping the stream in versionedClientStream will no longer
+	// be necessary when we are ready to remove the temporary, transition
+	// safety check checkDaemonVersionInResponse (see note on method above)
 	return &versionedClientStream{ClientStream: stream}, nil
 }
 
+// TODO: remove when checkDaemonVersionInResponse is no longer needed
 type versionedClientStream struct {
 	grpc.ClientStream
 }
 
+// TODO: remove when checkDaemonVersionInResponse is no longer needed
 func (s *versionedClientStream) Header() (metadata.MD, error) {
 	md, err := s.ClientStream.Header()
 	if err != nil {
