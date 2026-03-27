@@ -99,7 +99,6 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 	}
 }
 
-
 func TestControlSocketPath(t *testing.T) {
 	// Note: Cannot use t.Parallel() because a subtest uses t.Setenv().
 
