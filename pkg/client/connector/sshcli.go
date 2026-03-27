@@ -119,6 +119,9 @@ func (c *SSHCLIConnector) buildSSHArgs() []string {
 
 	// Add connection timeout to fail fast when node is down.
 	args = append(args, "-o", "ConnectTimeout=5")
+	// Disable interactive prompts (e.g., passphrase input) to prevent interference with the TUI.
+	// Authentication must succeed non-interactively via SSH agent or unencrypted key.
+	args = append(args, "-o", "BatchMode=yes")
 	// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
 	args = append(args, "-T")
 
