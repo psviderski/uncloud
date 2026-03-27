@@ -12,6 +12,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/transform"
 	"github.com/compose-spec/compose-go/v2/tree"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -64,6 +65,10 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 	// Validate extension combinations after all transformations.
 	if err = validateServicesExtensions(project); err != nil {
 		return nil, err
+	}
+
+	if err = validateServicesFeatures(project); err != nil {
+		tui.PrintWarning(err.Error())
 	}
 
 	// Process image templates in services to expand Go template expressions using git repo state.
