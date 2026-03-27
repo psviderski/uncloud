@@ -57,9 +57,9 @@ func connectClusterWithProgress(ctx context.Context, conn config.MachineConnecti
 }
 
 func connectCluster(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
-	// Determine which SSH type is configured
+	// Determine which SSH type is configured.
 	var sshDest config.SSHDestination
-	var useSSHCLI bool
+	var useGoSSH bool
 
 	// Validate connection configuration early to provide clear error messages.
 	if err := conn.Validate(); err != nil {
@@ -67,11 +67,15 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 	}
 
 	if conn.SSH != "" {
+		// SSH uses the system ssh CLI command (default).
 		sshDest = conn.SSH
-		useSSHCLI = false
 	} else if conn.SSHCLI != "" {
+		// SSHCLI is a backward-compatible alias for SSH.
 		sshDest = conn.SSHCLI
-		useSSHCLI = true
+	} else if conn.SSHGo != "" {
+		// SSHGo uses Go's built-in SSH library.
+		sshDest = conn.SSHGo
+		useGoSSH = true
 	} else if conn.TCP != nil && conn.TCP.IsValid() {
 		return client.New(ctx, connector.NewTCPConnector(*conn.TCP))
 	} else if conn.Unix != "" {
@@ -95,11 +99,11 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 		KeyPath: keyPath,
 	}
 
-	// Create appropriate connector based on type
-	if useSSHCLI {
-		return client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
+	// Create appropriate connector based on type.
+	if useGoSSH {
+		return client.New(ctx, connector.NewSSHConnector(sshConfig))
 	}
-	return client.New(ctx, connector.NewSSHConnector(sshConfig))
+	return client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
 }
 
 // connectModel is a TUI model for connecting to a cluster with a progress spinner.

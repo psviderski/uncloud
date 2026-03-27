@@ -30,18 +30,32 @@ func TestMachineConnection_String(t *testing.T) {
 			want: "ssh://user@host.com:2222",
 		},
 		{
-			name: "ssh_cli connection",
+			name: "ssh_cli connection (backward compat alias for ssh)",
 			conn: MachineConnection{
 				SSHCLI: "user@host.com",
 			},
-			want: "ssh+cli://user@host.com",
+			want: "ssh://user@host.com",
 		},
 		{
-			name: "ssh_cli connection with port",
+			name: "ssh_cli connection with port (backward compat alias for ssh)",
 			conn: MachineConnection{
 				SSHCLI: "user@host.com:2222",
 			},
-			want: "ssh+cli://user@host.com:2222",
+			want: "ssh://user@host.com:2222",
+		},
+		{
+			name: "ssh_go connection",
+			conn: MachineConnection{
+				SSHGo: "user@host.com",
+			},
+			want: "ssh+go://user@host.com",
+		},
+		{
+			name: "ssh_go connection with port",
+			conn: MachineConnection{
+				SSHGo: "user@host.com:2222",
+			},
+			want: "ssh+go://user@host.com:2222",
 		},
 		{
 			name: "tcp connection",
@@ -103,9 +117,16 @@ func TestMachineConnection_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "ssh_cli only - valid",
+			name: "ssh_cli only - valid (backward compat)",
 			conn: MachineConnection{
 				SSHCLI: "user@host",
+			},
+			wantErr: false,
+		},
+		{
+			name: "ssh_go only - valid",
+			conn: MachineConnection{
+				SSHGo: "user@host",
 			},
 			wantErr: false,
 		},
@@ -137,6 +158,15 @@ func TestMachineConnection_Validate(t *testing.T) {
 			conn: MachineConnection{
 				SSH:    "user@host",
 				SSHCLI: "user@host",
+			},
+			wantErr: true,
+			errMsg:  "only one connection method allowed",
+		},
+		{
+			name: "ssh and ssh_go - error",
+			conn: MachineConnection{
+				SSH:   "user@host",
+				SSHGo: "user@host",
 			},
 			wantErr: true,
 			errMsg:  "only one connection method allowed",

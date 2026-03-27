@@ -45,8 +45,8 @@ func NewInitCommand() *cobra.Command {
 This command creates a new context in your Uncloud config to manage the cluster.
 
 Connection methods:
-  ssh://user@host       - Use built-in SSH library (default, no prefix required)
-  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
+  [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
+  ssh+go://user@host  - Use Go's built-in SSH library`,
 		Example: `  # Initialise a new cluster with default settings.
   uc machine init root@<your-server-ip>
 
@@ -68,9 +68,10 @@ Connection methods:
 
 			var remoteMachine *cli.RemoteMachine
 			if len(args) > 0 {
-				// Determine if SSH CLI is requested and strip scheme
+				// Determine connection mode and strip scheme.
 				destination := args[0]
-				useSSHCLI := strings.HasPrefix(destination, "ssh+cli://")
+				useSSHGo := strings.HasPrefix(destination, "ssh+go://")
+				destination = strings.TrimPrefix(destination, "ssh+go://")
 				destination = strings.TrimPrefix(destination, "ssh+cli://")
 				destination = strings.TrimPrefix(destination, "ssh://")
 
@@ -79,11 +80,11 @@ Connection methods:
 					return fmt.Errorf("parse remote machine: %w", err)
 				}
 				remoteMachine = &cli.RemoteMachine{
-					User:      user,
-					Host:      host,
-					Port:      port,
-					KeyPath:   opts.sshKey,
-					UseSSHCLI: useSSHCLI,
+					User:     user,
+					Host:     host,
+					Port:     port,
+					KeyPath:  opts.sshKey,
+					UseSSHGo: useSSHGo,
 				}
 			}
 

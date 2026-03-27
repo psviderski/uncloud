@@ -7,8 +7,8 @@ Add a remote machine to a cluster.
 Add a new machine to an existing Uncloud cluster.
 
 Connection methods:
-  ssh://user@host       - Use built-in SSH library (default, no prefix required)
-  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)
+  [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
+  ssh+go://user@host  - Use Go's built-in SSH library
 
 ```
 uc machine add [USER@]HOST[:PORT] [flags]
@@ -36,7 +36,7 @@ uc machine add [USER@]HOST[:PORT] [flags]
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
+                                Format: [ssh://]user@host[:port], ssh+go://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
   -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```

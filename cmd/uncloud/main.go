@@ -47,23 +47,30 @@ func main() {
 			var conn *config.MachineConnection
 			if opts.connect != "" {
 				if strings.HasPrefix(opts.connect, "tcp://") {
-					addrPort, err := netip.ParseAddrPort(opts.connect[len("tcp://"):])
+					addrPort, err := netip.ParseAddrPort(strings.TrimPrefix(opts.connect, "tcp://"))
 					if err != nil {
 						return fmt.Errorf("parse TCP address: %w", err)
 					}
 					conn = &config.MachineConnection{
 						TCP: &addrPort,
 					}
-				} else if strings.HasPrefix(opts.connect, "ssh+cli://") {
-					dest := opts.connect[len("ssh+cli://"):]
+				} else if strings.HasPrefix(opts.connect, "ssh+go://") {
+					dest := strings.TrimPrefix(opts.connect, "ssh+go://")
 					conn = &config.MachineConnection{
-						SSHCLI: config.SSHDestination(dest),
+						SSHGo: config.SSHDestination(dest),
+					}
+				} else if strings.HasPrefix(opts.connect, "ssh+cli://") {
+					// Backward-compatible alias for ssh://.
+					dest := strings.TrimPrefix(opts.connect, "ssh+cli://")
+					conn = &config.MachineConnection{
+						SSH: config.SSHDestination(dest),
 					}
 				} else if strings.HasPrefix(opts.connect, "unix://") {
 					conn = &config.MachineConnection{
 						Unix: opts.connect[len("unix://"):],
 					}
 				} else {
+					// Default: system ssh CLI command (no prefix or ssh:// prefix).
 					dest := strings.TrimPrefix(opts.connect, "ssh://")
 					conn = &config.MachineConnection{
 						SSH: config.SSHDestination(dest),
@@ -83,7 +90,7 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&opts.connect, "connect", "",
 		"Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]\n"+
-			"Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock")
+			"Format: [ssh://]user@host[:port], ssh+go://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock")
 	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"Path to the Uncloud configuration file. [$UNCLOUD_CONFIG]")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")

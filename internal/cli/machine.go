@@ -23,11 +23,11 @@ const (
 )
 
 type RemoteMachine struct {
-	User      string
-	Host      string
-	Port      int
-	KeyPath   string
-	UseSSHCLI bool // indicates ssh+cli:// should be used
+	User     string
+	Host     string
+	Port     int
+	KeyPath  string
+	UseSSHGo bool // Use Go's built-in SSH library instead of the system ssh CLI command.
 }
 
 func installCmd(user string, version string) string {

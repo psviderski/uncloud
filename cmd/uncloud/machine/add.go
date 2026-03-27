@@ -40,17 +40,18 @@ func NewAddCommand() *cobra.Command {
 		Long: `Add a new machine to an existing Uncloud cluster.
 
 Connection methods:
-  ssh://user@host       - Use built-in SSH library (default, no prefix required)
-  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
+  [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
+  ssh+go://user@host  - Use Go's built-in SSH library`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
 
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
-			// Determine if SSH CLI needs to be used and strip scheme
+			// Determine connection mode and strip scheme.
 			destination := args[0]
-			useSSHCLI := strings.HasPrefix(destination, "ssh+cli://")
+			useSSHGo := strings.HasPrefix(destination, "ssh+go://")
+			destination = strings.TrimPrefix(destination, "ssh+go://")
 			destination = strings.TrimPrefix(destination, "ssh+cli://")
 			destination = strings.TrimPrefix(destination, "ssh://")
 
@@ -59,11 +60,11 @@ Connection methods:
 				return fmt.Errorf("parse remote machine: %w", err)
 			}
 			remoteMachine := &cli.RemoteMachine{
-				User:      user,
-				Host:      host,
-				Port:      port,
-				KeyPath:   opts.sshKey,
-				UseSSHCLI: useSSHCLI,
+				User:     user,
+				Host:     host,
+				Port:     port,
+				KeyPath:  opts.sshKey,
+				UseSSHGo: useSSHGo,
 			}
 
 			return add(cmd.Context(), uncli, remoteMachine, opts)
