@@ -214,7 +214,7 @@ func (m *LogMerger) run() {
 
 			for _, s := range stalled {
 				errEntry := api.ServiceLogEntry{
-					ContainerLogEntry: api.ContainerLogEntry{
+					LogEntry: api.LogEntry{
 						Err: api.ErrLogStreamStalled,
 					},
 				}

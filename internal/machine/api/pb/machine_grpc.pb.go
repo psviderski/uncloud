@@ -29,6 +29,7 @@ const (
 	Machine_InspectWireGuardNetwork_FullMethodName = "/api.Machine/InspectWireGuardNetwork"
 	Machine_Reset_FullMethodName                   = "/api.Machine/Reset"
 	Machine_InspectService_FullMethodName          = "/api.Machine/InspectService"
+	Machine_MachineLogs_FullMethodName             = "/api.Machine/MachineLogs"
 )
 
 // MachineClient is the client API for Machine service.
@@ -49,6 +50,7 @@ type MachineClient interface {
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
+	MachineLogs(ctx context.Context, in *LogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error)
 }
 
 type machineClient struct {
@@ -149,6 +151,25 @@ func (c *machineClient) InspectService(ctx context.Context, in *InspectServiceRe
 	return out, nil
 }
 
+func (c *machineClient) MachineLogs(ctx context.Context, in *LogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Machine_ServiceDesc.Streams[0], Machine_MachineLogs_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[LogsRequest, LogEntry]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Machine_MachineLogsClient = grpc.ServerStreamingClient[LogEntry]
+
 // MachineServer is the server API for Machine service.
 // All implementations must embed UnimplementedMachineServer
 // for forward compatibility.
@@ -167,6 +188,7 @@ type MachineServer interface {
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
 	Reset(context.Context, *ResetRequest) (*emptypb.Empty, error)
 	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
+	MachineLogs(*LogsRequest, grpc.ServerStreamingServer[LogEntry]) error
 	mustEmbedUnimplementedMachineServer()
 }
 
@@ -203,6 +225,9 @@ func (UnimplementedMachineServer) Reset(context.Context, *ResetRequest) (*emptyp
 }
 func (UnimplementedMachineServer) InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectService not implemented")
+}
+func (UnimplementedMachineServer) MachineLogs(*LogsRequest, grpc.ServerStreamingServer[LogEntry]) error {
+	return status.Errorf(codes.Unimplemented, "method MachineLogs not implemented")
 }
 func (UnimplementedMachineServer) mustEmbedUnimplementedMachineServer() {}
 func (UnimplementedMachineServer) testEmbeddedByValue()                 {}
@@ -387,6 +412,17 @@ func _Machine_InspectService_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_MachineLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(LogsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(MachineServer).MachineLogs(m, &grpc.GenericServerStream[LogsRequest, LogEntry]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Machine_MachineLogsServer = grpc.ServerStreamingServer[LogEntry]
+
 // Machine_ServiceDesc is the grpc.ServiceDesc for Machine service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -431,6 +467,12 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Machine_InspectService_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "MachineLogs",
+			Handler:       _Machine_MachineLogs_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "internal/machine/api/pb/machine.proto",
 }
