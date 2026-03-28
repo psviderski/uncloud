@@ -23,7 +23,7 @@ func NewSerfBroadcaster(ctx context.Context, serf *serf.Serf) *SerfBroadcaster {
 	return &SerfBroadcaster{
 		ctx:    ctx,
 		serf:   serf,
-		nextCh: make(chan []byte),
+		nextCh: make(chan []byte, 16),
 	}
 }
 
