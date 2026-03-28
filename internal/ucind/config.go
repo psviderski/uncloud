@@ -28,9 +28,9 @@ func (u *ConfigUpdater) AddCluster(c Cluster) error {
 		Name:        c.Name,
 		Connections: make([]config.MachineConnection, len(c.Machines)),
 	}
-	for i, m := range c.Machines {
+	for i := range c.Machines {
 		clusterCfg.Connections[i] = config.MachineConnection{
-			TCP: &m.APIAddress,
+			TCP: &c.Machines[i].APIAddress,
 		}
 	}
 
