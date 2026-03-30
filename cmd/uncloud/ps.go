@@ -8,7 +8,6 @@ import (
 
 	"charm.land/huh/v2/spinner"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli/tui"
@@ -132,23 +131,7 @@ func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
 }
 
 func printContainers(containers []containerInfo) error {
-	t := table.New().
-		// Remove the default border.
-		Border(lipgloss.Border{}).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		BorderRight(false).
-		BorderHeader(false).
-		BorderColumn(false).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == table.HeaderRow {
-				return lipgloss.NewStyle().Bold(true).PaddingRight(3)
-			}
-			// Regular style for data rows with padding.
-			return lipgloss.NewStyle().PaddingRight(3)
-		})
-
+	t := tui.NewTable()
 	t.Headers("SERVICE", "CONTAINER ID", "CONTAINER NAME", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
 
 	for _, ctr := range containers {
@@ -175,7 +158,7 @@ func printContainers(containers []containerInfo) error {
 			ctr.serviceName,
 			id,
 			ctr.name,
-			ctr.image,
+			tui.FormatImage(ctr.image, tui.NoStyle),
 			created,
 			statusStyle.Render(ctr.status),
 			ctr.ip,

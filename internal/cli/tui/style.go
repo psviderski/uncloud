@@ -6,6 +6,8 @@ import (
 )
 
 var (
+	NoStyle = lipgloss.NewStyle()
+
 	Faint  = lipgloss.NewStyle().Faint(true)
 	Red    = lipgloss.NewStyle().Foreground(lipgloss.Red)
 	Green  = lipgloss.NewStyle().Foreground(lipgloss.Green)

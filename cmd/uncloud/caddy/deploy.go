@@ -88,12 +88,12 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		if len(currentImages) > 1 {
 			formattedImages := make([]string, len(currentImages))
 			for i, img := range currentImages {
-				formattedImages[i] = tui.FormatImage(img, lipgloss.NewStyle())
+				formattedImages[i] = tui.FormatImage(img, tui.NoStyle)
 			}
 			fmt.Println(tui.Faint.Render("current images (multiple versions detected): ") +
 				strings.Join(formattedImages, tui.Faint.Render(", ")))
 		} else {
-			fmt.Println(tui.Faint.Render("current image: ") + tui.FormatImage(currentImages[0], lipgloss.NewStyle()))
+			fmt.Println(tui.Faint.Render("current image: ") + tui.FormatImage(currentImages[0], tui.NoStyle))
 		}
 	}
 

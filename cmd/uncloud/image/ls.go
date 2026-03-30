@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/containerd/platforms"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/go-units"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -260,22 +260,7 @@ func formatImageTable(rows []imageRow) string {
 		columns[5].hide = true
 	}
 
-	t := table.New().
-		// Remove the default border.
-		Border(lipgloss.Border{}).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		BorderRight(false).
-		BorderHeader(false).
-		BorderColumn(false).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == table.HeaderRow {
-				return lipgloss.NewStyle().Bold(true).PaddingRight(3)
-			}
-			// Regular style for data rows with padding.
-			return lipgloss.NewStyle().PaddingRight(3)
-		})
+	t := tui.NewTable()
 
 	var headers []string
 	for _, col := range columns {
@@ -288,7 +273,7 @@ func formatImageTable(rows []imageRow) string {
 	for _, row := range rows {
 		values := []string{
 			row.id,
-			row.name,
+			tui.FormatImage(row.name, tui.NoStyle),
 			row.platforms,
 			row.createdHuman,
 			row.size,

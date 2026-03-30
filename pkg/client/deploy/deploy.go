@@ -114,7 +114,7 @@ func (sp *ServicePlan) Format() string {
 		if sp.IsNewService {
 			specTable.Row("", "image:", tui.FormatImage(sp.Spec.Container.Image, tui.Green))
 		} else {
-			specTable.Row("", "image:", tui.FormatImage(sp.Spec.Container.Image, lipgloss.NewStyle()))
+			specTable.Row("", "image:", tui.FormatImage(sp.Spec.Container.Image, tui.NoStyle))
 		}
 	} else {
 		mod := ""
@@ -233,7 +233,7 @@ func formatImageDiff(oldImage, newImage string) string {
 	}
 
 	if oldImage == newImage {
-		return tui.FormatImage(newImage, lipgloss.NewStyle())
+		return tui.FormatImage(newImage, tui.NoStyle)
 	}
 
 	oldRef, _ := reference.ParseDockerRef(oldImage)
