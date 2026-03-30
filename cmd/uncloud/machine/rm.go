@@ -206,7 +206,7 @@ func formatContainerTree(containers []api.ServiceContainer) string {
 		// Add containers as children.
 		for _, ctr := range ctrs {
 			state, _ := ctr.HumanState()
-			info := fmt.Sprintf("%s • %s • %s", ctr.Name, ctr.Config.Image, state)
+			info := fmt.Sprintf("%s • %s • %s", ctr.Name, tui.FormatImage(ctr.Config.Image, tui.NoStyle), state)
 			t.Child(info)
 		}
 

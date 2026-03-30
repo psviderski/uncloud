@@ -3,13 +3,12 @@ package wg
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"google.golang.org/grpc/codes"
@@ -97,10 +96,8 @@ func runShow(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 		return nil
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "PEER\tPUBLIC KEY\tENDPOINT\tHANDSHAKE\tRECEIVED\tSENT\tALLOWED IPS"); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
+	t := tui.NewTable()
+	t.Headers("PEER", "PUBLIC KEY", "ENDPOINT", "HANDSHAKE", "RECEIVED", "SENT", "ALLOWED IPS")
 
 	for _, peer := range resp.Peers {
 		machineName, ok := machinesNamesByPublicKey[wgtypes.Key(peer.PublicKey).String()]
@@ -113,20 +110,17 @@ func runShow(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 			lastHandshake = time.Since(peer.LastHandshakeTime.AsTime()).Round(time.Second).String() + " ago"
 		}
 
-		_, err = fmt.Fprintf(
-			tw,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		t.Row(
 			machineName,
 			wgtypes.Key(peer.PublicKey).String(),
 			peer.Endpoint,
 			lastHandshake,
 			units.HumanSize(float64(peer.ReceiveBytes)),
 			units.HumanSize(float64(peer.TransmitBytes)),
-			strings.Join(peer.AllowedIps, ", "),
+			strings.Join(peer.AllowedIps, tui.Faint.Render(", ")),
 		)
-		if err != nil {
-			return fmt.Errorf("write row: %w", err)
-		}
 	}
-	return tw.Flush()
+
+	fmt.Println(t)
+	return nil
 }
