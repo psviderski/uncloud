@@ -11,7 +11,7 @@ import (
 	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/cmd/uncloud/image"
-	"github.com/psviderski/uncloud/cmd/uncloud/machine"
+	cmdmachine "github.com/psviderski/uncloud/cmd/uncloud/machine"
 	"github.com/psviderski/uncloud/cmd/uncloud/service"
 	"github.com/psviderski/uncloud/cmd/uncloud/volume"
 	"github.com/psviderski/uncloud/cmd/uncloud/wg"
@@ -19,6 +19,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/internal/log"
+	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -46,24 +47,22 @@ func main() {
 
 			var conn *config.MachineConnection
 			if opts.connect != "" {
-				if strings.HasPrefix(opts.connect, "tcp://") {
-					addrPort, err := netip.ParseAddrPort(strings.TrimPrefix(opts.connect, "tcp://"))
+				if after, ok := strings.CutPrefix(opts.connect, "tcp://"); ok {
+					addrPort, err := netip.ParseAddrPort(after)
 					if err != nil {
 						return fmt.Errorf("parse TCP address: %w", err)
 					}
 					conn = &config.MachineConnection{
 						TCP: &addrPort,
 					}
-				} else if strings.HasPrefix(opts.connect, "ssh+go://") {
-					dest := strings.TrimPrefix(opts.connect, "ssh+go://")
+				} else if after, ok := strings.CutPrefix(opts.connect, "ssh+go://"); ok {
 					conn = &config.MachineConnection{
-						SSHGo: config.SSHDestination(dest),
+						SSHGo: config.SSHDestination(after),
 					}
-				} else if strings.HasPrefix(opts.connect, "ssh+cli://") {
+				} else if after, ok := strings.CutPrefix(opts.connect, "ssh+cli://"); ok {
 					// Backward-compatible alias for ssh://.
-					dest := strings.TrimPrefix(opts.connect, "ssh+cli://")
 					conn = &config.MachineConnection{
-						SSH: config.SSHDestination(dest),
+						SSH: config.SSHDestination(after),
 					}
 				} else if strings.HasPrefix(opts.connect, "unix://") {
 					conn = &config.MachineConnection{
@@ -79,6 +78,15 @@ func main() {
 			}
 
 			configPath := fs.ExpandHomeDir(opts.configPath)
+
+			if opts.connect == "" {
+				if !fs.Exists(configPath) && fs.Exists(machine.DefaultUncloudSockPath) {
+					conn = &config.MachineConnection{
+						Unix: machine.DefaultUncloudSockPath,
+					}
+				}
+			}
+
 			uncli, err := cli.New(configPath, conn, opts.context)
 			if err != nil {
 				return fmt.Errorf("initialise CLI: %w", err)
@@ -130,7 +138,7 @@ func main() {
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
 		image.NewRootCommand(),
-		machine.NewRootCommand(),
+		cmdmachine.NewRootCommand(),
 		service.NewRootCommand(),
 		service.NewExecCommand("service"),
 		service.NewInspectCommand("service"),
