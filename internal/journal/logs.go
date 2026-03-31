@@ -13,6 +13,15 @@ import (
 
 // Logs streams logs from a service and returns entries via a channel.
 func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
+	// Hard code unit check for now
+	switch unit {
+	case "uncloud":
+	case "corrosion":
+	case "docker":
+	default:
+		return nil, fmt.Errorf("journal logs: invalid unit: %s", unit)
+	}
+
 	reader, err := logs(ctx, unit, opts)
 	if err != nil {
 		return nil, err
@@ -46,10 +55,6 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 			}
 		}()
 	}
-
-	go func() {
-		<-ctx.Done()
-	}()
 
 	return outCh, nil
 }

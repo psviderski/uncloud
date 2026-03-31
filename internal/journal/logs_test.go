@@ -22,7 +22,7 @@ func TestLogs(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ch, err := Logs(ctx, "notused", api.ServiceLogsOptions{})
+	ch, err := Logs(ctx, "uncloud", api.ServiceLogsOptions{})
 	require.NoError(t, err)
 
 	i := 0
@@ -30,23 +30,20 @@ func TestLogs(t *testing.T) {
 		i++
 	}
 	assert.Equal(t, i, 6)
-}
-
-func TestLogs_Tail(t *testing.T) {
-	t.Parallel()
+	cancel()
 
 	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 		return exec.CommandContext(ctx, "/usr/bin/tail", "-f", "testdata/logs")
 	}
 
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx = context.Background()
+	ctx, cancel = context.WithCancel(ctx)
 	go func() { time.Sleep(1 * time.Second); cancel() }()
 
-	ch, err := Logs(ctx, "notused", api.ServiceLogsOptions{})
+	ch, err = Logs(ctx, "uncloud", api.ServiceLogsOptions{Tail: 3})
 	require.NoError(t, err)
 
-	i := 0
+	i = 0
 	for range ch {
 		i++
 	}

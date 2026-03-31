@@ -51,25 +51,19 @@ func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.Rea
 	return p, nil
 }
 
-// follow synchronously follows the io.Reader, writing each new journal entry to writer. The
-// follow will continue until a single time.Time is received on the until channel (or it's closed).
+// follow synchronously follows the io.Reader, writing each new journal entry to channel.
 func follow(ctx context.Context, reader io.Reader, outCh chan api.LogEntry) error {
 	scanner := bufio.NewScanner(reader)
 
-	go func() {
-		for scanner.Scan() {
-			outCh <- entry(scanner.Bytes())
-		}
-		if err := scanner.Err(); err != nil {
-			outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
-		}
-		return
-	}()
-
-	for {
+	for scanner.Scan() {
 		select {
+		case outCh <- entry(scanner.Bytes()):
 		case <-ctx.Done():
 			return nil
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
+	}
+	return nil
 }
