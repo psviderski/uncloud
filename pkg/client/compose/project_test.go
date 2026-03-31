@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -181,6 +182,94 @@ REDIS_URL=redis://localhost:6379
 				err = os.WriteFile(envFile, []byte(tt.envFile), 0o644)
 				require.NoError(t, err)
 			}
+
+			tt.verify(t, tempDir)
+		})
+	}
+}
+
+// TestLoadProject_Unsupported checks that unsupported features lead to an error.
+func TestLoadProject_Unsupported(t *testing.T) {
+	requireWarning := func(t *testing.T, r io.Reader) {
+		p := make([]byte, 15) // also room for the (color) escapes
+		io.ReadFull(r, p)
+		require.Contains(t, string(p), "WARNING:")
+	}
+
+	tests := []struct {
+		name        string
+		composeYAML string
+		verify      func(t *testing.T, projectDir string)
+	}{
+		{
+			name: "unsupported dns",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    dns: 8.8.8.8
+`,
+			verify: func(t *testing.T, projectDir string) {
+				old := os.Stderr
+				var r io.ReadCloser
+				defer func() { os.Stderr = old }()
+				r, os.Stderr, _ = os.Pipe()
+				defer r.Close()
+				defer os.Stderr.Close()
+
+				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
+				require.NoError(t, err)
+				requireWarning(t, r)
+			},
+		},
+		{
+			name: "unsupported networks",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    networks:
+      - frontend
+
+networks:
+  frontend:
+`,
+			verify: func(t *testing.T, projectDir string) {
+				old := os.Stderr
+				var r io.ReadCloser
+				defer func() { os.Stderr = old }()
+				r, os.Stderr, _ = os.Pipe()
+				defer r.Close()
+				defer os.Stderr.Close()
+
+				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
+				require.NoError(t, err)
+				requireWarning(t, r)
+			},
+		},
+		{
+			name: "supported networks",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    networks:
+      - default
+
+networks:
+  default: {}
+`,
+			verify: func(t *testing.T, projectDir string) {
+				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+
+			composeFile := filepath.Join(tempDir, "compose.yaml")
+			err := os.WriteFile(composeFile, []byte(tt.composeYAML), 0o644)
+			require.NoError(t, err)
 
 			tt.verify(t, tempDir)
 		})
