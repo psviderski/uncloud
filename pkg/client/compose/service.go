@@ -423,51 +423,52 @@ func validateServicesExtensions(project *types.Project) error {
 	return nil
 }
 
-// validateServicesFeatures checks the service for unsupported features and returns an error for this first one found.
-func validateServicesFeatures(project *types.Project) error {
+// validateServicesFeatures checks services for unsupported features and returns all found.
+func validateServicesFeatures(project *types.Project) []error {
 	err := func(service, feature string) error {
-		return fmt.Errorf("service: '%s': unsupported feature: '%s', see %s", service, feature, "https://uncloud.run/docs/compose-file-reference/support-matrix")
+		return fmt.Errorf("service '%s': unsupported feature '%s', see %s",
+			service, feature, "https://uncloud.run/docs/compose-file-reference/support-matrix")
 	}
 
+	// TODO: check other commonly used but unsupported features.
+	var errs []error
 	for _, service := range project.Services {
 		if service.SecurityOpt != nil {
-			return err(service.Name, "security_opt")
+			errs = append(errs, err(service.Name, "security_opt"))
 		}
 		if service.DNS != nil {
-			return err(service.Name, "dns")
+			errs = append(errs, err(service.Name, "dns"))
 		}
 		if service.DNSSearch != nil {
-			return err(service.Name, "dns_search")
+			errs = append(errs, err(service.Name, "dns_search"))
 		}
 		if service.Labels != nil {
-			return err(service.Name, "labels")
+			errs = append(errs, err(service.Name, "labels"))
 		}
 		if service.Links != nil {
-			return err(service.Name, "links")
+			errs = append(errs, err(service.Name, "links"))
 		}
 		if service.MemSwappiness > 0 {
-			return err(service.Name, "mem_swappiness")
+			errs = append(errs, err(service.Name, "mem_swappiness"))
 		}
 		if service.MemSwapLimit > 0 {
-			return err(service.Name, "memswap_limit")
+			errs = append(errs, err(service.Name, "memswap_limit"))
 		}
 		if service.Secrets != nil {
-			return err(service.Name, "secrets")
+			errs = append(errs, err(service.Name, "secrets"))
 		}
 		if service.StorageOpt != nil {
-			return err(service.Name, "storage_opt")
+			errs = append(errs, err(service.Name, "storage_opt"))
 		}
 		// we only allow the 'default' network, nothing else.
 		if x := service.Networks; x != nil {
 			if len(x) != 1 {
-				return err(service.Name, "networks")
-			}
-			config, ok := x["default"]
-			if !ok || config != nil {
-				return err(service.Name, "networks")
+				errs = append(errs, err(service.Name, "networks"))
+			} else if _, ok := x["default"]; !ok {
+				errs = append(errs, err(service.Name, "networks"))
 			}
 		}
 	}
 
-	return nil
+	return errs
 }

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -188,18 +189,31 @@ REDIS_URL=redis://localhost:6379
 	}
 }
 
-// TestLoadProject_Unsupported checks that unsupported features lead to an error.
+// TestLoadProject_Unsupported checks that unsupported features lead to warnings.
 func TestLoadProject_Unsupported(t *testing.T) {
-	requireWarning := func(t *testing.T, r io.Reader) {
-		p := make([]byte, 15) // also room for the (color) escapes
-		io.ReadFull(r, p)
-		require.Contains(t, string(p), "WARNING:")
+	// captureStderr runs fn while capturing stderr output and returns what was written.
+	captureStderr := func(t *testing.T, fn func()) string {
+		t.Helper()
+		old := os.Stderr
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stderr = w
+		defer func() { os.Stderr = old }()
+
+		fn()
+
+		w.Close()
+		out, err := io.ReadAll(r)
+		require.NoError(t, err)
+		r.Close()
+		return string(out)
 	}
 
 	tests := []struct {
-		name        string
-		composeYAML string
-		verify      func(t *testing.T, projectDir string)
+		name         string
+		composeYAML  string
+		warnCount    int
+		warnContains []string
 	}{
 		{
 			name: "unsupported dns",
@@ -208,18 +222,8 @@ func TestLoadProject_Unsupported(t *testing.T) {
     image: myapp:latest
     dns: 8.8.8.8
 `,
-			verify: func(t *testing.T, projectDir string) {
-				old := os.Stderr
-				var r io.ReadCloser
-				defer func() { os.Stderr = old }()
-				r, os.Stderr, _ = os.Pipe()
-				defer r.Close()
-				defer os.Stderr.Close()
-
-				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
-				require.NoError(t, err)
-				requireWarning(t, r)
-			},
+			warnCount:    1,
+			warnContains: []string{"dns"},
 		},
 		{
 			name: "unsupported networks",
@@ -232,18 +236,28 @@ func TestLoadProject_Unsupported(t *testing.T) {
 networks:
   frontend:
 `,
-			verify: func(t *testing.T, projectDir string) {
-				old := os.Stderr
-				var r io.ReadCloser
-				defer func() { os.Stderr = old }()
-				r, os.Stderr, _ = os.Pipe()
-				defer r.Close()
-				defer os.Stderr.Close()
+			warnCount:    1,
+			warnContains: []string{"networks"},
+		},
+		{
+			name: "multiple unsupported features",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    dns: 8.8.8.8
+    links:
+      - db
+  db:
+    image: postgres:latest
+    secrets:
+      - db_password
 
-				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
-				require.NoError(t, err)
-				requireWarning(t, r)
-			},
+secrets:
+  db_password:
+    file: ./secret.txt
+`,
+			warnCount:    3,
+			warnContains: []string{"dns", "links", "secrets"},
 		},
 		{
 			name: "supported networks",
@@ -251,27 +265,36 @@ networks:
   app:
     image: myapp:latest
     networks:
+      default: {}
+
+  web:
+    image: nginx
+    networks:
       - default
 
 networks:
-  default: {}
+  default:
 `,
-			verify: func(t *testing.T, projectDir string) {
-				_, err := LoadProject(context.Background(), []string{filepath.Join(projectDir, "compose.yaml")})
-				require.NoError(t, err)
-			},
+			warnCount: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tempDir := t.TempDir()
+			stderr := captureStderr(t, func() {
+				_, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+				require.NoError(t, err)
+			})
 
-			composeFile := filepath.Join(tempDir, "compose.yaml")
-			err := os.WriteFile(composeFile, []byte(tt.composeYAML), 0o644)
-			require.NoError(t, err)
-
-			tt.verify(t, tempDir)
+			if tt.warnCount == 0 {
+				assert.Empty(t, stderr)
+			} else {
+				assert.Equal(t, tt.warnCount, strings.Count(stderr, "WARNING:"),
+					"expected %d warnings, got stderr: %s", tt.warnCount, stderr)
+				for _, substr := range tt.warnContains {
+					assert.Contains(t, stderr, substr)
+				}
+			}
 		})
 	}
 }

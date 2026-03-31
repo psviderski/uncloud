@@ -67,7 +67,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, err
 	}
 
-	if err = validateServicesFeatures(project); err != nil {
+	for _, err = range validateServicesFeatures(project) {
 		tui.PrintWarning(err.Error())
 	}
 
