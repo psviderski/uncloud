@@ -61,11 +61,9 @@ func follow(ctx context.Context, reader io.Reader, outCh chan api.LogEntry) erro
 			outCh <- entry(scanner.Bytes())
 		}
 		if err := scanner.Err(); err != nil {
-			if err := scanner.Err(); err != nil {
-				outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
-			}
-			return
+			outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
 		}
+		return
 	}()
 
 	for {
