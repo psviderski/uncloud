@@ -55,7 +55,7 @@ type ServiceSpec struct {
 	// Caddy is the optional Caddy reverse proxy configuration for the service.
 	// Caddy and Ports cannot be specified simultaneously.
 	Caddy *CaddySpec `json:",omitempty"`
-	// Configs is list of configuration objects that can be mounted into the container.
+	// Configs is a list of configuration objects that can be mounted into the container.
 	Configs []ConfigSpec
 	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
@@ -67,6 +67,9 @@ type ServiceSpec struct {
 	// Ports defines what service ports to publish to make the service accessible outside the cluster.
 	// Caddy and Ports cannot be specified simultaneously.
 	Ports []PortSpec
+	// PreDeploy is an optional hook that runs a command in a temporary container before deploying the service.
+	// The container uses the service's image and inherits its configuration.
+	PreDeploy *PreDeployHook `json:",omitempty"`
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
 	// UpdateConfig configures how the service is updated during a deployment.
@@ -205,6 +208,12 @@ func (s *ServiceSpec) Validate() error {
 		return fmt.Errorf("validate service configs and mounts: %w", err)
 	}
 
+	if s.PreDeploy != nil {
+		if err := s.PreDeploy.Validate(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -216,6 +225,7 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 		spec.Caddy = &caddyCopy
 	}
 	spec.Container = s.Container.Clone()
+	spec.PreDeploy = s.PreDeploy.Clone()
 
 	if s.Ports != nil {
 		spec.Ports = make([]PortSpec, len(s.Ports))
@@ -434,6 +444,46 @@ type LogDriver struct {
 	Name string
 	// Options is the configuration options to pass to the logging driver.
 	Options map[string]string
+}
+
+// PreDeployHook defines a command to run in a temporary container before deploying the service.
+// The container uses the service's image and inherits its configuration (env, volumes, placement).
+// It must exit successfully (code 0) for the deployment to proceed.
+type PreDeployHook struct {
+	// Command to execute in the container.
+	Command []string
+	// Env defines additional environment variables for the container, merged with the service's environment variables.
+	Env EnvVars `json:",omitempty"`
+	// Privileged gives extended privileges to the container.
+	Privileged bool `json:",omitempty"`
+	// Timeout is the maximum duration to wait for the command to complete. On timeout, the container is stopped
+	// and the deployment fails. If nil, a default timeout is used.
+	Timeout *time.Duration `json:",omitempty"`
+	// User to run the command as. If empty, the service user is used. Format: user|UID[:group|GID].
+	User string `json:",omitempty"`
+}
+
+func (h *PreDeployHook) Validate() error {
+	if len(h.Command) == 0 {
+		return fmt.Errorf("pre-deploy hook command is required")
+	}
+	return nil
+}
+
+func (h *PreDeployHook) Clone() *PreDeployHook {
+	if h == nil {
+		return nil
+	}
+
+	hook := *h
+	hook.Command = slices.Clone(h.Command)
+	hook.Env = maps.Clone(h.Env)
+
+	return &hook
+}
+
+func (h *PreDeployHook) Equals(other *PreDeployHook) bool {
+	return cmp.Equal(h, other, cmpopts.EquateEmpty())
 }
 
 // UpdateConfig configures how a service is updated during a deployment.
