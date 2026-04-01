@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -61,9 +63,7 @@ func TestExtractVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := extractVersion(tt.md, tt.key)
-			if got.String() != tt.expected {
-				t.Errorf("extractVersion() = %v, want %v", got, tt.expected)
-			}
+			assert.Equal(t, tt.expected, got.String())
 		})
 	}
 }
@@ -122,25 +122,14 @@ func TestCheckClientVersionHeaders(t *testing.T) {
 			err := checkClientVersionHeaders(ctx)
 
 			if tt.wantErr {
-				if err == nil {
-					t.Error("checkClientVersionHeaders() expected error, got nil")
-					return
-				}
+				require.Error(t, err)
 				st, ok := status.FromError(err)
-				if !ok {
-					t.Errorf("expected gRPC status error, got %T", err)
-					return
-				}
-				if st.Code() != tt.errCode {
-					t.Errorf("error code = %v, want %v", st.Code(), tt.errCode)
-				}
-				if !strings.Contains(st.Message(), tt.errContain) {
-					t.Errorf("error message = %q, want to contain %q", st.Message(), tt.errContain)
-				}
+				require.True(t, ok, "expected gRPC status error, got %T", err)
+				assert.Equal(t, tt.errCode, st.Code())
+				assert.True(t, strings.Contains(st.Message(), tt.errContain),
+					"error message = %q, want to contain %q", st.Message(), tt.errContain)
 			} else {
-				if err != nil {
-					t.Errorf("checkClientVersionHeaders() unexpected error: %v", err)
-				}
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -184,13 +173,9 @@ func TestCheckDaemonVersionInResponse(t *testing.T) {
 			output := buf.String()
 
 			if tt.wantWarning {
-				if !strings.Contains(output, "WARNING") {
-					t.Error("expected warning output, got none")
-				}
+				assert.True(t, strings.Contains(output, "WARNING"), "expected warning output, got none")
 			} else {
-				if output != "" {
-					t.Errorf("unexpected warning output: %q", output)
-				}
+				assert.Equal(t, "", output)
 			}
 		})
 	}
@@ -214,9 +199,7 @@ func TestCheckDaemonVersionInResponse_WarnOnce(t *testing.T) {
 	io.Copy(&buf, r)
 	os.Stderr = old
 
-	if !strings.Contains(buf.String(), "WARNING") {
-		t.Error("first call should warn")
-	}
+	assert.True(t, strings.Contains(buf.String(), "WARNING"), "first call should warn")
 
 	// Second call - should NOT warn (warned flag is now true)
 	r2, w2, _ := os.Pipe()
@@ -229,7 +212,5 @@ func TestCheckDaemonVersionInResponse_WarnOnce(t *testing.T) {
 	io.Copy(&buf2, r2)
 	os.Stderr = old
 
-	if buf2.String() != "" {
-		t.Errorf("second call should not warn, got: %q", buf2.String())
-	}
+	assert.Equal(t, "", buf2.String(), "second call should not warn")
 }
