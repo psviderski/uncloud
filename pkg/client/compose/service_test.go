@@ -205,6 +205,9 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							Mode:          api.PortModeHost,
 						},
 					},
+					Registry: api.RegistrySpec{
+						"registry.science.ru.nl": {Username: "example", Password: "pass"},
+					},
 					Placement: api.Placement{
 						Machines: []string{"machine-1", "machine-2"},
 					},

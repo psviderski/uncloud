@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -11,6 +12,7 @@ import (
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/distribution/reference"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -59,6 +61,8 @@ type ServiceSpec struct {
 	Configs []ConfigSpec
 	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
+	// Registry defines credentials for connecting to (private) registries.
+	Registry RegistrySpec
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
 	Mode string
 	Name string
@@ -611,4 +615,34 @@ func machineContainerFromProto(sc *pb.Service_Container) (MachineServiceContaine
 		MachineID: sc.MachineId,
 		Container: ServiceContainer{Container: c},
 	}, nil
+}
+
+// Credential holds the actual credentials.
+type Credential struct {
+	Username string
+	Password string
+}
+
+// registryAuth returns the credentials as a base64 encoded string for use in the docker PullOptions.
+func (c Credential) registryAuth() string {
+	authConfig := registry.AuthConfig{
+		Username: c.Username,
+		Password: c.Password,
+	}
+	encodedJSON, _ := json.Marshal(authConfig)
+	return base64.URLEncoding.EncodeToString(encodedJSON)
+}
+
+// RegistrySpec holds the credentials to connect to private registries.
+type RegistrySpec map[string]Credential
+
+// RegistryAuth checks the credentials in r and returns the authentication if an image uses a private
+// registry.
+func (r RegistrySpec) RegistryAuth(image string) string {
+	for registry, c := range r {
+		if strings.HasPrefix(image, registry) {
+			return c.registryAuth()
+		}
+	}
+	return ""
 }

@@ -85,6 +85,10 @@ services:
       privileged: false
       timeout: 2m30s
       user: root
+    x-registry:
+      registry.science.ru.nl:
+        username: example
+        password: pass
 
   test-caddy-config:
     image: myapp:1.2.3

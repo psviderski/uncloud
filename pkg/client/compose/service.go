@@ -77,6 +77,15 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	if machines, ok := service.Extensions[MachinesExtensionKey].(MachinesSource); ok {
 		spec.Placement.Machines = machines
 	}
+	if registry, ok := service.Extensions[RegistryExtensionKey].(RegistrySource); ok {
+		spec.Registry = make(api.RegistrySpec, len(registry))
+		for r, cred := range registry {
+			spec.Registry[r] = api.Credential{
+				Username: cred.Username,
+				Password: cred.Password,
+			}
+		}
+	}
 
 	// Map LogDriver if specified
 	if service.Logging != nil && service.Logging.Driver != "" {
