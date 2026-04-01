@@ -1,4 +1,4 @@
-`# CLI configuration file
+# CLI configuration file
 
 The [`uc`](./2-getting-started/1-install-cli.md) CLI stores **cluster connection details** in a YAML configuration file.
 Every time you run a command like `uc ls` or `uc deploy`, it reads this file to figure out which cluster to connect to
