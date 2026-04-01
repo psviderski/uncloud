@@ -18,6 +18,17 @@ const (
 	MetadataKeyMinDaemonVersion = "uncloud-min-server-version"
 	MetadataKeyDaemonVersion    = "uncloud-server-version"
 
+	// MinCLIVersion is the minimum client version the daemon accepts. The daemon
+	// rejects requests from older clients, forcing them to upgrade. This provides
+	// a clean cut-off for dropping support for old clients.
+	//
+	// MinDaemonVersion is the minimum daemon version the client requires. The client
+	// sends this with each request so the daemon can immediately reject if it's too old,
+	// avoiding the need for a preflight request. This is useful when a new client feature
+	// requires daemon capabilities that didn't exist in older versions.
+	//
+	// The two minimums are independent: a client might require a newer daemon for new
+	// features, while that same daemon could still handle requests from older clients.
 	MinCLIVersion    = "0.0.0"
 	MinDaemonVersion = "0.0.0"
 
@@ -34,6 +45,7 @@ var (
 	minDaemonVersion = semver.MustParse(MinDaemonVersion)
 
 	// warned tracks if we've already printed the daemon version warning
+	// TODO: remove when checkDaemonVersionInResponse is no longer needed (see below)
 	warned bool
 )
 
