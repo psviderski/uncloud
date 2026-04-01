@@ -60,10 +60,3 @@ type VolumeClient interface {
 	ListVolumes(ctx context.Context, filter *VolumeFilter) ([]MachineVolume, error)
 	RemoveVolume(ctx context.Context, machineNameOrID, volumeName string, force bool) error
 }
-
-// AsPtr returns a pointer to the given value. Useful for optional fields in API structs.
-//
-//go:fix inline
-func AsPtr[T any](v T) *T {
-	return new(v)
-}

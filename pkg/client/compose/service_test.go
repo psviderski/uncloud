@@ -968,7 +968,7 @@ services:
         monitor: 10s
 `,
 			expected: api.UpdateConfig{
-				MonitorPeriod: api.AsPtr(10 * time.Second),
+				MonitorPeriod: new(10 * time.Second),
 			},
 		},
 		{
@@ -984,7 +984,7 @@ services:
 `,
 			expected: api.UpdateConfig{
 				Order:         api.UpdateOrderStartFirst,
-				MonitorPeriod: api.AsPtr(30 * time.Second),
+				MonitorPeriod: new(30 * time.Second),
 			},
 		},
 		{
@@ -998,7 +998,7 @@ services:
         monitor: 0s
 `,
 			expected: api.UpdateConfig{
-				MonitorPeriod: api.AsPtr(time.Duration(0)),
+				MonitorPeriod: new(time.Duration(0)),
 			},
 		},
 	}
