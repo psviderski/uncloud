@@ -131,7 +131,7 @@ services:
 :::info important
 
 If a health check fails after the deployment, Uncloud automatically removes the unhealthy container from the
-[Caddy](../../3-concepts/1-ingress/1-overview.md) configuration to prevent routing traffic to that container. But it
+[Caddy](../../3-concepts/2-ingress/1-overview.md) configuration to prevent routing traffic to that container. But it
 doesn't automatically restart or roll it back.
 
 Uncloud automatically adds it back to Caddy when it recovers and becomes healthy again. You can inspect the health

@@ -134,7 +134,7 @@ services:
       - 8080:80/tcp@host
 ```
 
-See [Publishing services](../3-concepts/1-ingress/2-publishing-services.md) for more details.
+See [Publishing services](../3-concepts/2-ingress/2-publishing-services.md) for more details.
 
 ### `x-caddy`
 
@@ -150,7 +150,7 @@ services:
       }
 ```
 
-See [Publishing services](../3-concepts/1-ingress/2-publishing-services.md) for more details.
+See [Publishing services](../3-concepts/2-ingress/2-publishing-services.md) for more details.
 
 ### `x-machines`
 
