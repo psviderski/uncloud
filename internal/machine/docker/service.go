@@ -155,18 +155,9 @@ func (s *Service) ListImages(ctx context.Context, opts image.ListOptions) (Image
 	return imagesResp, nil
 }
 
-// ContainerLogsOptions specifies parameters for ContainerLogs.
-type ContainerLogsOptions struct {
-	ContainerID string
-	Follow      bool
-	Tail        int
-	Since       string
-	Until       string
-}
-
 // ContainerLogs streams logs from a container and returns demultiplexed entries via a channel.
 // The channel is closed when streaming completes or context is cancelled.
-func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) (<-chan api.ContainerLogEntry, error) {
+func (s *Service) ContainerLogs(ctx context.Context, containerID string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
 	dockerOpts := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -177,12 +168,12 @@ func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) 
 		Timestamps: true,
 	}
 
-	reader, err := s.Client.ContainerLogs(ctx, opts.ContainerID, dockerOpts)
+	reader, err := s.Client.ContainerLogs(ctx, containerID, dockerOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	outCh := make(chan api.ContainerLogEntry)
+	outCh := make(chan api.LogEntry)
 	stdoutWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: false}
 	stderrWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: true}
 
@@ -198,7 +189,7 @@ func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) 
 		if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader); err != nil {
 			// Send error as the last entry.
 			select {
-			case outCh <- api.ContainerLogEntry{Err: fmt.Errorf("demultiplex container logs: %w", err)}:
+			case outCh <- api.LogEntry{Err: fmt.Errorf("demultiplex container logs: %w", err)}:
 			case <-ctx.Done():
 			}
 		}
@@ -216,7 +207,7 @@ func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) 
 // logsChannelWriter is a writer for stdcopy.StdCopy that sends demultiplexed container logs to a channel.
 type logsChannelWriter struct {
 	ctx      context.Context
-	ch       chan<- api.ContainerLogEntry
+	ch       chan<- api.LogEntry
 	isStderr bool
 }
 
@@ -236,7 +227,7 @@ func (w *logsChannelWriter) Write(data []byte) (n int, err error) {
 		}
 	}
 
-	entry := api.ContainerLogEntry{
+	entry := api.LogEntry{
 		Timestamp: timestamp,
 		// Clone is required because message is a slice into data, which stdcopy.StdCopy may reuse
 		// after Write returns but before the entry is consumed from the channel.

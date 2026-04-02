@@ -1078,20 +1078,19 @@ const logsHeartbeatInterval = 200 * time.Millisecond
 
 // ContainerLogs streams logs from a container.
 func (s *Server) ContainerLogs(
-	req *pb.ContainerLogsRequest, stream grpc.ServerStreamingServer[pb.ContainerLogEntry],
+	req *pb.LogsRequest, stream grpc.ServerStreamingServer[pb.LogEntry],
 ) error {
 	// Stream context is cancelled when the client has disconnected or the stream has ended.
 	ctx := stream.Context()
 
-	opts := ContainerLogsOptions{
-		ContainerID: req.ContainerId,
-		Follow:      req.Follow,
-		Tail:        int(req.Tail),
-		Since:       req.Since,
-		Until:       req.Until,
+	opts := api.ServiceLogsOptions{
+		Follow: req.Follow,
+		Tail:   int(req.Tail),
+		Since:  req.Since,
+		Until:  req.Until,
 	}
 
-	logsCh, err := s.service.ContainerLogs(ctx, opts)
+	logsCh, err := s.service.ContainerLogs(ctx, req.Id, opts)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return status.Error(codes.NotFound, err.Error())
@@ -1099,7 +1098,7 @@ func (s *Server) ContainerLogs(
 		return status.Errorf(codes.Internal, "get container logs: %v", err)
 	}
 
-	log := slog.With("container_id", req.ContainerId, "stream_id", fmt.Sprintf("%p", stream)[2:])
+	log := slog.With("container_id", req.Id, "stream_id", fmt.Sprintf("%p", stream)[2:])
 	log.Debug("Starting container logs streaming.",
 		"follow", req.Follow, "tail", req.Tail, "since", req.Since, "until", req.Until)
 
@@ -1127,7 +1126,7 @@ func (s *Server) ContainerLogs(
 				return status.Error(codes.Internal, entry.Err.Error())
 			}
 
-			pbEntry := &pb.ContainerLogEntry{
+			pbEntry := &pb.LogEntry{
 				Stream:    api.LogStreamTypeToProto(entry.Stream),
 				Timestamp: timestamppb.New(entry.Timestamp),
 				Message:   entry.Message,
@@ -1148,8 +1147,8 @@ func (s *Server) ContainerLogs(
 			// Use the timestamp one heartbeat in the past to be conservative. This reduces the chance of sending
 			// a timestamp that is greater than a log entry currently being parsed but not yet sent, which would
 			// cause the client to incorrectly believe it has received all logs up to that point.
-			heartbeat := &pb.ContainerLogEntry{
-				Stream:    pb.ContainerLogEntry_HEARTBEAT,
+			heartbeat := &pb.LogEntry{
+				Stream:    pb.LogEntry_HEARTBEAT,
 				Timestamp: timestamppb.New(now.Add(-logsHeartbeatInterval)),
 			}
 			if err = stream.Send(heartbeat); err != nil {
