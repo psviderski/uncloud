@@ -228,6 +228,15 @@ message CreateServiceContainerRequest {
   // JSON serialised api.ServiceSpec.
   bytes service_spec = 2;
   string container_name = 3;
+
+  // ContainerType specifies the purpose of the container being created.
+  enum ContainerType {
+    // SERVICE is the default type for long-running service containers.
+    SERVICE = 0;
+    // PRE_DEPLOY is a one-shot container for a pre-deploy hook to run before service deployment.
+    PRE_DEPLOY = 1;
+  }
+  ContainerType container_type = 4;
 }
 
 message ServiceContainer {
@@ -252,4 +261,6 @@ message ListServiceContainersResponse {
 message MachineServiceContainers {
   Metadata metadata = 1;
   repeated ServiceContainer containers = 2;
+  // One-shot containers for deployment hooks (e.g. pre-deploy).
+  repeated ServiceContainer hook_containers = 3;
 }

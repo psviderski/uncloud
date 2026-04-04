@@ -7,14 +7,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containerd/errdefs"
+	"encoding/json"
+
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/psviderski/uncloud/internal/docker"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -24,6 +27,27 @@ import (
 // CreateContainer creates a new container for the given service on the specified machine.
 func (cli *Client) CreateContainer(
 	ctx context.Context, serviceID string, spec api.ServiceSpec, machineID string,
+) (container.CreateResponse, error) {
+	return cli.createServiceContainerWithPull(ctx, serviceID, spec, machineID, pb.CreateServiceContainerRequest_SERVICE)
+}
+
+// CreatePreDeployHookContainer creates a one-shot container for a pre-deploy hook for the given service
+// on the specified machine.
+func (cli *Client) CreatePreDeployHookContainer(
+	ctx context.Context, serviceID string, spec api.ServiceSpec, machineID string,
+) (container.CreateResponse, error) {
+	return cli.createServiceContainerWithPull(
+		ctx, serviceID, spec, machineID, pb.CreateServiceContainerRequest_PRE_DEPLOY)
+}
+
+// createServiceContainerWithPull creates a regular or deployment hook container for the service
+// on the specified machine, pulling the image if needed.
+func (cli *Client) createServiceContainerWithPull(
+	ctx context.Context,
+	serviceID string,
+	spec api.ServiceSpec,
+	machineID string,
+	containerType pb.CreateServiceContainerRequest_ContainerType,
 ) (container.CreateResponse, error) {
 	var resp container.CreateResponse
 
@@ -43,6 +67,9 @@ func (cli *Client) CreateContainer(
 		return resp, fmt.Errorf("generate random suffix: %w", err)
 	}
 	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
+	if containerType == pb.CreateServiceContainerRequest_PRE_DEPLOY {
+		containerName = fmt.Sprintf("%s-%s-%s", spec.Name, api.LabelHookPreDeploy, suffix)
+	}
 
 	// Proxy Docker gRPC requests to the selected machine.
 	ctx = proxyToMachine(ctx, machine.Machine)
@@ -57,7 +84,18 @@ func (cli *Client) CreateContainer(
 		}
 	}
 
-	resp, err = cli.Docker.CreateServiceContainer(ctx, serviceID, spec, containerName)
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return resp, fmt.Errorf("marshal service spec: %w", err)
+	}
+	req := &pb.CreateServiceContainerRequest{
+		ServiceId:     serviceID,
+		ServiceSpec:   specBytes,
+		ContainerName: containerName,
+		ContainerType: containerType,
+	}
+
+	grpcResp, err := cli.Docker.GRPCClient.CreateServiceContainer(ctx, req)
 	if err != nil {
 		switch spec.Container.PullPolicy {
 		case api.PullPolicyAlways, api.PullPolicyNever:
@@ -68,7 +106,7 @@ func (cli *Client) CreateContainer(
 		}
 
 		// NotFound (No such image) error is expected if the image is missing.
-		if !errdefs.IsNotFound(err) || !strings.Contains(err.Error(), "No such image") {
+		if status.Code(err) != codes.NotFound || !strings.Contains(err.Error(), "No such image") {
 			return resp, err
 		}
 
@@ -76,9 +114,13 @@ func (cli *Client) CreateContainer(
 		if err = cli.pullImageWithProgress(ctx, spec.Container.Image, machine.Machine.Name, eventID); err != nil {
 			return resp, err
 		}
-		if resp, err = cli.Docker.CreateServiceContainer(ctx, serviceID, spec, containerName); err != nil {
+		if grpcResp, err = cli.Docker.GRPCClient.CreateServiceContainer(ctx, req); err != nil {
 			return resp, err
 		}
+	}
+
+	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
+		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
 	}
 	pw.Event(progress.CreatedEvent(eventID))
 

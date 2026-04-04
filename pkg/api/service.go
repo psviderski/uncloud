@@ -454,8 +454,8 @@ type PreDeployHook struct {
 	Command []string
 	// Env defines additional environment variables for the container, merged with the service's environment variables.
 	Env EnvVars `json:",omitempty"`
-	// Privileged gives extended privileges to the container.
-	Privileged bool `json:",omitempty"`
+	// Privileged overrides the container's privileged mode. nil means inherit from the service.
+	Privileged *bool `json:",omitempty"`
 	// Timeout is the maximum duration to wait for the command to complete. On timeout, the container is stopped
 	// and the deployment fails. If nil, a default timeout is used.
 	Timeout *time.Duration `json:",omitempty"`
@@ -505,10 +505,13 @@ type RunServiceResponse struct {
 }
 
 type Service struct {
-	ID         string
-	Name       string
-	Mode       string
+	ID   string
+	Name string
+	Mode string
+	// Containers is the regular long-running service containers.
 	Containers []MachineServiceContainer
+	// HookContainers are one-shot containers for deployment hooks (e.g. pre-deploy).
+	HookContainers []MachineServiceContainer
 }
 
 type MachineServiceContainer struct {

@@ -664,6 +664,39 @@ func (s *Server) CreateServiceContainer(
 		}
 	}
 
+	// Strip the container configuration that doesn't make sense for the pre-deploy hook and apply its overrides.
+	if spec.PreDeploy != nil && req.ContainerType == pb.CreateServiceContainerRequest_PRE_DEPLOY {
+		config.Labels = map[string]string{
+			api.LabelServiceID:   req.ServiceId,
+			api.LabelServiceName: spec.Name,
+			api.LabelHook:        api.LabelHookPreDeploy,
+			api.LabelManaged:     "",
+		}
+		config.Healthcheck = &container.HealthConfig{
+			Test: []string{"NONE"},
+		}
+		hostConfig.PortBindings = nil
+		hostConfig.RestartPolicy = container.RestartPolicy{
+			Name: container.RestartPolicyDisabled,
+		}
+
+		// Apply the pre-deploy hook overrides.
+		config.Cmd = spec.PreDeploy.Command
+
+		for k, v := range spec.PreDeploy.Env {
+			envVars[k] = v
+		}
+		envVars["UNCLOUD_HOOK_PRE_DEPLOY"] = "true"
+		config.Env = envVars.ToSlice()
+
+		if spec.PreDeploy.Privileged != nil {
+			hostConfig.Privileged = *spec.PreDeploy.Privileged
+		}
+		if spec.PreDeploy.User != "" {
+			config.User = spec.PreDeploy.User
+		}
+	}
+
 	networkConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			NetworkName: {},
@@ -1009,37 +1042,49 @@ func (s *Server) ListServiceContainers(
 		}
 	}
 
-	containers, err := s.service.ListServiceContainers(ctx, req.ServiceId, opts)
+	result, err := s.service.ListServiceContainers(ctx, req.ServiceId, opts)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	// Convert to protobuf format.
+	pbContainers, err := serviceContainersToProto(result.Containers)
+	if err != nil {
+		return nil, err
+	}
+	pbHookContainers, err := serviceContainersToProto(result.HookContainers)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.ListServiceContainersResponse{
+		Messages: []*pb.MachineServiceContainers{
+			{
+				Containers:     pbContainers,
+				HookContainers: pbHookContainers,
+			},
+		},
+	}, nil
+}
+
+// serviceContainersToProto converts a slice of service containers to protobuf format.
+func serviceContainersToProto(containers []api.ServiceContainer) ([]*pb.ServiceContainer, error) {
 	pbContainers := make([]*pb.ServiceContainer, 0, len(containers))
 	for _, ctr := range containers {
 		ctrBytes, err := json.Marshal(ctr.Container)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "marshal container: %v", err)
 		}
-
 		specBytes, err := json.Marshal(ctr.ServiceSpec)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "marshal service spec: %v", err)
 		}
-
 		pbContainers = append(pbContainers, &pb.ServiceContainer{
 			Container:   ctrBytes,
 			ServiceSpec: specBytes,
 		})
 	}
 
-	return &pb.ListServiceContainersResponse{
-		Messages: []*pb.MachineServiceContainers{
-			{
-				Containers: pbContainers,
-			},
-		},
-	}, nil
+	return pbContainers, nil
 }
 
 // RemoveServiceContainer stops (kills after grace period) and removes a service container with the given ID.

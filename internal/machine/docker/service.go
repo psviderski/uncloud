@@ -74,11 +74,20 @@ func (s *Service) InspectServiceContainer(ctx context.Context, nameOrID string) 
 	return serviceCtr, nil
 }
 
+// ListServiceContainersResult holds the result of listing service containers, split into regular
+// service containers and one-off hook containers.
+type ListServiceContainersResult struct {
+	Containers     []api.ServiceContainer
+	HookContainers []api.ServiceContainer
+}
+
 // ListServiceContainers lists Docker containers that belong to the service with the given name or ID.
 // If serviceIDOrName is empty, all service containers are returned. The opts parameter allows additional filtering.
 func (s *Service) ListServiceContainers(
 	ctx context.Context, serviceNameOrID string, opts container.ListOptions,
-) ([]api.ServiceContainer, error) {
+) (ListServiceContainersResult, error) {
+	var result ListServiceContainersResult
+
 	if opts.Filters.Len() == 0 {
 		opts.Filters = filters.NewArgs()
 	}
@@ -88,10 +97,9 @@ func (s *Service) ListServiceContainers(
 
 	containerSummaries, err := s.Client.ContainerList(ctx, opts)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
-	var containers []api.ServiceContainer
 	for _, cs := range containerSummaries {
 		// Filter by service name or ID if provided.
 		if serviceNameOrID != "" &&
@@ -106,10 +114,15 @@ func (s *Service) ListServiceContainers(
 			slog.Error("Failed to inspect service container.", "service", serviceNameOrID, "id", cs.ID, "err", err)
 			continue
 		}
-		containers = append(containers, ctr)
+
+		if ctr.IsHook() {
+			result.HookContainers = append(result.HookContainers, ctr)
+		} else {
+			result.Containers = append(result.Containers, ctr)
+		}
 	}
 
-	return containers, nil
+	return result, nil
 }
 
 // IsContainerdImageStoreEnabled checks if Docker is configured to use the containerd image store:
