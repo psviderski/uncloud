@@ -13,6 +13,10 @@ import (
 
 const docsDir = "website/docs/9-cli-reference"
 
+type docOptions struct {
+	manual bool
+}
+
 type cmdWrapper struct {
 	cmd *cobra.Command
 }
@@ -20,6 +24,7 @@ type cmdWrapper struct {
 // NewDocsCommand creates a new hidden command to generate CLI reference docs.
 func NewDocsCommand() *cobra.Command {
 	wrapper := &cmdWrapper{}
+	opts := docOptions{}
 	cmd := &cobra.Command{
 		Use:                   "docs",
 		Short:                 "Generate Uncloud CLI reference docs",
@@ -29,6 +34,28 @@ func NewDocsCommand() *cobra.Command {
 		Args:                  cobra.NoArgs,
 		ValidArgsFunction:     cobra.NoFileCompletions,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if opts.manual {
+				header := &doc.GenManHeader{
+					Title:   "Uncloud",
+					Section: "1",
+					Source:  "Uncloud https://uncloud.run",
+				}
+				if err := doc.GenManTree(cmd.Root(), header, "."); err != nil {
+					return fmt.Errorf("generate CLI manual pages: %w", err)
+				}
+				completionFiles, err := filepath.Glob("uc-completion*.1")
+				if err != nil {
+					return fmt.Errorf("list generated manual pages: %w", err)
+				}
+				for _, f := range completionFiles {
+					if err = os.Remove(f); err != nil {
+						return fmt.Errorf("remove '%s': %w", f, err)
+					}
+				}
+
+				return nil
+			}
+
 			// Remove existing markdown files.
 			mdFiles, err := filepath.Glob(filepath.Join(docsDir, "*.md"))
 			if err != nil {
@@ -72,6 +99,8 @@ func NewDocsCommand() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&opts.manual, "manual", false,
+		"Generate Uncloud manual pages in the current directory.")
 
 	wrapper.cmd = cmd
 	return cmd
