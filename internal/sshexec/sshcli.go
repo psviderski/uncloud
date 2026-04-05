@@ -33,6 +33,7 @@ func NewSSHCLIRemote(user, host string, port int, keyPath string) *SSHCLIRemote 
 func (r *SSHCLIRemote) newSSHCommand(ctx context.Context, cmd string) *exec.Cmd {
 	args := []string{
 		"-o", "ConnectTimeout=5",
+		"-o", "StrictHostKeyChecking=no",
 		// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
 		"-T",
 	}
