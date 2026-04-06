@@ -12,6 +12,7 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/jsonmessage"
+	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
@@ -66,16 +67,18 @@ func (cli *Client) createServiceContainerWithPull(
 	if err != nil {
 		return resp, fmt.Errorf("generate random suffix: %w", err)
 	}
+
 	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
+	eventID := fmt.Sprintf("Container %s on %s", containerName, machine.Machine.Name)
 	if containerType == pb.CreateServiceContainerRequest_PRE_DEPLOY {
 		containerName = fmt.Sprintf("%s-%s-%s", spec.Name, api.LabelHookPreDeploy, suffix)
+		eventID = cliprogress.PreDeployHookEventID(spec.Name, machine.Machine.Name)
 	}
 
 	// Proxy Docker gRPC requests to the selected machine.
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", containerName, machine.Machine.Name)
 	pw.Event(progress.CreatingEvent(eventID))
 
 	if spec.Container.PullPolicy == api.PullPolicyAlways {

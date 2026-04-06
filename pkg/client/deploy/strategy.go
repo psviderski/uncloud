@@ -199,6 +199,10 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		}
 	}
 
+	if ops := s.preDeployOperations(svc, plan); len(ops) > 0 {
+		plan.Operations = append(ops, plan.Operations...)
+	}
+
 	return plan, nil
 }
 
@@ -265,6 +269,10 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Se
 		}
 	}
 
+	if ops := s.preDeployOperations(svc, plan); len(ops) > 0 {
+		plan.Operations = append(ops, plan.Operations...)
+	}
+
 	return plan, nil
 }
 
@@ -324,6 +332,7 @@ func reconcileGlobalContainer(
 			break
 		}
 		// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
+		//  Make sure to update preDeployOperation accordingly.
 	}
 	if upToDate {
 		return ops, nil
@@ -433,6 +442,64 @@ func determineUpdateOrder(oldContainer api.ServiceContainer, spec api.ServiceSpe
 
 	// Default: start-first for minimal downtime
 	return api.UpdateOrderStartFirst
+}
+
+// preDeployOperations returns operations for the pre-deploy hook if the spec has one and the plan updates the service.
+// It prepends StopPreDeployOperations for any running hook containers, followed by a RunPreDeployOperation on the same
+// machine as the first run/replace operation.
+func (s *RollingStrategy) preDeployOperations(svc *api.Service, plan ServicePlan) []operation.Operation {
+	if plan.Spec.PreDeploy == nil {
+		return nil
+	}
+
+	// Find the first run or replace operation to determine the target machine.
+	var machineID, machineName string
+	for _, op := range plan.Operations {
+		switch o := op.(type) {
+		case *operation.RunContainerOperation:
+			machineID = o.MachineID
+			machineName = o.MachineName
+		case *operation.ReplaceContainerOperation:
+			machineID = o.MachineID
+			machineName = o.MachineName
+		default:
+			continue
+		}
+		break
+	}
+
+	// Skip the hook as there are no run or replace operations.
+	if machineID == "" {
+		return nil
+	}
+
+	var ops []operation.Operation
+
+	// Collect old pre-deploy container IDs to clean up and stop any that are still running.
+	var oldContainerIDs []string
+	if svc != nil {
+		for _, c := range svc.HookContainers {
+			oldContainerIDs = append(oldContainerIDs, c.Container.ID)
+			if c.Container.State.Running {
+				hookMachineName, _ := s.state.MachineName(c.MachineID)
+				ops = append(ops, &operation.StopPreDeployOperation{
+					MachineID:   c.MachineID,
+					MachineName: hookMachineName,
+					Container:   c.Container,
+				})
+			}
+		}
+	}
+
+	ops = append(ops, &operation.RunPreDeployOperation{
+		ServiceID:       plan.ServiceID,
+		Spec:            plan.Spec,
+		MachineID:       machineID,
+		MachineName:     machineName,
+		OldContainerIDs: oldContainerIDs,
+	})
+
+	return ops
 }
 
 // newEmptyServicePlan creates a new empty plan for a service deployment with initialised service ID and name.
