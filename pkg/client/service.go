@@ -246,7 +246,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 	errCh := make(chan error)
 
 	// Remove all containers on all machines that belong to the service.
-	for _, mc := range svc.Containers {
+	for _, mc := range append(svc.Containers, svc.HookContainers...) {
 		wg.Go(func() {
 			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, container.StopOptions{})
 			if err != nil {

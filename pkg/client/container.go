@@ -258,7 +258,7 @@ func (cli *Client) InspectContainer(
 	}
 
 	prefixMatchCandidates := []api.MachineServiceContainer{}
-	for _, c := range svc.Containers {
+	for _, c := range append(svc.Containers, svc.HookContainers...) {
 		if c.Container.ID == containerNameOrID ||
 			c.Container.Name == containerNameOrID {
 			return c, nil

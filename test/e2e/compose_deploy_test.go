@@ -601,4 +601,60 @@ volumes:
 		assert.ElementsMatch(t, machines.ToSlice(), expectedMachines,
 			"Containers should be distributed across all machines")
 	})
+
+	t.Run("pre-deploy hook", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-predeploy"
+		volumeName := "test-compose-predeploy-data"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+			removeVolumes(t, cli, volumeName)
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-predeploy.yaml"})
+		require.NoError(t, err)
+
+		deployment, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		err = deployment.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		assertServiceMatchesSpec(t, svc, api.ServiceSpec{
+			Name: name,
+			Container: api.ContainerSpec{
+				Image:   "busybox:1.37.0-uclibc",
+				Command: []string{"sleep", "600"},
+				Env:     api.EnvVars{"SERVICE_VAR": "from-service"},
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    volumeName,
+						ContainerPath: "/data",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: volumeName,
+					Type: api.VolumeTypeVolume,
+				},
+			},
+			PreDeploy: &api.PreDeployHook{
+				Command: []string{"sh", "-c", "echo hello-from-predeploy > /data/predeploy.txt"},
+				Env:     api.EnvVars{"HOOK_VAR": "from-hook"},
+				User:    "root",
+			},
+		})
+
+		// Verify the pre-deploy hook wrote to the shared volume by reading the file from the running container.
+		containerID := svc.Containers[0].Container.ID
+		output, err := execInContainerAndReadOutput(t, ctx, cli, name, containerID,
+			[]string{"cat", "/data/predeploy.txt"})
+		require.NoError(t, err)
+		assert.Equal(t, "hello-from-predeploy\n", output)
+	})
 }

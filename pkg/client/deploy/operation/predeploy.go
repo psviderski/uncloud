@@ -161,6 +161,7 @@ func (o *RunPreDeployOperation) Format() string {
 
 	return tui.BoldGreen.Render("▶") + "   " +
 		tui.Faint.Render("run pre-deploy hook") + " " +
+		// TODO: truncate a long cmd to fit the width of the terminal.
 		o.Spec.Name + " (" + cmd + ") " +
 		tui.Faint.Render("on") + " " +
 		o.MachineName

@@ -78,6 +78,13 @@ services:
       - test.example.com:80/https
       - 8000/http
       - 5000:3000@host
+    x-pre_deploy:
+      command: ["sh", "-c", "migrate"]
+      environment:
+        DB_HOST: localhost
+      privileged: false
+      timeout: 2m30s
+      user: root
 
   test-caddy-config:
     image: myapp:1.2.3

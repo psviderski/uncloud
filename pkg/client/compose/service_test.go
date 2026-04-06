@@ -208,6 +208,13 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					Placement: api.Placement{
 						Machines: []string{"machine-1", "machine-2"},
 					},
+					PreDeploy: &api.PreDeployHook{
+						Command:    []string{"sh", "-c", "migrate"},
+						Env:        api.EnvVars{"DB_HOST": "localhost"},
+						Privileged: new(false),
+						Timeout:    new(2*time.Minute + 30*time.Second),
+						User:       "root",
+					},
 					Replicas: 3,
 					UpdateConfig: api.UpdateConfig{
 						Order:         api.UpdateOrderStopFirst,
