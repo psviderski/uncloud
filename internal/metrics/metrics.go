@@ -13,6 +13,7 @@ var (
 		Help: "Build information.",
 	}, []string{"version"})
 
+	// TODO(miek): hook up
 	ContainerExec = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace, Subsystem: "container",
 		Name: "exec_total",
@@ -25,5 +26,18 @@ var (
 		Help: "Counter of DNS queries seen.",
 	}, []string{"internal", "status"})
 )
+
+const (
+	Err = "err"
+	Ok  = "ok"
+)
+
+// Status returns "ok" is err is nil, otherwise "err".
+func Status(err error) string {
+	if err != nil {
+		return Err
+	}
+	return Ok
+}
 
 const Namespace = "uncloud"
