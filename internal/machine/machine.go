@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/user"
@@ -414,7 +415,7 @@ func (m *Machine) Run(ctx context.Context) error {
 	}
 	errGroup.Go(func() error {
 		slog.Info("Starting prometheus server.")
-		if err := m.prometheusServer.Serve(promListener); err != nil {
+		if err := m.prometheusServer.Serve(promListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("local machine prometheus server failed: %w", err)
 		}
 		return nil
