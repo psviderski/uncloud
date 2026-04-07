@@ -2,12 +2,11 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
-
-	"encoding/json"
 
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
@@ -28,7 +27,7 @@ import (
 // CreateContainer creates a new container for the given service on the specified machine.
 func (cli *Client) CreateContainer(
 	ctx context.Context, serviceID string, spec api.ServiceSpec, machineID string,
-) (container.CreateResponse, error) {
+) (api.CreateContainerResponse, error) {
 	return cli.createServiceContainerWithPull(ctx, serviceID, spec, machineID, pb.CreateServiceContainerRequest_SERVICE)
 }
 
@@ -36,7 +35,7 @@ func (cli *Client) CreateContainer(
 // on the specified machine.
 func (cli *Client) CreatePreDeployHookContainer(
 	ctx context.Context, serviceID string, spec api.ServiceSpec, machineID string,
-) (container.CreateResponse, error) {
+) (api.CreateContainerResponse, error) {
 	return cli.createServiceContainerWithPull(
 		ctx, serviceID, spec, machineID, pb.CreateServiceContainerRequest_PRE_DEPLOY)
 }
@@ -49,8 +48,8 @@ func (cli *Client) createServiceContainerWithPull(
 	spec api.ServiceSpec,
 	machineID string,
 	containerType pb.CreateServiceContainerRequest_ContainerType,
-) (container.CreateResponse, error) {
-	var resp container.CreateResponse
+) (api.CreateContainerResponse, error) {
+	var resp api.CreateContainerResponse
 
 	spec = spec.SetDefaults()
 	if err := spec.Validate(); err != nil {
@@ -69,16 +68,16 @@ func (cli *Client) createServiceContainerWithPull(
 	}
 
 	containerName := fmt.Sprintf("%s-%s", spec.Name, suffix)
-	eventID := fmt.Sprintf("Container %s on %s", containerName, machine.Machine.Name)
 	if containerType == pb.CreateServiceContainerRequest_PRE_DEPLOY {
 		containerName = fmt.Sprintf("%s-%s-%s", spec.Name, api.LabelHookPreDeploy, suffix)
-		eventID = cliprogress.PreDeployHookEventID(spec.Name, machine.Machine.Name)
 	}
+	resp.Name = containerName
 
 	// Proxy Docker gRPC requests to the selected machine.
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
+	eventID := cliprogress.NewContainerEventID(ctx, containerName, machine.Machine.Name)
 	pw.Event(progress.CreatingEvent(eventID))
 
 	if spec.Container.PullPolicy == api.PullPolicyAlways {
@@ -122,7 +121,7 @@ func (cli *Client) createServiceContainerWithPull(
 		}
 	}
 
-	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
+	if err = json.Unmarshal(grpcResp.Response, &resp.CreateResponse); err != nil {
 		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
 	}
 	pw.Event(progress.CreatedEvent(eventID))
@@ -293,7 +292,7 @@ func (cli *Client) StartContainer(ctx context.Context, serviceNameOrID, containe
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
+	eventID := cliprogress.ContainerEventID(ctx, ctr.Container.ServiceSpec.Name, ctr.Container.ID, machine.Machine.Name)
 
 	pw.Event(progress.StartingEvent(eventID))
 	if err = cli.Docker.StartContainer(ctx, ctr.Container.ID, container.StartOptions{}); err != nil {
@@ -305,6 +304,8 @@ func (cli *Client) StartContainer(ctx context.Context, serviceNameOrID, containe
 }
 
 // StopContainer stops the specified container within the service.
+//
+//nolint:dupl // Structurally similar to RemoveContainer but performs a different operation.
 func (cli *Client) StopContainer(
 	ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions,
 ) error {
@@ -320,7 +321,7 @@ func (cli *Client) StopContainer(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
+	eventID := cliprogress.ContainerEventID(ctx, ctr.Container.ServiceSpec.Name, ctr.Container.ID, machine.Machine.Name)
 
 	pw.Event(progress.StoppingEvent(eventID))
 	if err = cli.Docker.StopContainer(ctx, ctr.Container.ID, opts); err != nil {
@@ -332,6 +333,8 @@ func (cli *Client) StopContainer(
 }
 
 // RemoveContainer removes the specified container within the service.
+//
+//nolint:dupl // Structurally similar to StopContainer but performs a different operation.
 func (cli *Client) RemoveContainer(
 	ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions,
 ) error {
@@ -347,7 +350,7 @@ func (cli *Client) RemoveContainer(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", ctr.Container.Name, machine.Machine.Name)
+	eventID := cliprogress.ContainerEventID(ctx, ctr.Container.ServiceSpec.Name, ctr.Container.ID, machine.Machine.Name)
 
 	pw.Event(progress.RemovingEvent(eventID))
 	if err = cli.Docker.RemoveServiceContainer(ctx, ctr.Container.ID, opts); err != nil {
@@ -427,7 +430,7 @@ func (cli *Client) WaitContainerHealthy(
 	}
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Container %s on %s", mc.Container.Name, machine.Machine.Name)
+	eventID := cliprogress.ContainerEventID(ctx, mc.Container.ServiceSpec.Name, mc.Container.ID, machine.Machine.Name)
 
 	var monitor time.Duration
 	if opts.MonitorPeriod == nil {

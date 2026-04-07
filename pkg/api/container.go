@@ -164,6 +164,13 @@ func (c *Container) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// CreateContainerResponse wraps a container creation response with the container name assigned during creation.
+type CreateContainerResponse struct {
+	container.CreateResponse
+	// Name is the container name assigned during creation.
+	Name string
+}
+
 type ServiceContainer struct {
 	Container
 	ServiceSpec ServiceSpec

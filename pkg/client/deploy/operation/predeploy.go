@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
@@ -65,12 +67,17 @@ type RunPreDeployOperation struct {
 func (o *RunPreDeployOperation) Execute(ctx context.Context, cli Client) error {
 	// Remove old pre-deploy containers.
 	for _, id := range o.OldContainerIDs {
-		_ = cli.StopContainer(ctx, o.ServiceID, id, container.StopOptions{})
-		err := cli.RemoveContainer(ctx, o.ServiceID, id, container.RemoveOptions{RemoveVolumes: true})
+		oldCtx := cliprogress.WithEventID(ctx, cliprogress.OldPreDeployHookEventID(o.Spec.Name, id, o.MachineName))
+		_ = cli.StopContainer(oldCtx, o.ServiceID, id, container.StopOptions{})
+		err := cli.RemoveContainer(oldCtx, o.ServiceID, id, container.RemoveOptions{RemoveVolumes: true})
 		if err != nil && !errdefs.IsNotFound(err) {
 			return fmt.Errorf("remove old pre-deploy hook container '%s': %w", id, err)
 		}
 	}
+
+	// Set the event ID override so all downstream client methods (create, start, stop) use the same
+	// pre-deploy hook progress event instead of the generic container one.
+	ctx = cliprogress.WithEventID(ctx, cliprogress.PreDeployHookEventID(o.Spec.Name, o.MachineName))
 
 	resp, err := cli.CreatePreDeployHookContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
 	if err != nil {
@@ -107,7 +114,6 @@ func (o *RunPreDeployOperation) waitForExit(
 		select {
 		case <-timeoutCtx.Done():
 			// Stop the container on timeout or context cancellation.
-			pw.Event(progress.StoppingEvent(eventID))
 			_ = cli.StopContainer(ctx, o.ServiceID, containerID, container.StopOptions{})
 
 			ctrID := containerID
@@ -159,12 +165,25 @@ func (o *RunPreDeployOperation) waitForExit(
 func (o *RunPreDeployOperation) Format() string {
 	cmd := strings.Join(o.Spec.PreDeploy.Command, " ")
 
-	return tui.BoldGreen.Render("▶") + "   " +
+	prefix := tui.BoldGreen.Render("▶") + "   " +
 		tui.Faint.Render("run pre-deploy hook") + " " +
-		// TODO: truncate a long cmd to fit the width of the terminal.
-		o.Spec.Name + " (" + cmd + ") " +
+		o.Spec.Name + " ["
+	suffix := "] " +
 		tui.Faint.Render("on") + " " +
 		o.MachineName
+
+	// Truncate the command to fit within the terminal width.
+	termWidth := tui.TerminalWidth()
+	if termWidth > 0 {
+		buffer := 10
+		maxCmdWidth := termWidth - lipgloss.Width(prefix) - lipgloss.Width(suffix) - buffer
+		if maxCmdWidth <= 0 {
+			maxCmdWidth = 10
+		}
+		cmd = ansi.Truncate(cmd, maxCmdWidth, "…")
+	}
+
+	return prefix + cmd + suffix
 }
 
 func (o *RunPreDeployOperation) String() string {
