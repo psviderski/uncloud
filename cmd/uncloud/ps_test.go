@@ -111,7 +111,6 @@ func TestCollectContainers_NilMetadata(t *testing.T) {
 	if len(containers) > 0 {
 		c := containers[0]
 		assert.Equal(t, "container1", c.id)
-		assert.Equal(t, "test-container", c.name)
 		assert.Equal(t, "machine-1", c.machineName, "Should fall back to the single machine name when metadata is nil")
 	}
 }

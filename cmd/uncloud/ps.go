@@ -10,11 +10,11 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-units"
-	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/spf13/cobra"
-
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -66,12 +66,13 @@ type containerInfo struct {
 	serviceName string
 	machineName string
 	id          string
-	name        string
 	image       string
 	status      string
 	highlight   containerHighlight
 	created     time.Time
 	ip          string
+	// Hook type (e.g., "pre-deploy"), empty for regular containers.
+	hook string
 }
 
 func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
@@ -132,7 +133,21 @@ func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
 
 func printContainers(containers []containerInfo) error {
 	t := tui.NewTable()
-	t.Headers("SERVICE", "CONTAINER ID", "CONTAINER NAME", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
+
+	// Show HOOK column only when hook containers are present.
+	hasHooks := false
+	for _, ctr := range containers {
+		if ctr.hook != "" {
+			hasHooks = true
+			break
+		}
+	}
+
+	if hasHooks {
+		t.Headers("SERVICE", "CONTAINER ID", "IMAGE", "CREATED", "STATUS", "HOOK", "IP ADDRESS", "MACHINE")
+	} else {
+		t.Headers("SERVICE", "CONTAINER ID", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
+	}
 
 	for _, ctr := range containers {
 		id := ctr.id
@@ -154,16 +169,28 @@ func printContainers(containers []containerInfo) error {
 			statusStyle = lipgloss.NewStyle() // Default
 		}
 
-		t.Row(
-			ctr.serviceName,
-			id,
-			ctr.name,
-			tui.FormatImage(ctr.image, tui.NoStyle),
-			created,
-			statusStyle.Render(ctr.status),
-			ctr.ip,
-			ctr.machineName,
-		)
+		if hasHooks {
+			t.Row(
+				ctr.serviceName,
+				id,
+				tui.FormatImage(ctr.image, tui.NoStyle),
+				created,
+				statusStyle.Render(ctr.status),
+				ctr.hook,
+				ctr.ip,
+				ctr.machineName,
+			)
+		} else {
+			t.Row(
+				ctr.serviceName,
+				id,
+				tui.FormatImage(ctr.image, tui.NoStyle),
+				created,
+				statusStyle.Render(ctr.status),
+				ctr.ip,
+				ctr.machineName,
+			)
+		}
 	}
 
 	fmt.Println(t)
@@ -220,7 +247,7 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 			continue
 		}
 
-		for _, ctr := range msc.Containers {
+		for _, ctr := range append(msc.Containers, msc.HookContainers...) {
 			if ctr.Container.State == nil || ctr.Container.Config == nil {
 				continue
 			}
@@ -242,6 +269,9 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 				highlight = highlightSuccess
 			} else if ctr.Container.State.Status == "running" {
 				highlight = highlightNormal
+			} else if ctr.IsHook() && ctr.Container.State.Status == "exited" && ctr.Container.State.ExitCode == 0 {
+				// Hook containers (e.g., pre-deploy) are expected to exit successfully.
+				highlight = highlightNormal
 			} else { // Other non-critical but noteworthy states
 				highlight = highlightWarning
 			}
@@ -259,12 +289,12 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 				serviceName: ctr.ServiceName(),
 				machineName: machineName,
 				id:          ctr.Container.ID,
-				name:        ctr.Container.Name,
 				image:       ctr.Container.Config.Image,
 				status:      status,
 				highlight:   highlight,
 				created:     created,
 				ip:          ipStr,
+				hook:        ctr.Config.Labels[api.LabelHook],
 			}
 			containers = append(containers, info)
 		}
