@@ -37,6 +37,7 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
+	github.com/prometheus/client_golang v1.22.0
 	github.com/psviderski/unregistry v0.4.1
 	github.com/siderolabs/grpc-proxy v0.5.1
 	github.com/spf13/cobra v1.10.1
