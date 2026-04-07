@@ -24,7 +24,8 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("inspect service: %w", err)
 	}
 
-	if len(svc.Containers) == 0 {
+	allContainers := append(svc.Containers, svc.HookContainers...)
+	if len(allContainers) == 0 {
 		return svc, nil, fmt.Errorf("no containers found for service: %s", serviceNameOrID)
 	}
 
@@ -35,8 +36,8 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("list machines: %w", err)
 	}
 
-	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(svc.Containers))
-	for _, ctr := range svc.Containers {
+	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(allContainers))
+	for _, ctr := range allContainers {
 		// Skip containers not running on the specified machines.
 		m := machines.FindByNameOrID(ctr.MachineID)
 		if len(opts.Machines) > 0 && m == nil {

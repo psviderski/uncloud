@@ -287,8 +287,8 @@ func (cli *Client) StopService(ctx context.Context, id string, opts container.St
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
 
-	// Stop all containers on all machines that belong to the service.
-	for _, mc := range svc.Containers {
+	// Stop all containers on all machines that belong to the service, including hook containers.
+	for _, mc := range append(svc.Containers, svc.HookContainers...) {
 		wg.Go(func() {
 			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, opts)
 			if err != nil {
@@ -378,7 +378,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 			continue
 		}
 
-		for _, ctr := range mc.Containers {
+		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
 			if _, ok := servicesByID[ctr.ServiceID()]; ok {
 				continue
 			}
