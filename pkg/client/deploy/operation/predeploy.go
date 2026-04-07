@@ -28,6 +28,8 @@ type StopPreDeployOperation struct {
 }
 
 func (o *StopPreDeployOperation) Execute(ctx context.Context, cli Client) error {
+	ctx = cliprogress.WithEventID(ctx,
+		cliprogress.OldPreDeployHookEventID(o.Container.ServiceName(), o.Container.ID, o.MachineName))
 	if err := cli.StopContainer(ctx, o.Container.ServiceID(), o.Container.ID, container.StopOptions{}); err != nil {
 		if !errdefs.IsNotFound(err) {
 			return fmt.Errorf("stop pre-deploy hook container '%s': %w", o.Container.ID, err)
