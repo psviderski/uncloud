@@ -13,6 +13,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/compose/v2/pkg/progress"
+	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -148,7 +149,7 @@ func verifyCaddyReachable(ctx context.Context, m *pb.MachineInfo) error {
 	publicIP, _ := m.PublicIp.ToAddr()
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Machine %s (%s)", m.Name, publicIP)
+	eventID := cliprogress.MachineEventID(m.Name, publicIP.String())
 	pw.Event(progress.NewEvent(eventID, progress.Working, "Querying"))
 
 	verifyURL := getVerifyURL(publicIP)

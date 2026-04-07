@@ -131,7 +131,7 @@ func (cli *Client) createServiceContainerWithPull(
 
 func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName, parentEventID string) error {
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Image %s on %s", image, machineName)
+	eventID := cliprogress.ImageEventID(image, machineName)
 	pw.Event(progress.Event{
 		ID:         eventID,
 		ParentID:   parentEventID,

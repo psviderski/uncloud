@@ -47,3 +47,21 @@ func OldPreDeployHookEventID(serviceName, containerID, machineName string) strin
 		serviceName + tui.Faint.Render("/") + stringid.TruncateID(containerID) +
 		tui.Faint.Render(" on ") + machineName
 }
+
+// ImageEventID returns a progress event ID for image pull operations.
+func ImageEventID(image, machineName string) string {
+	return tui.Faint.Render("Image ") + image +
+		tui.Faint.Render(" on ") + machineName
+}
+
+// VolumeEventID returns a progress event ID for volume operations.
+func VolumeEventID(volumeName, machineName string) string {
+	return tui.Faint.Render("Volume ") + volumeName +
+		tui.Faint.Render(" on ") + machineName
+}
+
+// MachineEventID returns a progress event ID for machine operations.
+func MachineEventID(machineName, publicIP string) string {
+	return tui.Faint.Render("Machine ") + machineName +
+		tui.Faint.Render(" (") + publicIP + tui.Faint.Render(")")
+}
