@@ -167,12 +167,18 @@ func (o *RunPreDeployOperation) waitForExit(
 func (o *RunPreDeployOperation) Format() string {
 	cmd := strings.Join(o.Spec.PreDeploy.Command, " ")
 
+	timeout := DefaultPreDeployTimeout
+	if o.Spec.PreDeploy.Timeout != nil {
+		timeout = *o.Spec.PreDeploy.Timeout
+	}
+
 	prefix := tui.BoldGreen.Render("▶") + "   " +
 		tui.Faint.Render("run pre-deploy hook") + " " +
 		o.Spec.Name + " ["
 	suffix := "] " +
 		tui.Faint.Render("on") + " " +
-		o.MachineName
+		o.MachineName + " " +
+		tui.Yellow.Render(fmt.Sprintf("(timeout %s)", timeout))
 
 	// Truncate the command to fit within the terminal width.
 	termWidth := tui.TerminalWidth()
