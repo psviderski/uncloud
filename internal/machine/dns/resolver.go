@@ -72,6 +72,9 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 
 	containersCount := 0
 	for _, record := range containers {
+		if record.Container.IsHook() {
+			continue
+		}
 		if !record.Container.Healthy() {
 			continue
 		}
