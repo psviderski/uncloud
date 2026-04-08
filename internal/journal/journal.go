@@ -12,7 +12,7 @@ import (
 
 const journalctl = "journalctl"
 
-var commandContext = exec.CommandContext // overidable for the test
+var commandContext = exec.CommandContext // allow override for test
 
 func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.ReadCloser, error) {
 	args := []string{"-u", unit, "--no-hostname"}
