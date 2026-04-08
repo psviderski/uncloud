@@ -1,7 +1,6 @@
 package journal
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -16,7 +15,7 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 	// Hard code unit check for now
 	switch unit {
 	case "uncloud":
-	case "corrosion":
+	case "uncloud-corrosion":
 	case "docker":
 	default:
 		return nil, fmt.Errorf("journal logs: invalid unit: %s", unit)
@@ -29,32 +28,10 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 
 	outCh := make(chan api.LogEntry)
 
-	switch opts.Follow {
-	case false:
-
-		go func() {
-			defer close(outCh)
-
-			scanner := bufio.NewScanner(reader)
-			for scanner.Scan() {
-				outCh <- entry(scanner.Bytes())
-			}
-
-			if err := scanner.Err(); err != nil {
-				outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
-			}
-		}()
-
-	case true:
-		go func() {
-			defer close(outCh)
-
-			err := follow(ctx, reader, outCh)
-			if err != nil {
-				outCh <- api.LogEntry{Err: fmt.Errorf("journal logs: %w", err)}
-			}
-		}()
-	}
+	go func() {
+		defer close(outCh)
+		follow(ctx, reader, outCh)
+	}()
 
 	return outCh, nil
 }

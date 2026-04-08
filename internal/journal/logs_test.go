@@ -12,8 +12,6 @@ import (
 )
 
 func TestLogs(t *testing.T) {
-	t.Parallel()
-
 	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 		return exec.CommandContext(ctx, "/usr/bin/tail", "testdata/logs")
 	}
@@ -29,8 +27,7 @@ func TestLogs(t *testing.T) {
 	for range ch {
 		i++
 	}
-	assert.Equal(t, i, 6)
-	cancel()
+	assert.Equal(t, 6, i)
 
 	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 		return exec.CommandContext(ctx, "/usr/bin/tail", "-f", "testdata/logs")
@@ -47,5 +44,6 @@ func TestLogs(t *testing.T) {
 	for range ch {
 		i++
 	}
-	assert.Equal(t, i, 6) // still six is hardbeats are not written here.
+	// Still six because heartbeats are not written here and Tail is ignored as the command is overridden.
+	assert.Equal(t, 6, i)
 }
