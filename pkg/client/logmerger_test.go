@@ -12,7 +12,7 @@ import (
 // testEntry creates a ServiceLogEntry for testing.
 func testEntry(stream api.LogStreamType, ts time.Time, msg string) api.ServiceLogEntry {
 	return api.ServiceLogEntry{
-		ContainerLogEntry: api.ContainerLogEntry{
+		LogEntry: api.LogEntry{
 			Stream:    stream,
 			Timestamp: ts,
 			Message:   []byte(msg),
@@ -91,7 +91,7 @@ func TestLogMerger_PreservesData(t *testing.T) {
 
 	e := api.ServiceLogEntry{
 		Metadata: metadata,
-		ContainerLogEntry: api.ContainerLogEntry{
+		LogEntry: api.LogEntry{
 			Stream:    api.LogStreamStdout,
 			Timestamp: time.Now(),
 			Message:   []byte("test"),
@@ -199,7 +199,7 @@ func TestLogMerger_ErrorForwarding(t *testing.T) {
 	ch1 <- testEntry(api.LogStreamStdout, t1, "ch1-first")
 	// Send an error entry.
 	ch1 <- api.ServiceLogEntry{
-		ContainerLogEntry: api.ContainerLogEntry{
+		LogEntry: api.LogEntry{
 			Err: assert.AnError,
 		},
 	}
