@@ -34,7 +34,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
-  versionpkg "github.com/psviderski/uncloud/pkg/versioncheck"
+	versionpkg "github.com/psviderski/uncloud/pkg/versioncheck"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
