@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/docker/cli/cli/connhelper/commandconn"
-	"github.com/psviderski/uncloud/pkg/versioncheck"
+	"github.com/psviderski/uncloud/internal/grpcversion"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -78,8 +78,8 @@ func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error)
 		"passthrough:///", // Dummy target since we're using a custom dialer.
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(defaultServiceConfig),
-		grpc.WithUnaryInterceptor(versioncheck.ClientUnaryInterceptor),
-		grpc.WithStreamInterceptor(versioncheck.ClientStreamInterceptor),
+		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
+		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			dialArgs := append(c.buildSSHArgs(), "uncloudd", "dial-stdio")
 			if c.config.SockPath != "" {

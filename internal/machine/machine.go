@@ -22,6 +22,7 @@ import (
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/grpcversion"
 	"github.com/psviderski/uncloud/internal/journal"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	apiproxy "github.com/psviderski/uncloud/internal/machine/api/proxy"
@@ -34,7 +35,6 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
-	versionpkg "github.com/psviderski/uncloud/pkg/versioncheck"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
@@ -273,8 +273,8 @@ func NewMachine(config *Config) (*Machine, error) {
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)
 	localProxyServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
-		grpc.UnaryInterceptor(versionpkg.ServerUnaryInterceptor),
-		grpc.StreamInterceptor(versionpkg.ServerStreamInterceptor),
+		grpc.UnaryInterceptor(grpcversion.ServerUnaryInterceptor),
+		grpc.StreamInterceptor(grpcversion.ServerStreamInterceptor),
 		grpc.UnknownServiceHandler(
 			proxy.TransparentHandler(proxyDirector.Director),
 		),
@@ -428,8 +428,8 @@ func (m *Machine) Run(ctx context.Context) error {
 			m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
 			proxyServer := grpc.NewServer(
 				grpc.ForceServerCodecV2(proxy.Codec()),
-				grpc.UnaryInterceptor(versionpkg.ServerUnaryInterceptor),
-				grpc.StreamInterceptor(versionpkg.ServerStreamInterceptor),
+				grpc.UnaryInterceptor(grpcversion.ServerUnaryInterceptor),
+				grpc.StreamInterceptor(grpcversion.ServerStreamInterceptor),
 				grpc.UnknownServiceHandler(
 					proxy.TransparentHandler(m.proxyDirector.Director),
 				),

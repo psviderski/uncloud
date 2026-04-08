@@ -1,11 +1,8 @@
-package versioncheck
+package grpcversion
 
 import (
 	"bytes"
 	"context"
-	"io"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,37 +22,37 @@ func TestExtractVersion(t *testing.T) {
 		{
 			name:     "nil metadata",
 			md:       nil,
-			key:      MetadataKeyCLIVersion,
+			key:      MetadataKeyClientVersion,
 			expected: "0.0.0",
 		},
 		{
 			name:     "missing key",
 			md:       metadata.MD{},
-			key:      MetadataKeyCLIVersion,
+			key:      MetadataKeyClientVersion,
 			expected: "0.0.0",
 		},
 		{
 			name:     "empty value",
-			md:       metadata.Pairs(MetadataKeyCLIVersion, ""),
-			key:      MetadataKeyCLIVersion,
+			md:       metadata.Pairs(MetadataKeyClientVersion, ""),
+			key:      MetadataKeyClientVersion,
 			expected: "0.0.0",
 		},
 		{
 			name:     "invalid version",
-			md:       metadata.Pairs(MetadataKeyCLIVersion, "not-a-version"),
-			key:      MetadataKeyCLIVersion,
+			md:       metadata.Pairs(MetadataKeyClientVersion, "not-a-version"),
+			key:      MetadataKeyClientVersion,
 			expected: "0.0.0",
 		},
 		{
 			name:     "valid version",
-			md:       metadata.Pairs(MetadataKeyCLIVersion, "1.2.3"),
-			key:      MetadataKeyCLIVersion,
+			md:       metadata.Pairs(MetadataKeyClientVersion, "1.2.3"),
+			key:      MetadataKeyClientVersion,
 			expected: "1.2.3",
 		},
 		{
 			name:     "version with prerelease",
-			md:       metadata.Pairs(MetadataKeyCLIVersion, "0.0.0-dev"),
-			key:      MetadataKeyCLIVersion,
+			md:       metadata.Pairs(MetadataKeyClientVersion, "0.0.0-dev"),
+			key:      MetadataKeyClientVersion,
 			expected: "0.0.0-dev",
 		},
 	}
@@ -79,7 +76,7 @@ func TestCheckClientVersionHeaders(t *testing.T) {
 		{
 			name: "cli version below minimum",
 			md: metadata.Pairs(
-				MetadataKeyCLIVersion, "0.0.0-dev",
+				MetadataKeyClientVersion, "0.0.0-dev",
 			),
 			wantErr:    true,
 			errCode:    codes.FailedPrecondition,
@@ -88,15 +85,15 @@ func TestCheckClientVersionHeaders(t *testing.T) {
 		{
 			name: "cli version above minimum",
 			md: metadata.Pairs(
-				MetadataKeyCLIVersion, "999.0.0",
+				MetadataKeyClientVersion, "999.0.0",
 			),
 			wantErr: false,
 		},
 		{
 			name: "min daemon version above current daemon",
 			md: metadata.Pairs(
-				MetadataKeyCLIVersion, "999.0.0",
-				MetadataKeyMinDaemonVersion, "999.0.0",
+				MetadataKeyClientVersion, "999.0.0",
+				MetadataKeyMinServerVersion, "999.0.0",
 			),
 			wantErr:    true,
 			errCode:    codes.FailedPrecondition,
@@ -105,8 +102,8 @@ func TestCheckClientVersionHeaders(t *testing.T) {
 		{
 			name: "min daemon version below current daemon",
 			md: metadata.Pairs(
-				MetadataKeyCLIVersion, "999.0.0",
-				MetadataKeyMinDaemonVersion, "0.0.1",
+				MetadataKeyClientVersion, "999.0.0",
+				MetadataKeyMinServerVersion, "0.0.1",
 			),
 			wantErr: false,
 		},
@@ -126,8 +123,7 @@ func TestCheckClientVersionHeaders(t *testing.T) {
 				st, ok := status.FromError(err)
 				require.True(t, ok, "expected gRPC status error, got %T", err)
 				assert.Equal(t, tt.errCode, st.Code())
-				assert.True(t, strings.Contains(st.Message(), tt.errContain),
-					"error message = %q, want to contain %q", st.Message(), tt.errContain)
+				assert.Contains(t, st.Message(), tt.errContain)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -135,7 +131,17 @@ func TestCheckClientVersionHeaders(t *testing.T) {
 	}
 }
 
-func TestCheckDaemonVersionInResponse(t *testing.T) {
+func captureWarnings(t *testing.T, fn func()) string {
+	t.Helper()
+	var buf bytes.Buffer
+	old := WarnWriter
+	WarnWriter = &buf
+	t.Cleanup(func() { WarnWriter = old })
+	fn()
+	return buf.String()
+}
+
+func TestCheckServerVersionInResponse(t *testing.T) {
 	tests := []struct {
 		name        string
 		md          metadata.MD
@@ -143,74 +149,47 @@ func TestCheckDaemonVersionInResponse(t *testing.T) {
 	}{
 		{
 			name:        "daemon version below minimum",
-			md:          metadata.Pairs(MetadataKeyDaemonVersion, "0.0.0-dev"),
+			md:          metadata.Pairs(MetadataKeyServerVersion, "0.0.0-dev"),
 			wantWarning: true,
 		},
 		{
 			name:        "daemon version above minimum",
-			md:          metadata.Pairs(MetadataKeyDaemonVersion, "999.0.0"),
+			md:          metadata.Pairs(MetadataKeyServerVersion, "999.0.0"),
 			wantWarning: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset warned flag for each test
-			warned = false
+			warned.Store(false)
 
-			// Capture stderr
-			old := os.Stderr
-			r, w, _ := os.Pipe()
-			os.Stderr = w
-
-			checkDaemonVersionInResponse(tt.md)
-
-			w.Close()
-			var buf bytes.Buffer
-			io.Copy(&buf, r)
-			os.Stderr = old
-
-			output := buf.String()
+			output := captureWarnings(t, func() {
+				checkServerVersionInResponse(tt.md)
+			})
 
 			if tt.wantWarning {
-				assert.True(t, strings.Contains(output, "WARNING"), "expected warning output, got none")
+				assert.Contains(t, output, "WARNING")
 			} else {
-				assert.Equal(t, "", output)
+				assert.Empty(t, output)
 			}
 		})
 	}
 }
 
-func TestCheckDaemonVersionInResponse_WarnOnce(t *testing.T) {
-	// Reset warned flag
-	warned = false
+func TestCheckServerVersionInResponse_WarnOnce(t *testing.T) {
+	warned.Store(false)
 
-	md := metadata.Pairs(MetadataKeyDaemonVersion, "0.0.0-dev")
+	md := metadata.Pairs(MetadataKeyServerVersion, "0.0.0-dev")
 
-	// First call - should warn
-	old := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
+	// First call should warn.
+	output1 := captureWarnings(t, func() {
+		checkServerVersionInResponse(md)
+	})
+	assert.Contains(t, output1, "WARNING", "first call should warn")
 
-	checkDaemonVersionInResponse(md)
-
-	w.Close()
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	os.Stderr = old
-
-	assert.True(t, strings.Contains(buf.String(), "WARNING"), "first call should warn")
-
-	// Second call - should NOT warn (warned flag is now true)
-	r2, w2, _ := os.Pipe()
-	os.Stderr = w2
-
-	checkDaemonVersionInResponse(md)
-
-	w2.Close()
-	var buf2 bytes.Buffer
-	io.Copy(&buf2, r2)
-	os.Stderr = old
-
-	assert.Equal(t, "", buf2.String(), "second call should not warn")
+	// Second call should not warn (warned flag is now true).
+	output2 := captureWarnings(t, func() {
+		checkServerVersionInResponse(md)
+	})
+	assert.Empty(t, output2, "second call should not warn")
 }
