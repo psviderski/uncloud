@@ -18,31 +18,31 @@ const (
 
 type LogStreamType int
 
-// LogStreamTypeFromProto converts a protobuf ContainerLogEntry.StreamType to the internal LogStreamType.
-func LogStreamTypeFromProto(s pb.ContainerLogEntry_StreamType) LogStreamType {
+// LogStreamTypeFromProto converts a protobuf LogEntry.StreamType to the internal LogStreamType.
+func LogStreamTypeFromProto(s pb.LogEntry_StreamType) LogStreamType {
 	switch s {
-	case pb.ContainerLogEntry_STDOUT:
+	case pb.LogEntry_STDOUT:
 		return LogStreamStdout
-	case pb.ContainerLogEntry_STDERR:
+	case pb.LogEntry_STDERR:
 		return LogStreamStderr
-	case pb.ContainerLogEntry_HEARTBEAT:
+	case pb.LogEntry_HEARTBEAT:
 		return LogStreamHeartbeat
 	default:
 		return LogStreamUnknown
 	}
 }
 
-// LogStreamTypeToProto converts LogStreamType to protobuf ContainerLogEntry.StreamType.
-func LogStreamTypeToProto(s LogStreamType) pb.ContainerLogEntry_StreamType {
+// LogStreamTypeToProto converts LogStreamType to protobuf LogEntry.StreamType.
+func LogStreamTypeToProto(s LogStreamType) pb.LogEntry_StreamType {
 	switch s {
 	case LogStreamStdout:
-		return pb.ContainerLogEntry_STDOUT
+		return pb.LogEntry_STDOUT
 	case LogStreamStderr:
-		return pb.ContainerLogEntry_STDERR
+		return pb.LogEntry_STDERR
 	case LogStreamHeartbeat:
-		return pb.ContainerLogEntry_HEARTBEAT
+		return pb.LogEntry_HEARTBEAT
 	default:
-		return pb.ContainerLogEntry_UNKNOWN
+		return pb.LogEntry_UNKNOWN
 	}
 }
 
@@ -61,7 +61,7 @@ type ServiceLogsOptions struct {
 type ServiceLogEntry struct {
 	// Metadata may not be set if an error occurred (Err is not nil).
 	Metadata ServiceLogEntryMetadata
-	ContainerLogEntry
+	LogEntry
 }
 
 // ServiceLogEntryMetadata contains metadata about the source of a log entry.
@@ -73,8 +73,8 @@ type ServiceLogEntryMetadata struct {
 	MachineName string
 }
 
-// ContainerLogEntry represents a single log entry from a container.
-type ContainerLogEntry struct {
+// LogEntry represents a single log entry from a container or a service.
+type LogEntry struct {
 	Stream    LogStreamType
 	Timestamp time.Time
 	Message   []byte

@@ -33,7 +33,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		return api.ServiceSpec{}, fmt.Errorf("unsupported pull policy: '%s'", service.PullPolicy)
 	}
 
-	env := make(map[string]string, len(service.Environment))
+	env := make(api.EnvVars, len(service.Environment))
 	for k, v := range service.Environment {
 		if v == nil {
 			// nil value means the variable misses a value in the compose file, and it hasn't been resolved
@@ -141,6 +141,27 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 	spec.Configs = configSpecs
 	spec.Container.ConfigMounts = configMounts
+
+	if h, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+		hook := &api.PreDeployHook{
+			Command:    h.Command,
+			Privileged: h.Privileged,
+			User:       h.User,
+		}
+		if h.Environment != nil {
+			hook.Env = make(api.EnvVars)
+			for k, v := range h.Environment {
+				if v != nil {
+					hook.Env[k] = *v
+				}
+			}
+		}
+		if h.Timeout != nil {
+			d := time.Duration(*h.Timeout)
+			hook.Timeout = &d
+		}
+		spec.PreDeploy = hook
+	}
 
 	return spec, nil
 }
@@ -416,6 +437,12 @@ func validateServicesExtensions(project *types.Project) error {
 				return fmt.Errorf("service '%s': ingress ports in 'x-ports' and 'x-caddy' cannot be specified "+
 					"simultaneously: Caddy config is auto-generated from ingress ports, use only one of them. "+
 					"Host mode ports in 'x-caddy' can be used with 'x-caddy'", service.Name)
+			}
+		}
+
+		if hook, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+			if err := hook.Validate(); err != nil {
+				return fmt.Errorf("service '%s': %w", service.Name, err)
 			}
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/volume"
+	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -30,7 +31,7 @@ func (cli *Client) CreateVolume(
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Volume %s on %s", opts.Name, machine.Machine.Name)
+	eventID := cliprogress.VolumeEventID(opts.Name, machine.Machine.Name)
 	pw.Event(progress.CreatingEvent(eventID))
 
 	vol, err := cli.Docker.CreateVolume(ctx, opts)
@@ -120,7 +121,7 @@ func (cli *Client) RemoveVolume(ctx context.Context, machineNameOrID, volumeName
 	ctx = proxyToMachine(ctx, machine.Machine)
 
 	pw := progress.ContextWriter(ctx)
-	eventID := fmt.Sprintf("Volume %s on %s", volumeName, machine.Machine.Name)
+	eventID := cliprogress.VolumeEventID(volumeName, machine.Machine.Name)
 	pw.Event(progress.RemovingEvent(eventID))
 
 	if err = cli.Docker.RemoveVolume(ctx, volumeName, force); err != nil {

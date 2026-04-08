@@ -8,6 +8,7 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stringid"
+	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -28,6 +29,10 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 	if err != nil {
 		return fmt.Errorf("create container: %w", err)
 	}
+	// Override event ID so StartContainer and WaitContainerHealthy update the same progress line as creation.
+	// TODO: This is a hack to work around the limitations of the compose progress library.
+	//  We likely need to fork or create our own to decouple event IDs from presentation layer.
+	ctx = cliprogress.WithEventID(ctx, cliprogress.NewContainerEventID(ctx, resp.Name, o.MachineName))
 	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
 		return fmt.Errorf("start container: %w", err)
 	}
@@ -171,13 +176,15 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 	if err != nil {
 		return fmt.Errorf("create new container: %w", err)
 	}
-	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
+	// Override event ID so StartContainer and WaitContainerHealthy update the same progress line as creation.
+	newCtx := cliprogress.WithEventID(ctx, cliprogress.NewContainerEventID(ctx, resp.Name, o.MachineName))
+	if err = cli.StartContainer(newCtx, o.ServiceID, resp.ID); err != nil {
 		return fmt.Errorf("start new container: %w", err)
 	}
 
 	if !o.SkipHealthMonitor {
 		opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
-		if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
+		if err = cli.WaitContainerHealthy(newCtx, o.ServiceID, resp.ID, opts); err != nil {
 			// New container failed to become healthy. Stop it and roll back to the previous container.
 			// Don't remove the new stopped container to allow users to inspect logs and state.
 			// TODO: collect logs from the new container and include in the error message to speed up debugging.

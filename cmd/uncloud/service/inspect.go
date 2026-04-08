@@ -60,23 +60,33 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 
+	// Combine regular and hook containers.
+	allContainers := append(svc.Containers, svc.HookContainers...)
+
 	// Parse created times for sorting and display.
-	createdTimes := make(map[string]time.Time, len(svc.Containers))
-	for _, ctr := range svc.Containers {
+	createdTimes := make(map[string]time.Time, len(allContainers))
+	for _, ctr := range allContainers {
 		createdTimes[ctr.Container.ID], _ = time.Parse(time.RFC3339Nano, ctr.Container.Created)
 	}
 
 	// Sort containers by created time (newest first).
-	slices.SortFunc(svc.Containers, func(a, b api.MachineServiceContainer) int {
+	slices.SortFunc(allContainers, func(a, b api.MachineServiceContainer) int {
 		return createdTimes[b.Container.ID].Compare(createdTimes[a.Container.ID])
 	})
 
 	// Print the list of containers in a table format.
+	// Show HOOK column only when hook containers are present.
+	hasHooks := len(svc.HookContainers) > 0
+
 	t := tui.NewTable()
-	t.Headers("CONTAINER ID", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
+	if hasHooks {
+		t.Headers("CONTAINER ID", "IMAGE", "CREATED", "STATUS", "HOOK", "IP ADDRESS", "MACHINE")
+	} else {
+		t.Headers("CONTAINER ID", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
+	}
 
 	now := time.Now().UTC()
-	for _, ctr := range svc.Containers {
+	for _, ctr := range allContainers {
 		created := units.HumanDuration(now.Sub(createdTimes[ctr.Container.ID])) + " ago"
 
 		machine := machinesNamesByID[ctr.MachineID]
@@ -95,14 +105,26 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 			ipStr = ip.String()
 		}
 
-		t.Row(
-			stringid.TruncateID(ctr.Container.ID),
-			tui.FormatImage(ctr.Container.Config.Image, tui.NoStyle),
-			created,
-			state,
-			ipStr,
-			machine,
-		)
+		if hasHooks {
+			t.Row(
+				stringid.TruncateID(ctr.Container.ID),
+				tui.FormatImage(ctr.Container.Config.Image, tui.NoStyle),
+				created,
+				state,
+				ctr.Container.Config.Labels[api.LabelHook],
+				ipStr,
+				machine,
+			)
+		} else {
+			t.Row(
+				stringid.TruncateID(ctr.Container.ID),
+				tui.FormatImage(ctr.Container.Config.Image, tui.NoStyle),
+				created,
+				state,
+				ipStr,
+				machine,
+			)
+		}
 	}
 
 	fmt.Println(t)

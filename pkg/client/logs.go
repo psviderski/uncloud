@@ -24,7 +24,8 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("inspect service: %w", err)
 	}
 
-	if len(svc.Containers) == 0 {
+	allContainers := append(svc.Containers, svc.HookContainers...)
+	if len(allContainers) == 0 {
 		return svc, nil, fmt.Errorf("no containers found for service: %s", serviceNameOrID)
 	}
 
@@ -35,8 +36,8 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("list machines: %w", err)
 	}
 
-	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(svc.Containers))
-	for _, ctr := range svc.Containers {
+	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(allContainers))
+	for _, ctr := range allContainers {
 		// Skip containers not running on the specified machines.
 		m := machines.FindByNameOrID(ctr.MachineID)
 		if len(opts.Machines) > 0 && m == nil {
@@ -81,18 +82,18 @@ func (cli *Client) ServiceLogs(
 // ContainerLogs streams log entries from a single container on a specified machine.
 func (cli *Client) ContainerLogs(
 	ctx context.Context, machineNameOrID string, containerID string, opts api.ServiceLogsOptions,
-) (<-chan api.ContainerLogEntry, error) {
+) (<-chan api.LogEntry, error) {
 	proxyCtx, _, err := cli.ProxyMachinesContext(ctx, []string{machineNameOrID})
 	if err != nil {
 		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineNameOrID, err)
 	}
 
-	req := &pb.ContainerLogsRequest{
-		ContainerId: containerID,
-		Follow:      opts.Follow,
-		Tail:        int32(opts.Tail),
-		Since:       opts.Since,
-		Until:       opts.Until,
+	req := &pb.LogsRequest{
+		Id:     containerID,
+		Follow: opts.Follow,
+		Tail:   int32(opts.Tail),
+		Since:  opts.Since,
+		Until:  opts.Until,
 	}
 	if !opts.Follow && opts.Tail == 0 {
 		// If not following and tail is 0, set tail to -1 to return all logs.
@@ -105,7 +106,7 @@ func (cli *Client) ContainerLogs(
 		return nil, err
 	}
 
-	ch := make(chan api.ContainerLogEntry)
+	ch := make(chan api.LogEntry)
 
 	go func() {
 		defer close(ch)
@@ -116,13 +117,13 @@ func (cli *Client) ContainerLogs(
 				return
 			}
 			if err != nil {
-				ch <- api.ContainerLogEntry{
+				ch <- api.LogEntry{
 					Err: err,
 				}
 				return
 			}
 
-			entry := api.ContainerLogEntry{
+			entry := api.LogEntry{
 				Stream:    api.LogStreamTypeFromProto(pbEntry.Stream),
 				Message:   pbEntry.Message,
 				Timestamp: pbEntry.Timestamp.AsTime(),
@@ -141,15 +142,15 @@ func (cli *Client) ContainerLogs(
 
 // logsStreamWithServiceMetadata wraps a container logs stream and enriches each log entry with service metadata.
 func logsStreamWithServiceMetadata(
-	stream <-chan api.ContainerLogEntry, metadata api.ServiceLogEntryMetadata,
+	stream <-chan api.LogEntry, metadata api.ServiceLogEntryMetadata,
 ) <-chan api.ServiceLogEntry {
 	out := make(chan api.ServiceLogEntry)
 
 	go func() {
 		for entry := range stream {
 			out <- api.ServiceLogEntry{
-				Metadata:          metadata,
-				ContainerLogEntry: entry,
+				Metadata: metadata,
+				LogEntry: entry,
 			}
 		}
 		close(out)

@@ -1,0 +1,17 @@
+services:
+  test-compose-predeploy:
+    image: busybox:1.37.0-uclibc
+    command: ["sleep", "600"]
+    environment:
+      SERVICE_VAR: from-service
+    volumes:
+      - test-compose-predeploy-data:/data
+    x-pre_deploy:
+      command: [sh, -c, echo hello-from-predeploy > /data/predeploy.txt]
+      environment:
+        HOOK_VAR: from-hook
+      user: root
+      timeout: 30s
+
+volumes:
+  test-compose-predeploy-data:

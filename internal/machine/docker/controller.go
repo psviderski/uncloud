@@ -152,11 +152,15 @@ func (c *Controller) syncContainersToStore(ctx context.Context) error {
 		return fmt.Errorf("list containers from store: %w", err)
 	}
 
-	containers, err := c.service.ListServiceContainers(ctx, "", container.ListOptions{})
+	// List containers for all services, including stopped ones and deployment hooks.
+	result, err := c.service.ListServiceContainers(ctx, "", container.ListOptions{All: true})
 	if err != nil {
 		// TODO: mark all containers as outdated in the store.
 		return fmt.Errorf("list service containers: %w", err)
 	}
+
+	// Sync both regular and one-off hook containers to the store.
+	containers := append(result.Containers, result.HookContainers...)
 
 	// Delete containers from the store that are no longer present in the Docker daemon.
 	var deleteIDs []string

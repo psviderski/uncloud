@@ -14,6 +14,7 @@ require (
 	github.com/caddyserver/caddy/v2 v2.8.4
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/charmbracelet/colorprofile v0.4.2
+	github.com/charmbracelet/x/ansi v0.11.6
 	github.com/compose-spec/compose-go/v2 v2.9.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/platforms v1.0.0-rc.1
@@ -111,7 +112,6 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260205113103-524a6607adb8 // indirect
-	github.com/charmbracelet/x/ansi v0.11.6 // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240919170804-a4978c8e603a // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
