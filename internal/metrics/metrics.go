@@ -13,7 +13,6 @@ var (
 		Help: "Build information.",
 	}, []string{"version"})
 
-	// TODO(miek): hook up
 	ContainerExec = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace, Subsystem: "container",
 		Name: "exec_total",
@@ -23,7 +22,7 @@ var (
 	DNSQuery = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace, Subsystem: "dns",
 		Name: "query_total",
-		Help: "Counter of DNS queries seen.",
+		Help: "Counter of DNS queries.",
 	}, []string{"internal", "status"})
 )
 
