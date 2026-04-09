@@ -49,7 +49,7 @@ func entry(data []byte) api.LogEntry {
 
 	return api.LogEntry{
 		Timestamp: timestamp,
-		Message:   append(slices.Clone(message), '\n'), // scanner controls the buffer to Clone and re-add newline
+		Message:   append(slices.Clone(message), '\n'), // scanner controls the buffer so Clone and re-add newline
 		Stream:    api.LogStreamStdout,
 	}
 }
