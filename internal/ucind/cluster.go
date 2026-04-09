@@ -125,7 +125,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 	}
 	defer initClient.Close()
 
-	if err := initClient.WaitMachineReady(ctx, 30*time.Second); err != nil {
+	if err := initClient.WaitMachineReady(ctx, 90*time.Second); err != nil {
 		return fmt.Errorf("wait for machine %q to be ready: %w", initMachine.Name, err)
 	}
 
@@ -140,7 +140,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 
 	fmt.Printf("Cluster %q initialised with machine %q\n", initMachine.ClusterName, initResp.Machine.Name)
 	fmt.Printf("Waiting for cluster to be ready...")
-	if err = initClient.WaitClusterReady(ctx, 30*time.Second); err != nil {
+	if err = initClient.WaitClusterReady(ctx, 90*time.Second); err != nil {
 		return fmt.Errorf("wait for cluster to be ready: %w", err)
 	}
 	fmt.Println(" done.")
@@ -160,7 +160,7 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 		//goland:noinspection GoDeferInLoop
 		defer cli.Close()
 
-		if err := cli.WaitMachineReady(ctx, 30*time.Second); err != nil {
+		if err := cli.WaitMachineReady(ctx, 90*time.Second); err != nil {
 			return fmt.Errorf("wait for machine %q to be ready: %w", m.Name, err)
 		}
 
