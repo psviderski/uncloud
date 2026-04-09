@@ -77,6 +77,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `x-caddy`                        | ✅ Uncloud-specific | Custom Caddy configuration                                                                                     |
 | `x-machines`                     | ✅ Uncloud-specific | Machine placement constraints                                                                                  |
 | `x-ports`                        | ✅ Uncloud-specific | Service port publishing                                                                                        |
+| `x-pre_deploy`                   | ✅ Uncloud-specific | Pre-deploy hook command                                                                                        |
 
 [volume-drivers]: https://docs.docker.com/engine/storage/volumes/#use-a-volume-driver
 
@@ -167,3 +168,38 @@ services:
     # Short syntax for a single machine
     # x-machines: machine-1
 ```
+
+### `x-pre_deploy`
+
+Configure a pre-deploy hook to run a one-off command in a separate container and wait for it to finish successfully
+before rolling out service containers. It's useful for preparation tasks that need to run before every service
+deployment, such as database migrations, static asset uploads, or cache invalidation.
+
+The hook container uses the service's image and inherits its environment variables, volumes, placement, and compute
+resources. If the command fails or times out (5 minutes by default), the deployment stops.
+
+```yaml
+services:
+  web:
+    build: .
+    x-pre_deploy:
+      command: python manage.py migrate
+      environment:
+        LOG_LEVEL: DEBUG
+      timeout: 10m
+```
+
+#### Attributes
+
+| Attribute     | Type                    | Default         | Description                                                                                                                                                        |
+|---------------|-------------------------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `command`     | string / list           | (required)      | The command to run in the hook container (same format as the service's [`command`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#command)) |
+| `environment` | map / list of KEY=VALUE | -               | Additional env vars that override or extend the service's [`environment`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#environment)       |
+| `privileged`  | bool                    | service's value | Override the service's [`privileged`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#privileged) mode                                       |
+| `timeout`     | duration                | `5m`            | Max time to wait for the command to finish before killing it (e.g., `1m30s`, `30m`, `1h`)                                                                          |
+| `user`        | string                  | service's value | Override the service's [`user`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#user) to run as (`user`, `UID`, `user:group`, or `UID:GID`)  |
+
+The hook container also gets `UNCLOUD_HOOK_PRE_DEPLOY=true` environment variable set automatically.
+
+See [Pre-deploy hooks](../4-guides/1-deployments/5-pre-deploy-hooks.md) for more details, usage examples, and failure
+handling.

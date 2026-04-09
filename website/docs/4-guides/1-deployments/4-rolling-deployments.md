@@ -168,6 +168,7 @@ configuration hasn't changed and only redeploy the remaining ones.
 
 ## See also
 
+- [Pre-deploy hooks](5-pre-deploy-hooks.md): Run a command before deploying service containers
 - [Deploy an app](1-deploy-app.md): Build and deploy from source code or pre-built images
 - [Compose support matrix](../../8-compose-file-reference/1-support-matrix.md): Supported Compose features and Uncloud
   extensions
