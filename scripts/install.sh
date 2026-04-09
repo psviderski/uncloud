@@ -166,6 +166,9 @@ install_uncloud_binaries() {
     if [ "${UNCLOUD_VERSION}" == "latest" ]; then
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.tar.gz"
         uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh"
+    elif [ "${UNCLOUD_VERSION}" == "edge" ]; then
+        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/edge/uncloudd_linux_${file_arch}.tar.gz"
+        uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh"
     else
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/v${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.tar.gz"
         uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/tags/v${UNCLOUD_VERSION}/scripts/uninstall.sh"

@@ -1,0 +1,73 @@
+name: Edge Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MISE_VERSION: "2026.3.7"
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+
+      - name: Reset changes in mise.lock after fresh mise install
+        run: git checkout mise.lock
+
+      - name: Set version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "VERSION=0.0.0-edge+${SHORT_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build binaries
+        run: mise run build:all
+        env:
+          VERSION: ${{ env.VERSION }}
+
+      - name: Package binaries
+        run: |
+          mkdir -p dist
+          for f in uncloud*-*-*; do
+            tar -czf "dist/${f//-/_}.tar.gz" "$f"
+          done
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz > checksums.txt
+
+      - name: Update edge release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: edge
+          name: "Edge (latest main)"
+          body: |
+            Built from the tip of the `main` branch.
+
+            Commit: ${{ github.sha }}
+
+            **Install uncloudd (machine daemon):**
+
+                TODO
+
+
+            **Install uncloud CLI:**
+
+                TODO
+
+          prerelease: true
+          make_latest: false
+          files: dist/*.tar.gz dist/checksums.txt

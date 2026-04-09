@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Build uncloudd daemon for a given architecture. Usage: mise run build:uncloudd <GOARCH>"
+#USAGE arg "<goarch>" help="Target architecture (amd64, arm64)"
+
+GOARCH="${usage_goarch}"
+VERSION=${VERSION:-$(git describe --tags --always --dirty)}
+
+GOOS=linux GOARCH=$GOARCH go build \
+  -ldflags "-X github.com/psviderski/uncloud/internal/version.version=$VERSION" \
+  -o "uncloudd-linux-${GOARCH}" ./cmd/uncloudd

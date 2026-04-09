@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Build uncloud CLI for a given platform. Usage: mise run build:uncloud <OS> <GOARCH>"
+#USAGE arg "<os>" help="Target OS (linux, macos)"
+#USAGE arg "<goarch>" help="Target architecture (amd64, arm64)"
+
+OS="${usage_os}"
+GOARCH="${usage_goarch}"
+VERSION=${VERSION:-$(git describe --tags --always --dirty)}
+GOOS=${OS/macos/darwin}
+
+GOOS=$GOOS GOARCH=$GOARCH go build \
+  -ldflags "-X github.com/psviderski/uncloud/internal/version.version=$VERSION" \
+  -o "uncloud-${OS}-${GOARCH}" ./cmd/uncloud
