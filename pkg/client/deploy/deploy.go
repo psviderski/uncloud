@@ -337,7 +337,7 @@ func (d *Deployment) Validate(ctx context.Context) error {
 		return fmt.Errorf("invalid service spec: %w", err)
 	}
 
-	if d.Service == nil {
+	if d.Service == nil && d.Spec.Name != "" {
 		svc, err := d.cli.InspectService(ctx, d.Spec.Name)
 		if err == nil {
 			d.Service = &svc

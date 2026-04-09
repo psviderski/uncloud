@@ -40,14 +40,18 @@ func TestDeployment(t *testing.T) {
 	ctx := context.Background()
 	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
 
-	cli, err := c.Machines[0].Connect(ctx)
-	require.NoError(t, err)
+	cli, cErr := c.Machines[0].Connect(ctx)
+	require.NoError(t, cErr)
 
 	t.Run("global auto-generated name", func(t *testing.T) {
 		t.Parallel()
 
 		name := "" // auto-generated and updated
 		t.Cleanup(func() {
+			if name == "" {
+				return
+			}
+
 			err := cli.RemoveService(ctx, name)
 			if !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
@@ -70,7 +74,7 @@ func TestDeployment(t *testing.T) {
 		}
 		deployment := cli.NewDeployment(spec, nil)
 
-		err = deployment.Validate(ctx)
+		err := deployment.Validate(ctx)
 		require.NoError(t, err)
 
 		plan, err := deployment.Plan(ctx)
@@ -236,7 +240,7 @@ func TestDeployment(t *testing.T) {
 		}
 		deployment := cli.NewDeployment(spec, nil)
 
-		_, err = deployment.Run(ctx)
+		_, err := deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, name)
@@ -542,7 +546,7 @@ myapp.example.com {
 		}
 		deployment := cli.NewDeployment(spec, nil)
 
-		err = deployment.Validate(ctx)
+		err := deployment.Validate(ctx)
 		require.NoError(t, err)
 
 		plan, err := deployment.Plan(ctx)
@@ -709,7 +713,7 @@ myapp.example.com {
 
 		deployment := cli.NewDeployment(spec, nil)
 
-		_, err = deployment.Run(ctx)
+		_, err := deployment.Run(ctx)
 		require.NoError(t, err)
 
 		// Verify service has 2 containers on machines 0 and 1.
@@ -1090,7 +1094,7 @@ myapp.example.com {
 		}
 
 		d := deploy.NewDeployment(cli, spec, nil)
-		_, err = d.Run(ctx)
+		_, err := d.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, serviceName)
@@ -1128,7 +1132,7 @@ myapp.example.com {
 		}
 
 		d := deploy.NewDeployment(cli, spec, nil)
-		_, err = d.Run(ctx)
+		_, err := d.Run(ctx)
 		require.Error(t, err, "Global deployment should fail when required volume doesn't exist")
 		require.Contains(t, err.Error(), "no machines available")
 	})
@@ -1270,7 +1274,7 @@ myapp.example.com {
 		}
 
 		deployment := cli.NewDeployment(spec, nil)
-		_, err = deployment.Run(ctx)
+		_, err := deployment.Run(ctx)
 		require.NoError(t, err)
 
 		svc, err := cli.InspectService(ctx, serviceName)
@@ -2086,7 +2090,8 @@ func TestServiceLifecycle(t *testing.T) {
 		}
 
 		assertNoDNSErrors := func(t *testing.T, dnsOutput string) {
-			assert.NotContains(t, dnsOutput, "server can't find", "DNS query should not contain NXDOMAIN/SERVFAIL errors")
+			assert.NotContains(t, dnsOutput, "server can't find",
+				"DNS query should not contain NXDOMAIN/SERVFAIL errors")
 		}
 
 		t.Run("service name resolves to all container IPs", func(t *testing.T) {
