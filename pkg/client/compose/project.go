@@ -40,6 +40,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		composecli.WithExtension(MachinesExtensionKey, MachinesSource{}),
 		composecli.WithExtension(PortsExtensionKey, PortsSource{}),
 		composecli.WithExtension(PreDeployHookExtensionKey, PreDeployHook{}),
+		composecli.WithExtension(RegistryExtensionKey, RegistrySource{}),
 	}
 
 	options, err := composecli.NewProjectOptions(

@@ -12,7 +12,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/jsonmessage"
 	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
-	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/secret"
@@ -81,7 +80,7 @@ func (cli *Client) createServiceContainerWithPull(
 	pw.Event(progress.CreatingEvent(eventID))
 
 	if spec.Container.PullPolicy == api.PullPolicyAlways {
-		if err = cli.pullImageWithProgress(ctx, spec.Container.Image, machine.Machine.Name, eventID); err != nil {
+		if err = cli.pullImageWithProgress(ctx, spec.Container.Image, machine.Machine.Name, eventID, spec.Registry); err != nil {
 			return resp, err
 		}
 	}
@@ -113,7 +112,7 @@ func (cli *Client) createServiceContainerWithPull(
 		}
 
 		// Pull the missing image and create the container again.
-		if err = cli.pullImageWithProgress(ctx, spec.Container.Image, machine.Machine.Name, eventID); err != nil {
+		if err = cli.pullImageWithProgress(ctx, spec.Container.Image, machine.Machine.Name, eventID, spec.Registry); err != nil {
 			return resp, err
 		}
 		if grpcResp, err = cli.Docker.GRPCClient.CreateServiceContainer(ctx, req); err != nil {
@@ -129,7 +128,7 @@ func (cli *Client) createServiceContainerWithPull(
 	return resp, nil
 }
 
-func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName, parentEventID string) error {
+func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName, parentEventID string, regspec api.RegistrySpec) error {
 	pw := progress.ContextWriter(ctx)
 	eventID := cliprogress.ImageEventID(image, machineName)
 	pw.Event(progress.Event{
@@ -140,10 +139,8 @@ func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName
 	})
 
 	opts := machinedocker.PullOptions{}
-	// Try to retrieve the authentication token for the image from the default local Docker config file.
-	if encodedAuth, err := docker.RetrieveLocalDockerRegistryAuth(image); err == nil {
-		// If RegistryAuth is empty, Uncloud daemon will try to retrieve the credentials from its own Docker config.
-		opts.RegistryAuth = encodedAuth
+	if auth := regspec.RegistryAuth(image); auth != "" {
+		opts.RegistryAuth = auth
 	}
 
 	pullCh, err := cli.Docker.PullImage(ctx, image, opts)
