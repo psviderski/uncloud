@@ -150,11 +150,13 @@ Connection methods:
 
 func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, opts initOptions) error {
 	if uncli.Config == nil {
-		// Config is nil when connecting directly to a remote machine (--connect) without using Uncloud config.
+		// Config is nil when connecting directly to a remote machine (--connect) without using Uncloud config
+		// or when being logged in on a machine and using the uncloud socket directly.
 		return fmt.Errorf(
 			"do not use --connect when initialising a new cluster: --connect is for overriding the connection " +
 				"to an existing cluster, but 'machine init' creates a new one and writes the new cluster context " +
-				"to the Uncloud config file (--uncloud-config)")
+				"to the Uncloud config file (--uncloud-config), when logged in on a cluster machine, 'machine init' " +
+				"is not supported")
 	}
 
 	netPrefix, err := netip.ParsePrefix(opts.network)
