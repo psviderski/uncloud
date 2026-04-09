@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/psviderski/uncloud/cmd/uncloud/internal/logs"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -88,20 +87,27 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
-	// Collect log streams from all services.
-	machineIDsSet := mapset.NewSet[string]()
+	// Collect log streams from all units on all machines.
 	unitStreams := make([]<-chan api.ServiceLogEntry, 0, len(units))
 
-	for _, unit := range units {
-		// This is wrong because we're calling the wrong endpoints. Must be c.MachineLogs.
-		svc, ch, err := c.ServiceLogs(ctx, unit, logsOpts)
-		if err != nil {
-			return fmt.Errorf("stream logs for systemd service '%s': %w", unit, err)
-		}
-		unitStreams = append(unitStreams, ch)
+	// Fetch machine names for all machines (machineIDsSet) service containers are running on.
+	machines, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: opts.Machines})
+	if err != nil {
+		return fmt.Errorf("list machines: %w", err)
+	}
+	machineNames := make([]string, 0, len(machines))
+	for _, m := range machines {
+		machineNames = append(machineNames, m.Machine.Name)
+	}
 
-		machineIDs := svc.MachineIDs()
-		machineIDsSet.Append(machineIDs...)
+	for _, machine := range machineNames {
+		for _, unit := range units {
+			ch, err := c.MachineLogs(ctx, machine, unit, logsOpts)
+			if err != nil {
+				return fmt.Errorf("stream logs for systemd service '%s': %w", unit, err)
+			}
+			unitStreams = append(unitStreams, ch)
+		}
 	}
 
 	var stream <-chan api.ServiceLogEntry
@@ -111,16 +117,6 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		// Merge all service streams into a single sorted stream without stall detection as its handled per-service.
 		merger := client.NewLogMerger(unitStreams, client.LogMergerOptions{})
 		stream = merger.Stream()
-	}
-
-	// Fetch machine names for all machines (machineIDsSet) service containers are running on.
-	machines, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: machineIDsSet.ToSlice()})
-	if err != nil {
-		return fmt.Errorf("list machines: %w", err)
-	}
-	machineNames := make([]string, 0, len(machines))
-	for _, m := range machines {
-		machineNames = append(machineNames, m.Machine.Name)
 	}
 
 	formatter := logs.NewFormatter(machineNames, units, opts.UTC)
