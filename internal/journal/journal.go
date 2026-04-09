@@ -16,15 +16,15 @@ const (
 	UnitCorrosion = "uncloud-corrosion"
 )
 
-var validunits = map[string]struct{}{
-	UnitUncloud:   {},
-	UnitDocker:    {},
-	UnitCorrosion: {},
-}
-
 func ValidUnit(unit string) bool {
-	_, ok := validunits[unit]
-	return ok
+	switch unit {
+	case UnitUncloud:
+	case UnitDocker:
+	case UnitCorrosion:
+	default:
+		return false
+	}
+	return true
 }
 
 const journalctl = "journalctl"

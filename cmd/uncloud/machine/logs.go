@@ -63,7 +63,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 
 	for _, unit := range units {
 		if !journal.ValidUnit(unit) {
-			return fmt.Errorf("invalid unit file '%s'", unit)
+			return fmt.Errorf("invalid unit '%s'", unit)
 		}
 	}
 
@@ -86,10 +86,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
-	// Collect log streams from all units on all machines.
-	unitStreams := make([]<-chan api.ServiceLogEntry, 0, len(units))
-
-	// Fetch machine names for all machines (machineIDsSet) service containers are running on.
+	// Fetch machine names for all machines we want the unit logs from.
 	machines, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: opts.Machines})
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
@@ -98,6 +95,9 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 	for _, m := range machines {
 		machineNames = append(machineNames, m.Machine.Name)
 	}
+
+	// Collect log streams from the units on the machine machines.
+	unitStreams := make([]<-chan api.ServiceLogEntry, 0, len(units)+len(machines))
 
 	for _, machine := range machineNames {
 		for _, unit := range units {
@@ -113,7 +113,6 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 	if len(units) == 1 {
 		stream = unitStreams[0]
 	} else {
-		// Merge all service streams into a single sorted stream without stall detection as its handled per-service.
 		merger := client.NewLogMerger(unitStreams, client.LogMergerOptions{})
 		stream = merger.Stream()
 	}
