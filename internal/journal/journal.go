@@ -33,7 +33,7 @@ var commandContext = exec.CommandContext // allow override for test
 
 func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.ReadCloser, error) {
 	if !ValidUnit(unit) {
-		return nil, fmt.Errorf("invalid unit file '%s'", unit)
+		return nil, fmt.Errorf("journal logs: invalid unit: %s", unit)
 	}
 	args := []string{"-u", unit, "--no-hostname"}
 	args = append(args, "-n")
