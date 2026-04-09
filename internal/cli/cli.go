@@ -54,10 +54,6 @@ func New(configPath string, conn *config.MachineConnection, contextName string) 
 }
 
 func (cli *CLI) CreateContext(name string) error {
-	if cli.conn.Unix != "" {
-		return fmt.Errorf("local unix socket connection '%s', not creating Uncloud config", cli.conn.Unix)
-	}
-
 	if _, ok := cli.Config.Contexts[name]; ok {
 		return fmt.Errorf("context '%s' already exists", name)
 	}
