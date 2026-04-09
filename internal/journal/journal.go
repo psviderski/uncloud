@@ -10,11 +10,31 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
+const (
+	UnitUncloud   = "uncloud"
+	UnitDocker    = "docker"
+	UnitCorrosion = "uncloud-corrosion"
+)
+
+var validunits = map[string]struct{}{
+	UnitUncloud:   {},
+	UnitDocker:    {},
+	UnitCorrosion: {},
+}
+
+func ValidUnit(unit string) bool {
+	_, ok := validunits[unit]
+	return ok
+}
+
 const journalctl = "journalctl"
 
 var commandContext = exec.CommandContext // allow override for test
 
 func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.ReadCloser, error) {
+	if !ValidUnit(unit) {
+		return nil, fmt.Errorf("invalid unit file '%s'", unit)
+	}
 	args := []string{"-u", unit, "--no-hostname"}
 	args = append(args, "-n")
 	if opts.Tail > -1 {

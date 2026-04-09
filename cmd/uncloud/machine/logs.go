@@ -6,6 +6,7 @@ import (
 
 	"github.com/psviderski/uncloud/cmd/uncloud/internal/logs"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/journal"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
@@ -18,7 +19,7 @@ func NewLogsCommand(groupID string) *cobra.Command {
 		Use:     "logs [UNIT...]",
 		Aliases: []string{"log"},
 		Short:   "View systemd service logs.",
-		Long: `View logs from all replicas of the specified units(s) (uncloud, docker or corrosion) across all machines in the cluster.
+		Long: `View logs from all replicas of the specified units(s) (uncloud, docker or uncloud-corrosion) across all machines in the cluster.
 
 If no units are specified, streams logs from the uncloud unit.`,
 		Example: `  # View recent logs for a system service.
@@ -55,15 +56,13 @@ If no units are specified, streams logs from the uncloud unit.`,
 	return cmd
 }
 
-var validunits = map[string]struct{}{
-	"uncloud":   {},
-	"docker":    {},
-	"corrosion": {},
-}
-
 func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Options) error {
+	if len(units) == 0 {
+		units = []string{journal.UnitUncloud}
+	}
+
 	for _, unit := range units {
-		if _, ok := validunits[unit]; !ok {
+		if !journal.ValidUnit(unit) {
 			return fmt.Errorf("invalid unit file '%s'", unit)
 		}
 	}
