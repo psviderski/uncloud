@@ -141,7 +141,7 @@ This generates tags like:
 `uc deploy` renders the image templates when it loads the Compose file and then uses the resulting names for the build
 and deploy stages.
 
-See the [Image tag template](../../8-compose-file-reference/2-image-tag-template.md) reference for all available
+See the [Image tag template](../../8-compose-file-reference/3-image-tag-template.md) reference for all available
 template variables and functions.
 
 ### Separate build and deploy steps
@@ -338,7 +338,7 @@ services:
 With this configuration, `uc deploy` and other commands using the Compose file will always target the `prod` context,
 regardless of your currently active context. You can still override it with the `--context` flag if needed.
 
-See [`x-context`](../../8-compose-file-reference/1-support-matrix.md#x-context) for more details.
+See [`x-context`](../../8-compose-file-reference/2-extensions.md#x-context) for more details.
 
 ## Use a different Compose file location
 

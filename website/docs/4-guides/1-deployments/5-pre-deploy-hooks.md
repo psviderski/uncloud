@@ -29,7 +29,7 @@ changes do not persist after the hook finishes, except for changes written to sh
 
 ## Usage
 
-Add the [`x-pre_deploy`](../../8-compose-file-reference/1-support-matrix.md#x-pre_deploy) extension to a service in your
+Add the [`x-pre_deploy`](../../8-compose-file-reference/2-extensions.md#x-pre_deploy) extension to a service in your
 Compose file. The only required attribute is `command`, which can be a string or a list of strings, just like the
 service's [`command`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#command).
 
@@ -54,7 +54,7 @@ hook and regular service containers.
 Since your command runs in the same image as the service, any tools or dependencies it needs must be installed in that
 image.
 
-See [`x-pre_deploy`](../../8-compose-file-reference/1-support-matrix.md#x-pre_deploy) for all available attributes and
+See [`x-pre_deploy`](../../8-compose-file-reference/2-extensions.md#x-pre_deploy) for all available attributes and
 their defaults.
 
 ### Database migrations
@@ -203,7 +203,7 @@ Most database migration tools handle this naturally since they track which migra
 
 ## See also
 
-- [`x-pre_deploy` reference](../../8-compose-file-reference/1-support-matrix.md#x-pre_deploy): All available attributes
+- [`x-pre_deploy` reference](../../8-compose-file-reference/2-extensions.md#x-pre_deploy): All available attributes
   and their defaults
 - [Rolling deployments](4-rolling-deployments.md): How Uncloud updates containers with zero downtime
 - [Deploy an app](1-deploy-app.md): Build and deploy from source code or pre-built images
