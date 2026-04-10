@@ -23,6 +23,9 @@ If the command exits with code 0, the deployment continues with a normal [rollin
 the command fails or times out, the deployment stops immediately with an error. `uc deploy` will display the latest logs
 from the hook container to help you diagnose the issue.
 
+![Deploy flow with a pre-deploy hook](img/pre-deploy-hook-light.svg#gh-light-mode-only)
+![Deploy flow with a pre-deploy hook](img/pre-deploy-hook-dark.svg#gh-dark-mode-only)
+
 The hook runs on one of the machines where the service will be deployed. Similar to service containers, hook containers
 can reach other services over the network, connect to databases, and read or write shared volumes. Note that file system
 changes do not persist after the hook finishes, except for changes written to shared volumes.
