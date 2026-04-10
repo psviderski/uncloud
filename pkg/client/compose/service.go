@@ -495,6 +495,21 @@ func validateServicesFeatures(project *types.Project) []error {
 				errs = append(errs, err(service.Name, "networks"))
 			}
 		}
+
+		// Err about depends_on conditions 'service_completed_successfully' that we do not support because services in
+		// Uncloud are long-running. Services that run to completion need a separate abstraction, e.g. a Job.
+		// Plus we don't want the lifecycle of a service to control the lifecycle of another one. It should be fully
+		// owned. Otherwise, it's hard to make the behaviour deterministic when each service could also be deployed and
+		// managed independently.
+		for depName, dep := range service.DependsOn {
+			if dep.Condition == types.ServiceConditionCompletedSuccessfully {
+				errs = append(errs, fmt.Errorf(
+					"service '%s': depends_on condition '%s' on service '%s' is not supported, "+
+						"use a pre-deploy hook instead: %s",
+					service.Name, types.ServiceConditionCompletedSuccessfully, depName,
+					"https://uncloud.run/docs/guides/deployments/pre-deploy-hooks"))
+			}
+		}
 	}
 
 	return errs

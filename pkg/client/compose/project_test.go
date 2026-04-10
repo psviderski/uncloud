@@ -240,6 +240,25 @@ networks:
 			warnContains: []string{"networks"},
 		},
 		{
+			name: "unsupported depends_on service_completed_successfully",
+			composeYAML: `services:
+  migrate:
+    image: alpine
+    command: ["true"]
+  app:
+    image: nginx
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+`,
+			warnCount: 1,
+			warnContains: []string{
+				"service_completed_successfully",
+				"pre-deploy hook",
+				"https://uncloud.run/docs/guides/deployments/pre-deploy-hooks",
+			},
+		},
+		{
 			name: "multiple unsupported features",
 			composeYAML: `services:
   app:
