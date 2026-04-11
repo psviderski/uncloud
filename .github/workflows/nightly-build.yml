@@ -78,7 +78,7 @@ jobs:
             --title "Nightly Build" \
             --notes "${RELEASE_NOTES}" \
             --prerelease \
-            --target main \
+            --target ${{ github.sha }} \
             dist/*.tar.gz dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
