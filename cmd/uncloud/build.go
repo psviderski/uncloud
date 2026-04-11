@@ -6,6 +6,7 @@ import (
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/spf13/cobra"
 )
@@ -75,6 +76,8 @@ to cluster machines or --push-registry to upload them to external registries.`,
 			"Use --machine to specify which machines. (default is all machines)")
 	cmd.Flags().BoolVar(&opts.PushRegistry, "push-registry", false,
 		"Upload the built images to external registries (e.g., Docker Hub) after building.")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }

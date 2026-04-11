@@ -39,12 +39,9 @@ func NewInspectCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine where the volume is located. "+
 			"If not specified, the volume will be searched across all machines.")
-	cmd.RegisterFlagCompletionFunc("machine",
-		func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return completion.Machines(cmd.Context(), uncli, args, toComplete)
 
-		})
+	completion.MachinesFlag(cmd)
+
 	return cmd
 }
 

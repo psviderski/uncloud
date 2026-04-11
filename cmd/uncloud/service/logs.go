@@ -101,6 +101,8 @@ If no services are specified, streams logs from all services defined in the Comp
 	cmd.Flags().BoolVar(&options.utc, "utc", false,
 		"Print timestamps in UTC instead of local timezone.")
 
+	completion.MachinesFlag(cmd)
+
 	return cmd
 }
 

@@ -31,3 +31,11 @@ func Machines(ctx context.Context, uncli *cli.CLI, args []string, toComplete str
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
+
+func MachinesFlag(cmd *cobra.Command) {
+	cmd.RegisterFlagCompletionFunc("machine",
+		func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return Machines(cmd.Context(), uncli, args, toComplete)
+		})
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/containerd/platforms"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
@@ -53,6 +54,8 @@ The image is uploaded to all cluster machines (default) or the specified machine
 		"Push a specific platform of a multi-platform image (e.g., linux/amd64, linux/arm64).\n"+
 			"Local Docker must be configured to use containerd image store to support multi-platform images.",
 	)
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }

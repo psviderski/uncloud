@@ -17,6 +17,7 @@ import (
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -61,6 +62,8 @@ func NewListCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Filter images by machine name or ID. Can be specified multiple times or as a comma-separated list. "+
 			"(default is include all machines)")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }

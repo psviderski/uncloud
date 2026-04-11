@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/daemon/names"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
@@ -123,6 +124,8 @@ func NewRunCommand(groupID string) *cobra.Command {
 			"  -v postgres-data:/var/lib/postgresql/data  Mount volume 'postgres-data' to /var/lib/postgresql/data in container\n"+
 			"  -v /data/uploads:/app/uploads         	 Bind mount /data/uploads host directory to /app/uploads in container\n"+
 			"  -v /host/path:/container/path:ro 		 Bind mount a host directory or file as read-only")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }

@@ -46,6 +46,8 @@ func NewRemoveCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Do not prompt for confirmation before removing the volume(s).")
 
+	completion.MachinesFlag(cmd)
+
 	return cmd
 }
 

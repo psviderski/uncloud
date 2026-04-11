@@ -9,6 +9,7 @@ import (
 	"charm.land/huh/v2"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -49,6 +50,8 @@ func NewCreateCommand() *cobra.Command {
 		"Labels to assign to the volume in the form of 'key=value' pairs. Can be specified multiple times.")
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine to create the volume on.")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }
