@@ -7,6 +7,7 @@ import (
 
 	"charm.land/huh/v2"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +29,13 @@ func NewUseCommand() *cobra.Command {
 			}
 
 			return selectContext(uncli)
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Contexts(cmd.Context(), uncli, args, toComplete)
 		},
 	}
 
