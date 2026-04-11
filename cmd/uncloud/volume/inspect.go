@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -26,12 +27,24 @@ func NewInspectCommand() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return inspect(cmd.Context(), uncli, args[0], opts)
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Volumes(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine where the volume is located. "+
 			"If not specified, the volume will be searched across all machines.")
+	cmd.RegisterFlagCompletionFunc("machine",
+		func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Machines(cmd.Context(), uncli, args, toComplete)
 
+		})
 	return cmd
 }
 

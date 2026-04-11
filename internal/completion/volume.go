@@ -1,4 +1,3 @@
-// Package completion implements completion functions for the uc cli.
 package completion
 
 import (
@@ -7,27 +6,28 @@ import (
 	"strings"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
-func Services(ctx context.Context, uncli *cli.CLI, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+func Volumes(ctx context.Context, uncli *cli.CLI, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
 	defer client.Close()
 
-	services, err := client.ListServices(ctx)
+	volumes, err := client.ListVolumes(ctx, &api.VolumeFilter{})
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
 	names := []cobra.Completion{}
-	for _, service := range services {
-		if slices.Contains(args, service.Name) {
+	for _, volume := range volumes {
+		if slices.Contains(args, volume.Volume.Name) {
 			continue
 		}
-		if strings.HasPrefix(service.Name, toComplete) {
-			names = append(names, service.Name)
+		if strings.HasPrefix(volume.Volume.Name, toComplete) {
+			names = append(names, volume.Volume.Name)
 		}
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp

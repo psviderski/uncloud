@@ -32,11 +32,11 @@ func NewInspectCommand(groupID string) *cobra.Command {
 		},
 		GroupID: groupID,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-			if len(args) != 0 {
+			if len(args) > 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return completion.Services(cmd.Context(), uncli, toComplete)
+			return completion.Services(cmd.Context(), uncli, args, toComplete)
 		},
 	}
 	return cmd
