@@ -6,6 +6,7 @@ import (
 
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,10 @@ directives in image Dockerfiles) are automatically removed with their containers
 			return rm(cmd.Context(), uncli, opts)
 		},
 		GroupID: groupID,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Services(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 	return cmd
 }

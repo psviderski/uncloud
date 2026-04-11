@@ -14,6 +14,7 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/internal/completion"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -47,6 +48,8 @@ func NewDeployCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Machine names or IDs to deploy to. Can be specified multiple times or as a comma-separated "+
 			"list. (default is all machines)")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }
