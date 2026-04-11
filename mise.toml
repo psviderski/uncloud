@@ -5,6 +5,7 @@ experimental = true
 "aqua:vektra/mockery" = "3.5.3"
 go = "1.26.1"
 golangci-lint = "2.11.2"
+goreleaser = "2.15.2"
 node = "22.20.0"
 protoc = "27.3"
 protoc-gen-go = "1.34.2"
