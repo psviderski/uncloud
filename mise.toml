@@ -5,6 +5,7 @@ experimental = true
 "aqua:vektra/mockery" = "3.5.3"
 go = "1.26.1"
 golangci-lint = "2.11.2"
+goreleaser = "2.15.2"
 node = "22.20.0"
 protoc = "27.3"
 protoc-gen-go = "1.34.2"
@@ -16,48 +17,23 @@ ucind_image = "ghcr.io/psviderski/ucind:latest"
 [env]
 _.file = ".env"
 
-### Builds: uncloudd
 [tasks."build:uncloudd-amd64"]
 description = "Build uncloudd for linux/amd64"
-run = "mise run build:uncloudd amd64"
+run = """
+VERSION=$(git describe --tags --always --dirty) \
+GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/psviderski/uncloud/internal/version.version=$VERSION" \
+  -o uncloudd-linux-amd64 ./cmd/uncloudd
+"""
 outputs = ["uncloudd-linux-amd64"]
 
 [tasks."build:uncloudd-arm64"]
 description = "Build uncloudd for linux/arm64"
-run = "mise run build:uncloudd arm64"
+run = """
+VERSION=$(git describe --tags --always --dirty) \
+GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/psviderski/uncloud/internal/version.version=$VERSION" \
+  -o uncloudd-linux-arm64 ./cmd/uncloudd
+"""
 outputs = ["uncloudd-linux-arm64"]
-
-### Builds: uncloud CLI
-[tasks."build:uncloud-linux-amd64"]
-description = "Build uncloud CLI for linux/amd64"
-run = "mise run build:uncloud linux amd64"
-outputs = ["uncloud-linux-amd64"]
-
-[tasks."build:uncloud-linux-arm64"]
-description = "Build uncloud CLI for linux/arm64"
-run = "mise run build:uncloud linux arm64"
-outputs = ["uncloud-linux-arm64"]
-
-[tasks."build:uncloud-macos-amd64"]
-description = "Build uncloud CLI for macOS/amd64"
-run = "mise run build:uncloud macos amd64"
-outputs = ["uncloud-macos-amd64"]
-
-[tasks."build:uncloud-macos-arm64"]
-description = "Build uncloud CLI for macOS/arm64"
-run = "mise run build:uncloud macos arm64"
-outputs = ["uncloud-macos-arm64"]
-
-[tasks."build:all"]
-description = "Build all release binaries (uncloudd + uncloud CLI for all platforms)"
-depends = [
-  "build:uncloudd-amd64",
-  "build:uncloudd-arm64",
-  "build:uncloud-linux-amd64",
-  "build:uncloud-linux-arm64",
-  "build:uncloud-macos-amd64",
-  "build:uncloud-macos-arm64",
-]
 
 [tasks."mise:lock"]
 description = "Update mise.lock with hashes for all platforms"
