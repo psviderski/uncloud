@@ -51,6 +51,9 @@ to cluster machines or --push-registry to upload them to external registries.`,
 			return runBuild(cmd.Context(), uncli, opts)
 		},
 		GroupID: "service",
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			return completion.ComposeServices(cmd.Context(), args, toComplete, opts.files, opts.profiles)
+		},
 	}
 
 	cmd.Flags().StringArrayVar(&opts.BuildArgs, "build-arg", nil,
