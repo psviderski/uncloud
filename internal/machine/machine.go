@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/user"
@@ -33,6 +34,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
@@ -79,6 +81,9 @@ type Config struct {
 	CaddyConfigDir string
 	// DNSUpstreams specifies the upstream DNS servers for the embedded internal DNS server.
 	DNSUpstreams []netip.AddrPort
+
+	// PrometheusAddr is the address for the prometheus endpoint.
+	PrometheusAddr netip.AddrPort
 }
 
 // SetDefaults returns a new Config with default values set where not provided.
@@ -165,6 +170,11 @@ func (c *Config) SetDefaults() (*Config, error) {
 		cfg.CaddyConfigDir = filepath.Join(cfg.DataDir, "caddy")
 	}
 
+	if !cfg.PrometheusAddr.IsValid() {
+		cfg.PrometheusAddr = netip.AddrPortFrom(
+			netip.AddrFrom4([4]byte{127, 0, 0, 1}), prometheus.DefaultPort)
+	}
+
 	return &cfg, nil
 }
 
@@ -209,6 +219,8 @@ type Machine struct {
 	// It proxies requests to the local or remote machine API servers depending on the request targets
 	// and aggregates responses.
 	localProxyServer *grpc.Server
+
+	prometheusServer *prometheus.Server
 
 	// mu protects the Machine from concurrent reads and writes.
 	mu sync.RWMutex
@@ -279,6 +291,7 @@ func NewMachine(config *Config) (*Machine, error) {
 			proxy.TransparentHandler(proxyDirector.Director),
 		),
 	)
+	prometheusServer := prometheus.New()
 
 	m := &Machine{
 		config:           *config,
@@ -292,6 +305,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		dockerService:    dockerService,
 		localProxyServer: localProxyServer,
 		proxyDirector:    proxyDirector,
+		prometheusServer: prometheusServer,
 	}
 
 	// Machine IP will only be available after the machine is initialised as a cluster member so wrap it in a function.
@@ -397,6 +411,19 @@ func (m *Machine) Run(ctx context.Context) error {
 		slog.Info("Starting local API proxy server.", "path", m.config.UncloudSockPath)
 		if err := m.localProxyServer.Serve(proxyListener); err != nil {
 			return fmt.Errorf("local API proxy server failed: %w", err)
+		}
+		return nil
+	})
+
+	// Start the Prometheus server.
+	promListener, err := net.Listen("tcp", m.config.PrometheusAddr.String())
+	if err != nil {
+		return fmt.Errorf("listen prometheus server: %w", err)
+	}
+	errGroup.Go(func() error {
+		slog.Info("Starting prometheus server.")
+		if err := m.prometheusServer.Serve(promListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("local machine prometheus server failed: %w", err)
 		}
 		return nil
 	})
@@ -532,6 +559,9 @@ func (m *Machine) Run(ctx context.Context) error {
 		// Close the proxy director to close all backend connections.
 		m.proxyDirector.Close()
 		slog.Info("Local API proxy server stopped.")
+
+		m.prometheusServer.Shutdown(context.TODO())
+		slog.Info("Prometheus server stopped.")
 
 		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
 		if m.resetting {
