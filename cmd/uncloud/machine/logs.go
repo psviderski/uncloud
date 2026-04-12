@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewLogsCommand(groupID string) *cobra.Command {
+func NewLogsCommand() *cobra.Command {
 	var options logs.Options
 
 	cmd := &cobra.Command{
@@ -49,7 +49,6 @@ If no units are specified, streams logs from the uncloud unit.`,
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return runLogs(cmd.Context(), uncli, args, options)
 		},
-		GroupID: groupID,
 	}
 
 	cmd.Flags().AddFlagSet(logs.Flags(&options))
