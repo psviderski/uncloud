@@ -12,12 +12,7 @@ import (
 
 // Logs streams logs from a service and returns entries via a channel.
 func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
-	// Hard code unit check for now
-	switch unit {
-	case "uncloud":
-	case "uncloud-corrosion":
-	case "docker":
-	default:
+	if !ValidUnit(unit) {
 		return nil, fmt.Errorf("journal logs: invalid unit: %s", unit)
 	}
 
@@ -54,7 +49,7 @@ func entry(data []byte) api.LogEntry {
 
 	return api.LogEntry{
 		Timestamp: timestamp,
-		Message:   slices.Clone(message), // scanner controls the buffer
+		Message:   append(slices.Clone(message), '\n'), // scanner controls the buffer so Clone and re-add newline
 		Stream:    api.LogStreamStdout,
 	}
 }
