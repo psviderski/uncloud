@@ -157,10 +157,10 @@ func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName
 			Status:     progress.Error,
 			StatusText: statusErr.Message(),
 		})
-		metrics.ContainerExec.WithLabelValues("pull", metrics.Err)
+		metrics.ContainerExec.WithLabelValues("pull", metrics.Err).Inc()
 		return fmt.Errorf("pull image: %w", errors.New(statusErr.Message()))
 	}
-	defer metrics.ContainerExec.WithLabelValues("pull", metrics.Ok)
+	defer metrics.ContainerExec.WithLabelValues("pull", metrics.Ok).Inc()
 
 	// Wait for pull to complete by reading all progress messages and converting them to events.
 	for msg := range pullCh {
