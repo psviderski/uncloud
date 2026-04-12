@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Build and install uncloud binaries on dev machines, restart daemon if running"
+#MISE depends=["build:uncloudd-amd64", "build:uncloudd-arm64"]
+#MISE raw=true
+#USAGE arg "<hosts>" var=#true var_min=1 help="Hosts in [user@]host[/arch] format, arch defaults to amd64"
+
+for arg in ${usage_hosts}; do
+  if [[ "$arg" == */* ]]; then
+    host="${arg%/*}"
+    arch="${arg##*/}"
+  else
+    host="$arg"
+    arch="amd64"
+  fi
+
+  binary="uncloudd-linux-${arch}"
+  echo "==> Installing uncloudd on ${host} (${arch})..."
+  scp "$binary" "${host}:/tmp/"
+  ssh "$host" "sudo install /tmp/${binary} /usr/local/bin/uncloudd && rm /tmp/${binary} && sudo systemctl try-restart uncloud"
+done
+
+rm -f uncloudd-linux-amd64 uncloudd-linux-arm64

@@ -8,8 +8,8 @@ Initialise a new cluster by setting up a remote machine as the first member.
 This command creates a new context in your Uncloud config to manage the cluster.
 
 Connection methods:
-  ssh://user@host       - Use built-in SSH library (default, no prefix required)
-  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)
+  [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
+  ssh+go://user@host  - Use Go's built-in SSH library
 
 ```
 uc machine init [schema://]USER@HOST[:PORT] [flags]
@@ -46,6 +46,10 @@ uc machine init [schema://]USER@HOST[:PORT] [flags]
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
       --version string        Version of the Uncloud daemon to install on the machine. (default "latest")
+      --wg-endpoint strings   WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port 51820 is used if omitted.
+                              Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.
+                              Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
+                              If not specified, the machine's routable IPs and public IP are auto-detected and used as endpoints.
   -y, --yes                   Auto-confirm prompts (e.g., resetting an already initialised machine).
                               Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
@@ -54,7 +58,7 @@ uc machine init [schema://]USER@HOST[:PORT] [flags]
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
+                                Format: [ssh://]user@host[:port], ssh+go://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```
 

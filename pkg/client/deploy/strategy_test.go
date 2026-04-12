@@ -6,8 +6,10 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
+	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -315,8 +317,9 @@ func TestReconcileGlobalContainer(t *testing.T) {
 			},
 			expectedOps: []operation.Operation{
 				&operation.RunContainerOperation{
-					ServiceID: "service-1",
-					MachineID: "machine-1",
+					ServiceID:   "service-1",
+					MachineID:   "machine-1",
+					MachineName: "machine-1",
 				},
 			},
 		},
@@ -335,6 +338,7 @@ func TestReconcileGlobalContainer(t *testing.T) {
 				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
+					MachineName:  "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
@@ -358,16 +362,19 @@ func TestReconcileGlobalContainer(t *testing.T) {
 					ServiceID:   "service-1",
 					ContainerID: "container-2",
 					MachineID:   "machine-1",
+					MachineName: "machine-1",
 				},
 				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
+					MachineName:  "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
 				&operation.RemoveContainerOperation{
-					MachineID: "machine-1",
-					Container: container2WithPort9090,
+					MachineID:   "machine-1",
+					MachineName: "machine-1",
+					Container:   container2WithPort9090,
 				},
 			},
 		},
@@ -388,12 +395,14 @@ func TestReconcileGlobalContainer(t *testing.T) {
 				&operation.ReplaceContainerOperation{
 					ServiceID:    "service-1",
 					MachineID:    "machine-1",
+					MachineName:  "machine-1",
 					OldContainer: container1,
 					Order:        api.UpdateOrderStopFirst,
 				},
 				&operation.RemoveContainerOperation{
-					MachineID: "machine-1",
-					Container: container2WithPort3000,
+					MachineID:   "machine-1",
+					MachineName: "machine-1",
+					Container:   container2WithPort3000,
 				},
 			},
 		},
@@ -402,12 +411,257 @@ func TestReconcileGlobalContainer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ops, err := reconcileGlobalContainer(
-				tt.containers, tt.spec, "service-1", "machine-1", tt.forceRecreate, false,
+				tt.containers,
+				tt.spec,
+				"service-1",
+				&pb.MachineInfo{Id: "machine-1", Name: "machine-1"},
+				tt.forceRecreate,
+				false,
 			)
 			assert.NoError(t, err)
 			assertOperationsEqual(t, tt.expectedOps, ops)
 		})
 	}
+}
+
+func TestPreDeployOperations(t *testing.T) {
+	hook := &api.PreDeployHook{
+		Command: []string{"db", "migrate"},
+	}
+
+	strategy := &RollingStrategy{
+		state: &scheduler.ClusterState{
+			Machines: []*scheduler.Machine{
+				{Info: &pb.MachineInfo{Id: "m-1", Name: "machine-1"}},
+				{Info: &pb.MachineInfo{Id: "m-2", Name: "machine-2"}},
+				{Info: &pb.MachineInfo{Id: "m-3", Name: "machine-3"}},
+			},
+		},
+	}
+
+	runningHook1 := newServiceContainer("running-hook-1", container.State{Running: true, Status: "running"})
+	runningHook2 := newServiceContainer("running-hook-2", container.State{Running: true, Status: "running"})
+
+	tests := []struct {
+		name     string
+		plan     ServicePlan
+		svc      *api.Service
+		expected []operation.Operation
+	}{
+		{
+			name: "no pre-deploy hook in spec",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.RunContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "plan has RunContainerOperation",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.RunContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+					},
+				},
+			},
+			expected: []operation.Operation{
+				&operation.RunPreDeployOperation{
+					ServiceID:   "svc-1",
+					MachineID:   "m-1",
+					MachineName: "machine-1",
+				},
+			},
+		},
+		{
+			name: "plan has ReplaceContainerOperation",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.ReplaceContainerOperation{MachineID: "m-2", MachineName: "machine-2"},
+					},
+				},
+			},
+			expected: []operation.Operation{
+				&operation.RunPreDeployOperation{
+					ServiceID:   "svc-1",
+					MachineID:   "m-2",
+					MachineName: "machine-2",
+				},
+			},
+		},
+		{
+			name: "plan has only RemoveContainerOperation",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.RemoveContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "plan has only StopContainerOperation",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.StopContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "empty plan with no operations",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+			},
+			expected: nil,
+		},
+		{
+			name: "stopped hook containers are collected for cleanup",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.RunContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+					},
+				},
+			},
+			svc: &api.Service{
+				HookContainers: []api.MachineServiceContainer{
+					{MachineID: "m-1", Container: newServiceContainer("old-hook-1", container.State{Status: "exited"})},
+				},
+			},
+			expected: []operation.Operation{
+				&operation.RunPreDeployOperation{
+					ServiceID:       "svc-1",
+					MachineID:       "m-1",
+					MachineName:     "machine-1",
+					OldContainerIDs: []string{"old-hook-1"},
+				},
+			},
+		},
+		{
+			name: "running hook containers are stopped before run",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.RunContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+					},
+				},
+			},
+			svc: &api.Service{
+				HookContainers: []api.MachineServiceContainer{
+					{MachineID: "m-2", Container: runningHook1},
+				},
+			},
+			expected: []operation.Operation{
+				&operation.StopPreDeployOperation{
+					MachineID:   "m-2",
+					MachineName: "machine-2",
+					Container:   runningHook1,
+				},
+				&operation.RunPreDeployOperation{
+					ServiceID:       "svc-1",
+					MachineID:       "m-1",
+					MachineName:     "machine-1",
+					OldContainerIDs: []string{"running-hook-1"},
+				},
+			},
+		},
+		{
+			name: "mixed stopped and running hook containers and mixed container operations",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.StopContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+						&operation.RemoveContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+						&operation.ReplaceContainerOperation{MachineID: "m-2", MachineName: "machine-2"},
+						&operation.RunContainerOperation{MachineID: "m-3", MachineName: "machine-3"},
+						&operation.RemoveContainerOperation{MachineID: "m-3", MachineName: "machine-3"},
+					},
+				},
+			},
+			svc: &api.Service{
+				HookContainers: []api.MachineServiceContainer{
+					{MachineID: "m-1", Container: newServiceContainer("stopped-hook", container.State{Status: "exited"})},
+					{MachineID: "m-1", Container: runningHook1},
+					{MachineID: "m-3", Container: runningHook2},
+				},
+			},
+			expected: []operation.Operation{
+				&operation.StopPreDeployOperation{
+					MachineID:   "m-1",
+					MachineName: "machine-1",
+					Container:   runningHook1,
+				},
+				&operation.StopPreDeployOperation{
+					MachineID:   "m-3",
+					MachineName: "machine-3",
+					Container:   runningHook2,
+				},
+				&operation.RunPreDeployOperation{
+					ServiceID:       "svc-1",
+					MachineID:       "m-2",
+					MachineName:     "machine-2",
+					OldContainerIDs: []string{"stopped-hook", "running-hook-1", "running-hook-2"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := strategy.preDeployOperations(tt.svc, tt.plan)
+			if tt.expected == nil {
+				assert.Nil(t, result)
+				return
+			}
+			assertOperationsEqual(t, tt.expected, result)
+		})
+	}
+}
+
+// newServiceContainer creates an api.ServiceContainer with the given ID and state.
+func newServiceContainer(id string, state container.State) api.ServiceContainer {
+	return api.ServiceContainer{Container: api.Container{
+		InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{
+				ID:    id,
+				State: &state,
+			},
+		},
+	}}
 }
 
 // assertOperationsEqual compares expected and actual operations, ignoring the Spec field
@@ -417,6 +671,7 @@ func assertOperationsEqual(t *testing.T, expected, actual []operation.Operation)
 	opts := cmp.Options{
 		cmpopts.IgnoreFields(operation.RunContainerOperation{}, "Spec"),
 		cmpopts.IgnoreFields(operation.ReplaceContainerOperation{}, "Spec"),
+		cmpopts.IgnoreFields(operation.RunPreDeployOperation{}, "Spec"),
 		cmpopts.IgnoreUnexported(api.Container{}),
 	}
 	if diff := cmp.Diff(expected, actual, opts); diff != "" {

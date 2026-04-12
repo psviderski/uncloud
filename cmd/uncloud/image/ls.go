@@ -3,18 +3,20 @@ package image
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/containerd/platforms"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/go-units"
-	"github.com/muesli/termenv"
+
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -222,7 +224,7 @@ func formatPlatforms(platforms []string) string {
 		Foreground(lipgloss.Color("0")).
 		Background(lipgloss.Color("152"))
 	// Use fancy pill borders only if the output is a terminal with color support.
-	if lipgloss.ColorProfile() != termenv.Ascii {
+	if colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII {
 		platformStyle = platformStyle.Border(lipgloss.Border{Left: "", Right: ""}, false, true, false, true)
 	}
 
@@ -258,22 +260,7 @@ func formatImageTable(rows []imageRow) string {
 		columns[5].hide = true
 	}
 
-	t := table.New().
-		// Remove the default border.
-		Border(lipgloss.Border{}).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		BorderRight(false).
-		BorderHeader(false).
-		BorderColumn(false).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == table.HeaderRow {
-				return lipgloss.NewStyle().Bold(true).PaddingRight(3)
-			}
-			// Regular style for data rows with padding.
-			return lipgloss.NewStyle().PaddingRight(3)
-		})
+	t := tui.NewTable()
 
 	var headers []string
 	for _, col := range columns {
@@ -286,7 +273,7 @@ func formatImageTable(rows []imageRow) string {
 	for _, row := range rows {
 		values := []string{
 			row.id,
-			row.name,
+			tui.FormatImage(row.name, tui.NoStyle),
 			row.platforms,
 			row.createdHuman,
 			row.size,

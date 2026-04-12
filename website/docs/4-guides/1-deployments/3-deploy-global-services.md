@@ -33,7 +33,7 @@ Uncloud doesn't automatically scale global services to new machines.
 
 ## Deploy to a subset of machines
 
-You can combine the `global` mode with [`x-machines`](../../8-compose-file-reference/1-support-matrix.md#x-machines)
+You can combine the `global` mode with [`x-machines`](../../8-compose-file-reference/2-extensions.md#x-machines)
 to deploy one container to each specified machine:
 
 ```yaml title="compose.yaml"
@@ -63,7 +63,7 @@ The default mode is `replicated`, where you specify the number of replicas.
 
 ## See also
 
-- [Deploy an app](1-deploy-app.md): Deploy from source code or prebuilt images
+- [Deploy an app](1-deploy-app.md): Deploy from source code or pre-built images
 - [Deploy to specific machines](2-deploy-specific-machines.md): Deploy services to specific machines in your cluster
 - [Compose Specification: deploy.mode](https://github.com/compose-spec/compose-spec/blob/main/deploy.md#mode):
   Compose specification for deployment modes

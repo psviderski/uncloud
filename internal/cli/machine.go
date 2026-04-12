@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/huh/v2"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/charmbracelet/huh"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -22,11 +23,11 @@ const (
 )
 
 type RemoteMachine struct {
-	User      string
-	Host      string
-	Port      int
-	KeyPath   string
-	UseSSHCLI bool // indicates ssh+cli:// should be used
+	User     string
+	Host     string
+	Port     int
+	KeyPath  string
+	UseSSHGo bool // Use Go's built-in SSH library instead of the system ssh CLI command.
 }
 
 func installCmd(user string, version string) string {
@@ -88,7 +89,7 @@ func provisionMachine(ctx context.Context, exec sshexec.Executor, version string
 }
 
 func promptResetMachine() error {
-	if !IsStdinTerminal() {
+	if !tui.IsStdinTerminal() {
 		return errors.New("the remote machine is already initialised as a cluster member; " +
 			"cannot ask to confirm reset in non-interactive mode, " +
 			"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")

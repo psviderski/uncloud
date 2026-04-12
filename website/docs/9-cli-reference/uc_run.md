@@ -16,7 +16,8 @@ uc run IMAGE [COMMAND...] [flags]
                             Format: VAR=value or just VAR to use the value from the local environment.
   -h, --help                help for run
   -m, --machine strings     Placement constraint by machine names, limiting which machines the service can run on. Can be specified multiple times or as a comma-separated list of machine names. (default is any suitable machine)
-      --memory bytes        Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.
+      --memory bytes        Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g).
+                            Default unit is bytes if no suffix specified.
                             Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)
       --mode string         Replication mode of the service: either 'replicated' (a specified number of containers across the machines) or 'global' (one container on every machine). (default "replicated")
   -n, --name string         Assign a name to the service. A random name is generated if not specified.
@@ -31,6 +32,14 @@ uc run IMAGE [COMMAND...] [flags]
                               -p 53:5353/udp@host            Bind UDP port 5353 to host port 53
       --pull string         Pull image from the registry before running service containers ('always', 'missing', 'never'). (default "missing")
       --replicas uint       Number of containers to run for the service. Only valid for a replicated service. (default 1)
+      --shm-size bytes      Maximum amount of shared memory (mounted at /dev/shm) a service container can use. Value is a positive integer
+                            with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.
+                            Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)
+      --ulimit strings      Set resource limits for service containers. Can be specified multiple times.
+                            Format: type=soft_limit[:hard_limit]. If hard limit is not specified, soft limit is used for both.
+                            Examples:
+                              --ulimit nofile=1024:2048  Set soft limit to 1024 and hard limit to 2048 for number of open files
+                              --ulimit nproc=65535       Set both soft and hard limits to 65535 for number of processes
   -u, --user string         User name or UID and optionally group name or GID used for running the command inside service containers.
                             Format: USER[:GROUP] or UID[:GID]. If not specified, the user is set to the default user of the image.
   -v, --volume strings      Mount a data volume or host path into service containers. Service containers will be scheduled on the machine(s) where
@@ -46,7 +55,7 @@ uc run IMAGE [COMMAND...] [flags]
 
 ```
       --connect string          Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]
-                                Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
+                                Format: [ssh://]user@host[:port], ssh+go://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock
   -c, --context string          Name of the cluster context to use (default is the current context). [$UNCLOUD_CONTEXT]
       --uncloud-config string   Path to the Uncloud configuration file. [$UNCLOUD_CONFIG] (default "~/.config/uncloud/config.yaml")
 ```

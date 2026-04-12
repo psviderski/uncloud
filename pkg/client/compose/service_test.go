@@ -127,12 +127,14 @@ func TestServiceSpecFromCompose(t *testing.T) {
 								"max-file": "3",
 							},
 						},
+						PidMode:    "host",
 						Privileged: true,
 						PullPolicy: api.PullPolicyAlways,
 						Resources: api.ContainerResources{
 							CPU:               0.5 * api.Core,
 							Memory:            100 * units.MiB,
 							MemoryReservation: 50 * units.MiB,
+							SharedMemory:      256 * units.MiB,
 							Ulimits: map[string]api.Ulimit{
 								"nofile": {Soft: 20000, Hard: 40000},
 								"nproc":  {Soft: 65535, Hard: 65535},
@@ -145,6 +147,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 								{Count: -1, Capabilities: [][]string{{"gpu"}}},
 							},
 						},
+						StopGracePeriod: new(30 * time.Second),
 						Sysctls: map[string]string{
 							"net.ipv4.ip_forward": "1",
 						},
@@ -205,8 +208,14 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					Placement: api.Placement{
 						Machines: []string{"machine-1", "machine-2"},
 					},
-					Replicas:        3,
-					StopGracePeriod: api.AsPtr(30 * time.Second),
+					PreDeploy: &api.PreDeployHook{
+						Command:    []string{"sh", "-c", "migrate"},
+						Env:        api.EnvVars{"DB_HOST": "localhost"},
+						Privileged: new(false),
+						Timeout:    new(2*time.Minute + 30*time.Second),
+						User:       "root",
+					},
+					Replicas: 3,
 					UpdateConfig: api.UpdateConfig{
 						Order:         api.UpdateOrderStopFirst,
 						MonitorPeriod: &api.DefaultHealthMonitorPeriod,
@@ -966,7 +975,7 @@ services:
         monitor: 10s
 `,
 			expected: api.UpdateConfig{
-				MonitorPeriod: api.AsPtr(10 * time.Second),
+				MonitorPeriod: new(10 * time.Second),
 			},
 		},
 		{
@@ -982,7 +991,7 @@ services:
 `,
 			expected: api.UpdateConfig{
 				Order:         api.UpdateOrderStartFirst,
-				MonitorPeriod: api.AsPtr(30 * time.Second),
+				MonitorPeriod: new(30 * time.Second),
 			},
 		},
 		{
@@ -996,7 +1005,7 @@ services:
         monitor: 0s
 `,
 			expected: api.UpdateConfig{
-				MonitorPeriod: api.AsPtr(time.Duration(0)),
+				MonitorPeriod: new(time.Duration(0)),
 			},
 		},
 	}

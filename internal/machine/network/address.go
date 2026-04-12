@@ -31,6 +31,12 @@ func ListRoutableIPs() ([]netip.Addr, error) {
 			// Skip Docker bridge interfaces.
 			continue
 		}
+		if iface.Name == "tailscale0" {
+			// Skip Tailscale interface as we don't want double-tunneling. Also, MTU=1280 on tailscale0 is too small
+			// for tunneling IPv6 used for uncloud management traffic.
+			// See Discord thread: https://discord.com/channels/1371726032104587335/1477823130670993408
+			continue
+		}
 
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagRunning == 0 || iface.Flags&net.FlagLoopback != 0 {
 			// Skip interfaces:

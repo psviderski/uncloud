@@ -28,7 +28,7 @@ type Deployment struct {
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
-	plan         *operation.SequenceOperation
+	plan         *Plan
 }
 
 func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*Deployment, error) {
@@ -59,11 +59,11 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 	}, nil
 }
 
-func (d *Deployment) Plan(ctx context.Context) (operation.SequenceOperation, error) {
+func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	if d.plan != nil {
 		return *d.plan, nil
 	}
-	plan := operation.SequenceOperation{}
+	var plan Plan
 
 	// Generate service specs for all services in the project.
 	var serviceSpecs []api.ServiceSpec
@@ -90,9 +90,7 @@ func (d *Deployment) Plan(ctx context.Context) (operation.SequenceOperation, err
 	if err != nil {
 		return plan, err
 	}
-	for _, op := range volumeOps {
-		plan.Operations = append(plan.Operations, op)
-	}
+	plan.Volumes = volumeOps
 
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
@@ -105,7 +103,7 @@ func (d *Deployment) Plan(ctx context.Context) (operation.SequenceOperation, err
 
 		// Skip no-op (up-to-date) service plans.
 		if len(servicePlan.Operations) > 0 {
-			plan.Operations = append(plan.Operations, &servicePlan)
+			plan.Services = append(plan.Services, &servicePlan)
 		}
 	}
 

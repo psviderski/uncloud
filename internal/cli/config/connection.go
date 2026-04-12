@@ -12,8 +12,12 @@ import (
 )
 
 type MachineConnection struct {
-	SSH        SSHDestination `yaml:"ssh,omitempty"`
-	SSHCLI     SSHDestination `yaml:"ssh_cli,omitempty"`
+	// SSH uses the system ssh CLI command to connect. This is the default SSH connection method.
+	SSH SSHDestination `yaml:"ssh,omitempty"`
+	// SSHCLI is a backward-compatible alias for SSH.
+	SSHCLI SSHDestination `yaml:"ssh_cli,omitempty"`
+	// SSHGo uses Go's built-in SSH library to connect.
+	SSHGo      SSHDestination `yaml:"ssh_go,omitempty"`
 	SSHKeyFile string         `yaml:"ssh_key_file,omitempty"`
 	// TCP is the address and port of the machine's API server.
 	// The pointer is used to omit the field when not set. Otherwise, yaml marshalling includes an empty object.
@@ -29,7 +33,9 @@ func (c *MachineConnection) String() string {
 	if c.SSH != "" {
 		return "ssh://" + string(c.SSH)
 	} else if c.SSHCLI != "" {
-		return "ssh+cli://" + string(c.SSHCLI)
+		return "ssh://" + string(c.SSHCLI)
+	} else if c.SSHGo != "" {
+		return "ssh+go://" + string(c.SSHGo)
 	} else if c.TCP != nil && c.TCP.IsValid() {
 		return fmt.Sprintf("tcp://%s", c.TCP)
 	} else if c.Unix != "" {
@@ -46,6 +52,9 @@ func (c *MachineConnection) Validate() error {
 	if c.SSHCLI != "" {
 		setCount++
 	}
+	if c.SSHGo != "" {
+		setCount++
+	}
 	if c.TCP != nil && c.TCP.IsValid() {
 		setCount++
 	}
@@ -54,10 +63,10 @@ func (c *MachineConnection) Validate() error {
 	}
 
 	if setCount == 0 {
-		return errors.New("no connection method specified (ssh, ssh_cli, tcp, or unix required)")
+		return errors.New("no connection method specified (ssh, ssh_go, tcp, or unix required)")
 	}
 	if setCount > 1 {
-		return errors.New("only one connection method allowed per connection (ssh, ssh_cli, tcp, or unix)")
+		return errors.New("only one connection method allowed per connection (ssh, ssh_go, tcp, or unix)")
 	}
 
 	return nil

@@ -9,9 +9,11 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -70,9 +72,11 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		if !errors.Is(err, api.ErrNotFound) {
 			return fmt.Errorf("inspect caddy service: %w", err)
 		}
-		fmt.Printf("Service: %s (not running)\n", client.CaddyServiceName)
+		fmt.Println(tui.Faint.Render("service: ") + tui.NameStyle.Render(client.CaddyServiceName) +
+			tui.Faint.Render(" (not running)"))
 	} else {
-		fmt.Printf("Service: %s (%s mode)\n", svc.Name, svc.Mode)
+		fmt.Println(tui.Faint.Render("service: ") + tui.NameStyle.Render(svc.Name) +
+			tui.Faint.Render(" ("+svc.Mode+" mode)"))
 
 		// Collect unique images of all containers in the running caddy service.
 		images := make(map[string]struct{}, len(svc.Containers))
@@ -82,15 +86,19 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		currentImages := slices.Collect(maps.Keys(images))
 
 		if len(currentImages) > 1 {
-			commaSeparatedImages := strings.Join(currentImages, ", ")
-			fmt.Printf("Current images (multiple versions detected): %s\n", commaSeparatedImages)
+			formattedImages := make([]string, len(currentImages))
+			for i, img := range currentImages {
+				formattedImages[i] = tui.FormatImage(img, tui.NoStyle)
+			}
+			fmt.Println(tui.Faint.Render("current images (multiple versions detected): ") +
+				strings.Join(formattedImages, tui.Faint.Render(", ")))
 		} else {
-			fmt.Printf("Current image: %s\n", currentImages[0])
+			fmt.Println(tui.Faint.Render("current image: ") + tui.FormatImage(currentImages[0], tui.NoStyle))
 		}
 	}
 
 	if opts.image != "" {
-		fmt.Printf("Target image: %s\n", opts.image)
+		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(opts.image, tui.Green))
 	}
 
 	fmt.Println()
@@ -105,7 +113,8 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	}
 
 	if opts.image == "" {
-		fmt.Printf("Target image: %s (latest stable)\n", d.Spec.Container.Image)
+		fmt.Println(tui.Faint.Render("target image: ") + tui.FormatImage(d.Spec.Container.Image,
+			tui.Green) + tui.Faint.Render(" (latest stable)"))
 	}
 
 	plan, err := d.Plan(ctx)
@@ -124,18 +133,41 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 			}
 		}
 
-		// Initialise a machine and container name resolver to properly format the plan output.
-		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, svc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
+		fmt.Println()
+		fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
+		fmt.Println()
+
+		directConn := uncli.DirectConnection()
+		contextName := uncli.ContextOverrideOrCurrent()
+		deployTarget := ""
+		if directConn != "" {
+			deployTarget = directConn
+			fmt.Println(tui.Faint.Render("connection: ") + tui.NameStyle.Render(directConn))
+			fmt.Println()
+		} else if contextName != "" && len(uncli.Config.Contexts) > 1 {
+			// Only show context if there's more than one to avoid unnecessary clutter.
+			deployTarget = contextName
+			fmt.Println(tui.Faint.Render("context: ") + tui.NameStyle.Render(contextName))
+			fmt.Println()
 		}
 
-		fmt.Println()
-		fmt.Println("Deployment plan:")
-		fmt.Println(plan.Format(resolver))
+		fmt.Println(plan.Format())
+
+		summary := plan.FormatSummary()
+		fmt.Println(tui.Faint.Render(strings.Repeat("─", lipgloss.Width(summary))))
+		fmt.Println(summary)
 		fmt.Println()
 
-		confirmed, err := cli.Confirm()
+		title := "Proceed with deployment?"
+		// Include the direct connection or context name in the confirmation prompt to avoid accidentally
+		// deploying to the wrong cluster.
+		if deployTarget != "" {
+			isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+			confirmStyle := tui.ThemeConfirm().Theme(isDark).Focused.Title
+			title = "Proceed with deployment to " + tui.NameStyle.Render(deployTarget) + confirmStyle.Render("?")
+		}
+
+		confirmed, err := tui.Confirm(title)
 		if err != nil {
 			return fmt.Errorf("confirm deployment: %w", err)
 		}

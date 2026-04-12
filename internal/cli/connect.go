@@ -7,10 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/connector"
@@ -33,7 +34,7 @@ func ConnectCluster(ctx context.Context, conn config.MachineConnection, opts Con
 // If the stdout is not a terminal, it falls back to simple progress logs to stderr.
 func connectClusterWithProgress(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
 	// If stdout is not a terminal, fall back to simple progress logs.
-	if !IsStdoutTerminal() {
+	if !tui.IsStdoutTerminal() {
 		fmt.Fprintln(os.Stderr, "Connecting to", conn.String())
 		cli, err := connectCluster(ctx, conn)
 		if err != nil {
@@ -56,9 +57,9 @@ func connectClusterWithProgress(ctx context.Context, conn config.MachineConnecti
 }
 
 func connectCluster(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
-	// Determine which SSH type is configured
+	// Determine which SSH type is configured.
 	var sshDest config.SSHDestination
-	var useSSHCLI bool
+	var useGoSSH bool
 
 	// Validate connection configuration early to provide clear error messages.
 	if err := conn.Validate(); err != nil {
@@ -66,11 +67,15 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 	}
 
 	if conn.SSH != "" {
+		// SSH uses the system ssh CLI command (default).
 		sshDest = conn.SSH
-		useSSHCLI = false
 	} else if conn.SSHCLI != "" {
+		// SSHCLI is a backward-compatible alias for SSH.
 		sshDest = conn.SSHCLI
-		useSSHCLI = true
+	} else if conn.SSHGo != "" {
+		// SSHGo uses Go's built-in SSH library.
+		sshDest = conn.SSHGo
+		useGoSSH = true
 	} else if conn.TCP != nil && conn.TCP.IsValid() {
 		return client.New(ctx, connector.NewTCPConnector(*conn.TCP))
 	} else if conn.Unix != "" {
@@ -94,11 +99,11 @@ func connectCluster(ctx context.Context, conn config.MachineConnection) (*client
 		KeyPath: keyPath,
 	}
 
-	// Create appropriate connector based on type
-	if useSSHCLI {
-		return client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
+	// Create appropriate connector based on type.
+	if useGoSSH {
+		return client.New(ctx, connector.NewSSHConnector(sshConfig))
 	}
-	return client.New(ctx, connector.NewSSHConnector(sshConfig))
+	return client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
 }
 
 // connectModel is a TUI model for connecting to a cluster with a progress spinner.
@@ -125,7 +130,7 @@ type showSpinnerMsg struct{}
 func newConnectModel(ctx context.Context, conn config.MachineConnection) connectModel {
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // the same yellow as in compose progress
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Yellow) // the same yellow as in compose progress
 
 	return connectModel{
 		ctx:     ctx,
@@ -187,8 +192,8 @@ func (m connectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			m.result.err = fmt.Errorf("connection cancelled")
 			m.done = true
 			return m, tea.Quit
@@ -198,15 +203,15 @@ func (m connectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m connectModel) View() string {
+func (m connectModel) View() tea.View {
 	// Don't show anything if done or spinner not yet visible.
 	if m.done || !m.showSpinner {
-		return ""
+		return tea.NewView("")
 	}
 
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color("153"))
-	return fmt.Sprintf("%s %s\n",
+	return tea.NewView(fmt.Sprintf("%s %s\n",
 		m.spinner.View(),
 		fmt.Sprintf("Connecting to %s", style.Render(m.conn.String())),
-	)
+	))
 }

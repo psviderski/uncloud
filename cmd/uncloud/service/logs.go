@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
@@ -99,15 +101,20 @@ If no services are specified, streams logs from all services defined in the Comp
 
 func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logsOptions) error {
 	// If no services specified, try to load them from the Compose file(s).
+	fromCompose := false
 	if len(serviceNames) == 0 {
+		fromCompose = true
 		project, err := compose.LoadProject(ctx, opts.files)
 		if err != nil {
-			return fmt.Errorf("load compose file(s): %w", err)
+			return fmt.Errorf("load Compose file(s): %w", err)
 		}
+
+		uncli.SetClusterContextIfUnset(compose.ClusterContext(project))
+
 		// View logs for all services, including disabled by inactive profiles.
 		serviceNames = append(project.ServiceNames(), project.DisabledServiceNames()...)
 		if len(serviceNames) == 0 {
-			return errors.New("no services found in compose file(s)")
+			return errors.New("no services found in Compose file(s)")
 		}
 	}
 
@@ -135,18 +142,38 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
 	}
 
-	// Collect log streams from all services.
+	// Collect log streams from all services. When service names come from a Compose file,
+	// skip the ones that are not found in the cluster (they may have been removed or not deployed yet).
 	machineIDsSet := mapset.NewSet[string]()
 	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceNames))
+	var foundServices, notFoundServices []string
+
 	for _, serviceName := range serviceNames {
 		svc, ch, err := c.ServiceLogs(ctx, serviceName, logsOpts)
 		if err != nil {
+			if errors.Is(err, api.ErrNotFound) && fromCompose {
+				notFoundServices = append(notFoundServices, serviceName)
+				continue
+			}
 			return fmt.Errorf("stream logs for service '%s': %w", serviceName, err)
 		}
 		svcStreams = append(svcStreams, ch)
+		foundServices = append(foundServices, serviceName)
 
 		machineIDs := svc.MachineIDs()
 		machineIDsSet.Append(machineIDs...)
+	}
+
+	if fromCompose {
+		if len(foundServices) == 0 {
+			return fmt.Errorf("stream logs for services defined in %s: no services found in the cluster",
+				strings.Join(opts.files, ", "))
+		}
+		serviceNames = foundServices
+
+		for _, name := range notFoundServices {
+			tui.PrintWarning(fmt.Sprintf("service '%s' not found in the cluster, skipping", name))
+		}
 	}
 
 	var stream <-chan api.ServiceLogEntry
@@ -183,17 +210,17 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 }
 
 // Available colors for machine/service differentiation.
-var colorPalette = []lipgloss.Color{
-	lipgloss.Color("10"), // Bright green
-	lipgloss.Color("11"), // Bright yellow
-	lipgloss.Color("12"), // Bright blue
-	lipgloss.Color("13"), // Bright magenta
-	lipgloss.Color("14"), // Bright cyan
-	lipgloss.Color("2"),  // Green
-	lipgloss.Color("3"),  // Yellow
-	lipgloss.Color("4"),  // Blue
-	lipgloss.Color("5"),  // Magenta
-	lipgloss.Color("6"),  // Cyan
+var colorPalette = []color.Color{
+	lipgloss.BrightGreen,
+	lipgloss.BrightYellow,
+	lipgloss.BrightBlue,
+	lipgloss.BrightMagenta,
+	lipgloss.BrightCyan,
+	lipgloss.Green,
+	lipgloss.Yellow,
+	lipgloss.Blue,
+	lipgloss.Magenta,
+	lipgloss.Cyan,
 }
 
 // logFormatter handles formatting and printing of log entries with dynamic column alignment.

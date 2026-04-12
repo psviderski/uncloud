@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -79,7 +80,7 @@ func remove(ctx context.Context, uncli *cli.CLI, names []string, opts removeOpti
 		}
 
 		fmt.Println()
-		confirmed, err := cli.Confirm()
+		confirmed, err := tui.Confirm("")
 		if err != nil {
 			return fmt.Errorf("confirm removal: %w", err)
 		}

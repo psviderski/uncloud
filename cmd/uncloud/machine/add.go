@@ -8,12 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/huh/spinner"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/huh/v2/spinner"
+	"charm.land/lipgloss/v2"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -39,17 +40,18 @@ func NewAddCommand() *cobra.Command {
 		Long: `Add a new machine to an existing Uncloud cluster.
 
 Connection methods:
-  ssh://user@host       - Use built-in SSH library (default, no prefix required)
-  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
+  [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
+  ssh+go://user@host  - Use Go's built-in SSH library`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
 
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
-			// Determine if SSH CLI needs to be used and strip scheme
+			// Determine connection mode and strip scheme.
 			destination := args[0]
-			useSSHCLI := strings.HasPrefix(destination, "ssh+cli://")
+			useSSHGo := strings.HasPrefix(destination, "ssh+go://")
+			destination = strings.TrimPrefix(destination, "ssh+go://")
 			destination = strings.TrimPrefix(destination, "ssh+cli://")
 			destination = strings.TrimPrefix(destination, "ssh://")
 
@@ -58,11 +60,11 @@ Connection methods:
 				return fmt.Errorf("parse remote machine: %w", err)
 			}
 			remoteMachine := &cli.RemoteMachine{
-				User:      user,
-				Host:      host,
-				Port:      port,
-				KeyPath:   opts.sshKey,
-				UseSSHCLI: useSSHCLI,
+				User:     user,
+				Host:     host,
+				Port:     port,
+				KeyPath:  opts.sshKey,
+				UseSSHGo: useSSHGo,
 			}
 
 			return add(cmd.Context(), uncli, remoteMachine, opts)
@@ -154,8 +156,12 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	err = spinner.New().
 		Title(" Waiting for the machine to join the cluster...").
 		Type(spinner.MiniDot).
-		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
-		TitleStyle(lipgloss.NewStyle()).
+		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
+			return &spinner.Styles{
+				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
+				Title:   lipgloss.NewStyle(),
+			}
+		})).
 		ActionWithErr(func(ctx context.Context) error {
 			return machineClient.WaitClusterReady(ctx, 5*time.Minute)
 		}).
@@ -195,6 +201,8 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		}
 	}
 
+	fmt.Println()
+	fmt.Println("Preparing Caddy deployment...")
 	d, err := clusterClient.NewCaddyDeployment(caddyImage, "", api.Placement{})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
@@ -205,22 +213,20 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		return fmt.Errorf("plan caddy deployment: %w", err)
 	}
 
-	fmt.Println()
 	if len(plan.Operations) == 0 {
 		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
 	} else {
-		// Initialise a machine and container name resolver to properly format the plan output.
-		resolver, err := clusterClient.ServiceOperationNameResolver(ctx, caddySvc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
+		fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
+		fmt.Println()
+		fmt.Print(plan.Format())
 
-		fmt.Println("caddy deployment plan:")
-		fmt.Println(plan.Format(resolver))
+		summary := plan.FormatSummary()
+		fmt.Println(tui.Faint.Render(strings.Repeat("─", lipgloss.Width(summary))))
+		fmt.Println(summary)
 		fmt.Println()
 
 		if !opts.yes {
-			confirmed, err := cli.Confirm()
+			confirmed, err := tui.Confirm("Proceed with deployment?")
 			if err != nil {
 				return fmt.Errorf("confirm deployment: %w", err)
 			}

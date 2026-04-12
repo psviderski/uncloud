@@ -20,7 +20,10 @@ type Client interface {
 type ContainerClient interface {
 	CreateContainer(
 		ctx context.Context, serviceID string, spec ServiceSpec, machineID string,
-	) (container.CreateResponse, error)
+	) (CreateContainerResponse, error)
+	CreatePreDeployHookContainer(
+		ctx context.Context, serviceID string, spec ServiceSpec, machineID string,
+	) (CreateContainerResponse, error)
 	ExecContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, config ExecOptions) (int, error)
 	InspectContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) (MachineServiceContainer, error)
 	StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error
@@ -59,9 +62,4 @@ type VolumeClient interface {
 	CreateVolume(ctx context.Context, machineNameOrID string, opts volume.CreateOptions) (MachineVolume, error)
 	ListVolumes(ctx context.Context, filter *VolumeFilter) ([]MachineVolume, error)
 	RemoveVolume(ctx context.Context, machineNameOrID, volumeName string, force bool) error
-}
-
-// AsPtr returns a pointer to the given value. Useful for optional fields in API structs.
-func AsPtr[T any](v T) *T {
-	return &v
 }

@@ -24,6 +24,8 @@ service Machine {
   rpc Reset(ResetRequest) returns (google.protobuf.Empty);
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
+
+  rpc MachineLogs(LogsRequest) returns (stream LogEntry);
 }
 
 message MachineInfo {

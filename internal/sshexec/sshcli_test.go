@@ -1,12 +1,13 @@
 package sshexec
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSSHCLIRemote_buildSSHArgs(t *testing.T) {
+func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -15,59 +16,85 @@ func TestSSHCLIRemote_buildSSHArgs(t *testing.T) {
 		host     string
 		port     int
 		keyPath  string
+		cmd      string
 		expected []string
 	}{
 		{
-			name:     "host only",
-			host:     "example.com",
-			expected: []string{"-o", "ConnectTimeout=5", "example.com"},
+			name: "host only",
+			host: "example.com",
+			cmd:  "whoami",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "example.com", "whoami",
+			},
 		},
 		{
-			name:     "with user",
-			user:     "root",
-			host:     "example.com",
-			expected: []string{"-o", "ConnectTimeout=5", "root@example.com"},
+			name: "with user",
+			user: "root",
+			host: "example.com",
+			cmd:  "whoami",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "root@example.com", "whoami",
+			},
 		},
 		{
-			name:     "with port",
-			host:     "example.com",
-			port:     2222,
-			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "example.com"},
+			name: "with port",
+			host: "example.com",
+			port: 2222,
+			cmd:  "whoami",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "2222", "example.com", "whoami",
+			},
 		},
 		{
-			name:     "with key",
-			host:     "example.com",
-			keyPath:  "/path/to/key",
-			expected: []string{"-o", "ConnectTimeout=5", "-i", "/path/to/key", "example.com"},
+			name:    "with key",
+			host:    "example.com",
+			keyPath: "/path/to/key",
+			cmd:     "whoami",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "-i", "/path/to/key", "example.com", "whoami",
+			},
 		},
 		{
-			name:     "user and port",
-			user:     "ubuntu",
-			host:     "192.168.1.10",
-			port:     2222,
-			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "ubuntu@192.168.1.10"},
+			name: "user and port",
+			user: "ubuntu",
+			host: "192.168.1.10",
+			port: 2222,
+			cmd:  "ls -la",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "2222", "ubuntu@192.168.1.10", "ls -la",
+			},
 		},
 		{
-			name:     "user and key",
-			user:     "root",
-			host:     "example.com",
-			keyPath:  "/path/to/key",
-			expected: []string{"-o", "ConnectTimeout=5", "-i", "/path/to/key", "root@example.com"},
+			name:    "user and key",
+			user:    "root",
+			host:    "example.com",
+			keyPath: "/path/to/key",
+			cmd:     "whoami",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "-i", "/path/to/key", "root@example.com", "whoami",
+			},
 		},
 		{
-			name:     "port and key",
-			host:     "example.com",
-			port:     22,
-			keyPath:  "~/.ssh/id_rsa",
-			expected: []string{"-o", "ConnectTimeout=5", "-p", "22", "-i", "~/.ssh/id_rsa", "example.com"},
+			name:    "port and key",
+			host:    "example.com",
+			port:    22,
+			keyPath: "~/.ssh/id_rsa",
+			cmd:     "whoami",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "22", "-i", "~/.ssh/id_rsa", "example.com", "whoami",
+			},
 		},
 		{
-			name:     "all options",
-			user:     "admin",
-			host:     "server.local",
-			port:     2222,
-			keyPath:  "~/.ssh/id_rsa",
-			expected: []string{"-o", "ConnectTimeout=5", "-p", "2222", "-i", "~/.ssh/id_rsa", "admin@server.local"},
+			name:    "all options",
+			user:    "admin",
+			host:    "server.local",
+			port:    2222,
+			keyPath: "~/.ssh/id_rsa",
+			cmd:     "sudo bash -c 'echo hello'",
+			expected: []string{
+				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "2222", "-i", "~/.ssh/id_rsa",
+				"admin@server.local", "sudo bash -c 'echo hello'",
+			},
 		},
 	}
 
@@ -81,8 +108,9 @@ func TestSSHCLIRemote_buildSSHArgs(t *testing.T) {
 				port:    tt.port,
 				keyPath: tt.keyPath,
 			}
-			result := remote.buildSSHArgs()
-			assert.Equal(t, tt.expected, result)
+			execCmd := remote.newSSHCommand(context.Background(), tt.cmd)
+			assert.Equal(t, tt.expected, execCmd.Args)
+			assert.NotNil(t, execCmd.Cancel, "Cancel should be set for graceful shutdown")
 		})
 	}
 }

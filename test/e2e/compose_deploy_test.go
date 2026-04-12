@@ -40,7 +40,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 3, "Expected 3 services to deploy")
+		assert.Len(t, plan.Services, 3, "Expected 3 services to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -168,7 +168,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		redeployPlan, err := redeploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, redeployPlan.Operations, 0, "Expected no operations - deployment should be up to date")
+		assert.True(t, redeployPlan.IsEmpty(), "Expected no operations - deployment should be up to date")
 
 		// Deploy with ForceRecreate - should recreate all service containers.
 		strategy := &deploy.RollingStrategy{ForceRecreate: true}
@@ -177,7 +177,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		recreatePlan, err := recreateDeploy.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, recreatePlan.Operations, 3, "Expected 3 services to be recreated")
+		assert.Len(t, recreatePlan.Services, 3, "Expected 3 services to be recreated")
 
 		err = recreateDeploy.Run(ctx)
 		require.NoError(t, err)
@@ -242,7 +242,8 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 5, "Expected 2 volumes creation and 3 services to deploy")
+		assert.Len(t, plan.Volumes, 2, "Expected 2 volume creation operations")
+		assert.Len(t, plan.Services, 3, "Expected 3 services to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -384,7 +385,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err = deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 0, "Expected no new operations after deployment")
+		assert.True(t, plan.IsEmpty(), "Expected no new operations after deployment")
 	})
 
 	t.Run("x-machines placement constraint", func(t *testing.T) {
@@ -403,7 +404,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -456,7 +457,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -504,7 +505,7 @@ func TestComposeDeployment(t *testing.T) {
 
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
-		assert.Len(t, plan.Operations, 1, "Expected 1 service to deploy")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 
 		err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -556,7 +557,8 @@ volumes:
 		plan, err := deployment.Plan(ctx)
 		require.NoError(t, err)
 
-		assert.Len(t, plan.Operations, 2, "Expected 1 volume creation and 1 service to deploy")
+		assert.Len(t, plan.Volumes, 1, "Expected 1 volume creation operation")
+		assert.Len(t, plan.Services, 1, "Expected 1 service to deploy")
 	})
 
 	t.Run("global service auto-creates volumes on all machines", func(t *testing.T) {
@@ -598,5 +600,61 @@ volumes:
 		}
 		assert.ElementsMatch(t, machines.ToSlice(), expectedMachines,
 			"Containers should be distributed across all machines")
+	})
+
+	t.Run("pre-deploy hook", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-predeploy"
+		volumeName := "test-compose-predeploy-data"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+			removeVolumes(t, cli, volumeName)
+		})
+
+		project, err := compose.LoadProject(ctx, []string{"fixtures/compose-predeploy.yaml"})
+		require.NoError(t, err)
+
+		deployment, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		err = deployment.Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+
+		assertServiceMatchesSpec(t, svc, api.ServiceSpec{
+			Name: name,
+			Container: api.ContainerSpec{
+				Image:   "busybox:1.37.0-uclibc",
+				Command: []string{"sleep", "600"},
+				Env:     api.EnvVars{"SERVICE_VAR": "from-service"},
+				VolumeMounts: []api.VolumeMount{
+					{
+						VolumeName:    volumeName,
+						ContainerPath: "/data",
+					},
+				},
+			},
+			Volumes: []api.VolumeSpec{
+				{
+					Name: volumeName,
+					Type: api.VolumeTypeVolume,
+				},
+			},
+			PreDeploy: &api.PreDeployHook{
+				Command: []string{"sh", "-c", "echo hello-from-predeploy > /data/predeploy.txt"},
+				Env:     api.EnvVars{"HOOK_VAR": "from-hook"},
+				User:    "root",
+			},
+		})
+
+		// Verify the pre-deploy hook wrote to the shared volume by reading the file from the running container.
+		containerID := svc.Containers[0].Container.ID
+		output, err := execInContainerAndReadOutput(t, ctx, cli, name, containerID,
+			[]string{"cat", "/data/predeploy.txt"})
+		require.NoError(t, err)
+		assert.Equal(t, "hello-from-predeploy\n", output)
 	})
 }

@@ -36,10 +36,12 @@ func InspectGitState(dir string) (GitState, error) {
 		return state, nil
 	}
 
-	// Get the current commit SHA.
-	sha, err := gitCommand(dir, "rev-parse", "HEAD")
+	// Get the current commit SHA. An initialised but empty repo has no HEAD yet,
+	// so treat it as a non-repo so callers can fall back to non-git logic.
+	sha, err := gitCommand(dir, "rev-parse", "--verify", "HEAD")
 	if err != nil {
-		return state, fmt.Errorf("get current commit SHA: %w", err)
+		state.IsRepo = false
+		return state, nil
 	}
 	state.SHA = strings.TrimSpace(sha)
 

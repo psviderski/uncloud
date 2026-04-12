@@ -1,0 +1,67 @@
+[settings]
+experimental = true
+
+[tools]
+"aqua:vektra/mockery" = "3.5.3"
+go = "1.26.1"
+golangci-lint = "2.11.2"
+node = "22.20.0"
+protoc = "27.3"
+protoc-gen-go = "1.34.2"
+protoc-gen-go-grpc = "1.5.1"
+
+[vars]
+ucind_image = "ghcr.io/psviderski/ucind:latest"
+
+[env]
+_.file = ".env"
+
+[tasks."build:uncloudd-amd64"]
+description = "Build uncloudd for linux/amd64"
+run = """
+VERSION=$(git describe --tags --always --dirty) \
+GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/psviderski/uncloud/internal/version.version=$VERSION" \
+  -o uncloudd-linux-amd64 ./cmd/uncloudd
+"""
+outputs = ["uncloudd-linux-amd64"]
+
+[tasks."build:uncloudd-arm64"]
+description = "Build uncloudd for linux/arm64"
+run = """
+VERSION=$(git describe --tags --always --dirty) \
+GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/psviderski/uncloud/internal/version.version=$VERSION" \
+  -o uncloudd-linux-arm64 ./cmd/uncloudd
+"""
+outputs = ["uncloudd-linux-arm64"]
+
+[tasks."mise:lock"]
+description = "Update mise.lock with hashes for all platforms"
+run = "mise lock --platform linux-x64,macos-arm64"
+
+[tasks.proto]
+description = "Regenerate gRPC API code from .proto files"
+run = """
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+  --proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
+"""
+
+[tasks.uc]
+description = "Run the Uncloud CLI"
+run = "go run ./cmd/uncloud"
+
+[tasks.ucind]
+description = "Run ucind CLI for managing local Docker-based clusters"
+run = "go run ./cmd/ucind"
+
+[tasks."ucind:image"]
+description = "Build the ucind Docker image"
+run = "docker build -t {{vars.ucind_image}} --target ucind ."
+
+[tasks."ucind:cleanup"]
+description = "Remove ucind managed containers and networks"
+run = """
+echo "==> Removing ucind managed containers..."
+docker ps --filter "label=ucind.managed" -q | xargs docker rm -f
+echo "==> Removing ucind managed networks..."
+docker network ls --filter "label=ucind.managed" -q | xargs docker network rm -f
+"""

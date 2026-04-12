@@ -71,12 +71,22 @@ func (cli *CLI) SetCurrentContext(name string) error {
 	return cli.Config.Save()
 }
 
-func (cli *CLI) GetContextOverrideOrCurrent() string {
-	contextName := cli.contextOverride
-	if contextName == "" {
-		contextName = cli.Config.CurrentContext
+func (cli *CLI) ContextOverrideOrCurrent() string {
+	if cli.contextOverride != "" {
+		return cli.contextOverride
 	}
-	return contextName
+	if cli.Config != nil {
+		return cli.Config.CurrentContext
+	}
+	return ""
+}
+
+// DirectConnection returns the connection string if --connect or UNCLOUD_CONNECT was specified.
+func (cli *CLI) DirectConnection() string {
+	if cli.conn != nil {
+		return cli.conn.String()
+	}
+	return ""
 }
 
 // ConnectCluster connects to a cluster using the context override or the current context if not specified.
@@ -253,8 +263,8 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		SSHKeyFile: opts.RemoteMachine.KeyPath,
 		MachineID:  resp.Machine.Id,
 	}
-	if opts.RemoteMachine.UseSSHCLI {
-		connCfg.SSHCLI = config.NewSSHDestination(
+	if opts.RemoteMachine.UseSSHGo {
+		connCfg.SSHGo = config.NewSSHDestination(
 			opts.RemoteMachine.User,
 			opts.RemoteMachine.Host,
 			opts.RemoteMachine.Port,
@@ -314,7 +324,7 @@ type AddMachineOptions struct {
 // cluster. The machine client is connected to the new machine and can be used to interact with it.
 // Both client should be closed after use by the caller.
 func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client.Client, *client.Client, error) {
-	contextName := cli.GetContextOverrideOrCurrent()
+	contextName := cli.ContextOverrideOrCurrent()
 	c, err := cli.ConnectCluster(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect to cluster (context '%s'): %w", contextName, err)
@@ -457,8 +467,8 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		SSHKeyFile: opts.RemoteMachine.KeyPath,
 		MachineID:  addResp.Machine.Id,
 	}
-	if opts.RemoteMachine.UseSSHCLI {
-		connCfg.SSHCLI = config.NewSSHDestination(
+	if opts.RemoteMachine.UseSSHGo {
+		connCfg.SSHGo = config.NewSSHDestination(
 			opts.RemoteMachine.User,
 			opts.RemoteMachine.Host,
 			opts.RemoteMachine.Port,
@@ -488,77 +498,88 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 func provisionOrConnectRemoteMachine(
 	ctx context.Context, remoteMachine *RemoteMachine, skipInstall bool, version string,
 ) (*client.Client, error) {
-	// Use SSH CLI
-	if remoteMachine.UseSSHCLI {
-		exec := sshexec.NewSSHCLIRemote(
-			remoteMachine.User,
-			remoteMachine.Host,
-			remoteMachine.Port,
-			remoteMachine.KeyPath,
+	// Use Go's built-in SSH library.
+	if remoteMachine.UseSSHGo {
+		sshClient, err := sshexec.Connect(
+			remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath,
 		)
+		// If the SSH connection using SSH agent fails and no key path is provided, try to use the default SSH key.
+		if err != nil && remoteMachine.KeyPath == "" {
+			remoteMachine.KeyPath = DefaultSSHKeyPath
+			sshClient, err = sshexec.Connect(
+				remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath,
+			)
+		}
+		if err != nil {
+			return nil, fmt.Errorf(
+				"SSH login to remote machine %s: %w",
+				config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
+			)
+		}
 
 		if !skipInstall {
-			if err := provisionMachine(ctx, exec, version); err != nil {
+			// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
+			exec := sshexec.NewRemote(sshClient)
+			if err = provisionMachine(ctx, exec, version); err != nil {
 				return nil, fmt.Errorf("provision machine: %w", err)
 			}
 		}
 
-		sshConfig := &connector.SSHConnectorConfig{
-			User:    remoteMachine.User,
-			Host:    remoteMachine.Host,
-			Port:    remoteMachine.Port,
-			KeyPath: remoteMachine.KeyPath,
+		var machineClient *client.Client
+		if remoteMachine.User == "root" || skipInstall {
+			// Create a machine API client over the established SSH connection to the remote machine.
+			machineClient, err = client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
+		} else {
+			// Since the user is not root, we need to establish a new SSH connection to make the user's addition
+			// to the uncloud group effective, thus allowing access to the Uncloud daemon Unix socket.
+			sshConfig := &connector.SSHConnectorConfig{
+				User:    remoteMachine.User,
+				Host:    remoteMachine.Host,
+				Port:    remoteMachine.Port,
+				KeyPath: remoteMachine.KeyPath,
+			}
+			machineClient, err = client.New(ctx, connector.NewSSHConnector(sshConfig))
 		}
-		machineClient, err := client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
 		if err != nil {
 			return nil, fmt.Errorf("connect to remote machine: %w", err)
 		}
 		return machineClient, nil
 	}
 
-	// Use Go SSH
-	sshClient, err := sshexec.Connect(remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath)
-	// If the SSH connection using SSH agent fails and no key path is provided, try to use the default SSH key.
-	if err != nil && remoteMachine.KeyPath == "" {
-		remoteMachine.KeyPath = DefaultSSHKeyPath
-		sshClient, err = sshexec.Connect(
-			remoteMachine.User, remoteMachine.Host, remoteMachine.Port, remoteMachine.KeyPath,
-		)
-	}
-	if err != nil {
-		return nil, fmt.Errorf(
-			"SSH login to remote machine %s: %w",
-			config.NewSSHDestination(remoteMachine.User, remoteMachine.Host, remoteMachine.Port), err,
-		)
-	}
+	// Use the system 'ssh' command (default).
+	exec := sshexec.NewSSHCLIRemote(
+		remoteMachine.User,
+		remoteMachine.Host,
+		remoteMachine.Port,
+		remoteMachine.KeyPath,
+	)
 
 	if !skipInstall {
-		// Provision the remote machine by installing the Uncloud daemon and dependencies over SSH.
-		exec := sshexec.NewRemote(sshClient)
-		if err = provisionMachine(ctx, exec, version); err != nil {
+		if err := provisionMachine(ctx, exec, version); err != nil {
 			return nil, fmt.Errorf("provision machine: %w", err)
 		}
 	}
 
-	var machineClient *client.Client
-	if remoteMachine.User == "root" || skipInstall {
-		// Create a machine API client over the established SSH connection to the remote machine.
-		machineClient, err = client.New(ctx, connector.NewSSHConnectorFromClient(sshClient))
-	} else {
-		// Since the user is not root, we need to establish a new SSH connection to make the user's addition
-		// to the uncloud group effective, thus allowing access to the Uncloud daemon Unix socket.
-		sshConfig := &connector.SSHConnectorConfig{
-			User:    remoteMachine.User,
-			Host:    remoteMachine.Host,
-			Port:    remoteMachine.Port,
-			KeyPath: remoteMachine.KeyPath,
-		}
-		machineClient, err = client.New(ctx, connector.NewSSHConnector(sshConfig))
+	sshConfig := &connector.SSHConnectorConfig{
+		User:    remoteMachine.User,
+		Host:    remoteMachine.Host,
+		Port:    remoteMachine.Port,
+		KeyPath: remoteMachine.KeyPath,
 	}
+	machineClient, err := client.New(ctx, connector.NewSSHCLIConnector(sshConfig))
 	if err != nil {
 		return nil, fmt.Errorf("connect to remote machine: %w", err)
 	}
 	return machineClient, nil
+}
+
+// SetClusterContextIfUnset sets the cluster context override only if no --context flag was used
+// and no --connect direct connection is active.
+func (cli *CLI) SetClusterContextIfUnset(name string) {
+	if name == "" || cli.contextOverride != "" || cli.conn != nil {
+		return
+	}
+	cli.contextOverride = name
 }
 
 // ProgressOut returns an output stream for progress writer.

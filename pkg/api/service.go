@@ -55,7 +55,7 @@ type ServiceSpec struct {
 	// Caddy is the optional Caddy reverse proxy configuration for the service.
 	// Caddy and Ports cannot be specified simultaneously.
 	Caddy *CaddySpec `json:",omitempty"`
-	// Configs is list of configuration objects that can be mounted into the container.
+	// Configs is a list of configuration objects that can be mounted into the container.
 	Configs []ConfigSpec
 	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
@@ -67,13 +67,13 @@ type ServiceSpec struct {
 	// Ports defines what service ports to publish to make the service accessible outside the cluster.
 	// Caddy and Ports cannot be specified simultaneously.
 	Ports []PortSpec
+	// PreDeploy is an optional hook that runs a command in a temporary container before deploying the service.
+	// The container uses the service's image and inherits its configuration.
+	PreDeploy *PreDeployHook `json:",omitempty"`
 	// Replicas is the number of containers to run for the service. Only valid for a replicated service.
 	Replicas uint `json:",omitempty"`
-	// StopGracePeriod is how long to wait after SIGTERM before sending SIGKILL when stopping a container.
-	// Default is 10 seconds if not specified.
-	StopGracePeriod *time.Duration `json:",omitempty"`
 	// UpdateConfig configures how the service is updated during a deployment.
-	UpdateConfig UpdateConfig `json:",omitempty"`
+	UpdateConfig UpdateConfig
 	// Volumes is list of data volumes that can be mounted into the container.
 	Volumes []VolumeSpec
 }
@@ -208,6 +208,12 @@ func (s *ServiceSpec) Validate() error {
 		return fmt.Errorf("validate service configs and mounts: %w", err)
 	}
 
+	if s.PreDeploy != nil {
+		if err := s.PreDeploy.Validate(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -219,6 +225,7 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 		spec.Caddy = &caddyCopy
 	}
 	spec.Container = s.Container.Clone()
+	spec.PreDeploy = s.PreDeploy.Clone()
 
 	if s.Ports != nil {
 		spec.Ports = make([]PortSpec, len(s.Ports))
@@ -256,6 +263,8 @@ type ContainerSpec struct {
 	Init *bool
 	// LogDriver overrides the default logging driver for the container. Each Docker daemon can have its own default.
 	LogDriver *LogDriver
+	// PidMode sets the PID namespace mode for the container. Currently only "" or "host" is supported.
+	PidMode string
 	// Privileged gives extended privileges to the container. This is a security risk and should be used with caution.
 	Privileged bool
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.
@@ -263,7 +272,10 @@ type ContainerSpec struct {
 	PullPolicy string
 	// Resource allocation for the container.
 	Resources ContainerResources
-	// Namespaced kernel parameters to be set in container
+	// StopGracePeriod is how long to wait after SIGTERM before sending SIGKILL when stopping the container.
+	// Default is 10 seconds if not specified.
+	StopGracePeriod *time.Duration `json:",omitempty"`
+	// Namespaced kernel parameters to be set in the container.
 	Sysctls map[string]string
 	// User overrides the default user of the image used to run the container. Format: user|UID[:group|GID].
 	User string
@@ -348,9 +360,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	}
 	if s.Env != nil {
 		spec.Env = make(EnvVars, len(s.Env))
-		for k, v := range s.Env {
-			spec.Env[k] = v
-		}
+		maps.Copy(spec.Env, s.Env)
 	}
 	if s.Healthcheck != nil {
 		hc := *s.Healthcheck
@@ -380,9 +390,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	}
 	if s.Sysctls != nil {
 		spec.Sysctls = make(map[string]string, len(s.Sysctls))
-		for k, v := range s.Sysctls {
-			spec.Sysctls[k] = v
-		}
+		maps.Copy(spec.Sysctls, s.Sysctls)
 	}
 	if s.Resources.Ulimits != nil {
 		spec.Resources.Ulimits = maps.Clone(s.Resources.Ulimits)
@@ -438,6 +446,46 @@ type LogDriver struct {
 	Options map[string]string
 }
 
+// PreDeployHook defines a command to run in a temporary container before deploying the service.
+// The container uses the service's image and inherits its configuration (env, volumes, placement).
+// It must exit successfully (code 0) for the deployment to proceed.
+type PreDeployHook struct {
+	// Command to execute in the container.
+	Command []string
+	// Env defines additional environment variables for the container, merged with the service's environment variables.
+	Env EnvVars `json:",omitempty"`
+	// Privileged overrides the container's privileged mode. nil means inherit from the service.
+	Privileged *bool `json:",omitempty"`
+	// Timeout is the maximum duration to wait for the command to complete. On timeout, the container is stopped
+	// and the deployment fails. If nil, a default timeout is used.
+	Timeout *time.Duration `json:",omitempty"`
+	// User to run the command as. If empty, the service user is used. Format: user|UID[:group|GID].
+	User string `json:",omitempty"`
+}
+
+func (h *PreDeployHook) Validate() error {
+	if len(h.Command) == 0 {
+		return fmt.Errorf("pre-deploy hook command is required")
+	}
+	return nil
+}
+
+func (h *PreDeployHook) Clone() *PreDeployHook {
+	if h == nil {
+		return nil
+	}
+
+	hook := *h
+	hook.Command = slices.Clone(h.Command)
+	hook.Env = maps.Clone(h.Env)
+
+	return &hook
+}
+
+func (h *PreDeployHook) Equals(other *PreDeployHook) bool {
+	return cmp.Equal(h, other, cmpopts.EquateEmpty())
+}
+
 // UpdateConfig configures how a service is updated during a deployment.
 type UpdateConfig struct {
 	// Order specifies the order of operations during an update.
@@ -457,10 +505,13 @@ type RunServiceResponse struct {
 }
 
 type Service struct {
-	ID         string
-	Name       string
-	Mode       string
+	ID   string
+	Name string
+	Mode string
+	// Containers is the regular long-running service containers.
 	Containers []MachineServiceContainer
+	// HookContainers are one-shot containers for deployment hooks (e.g. pre-deploy).
+	HookContainers []MachineServiceContainer
 }
 
 type MachineServiceContainer struct {

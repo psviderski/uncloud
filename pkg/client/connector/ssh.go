@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/psviderski/uncloud/internal/grpcversion"
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"golang.org/x/crypto/ssh"
@@ -74,6 +75,8 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 		"unix://"+sockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(defaultServiceConfig),
+		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
+		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 		grpc.WithContextDialer(
 			func(ctx context.Context, addr string) (net.Conn, error) {
 				addr = strings.TrimPrefix(addr, "unix://")

@@ -18,11 +18,16 @@ const (
 	// DockerNetworkName is the name of the Docker network used by uncloud. Keep the value in sync with NetworkName
 	// in internal/machine/docker/manager.go.
 	DockerNetworkName = "uncloud"
+
 	LabelManaged      = "uncloud.managed"
 	LabelServiceID    = "uncloud.service.id"
 	LabelServiceName  = "uncloud.service.name"
 	LabelServiceMode  = "uncloud.service.mode"
 	LabelServicePorts = "uncloud.service.ports"
+	// LabelHook marks a container as a deployment hook. The value indicates the hook type (e.g. LabelHookPreDeploy).
+	LabelHook = "uncloud.service.hook"
+	// LabelHookPreDeploy indicates that the container is a pre-deploy hook that runs before deploying the service.
+	LabelHookPreDeploy = "pre-deploy"
 )
 
 type Container struct {
@@ -159,6 +164,13 @@ func (c *Container) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// CreateContainerResponse wraps a container creation response with the container name assigned during creation.
+type CreateContainerResponse struct {
+	container.CreateResponse
+	// Name is the container name assigned during creation.
+	Name string
+}
+
 type ServiceContainer struct {
 	Container
 	ServiceSpec ServiceSpec
@@ -181,10 +193,17 @@ func (c *ServiceContainer) ServiceName() string {
 
 // ServiceMode returns the replication mode of the service this container belongs to.
 func (c *ServiceContainer) ServiceMode() string {
-	return c.Config.Labels[LabelServiceMode]
+	return c.ServiceSpec.Mode
+}
+
+// IsHook returns true if the container is a deployment hook (e.g. pre-deploy).
+func (c *ServiceContainer) IsHook() bool {
+	_, ok := c.Config.Labels[LabelHook]
+	return ok
 }
 
 // ServicePorts returns the ports this container publishes as part of its service.
+// TODO: return ports from ServiceSpec to allow updating ingress ports without recreating containers.
 func (c *ServiceContainer) ServicePorts() ([]PortSpec, error) {
 	encoded, ok := c.Config.Labels[LabelServicePorts]
 	if !ok {
