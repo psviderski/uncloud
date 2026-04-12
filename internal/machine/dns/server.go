@@ -197,7 +197,7 @@ func (s *Server) handleRequest(w dns.ResponseWriter, req *dns.Msg) {
 			log.Error("Failed to forward DNS query.", "err", err)
 			resp = new(dns.Msg).SetRcode(req, dns.RcodeServerFailure)
 		}
-		metrics.DNSQuery.WithLabelValues("false", metrics.Status(err))
+		metrics.DNSQuery.WithLabelValues("false", metrics.Status(err)).Inc()
 
 		s.reply(w, req, resp)
 		return
@@ -234,7 +234,7 @@ func (s *Server) handleRequest(w dns.ResponseWriter, req *dns.Msg) {
 		}
 	}
 	resp.Truncate(maxSize)
-	metrics.DNSQuery.WithLabelValues("true", metrics.Ok) // NameError is not an error
+	metrics.DNSQuery.WithLabelValues("true", metrics.Ok).Inc() // NameError is not an error
 
 	s.reply(w, req, resp)
 }
