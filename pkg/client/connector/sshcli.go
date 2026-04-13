@@ -132,7 +132,7 @@ func (c *SSHCLIConnector) buildSSHArgs() []string {
 	// Authentication must succeed non-interactively via SSH agent or unencrypted key.
 	args = append(args, "-o", "BatchMode=yes")
 	// Disable host key checking for parity with go+ssh.
-	args = append(args, "-o", "StrictHostKeyChecking=no")
+	args = append(args, "-o", "StrictHostKeyChecking=accept-new")
 	// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
 	args = append(args, "-T")
 
