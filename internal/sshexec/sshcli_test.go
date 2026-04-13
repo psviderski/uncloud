@@ -24,7 +24,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			host: "example.com",
 			cmd:  "whoami",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "example.com", "whoami",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "example.com", "whoami",
 			},
 		},
 		{
@@ -33,7 +33,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			host: "example.com",
 			cmd:  "whoami",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "root@example.com", "whoami",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "root@example.com", "whoami",
 			},
 		},
 		{
@@ -42,7 +42,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			port: 2222,
 			cmd:  "whoami",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "2222", "example.com", "whoami",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "-p", "2222", "example.com", "whoami",
 			},
 		},
 		{
@@ -51,7 +51,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			keyPath: "/path/to/key",
 			cmd:     "whoami",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "-i", "/path/to/key", "example.com", "whoami",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "-i", "/path/to/key", "example.com", "whoami",
 			},
 		},
 		{
@@ -61,7 +61,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			port: 2222,
 			cmd:  "ls -la",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "2222", "ubuntu@192.168.1.10", "ls -la",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "-p", "2222", "ubuntu@192.168.1.10", "ls -la",
 			},
 		},
 		{
@@ -71,7 +71,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			keyPath: "/path/to/key",
 			cmd:     "whoami",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "-i", "/path/to/key", "root@example.com", "whoami",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "-i", "/path/to/key", "root@example.com", "whoami",
 			},
 		},
 		{
@@ -81,7 +81,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			keyPath: "~/.ssh/id_rsa",
 			cmd:     "whoami",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "22", "-i", "~/.ssh/id_rsa", "example.com", "whoami",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "-p", "22", "-i", "~/.ssh/id_rsa", "example.com", "whoami",
 			},
 		},
 		{
@@ -92,7 +92,7 @@ func TestSSHCLIRemote_newSSHCommand(t *testing.T) {
 			keyPath: "~/.ssh/id_rsa",
 			cmd:     "sudo bash -c 'echo hello'",
 			expected: []string{
-				"ssh", "-o", "ConnectTimeout=5", "-T", "-p", "2222", "-i", "~/.ssh/id_rsa",
+				"ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "-T", "-p", "2222", "-i", "~/.ssh/id_rsa",
 				"admin@server.local", "sudo bash -c 'echo hello'",
 			},
 		},
