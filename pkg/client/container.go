@@ -386,11 +386,11 @@ func (cli *Client) ExecContainer(
 		Options:     execOpts,
 	})
 	if err != nil {
-		metrics.ContainerExec.WithLabelValues("exec", metrics.Err)
+		metrics.ContainerExec.WithLabelValues("exec", metrics.Err).Inc()
 		return exitCode, fmt.Errorf("exec in container %s: %w", ctr.Container.Name, err)
 	}
 
-	metrics.ContainerExec.WithLabelValues("exec", metrics.Ok)
+	metrics.ContainerExec.WithLabelValues("exec", metrics.Ok).Inc()
 	return exitCode, nil
 }
 
