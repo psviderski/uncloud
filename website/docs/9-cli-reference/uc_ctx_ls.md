@@ -9,7 +9,8 @@ uc ctx ls [flags]
 ## Options
 
 ```
-  -h, --help   help for ls
+  -h, --help    help for ls
+      --short   Show the current cluster context only.
 ```
 
 ## Options inherited from parent commands
