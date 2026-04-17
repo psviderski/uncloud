@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/psviderski/uncloud/cmd/ucind/cluster"
+	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/spf13/cobra"
 )
@@ -23,6 +24,8 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
+
 			cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 			if err != nil {
 				return fmt.Errorf("create Docker client: %w", err)
@@ -44,9 +47,8 @@ func main() {
 		},
 	}
 
-	// TODO: allow to override using UNCLOUD_CONFIG env var.
 	cmd.PersistentFlags().StringVar(&configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
-		"path to the Uncloud configuration file.")
+		"Path to the Uncloud configuration file. [$UNCLOUD_CONFIG]")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
 
 	cmd.AddCommand(
