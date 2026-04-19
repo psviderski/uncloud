@@ -14,6 +14,7 @@ service Docker {
   rpc StopContainer(StopContainerRequest) returns (google.protobuf.Empty);
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
   rpc RemoveContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
+  rpc AttachContainer(AttachContainerRequest) returns (AttachContainerResponse);
 
   rpc ExecContainer(stream ExecContainerRequest) returns (stream ExecContainerResponse);
   rpc ContainerLogs(LogsRequest) returns (stream LogEntry);
@@ -129,6 +130,17 @@ message ExecContainerResponse {
     // Exit code of the exec process. Sent as the final message.
     int32 exit_code = 4;
   }
+}
+
+message AttachContainerRequest {
+  string id = 1;
+  // JSON serialised container.AttachOptions.
+  bytes options = 2;
+}
+
+message AttachContainerResponse {
+  // JSON serialised container.HijackResponse.
+  bytes response = 1;
 }
 
 message PullImageRequest {

@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/distribution/reference"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
@@ -196,6 +197,30 @@ func (c *Client) RemoveContainer(ctx context.Context, id string, opts container.
 		}
 	}
 	return err
+}
+
+// AttachContainer attaches to a container with the given ID and options.
+func (c *Client) AttachContainer(ctx context.Context, id string, opts container.AttachOptions) (types.HijackedResponse, error) {
+	var resp types.HijackedResponse
+
+	optsBytes, err := json.Marshal(opts)
+	if err != nil {
+		return resp, fmt.Errorf("marshal options: %w", err)
+	}
+
+	grpcResp, err := c.GRPCClient.AttachContainer(ctx, &pb.AttachContainerRequest{
+		Id:      id,
+		Options: optsBytes,
+	})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return resp, errdefs.NotFound(err)
+		}
+	}
+	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
+		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
+	}
+	return resp, nil
 }
 
 // PullOptions defines the options for pulling an image from a remote registry.

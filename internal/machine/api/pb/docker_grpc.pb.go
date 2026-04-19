@@ -26,6 +26,7 @@ const (
 	Docker_StopContainer_FullMethodName           = "/api.Docker/StopContainer"
 	Docker_ListContainers_FullMethodName          = "/api.Docker/ListContainers"
 	Docker_RemoveContainer_FullMethodName         = "/api.Docker/RemoveContainer"
+	Docker_AttachContainer_FullMethodName         = "/api.Docker/AttachContainer"
 	Docker_ExecContainer_FullMethodName           = "/api.Docker/ExecContainer"
 	Docker_ContainerLogs_FullMethodName           = "/api.Docker/ContainerLogs"
 	Docker_PullImage_FullMethodName               = "/api.Docker/PullImage"
@@ -51,6 +52,7 @@ type DockerClient interface {
 	StopContainer(ctx context.Context, in *StopContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error)
 	RemoveContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AttachContainer(ctx context.Context, in *AttachContainerRequest, opts ...grpc.CallOption) (*AttachContainerResponse, error)
 	ExecContainer(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecContainerRequest, ExecContainerResponse], error)
 	ContainerLogs(ctx context.Context, in *LogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error)
 	PullImage(ctx context.Context, in *PullImageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JSONMessage], error)
@@ -130,6 +132,16 @@ func (c *dockerClient) RemoveContainer(ctx context.Context, in *RemoveContainerR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Docker_RemoveContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dockerClient) AttachContainer(ctx context.Context, in *AttachContainerRequest, opts ...grpc.CallOption) (*AttachContainerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachContainerResponse)
+	err := c.cc.Invoke(ctx, Docker_AttachContainer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -297,6 +309,7 @@ type DockerServer interface {
 	StopContainer(context.Context, *StopContainerRequest) (*emptypb.Empty, error)
 	ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error)
 	RemoveContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
+	AttachContainer(context.Context, *AttachContainerRequest) (*AttachContainerResponse, error)
 	ExecContainer(grpc.BidiStreamingServer[ExecContainerRequest, ExecContainerResponse]) error
 	ContainerLogs(*LogsRequest, grpc.ServerStreamingServer[LogEntry]) error
 	PullImage(*PullImageRequest, grpc.ServerStreamingServer[JSONMessage]) error
@@ -339,6 +352,9 @@ func (UnimplementedDockerServer) ListContainers(context.Context, *ListContainers
 }
 func (UnimplementedDockerServer) RemoveContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveContainer not implemented")
+}
+func (UnimplementedDockerServer) AttachContainer(context.Context, *AttachContainerRequest) (*AttachContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AttachContainer not implemented")
 }
 func (UnimplementedDockerServer) ExecContainer(grpc.BidiStreamingServer[ExecContainerRequest, ExecContainerResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ExecContainer not implemented")
@@ -504,6 +520,24 @@ func _Docker_RemoveContainer_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DockerServer).RemoveContainer(ctx, req.(*RemoveContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Docker_AttachContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttachContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).AttachContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_AttachContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).AttachContainer(ctx, req.(*AttachContainerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -747,6 +781,10 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveContainer",
 			Handler:    _Docker_RemoveContainer_Handler,
+		},
+		{
+			MethodName: "AttachContainer",
+			Handler:    _Docker_AttachContainer_Handler,
 		},
 		{
 			MethodName: "InspectImage",

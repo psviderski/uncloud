@@ -269,6 +269,28 @@ func (s *Server) RemoveContainer(ctx context.Context, req *pb.RemoveContainerReq
 	return &emptypb.Empty{}, nil
 }
 
+func (s *Server) AttachContainer(ctx context.Context, req *pb.AttachContainerRequest) (*pb.AttachContainerResponse, error) {
+	var opts container.AttachOptions
+	if len(req.Options) > 0 {
+		if err := json.Unmarshal(req.Options, &opts); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unmarshal options: %v", err)
+		}
+	}
+	resp, err := s.client.ContainerAttach(ctx, req.Id, opts)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "attach containers: %s: %v", req.Id, err)
+	}
+
+	attachBytes, err := json.Marshal(resp)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal containers: %v", err)
+	}
+
+	return &pb.AttachContainerResponse{
+		Response: attachBytes,
+	}, nil
+}
+
 func (s *Server) PullImage(req *pb.PullImageRequest, stream grpc.ServerStreamingServer[pb.JSONMessage]) error {
 	ctx := stream.Context()
 
