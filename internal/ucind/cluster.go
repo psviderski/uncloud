@@ -323,7 +323,11 @@ func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout t
 }
 
 func (p *Provisioner) ListClusters(ctx context.Context) ([]Cluster, error) {
-	nets, err := p.dockerCli.NetworkList(ctx, network.ListOptions{})
+	nets, err := p.dockerCli.NetworkList(ctx, network.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("label", ManagedLabel),
+		),
+	})
 	if err != nil {
 		return nil, err
 	}
