@@ -25,7 +25,8 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 
 	go func() {
 		defer close(outCh)
-		follow(ctx, wait, reader, outCh)
+		follow(ctx, reader, outCh)
+		wait()
 	}()
 
 	return outCh, nil

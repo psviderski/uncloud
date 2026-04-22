@@ -73,8 +73,7 @@ func logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (io.Rea
 
 // follow synchronously follows the io.Reader, writing each new journal entry to channel.
 // It stops when the reader is exhausted or the context is cancelled.
-func follow(ctx context.Context, wait func() error, reader io.Reader, outCh chan api.LogEntry) {
-	defer wait()
+func follow(ctx context.Context, reader io.Reader, outCh chan api.LogEntry) {
 	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
