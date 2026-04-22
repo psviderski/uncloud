@@ -16,7 +16,7 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 		return nil, fmt.Errorf("journal logs: invalid unit: %s", unit)
 	}
 
-	reader, err := logs(ctx, unit, opts)
+	reader, wait, err := logs(ctx, unit, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 
 	go func() {
 		defer close(outCh)
-		follow(ctx, reader, outCh)
+		follow(ctx, wait, reader, outCh)
 	}()
 
 	return outCh, nil
