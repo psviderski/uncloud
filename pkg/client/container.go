@@ -15,7 +15,6 @@ import (
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
-	"github.com/psviderski/uncloud/internal/metrics"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
@@ -157,10 +156,8 @@ func (cli *Client) pullImageWithProgress(ctx context.Context, image, machineName
 			Status:     progress.Error,
 			StatusText: statusErr.Message(),
 		})
-		metrics.ContainerExec.WithLabelValues("pull", metrics.Err).Inc()
 		return fmt.Errorf("pull image: %w", errors.New(statusErr.Message()))
 	}
-	defer metrics.ContainerExec.WithLabelValues("pull", metrics.Ok).Inc()
 
 	// Wait for pull to complete by reading all progress messages and converting them to events.
 	for msg := range pullCh {
@@ -386,11 +383,9 @@ func (cli *Client) ExecContainer(
 		Options:     execOpts,
 	})
 	if err != nil {
-		metrics.ContainerExec.WithLabelValues("exec", metrics.Err).Inc()
 		return exitCode, fmt.Errorf("exec in container %s: %w", ctr.Container.Name, err)
 	}
 
-	metrics.ContainerExec.WithLabelValues("exec", metrics.Ok).Inc()
 	return exitCode, nil
 }
 

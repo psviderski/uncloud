@@ -12,13 +12,6 @@ var (
 		Name: "build_info",
 		Help: "Build information.",
 	}, []string{"version"})
-
-	ContainerExec = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: Namespace, Subsystem: "container",
-		Name: "exec_total",
-		Help: "Counter of container executions performed.",
-	}, []string{"op", "status"})
-
 	DNSQuery = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace, Subsystem: "dns",
 		Name: "query_total",
