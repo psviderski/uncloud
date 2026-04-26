@@ -88,9 +88,6 @@ type Config struct {
 	CaddyConfigDir string
 	// DNSUpstreams specifies the upstream DNS servers for the embedded internal DNS server.
 	DNSUpstreams []netip.AddrPort
-
-	// PrometheusAddr is the address for the prometheus endpoint.
-	PrometheusAddr netip.AddrPort
 }
 
 // SetDefaults returns a new Config with default values set where not provided.
@@ -152,11 +149,6 @@ func (c *Config) SetDefaults() (*Config, error) {
 
 	if cfg.CaddyConfigDir == "" {
 		cfg.CaddyConfigDir = filepath.Join(cfg.DataDir, "caddy")
-	}
-
-	if !cfg.PrometheusAddr.IsValid() {
-		cfg.PrometheusAddr = netip.AddrPortFrom(
-			netip.AddrFrom4([4]byte{127, 0, 0, 1}), prometheus.DefaultPort)
 	}
 
 	return &cfg, nil
@@ -440,8 +432,9 @@ func (m *Machine) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// Start the Prometheus server.
-	promListener, err := net.Listen("tcp", m.config.PrometheusAddr.String())
+	// Start the Prometheus server. This listens on the container network, so it can be scraped by an
+	// incluster prometheus.
+	promListener, err := net.Listen("tcp", m.IP().String()+prometheus.DefaultPort)
 	if err != nil {
 		return fmt.Errorf("listen prometheus server: %w", err)
 	}

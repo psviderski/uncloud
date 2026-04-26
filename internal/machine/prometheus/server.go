@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const DefaultPort = 51004
+const DefaultPort = ":51004"
 
 type Server struct {
 	*http.Server
