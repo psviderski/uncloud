@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/netip"
@@ -46,23 +47,16 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 		subnet, _ := m.Network.Subnet.ToPrefix()
 		subnet = netip.PrefixFrom(network.MachineIP(subnet), subnet.Bits())
 
-		publicIP := "-"
-		if m.PublicIp != nil {
-			ip, _ := m.PublicIp.ToAddr()
-			publicIP = ip.String()
-		}
-
 		endpoints := make([]string, len(m.Network.Endpoints))
 		for i, ep := range m.Network.Endpoints {
-			addrPort, _ := ep.ToAddrPort()
-			endpoints[i] = addrPort.String()
+			endpoints[i] = ep.ToString()
 		}
 
 		t.Row(
 			m.Name,
 			capitalise(member.State.String()),
 			subnet.String(),
-			publicIP,
+			cmp.Or(m.PublicIp.ToString(), "-"),
 			strings.Join(endpoints, tui.Faint.Render(", ")),
 			member.Machine.Id,
 		)

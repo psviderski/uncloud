@@ -23,8 +23,21 @@ func (ip *IP) ToAddr() (netip.Addr, error) {
 	return addr, nil
 }
 
+func (ip *IP) ToString() string {
+	// Has to be ToString, because String is generated (and doesn't do the right thing).
+	if ip == nil {
+		return ""
+	}
+	addr, _ := ip.ToAddr()
+	return addr.String()
+}
+
 func (ip *IP) Equal(other *IP) bool {
 	return bytes.Equal(ip.Ip, other.Ip)
+}
+
+func (ip *IP) MarshalJSON() ([]byte, error) {
+	return []byte("\"" + ip.ToString() + "\""), nil
 }
 
 func NewIPPort(ap netip.AddrPort) *IPPort {
@@ -37,6 +50,19 @@ func (ipp *IPPort) ToAddrPort() (netip.AddrPort, error) {
 		return netip.AddrPort{}, err
 	}
 	return netip.AddrPortFrom(addr, uint16(ipp.Port)), nil
+}
+
+func (ipp *IPPort) ToString() string {
+	// Has to be ToString, because String is generated (and doesn't do the right thing).
+	if ipp == nil {
+		return ""
+	}
+	addrPort, _ := ipp.ToAddrPort()
+	return addrPort.String()
+}
+
+func (ipp *IPPort) MarshalJSON() ([]byte, error) {
+	return []byte("\"" + ipp.ToString() + "\""), nil
 }
 
 func NewIPPrefix(p netip.Prefix) *IPPrefix {
