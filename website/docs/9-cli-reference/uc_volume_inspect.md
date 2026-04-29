@@ -1,6 +1,6 @@
 # uc volume inspect
 
-Display detailed information on a volume.
+Display detailed information on a volume. Without an argument it shows all volumes.
 
 ```
 uc volume inspect VOLUME_NAME [flags]

@@ -1,9 +1,9 @@
 # uc inspect
 
-Display detailed information on a service.
+Display detailed information on a service. Without arguments it shows all services.
 
 ```
-uc inspect SERVICE [flags]
+uc inspect [SERVICE] [flags]
 ```
 
 ## Options

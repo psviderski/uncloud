@@ -22,7 +22,7 @@ A CLI tool for managing Uncloud resources such as machines, services, and volume
 * [uc exec](uc_exec.md)	 - Execute a command in a running service container.
 * [uc image](uc_image.md)	 - Manage images on machines in the cluster.
 * [uc images](uc_images.md)	 - List images on machines in the cluster.
-* [uc inspect](uc_inspect.md)	 - Display detailed information on a service.
+* [uc inspect](uc_inspect.md)	 - Display detailed information on a service. Without arguments it shows all services.
 * [uc logs](uc_logs.md)	 - View service logs.
 * [uc ls](uc_ls.md)	 - List services.
 * [uc machine](uc_machine.md)	 - Manage machines in the cluster.
