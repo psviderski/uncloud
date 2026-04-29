@@ -20,10 +20,13 @@ func NewInspectCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "inspect VOLUME_NAME",
-		Short: "Display detailed information on a volume.",
-		Args:  cobra.ExactArgs(1),
+		Short: "Display detailed information on a volume. Without an argument it shows all volumes.",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			if len(args) == 0 {
+				return inspectAll(cmd.Context(), uncli)
+			}
 			return inspect(cmd.Context(), uncli, args[0], opts)
 		},
 	}
@@ -71,6 +74,31 @@ func inspect(ctx context.Context, uncli *cli.CLI, name string, opts inspectOptio
 	data, err := json.MarshalIndent(volumes[0], "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal volume: %w", err)
+	}
+	fmt.Println(string(data))
+
+	return nil
+}
+
+func inspectAll(ctx context.Context, uncli *cli.CLI) error {
+	client, err := uncli.ConnectCluster(ctx)
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
+	}
+	defer client.Close()
+
+	volumes, err := client.ListVolumes(ctx, &api.VolumeFilter{})
+	if err != nil {
+		return fmt.Errorf("list volumes: %w", err)
+	}
+
+	// Wrap in Volumes type to create array of Volumes.
+	type Volumes struct {
+		Volumes []api.MachineVolume `json:"volumes"`
+	}
+	data, err := json.MarshalIndent(Volumes{volumes}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal volumes: %w", err)
 	}
 	fmt.Println(string(data))
 

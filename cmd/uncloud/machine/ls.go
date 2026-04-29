@@ -18,6 +18,7 @@ func NewListCommand() *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List machines in a cluster.",
+		Args:    cobra.MaximumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return list(cmd.Context(), uncli)

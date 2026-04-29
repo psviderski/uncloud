@@ -14,6 +14,7 @@ func NewInspectCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "inspect [MACHINE]",
 		Short: "Display detailed information of a machine. Without an argument it shows all machines.",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			if len(args) == 0 {

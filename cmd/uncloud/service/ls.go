@@ -17,6 +17,7 @@ func NewListCommand(groupID string) *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List services.",
+		Args:    cobra.MaximumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return list(cmd.Context(), uncli)

@@ -21,9 +21,9 @@ type inspectOptions struct {
 func NewInspectCommand(groupID string) *cobra.Command {
 	opts := inspectOptions{}
 	cmd := &cobra.Command{
-		Use:   "inspect SERVICE",
-		Short: "Display detailed information on a service.",
-		Args:  cobra.ExactArgs(1),
+		Use:   "inspect [SERVICE]",
+		Short: "Display detailed information on a service. Without arguments it shows all services.",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			opts.service = args[0]
