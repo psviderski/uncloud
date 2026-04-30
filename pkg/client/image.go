@@ -270,7 +270,7 @@ func (cli *Client) pushImageToMachine(
 		proxyPort  int
 	)
 	var unregProxy *proxy.Proxy
-	if dockerEnv.Rootless && !dockerEnv.Virtualised {
+	if shouldUseUnregistryUnixProxy(dockerEnv) {
 		suffix, err := secret.RandomAlphaNumeric(4)
 		if err != nil {
 			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
@@ -332,7 +332,7 @@ func (cli *Client) pushImageToMachine(
 			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
 			return fmt.Errorf("run socat container to proxy unregistry: %w", err)
 		}
-	} else if dockerEnv.Rootless {
+	} else if shouldUseUnregistryUnixProxy(dockerEnv) {
 		// Plain rootless Docker: run a socat container that forwards via a bind-mounted unix socket,
 		// avoiding the slirp4netns --disable-host-loopback routing restriction.
 		pw.Event(progress.Event{
@@ -341,7 +341,7 @@ func (cli *Client) pushImageToMachine(
 			StatusText: "Starting",
 			Text:       "(detected rootless Docker, starting socat proxy container)",
 		})
-		proxyCtrID, proxyPort, err = runRootlessProxyContainer(ctx, dockerCli, socketPath)
+		proxyCtrID, proxyPort, err = runUnixSocketProxyContainer(ctx, dockerCli, socketPath)
 		if err != nil {
 			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
 			return fmt.Errorf("run rootless socat container to proxy unregistry: %w", err)
@@ -506,6 +506,22 @@ func detectDockerEnvironment(ctx context.Context, dockerCli *docker.Client) (doc
 	return env, nil
 }
 
+// shouldUseUnregistryUnixProxy reports whether the local Docker environment requires a unix socket proxy
+// to reach the unregistry. This is the case for rootless Docker not running inside a VM, where
+// slirp4netns --disable-host-loopback blocks TCP routing from the container network namespace back to the host.
+//
+// The UNCLOUD_PUSH_UNIX_PROXY environment variable overrides auto-detection: set it to "1" or "true" to force
+// the unix socket path, or "0" or "false" to disable it even when rootless Docker is detected.
+func shouldUseUnregistryUnixProxy(env dockerEnvironment) bool {
+	switch strings.ToLower(os.Getenv("UNCLOUD_EXPERIMENT_PUSH_UNIX_PROXY")) {
+	case "1", "true":
+		return true
+	case "0", "false":
+		return false
+	}
+	return env.Rootless && !env.Virtualised
+}
+
 // runDockerVMProxyContainer creates a socat container inside the Docker VM (e.g. Docker Desktop on macOS)
 // to forward TCP connections from a localhost port to the specified target port on the host via host.docker.internal.
 // Returns the container ID and the localhost port the container port is bound to.
@@ -514,12 +530,12 @@ func runDockerVMProxyContainer(ctx context.Context, dockerCli *docker.Client, ta
 		fmt.Sprintf("TCP-CONNECT:host.docker.internal:%d", targetPort), nil)
 }
 
-// runRootlessProxyContainer creates a socat container inside the rootless Docker network namespace
+// runUnixSocketProxyContainer creates a socat container inside the rootless Docker network namespace
 // that forwards TCP connections to the host-side Go proxy via a bind-mounted unix socket,
 // bypassing the slirp4netns --disable-host-loopback restriction.
 // rootlesskit forwards host 127.0.0.1:hostPort into the container via its port-mapping mechanism.
 // Returns the container ID and the localhost port that 'docker push' should target.
-func runRootlessProxyContainer(ctx context.Context, dockerCli *docker.Client, socketPath string) (string, int, error) {
+func runUnixSocketProxyContainer(ctx context.Context, dockerCli *docker.Client, socketPath string) (string, int, error) {
 	return runSocatProxyContainer(ctx, dockerCli,
 		fmt.Sprintf("UNIX-CONNECT:%s", socketPath),
 		[]string{fmt.Sprintf("%s:%s", socketPath, socketPath)})
