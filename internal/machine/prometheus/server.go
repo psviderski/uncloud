@@ -38,7 +38,6 @@ func (s *Server) Run(ctx context.Context) error {
 	errCh := make(chan error, 1)
 
 	go func() {
-		slog.Info("Starting prometheus server.", "addr", addr)
 		if err := s.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- fmt.Errorf("prometheus server failed: %w", err)
 		}
