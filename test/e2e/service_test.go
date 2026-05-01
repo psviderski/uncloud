@@ -2275,7 +2275,7 @@ func TestPrometheus(t *testing.T) {
 
 		t.Run("version metric is available", func(t *testing.T) {
 			curlOutput := runCurl(t, "http://localhost:51004/metrics")
-			t.Logf("cURL metrics ouput:\n%s", curlOutput)
+			t.Logf("cURL metrics output:\n%s", curlOutput)
 
 			assert.Contains(t, curlOutput, "uncloud_uncloudd_build_info")
 		})
