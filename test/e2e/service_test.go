@@ -2230,7 +2230,7 @@ func TestPrometheus(t *testing.T) {
 
 	clusterName := "ucind-test.prometheus"
 	ctx := context.Background()
-	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
+	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 1}, true)
 
 	cli, cErr := c.Machines[0].Connect(ctx)
 	require.NoError(t, cErr)
