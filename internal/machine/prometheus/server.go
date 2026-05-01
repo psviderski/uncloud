@@ -8,12 +8,13 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const Port = "51004"
+const Port = 51004
 
 type Server struct {
 	*http.Server
@@ -29,7 +30,7 @@ func New(listenAddr netip.Addr) *Server {
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	addr := net.JoinHostPort(s.listenAddr.String(), Port)
+	addr := net.JoinHostPort(s.listenAddr.String(), strconv.Itoa(Port))
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen prometheus server: %w", err)
