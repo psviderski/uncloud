@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -2274,11 +2277,11 @@ func TestPrometheus(t *testing.T) {
 		}
 
 		t.Run("version metric is available", func(t *testing.T) {
-			curlOutput := runCurl(t, "http://localhost:51004/metrics")
+			endpoint := net.JoinHostPort(c.Machines[0].APIAddress.Addr().String(), strconv.Itoa(prometheus.Port))
+			curlOutput := runCurl(t, "http://"+endpoint+"/metrics")
 			t.Logf("cURL metrics output:\n%s", curlOutput)
 
 			assert.Contains(t, curlOutput, "uncloud_uncloudd_build_info")
 		})
-
 	})
 }
