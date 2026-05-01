@@ -49,7 +49,7 @@ func (s *Server) Run(ctx context.Context) error {
 		s.stop()
 		return err
 	case <-ctx.Done():
-		slog.Info("Stopping DNS server.")
+		slog.Info("Stopping prometheus server.")
 		return s.stop()
 	}
 }
