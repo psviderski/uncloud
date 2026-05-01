@@ -2277,7 +2277,8 @@ func TestPrometheus(t *testing.T) {
 		}
 
 		t.Run("version metric is available", func(t *testing.T) {
-			endpoint := net.JoinHostPort(c.Machines[0].APIAddress.Addr().String(), strconv.Itoa(prometheus.Port))
+			//endpoint := net.JoinHostPort(c.Machines[0].APIAddress.Addr().String(), strconv.Itoa(prometheus.Port))
+			endpoint := net.JoinHostPort("10.210.0.1", strconv.Itoa(prometheus.Port))
 			curlOutput := runCurl(t, "http://"+endpoint+"/metrics")
 			t.Logf("cURL metrics output:\n%s", curlOutput)
 
