@@ -404,8 +404,8 @@ func (cli *Client) pushImageToMachine(
 	return nil
 }
 
-// testRemoteConnectivity verifies that remoteAddr is reachable via dialer within a timeout.
-func testRemoteConnectivity(ctx context.Context, dialer netproxy.ContextDialer, remoteAddr string) error {
+// checkRemoteConnectivity verifies that remoteAddr is reachable via dialer within a timeout.
+func checkRemoteConnectivity(ctx context.Context, dialer netproxy.ContextDialer, remoteAddr string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -422,7 +422,7 @@ func testRemoteConnectivity(ctx context.Context, dialer netproxy.ContextDialer, 
 func newUnregistryTcpProxy(
 	ctx context.Context, remoteAddr string, dialer netproxy.ContextDialer, onError func(error),
 ) (*proxy.Proxy, error) {
-	if err := testRemoteConnectivity(ctx, dialer, remoteAddr); err != nil {
+	if err := checkRemoteConnectivity(ctx, dialer, remoteAddr); err != nil {
 		return nil, err
 	}
 
@@ -446,7 +446,7 @@ func newUnregistryTcpProxy(
 func newUnregistryUnixProxy(
 	ctx context.Context, remoteAddr string, dialer netproxy.ContextDialer, socketPath string, onError func(error),
 ) (*proxy.Proxy, error) {
-	if err := testRemoteConnectivity(ctx, dialer, remoteAddr); err != nil {
+	if err := checkRemoteConnectivity(ctx, dialer, remoteAddr); err != nil {
 		return nil, err
 	}
 
