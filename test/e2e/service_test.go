@@ -2224,3 +2224,61 @@ func TestServiceLifecycle(t *testing.T) {
 		})
 	})
 }
+
+func TestPrometheus(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "ucind-test.prometheus"
+	ctx := context.Background()
+	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
+
+	cli, cErr := c.Machines[0].Connect(ctx)
+	require.NoError(t, cErr)
+
+	t.Run("internal prometheus", func(t *testing.T) {
+		t.Parallel()
+		// Deploy a test service to run curl from.
+		curlServiceName := "test-metrics-service"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, curlServiceName)
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+		curlSvcSpec := api.ServiceSpec{
+			Name:     curlServiceName,
+			Mode:     api.ServiceModeReplicated,
+			Replicas: 1,
+			Placement: api.Placement{
+				Machines: []string{c.Machines[0].Name},
+			},
+			Container: api.ContainerSpec{
+				Image:   "curlimages/curl",
+				Command: []string{"sleep", "infinity"},
+			},
+		}
+		_, err := cli.RunService(ctx, curlSvcSpec)
+		require.NoError(t, err)
+
+		querySvc, err := cli.InspectService(ctx, curlServiceName)
+		require.NoError(t, err)
+		queryContainer := querySvc.Containers[0]
+
+		runCurl := func(t *testing.T, url string) string {
+			curlOutput, err := execInContainerAndReadOutput(
+				t, ctx, cli, curlServiceName, queryContainer.Container.ID,
+				[]string{"curl", url},
+			)
+			require.NoError(t, err)
+			return curlOutput
+		}
+
+		t.Run("version metric is available", func(t *testing.T) {
+			curlOutput := runCurl(t, "http://localhost:51004/metrics")
+			t.Logf("cURL metrics ouput:\n%s", curlOutput)
+
+			assert.Contains(t, curlOutput, "uncloud_uncloudd_build_info")
+		})
+
+	})
+}
