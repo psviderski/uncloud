@@ -2279,7 +2279,7 @@ func TestPrometheus(t *testing.T) {
 		t.Run("version metric is available", func(t *testing.T) {
 			endpoint := net.JoinHostPort("10.210.0.1", strconv.Itoa(prometheus.Port))
 			curlOutput := runCurl(t, "http://"+endpoint+"/metrics")
-			t.Logf("cURL metrics output:\n%s", curlOutput)
+			t.Logf("cURL metrics output from %s:\n%s", endpoint, curlOutput)
 
 			assert.Contains(t, curlOutput, "uncloud_uncloudd_build_info")
 		})
