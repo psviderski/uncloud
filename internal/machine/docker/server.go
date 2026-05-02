@@ -683,9 +683,7 @@ func (s *Server) CreateServiceContainer(
 		// Apply the pre-deploy hook overrides.
 		config.Cmd = spec.PreDeploy.Command
 
-		for k, v := range spec.PreDeploy.Env {
-			envVars[k] = v
-		}
+		maps.Copy(envVars, spec.PreDeploy.Env)
 		envVars["UNCLOUD_HOOK_PRE_DEPLOY"] = "true"
 		config.Env = envVars.ToSlice()
 

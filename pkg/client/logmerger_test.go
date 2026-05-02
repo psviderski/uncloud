@@ -227,7 +227,7 @@ func TestLogMerger_ZeroTimestampForwarding(t *testing.T) {
 	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
 	output := merger.Stream()
 
-	for i := 0; i < zeroCount; i++ {
+	for range zeroCount {
 		ch <- testEntry(api.LogStreamStdout, time.Time{}, "zero")
 	}
 	t1 := time.Now()
@@ -237,7 +237,7 @@ func TestLogMerger_ZeroTimestampForwarding(t *testing.T) {
 	results := collectEntries(t, output, 0)
 	require.Len(t, results, zeroCount+1)
 
-	for i := 0; i < zeroCount; i++ {
+	for i := range zeroCount {
 		assert.True(t, results[i].Timestamp.IsZero(), "entry %d should have zero timestamp", i)
 		assert.Equal(t, "zero", string(results[i].Message))
 	}
