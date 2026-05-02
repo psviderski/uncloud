@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/ucind"
@@ -2263,13 +2264,13 @@ func TestPrometheus(t *testing.T) {
 		_, err := cli.RunService(ctx, curlSvcSpec)
 		require.NoError(t, err)
 
-		querySvc, err := cli.InspectService(ctx, curlServiceName)
+		curlSvc, err := cli.InspectService(ctx, curlServiceName)
 		require.NoError(t, err)
-		queryContainer := querySvc.Containers[0]
+		curlContainer := curlSvc.Containers[0]
 
 		runCurl := func(t *testing.T, url string) string {
 			curlOutput, err := execInContainerAndReadOutput(
-				t, ctx, cli, curlServiceName, queryContainer.Container.ID,
+				t, ctx, cli, curlServiceName, curlContainer.Container.ID,
 				[]string{"curl", url},
 			)
 			require.NoError(t, err)
@@ -2277,8 +2278,8 @@ func TestPrometheus(t *testing.T) {
 		}
 
 		t.Run("version metric is available", func(t *testing.T) {
-			//endpoint := net.JoinHostPort(c.Machines[0].APIAddress.Addr().String(), strconv.Itoa(prometheus.Port))
-			endpoint := net.JoinHostPort("10.210.0.1", strconv.Itoa(prometheus.Port))
+			promIP := network.MachineIP(netip.PrefixFrom(curlContainer.Container.UncloudNetworkIP(), 24)).String()
+			endpoint := net.JoinHostPort(promIP, strconv.Itoa(prometheus.Port))
 			curlOutput := runCurl(t, "http://"+endpoint+"/metrics")
 			t.Logf("cURL metrics output:\n%s", curlOutput)
 
