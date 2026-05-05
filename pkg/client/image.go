@@ -63,6 +63,27 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
 	}
 
+	return cli.listImages(ctx, listCtx, machines, filter)
+}
+
+// ListImagesWithSnapshot returns a list of images using machines from a request-scoped snapshot.
+func (cli *Client) ListImagesWithSnapshot(
+	ctx context.Context, snapshot *ClusterSnapshot, filter api.ImageFilter,
+) ([]api.MachineImages, error) {
+	listCtx, machines, err := proxyMachinesContextFromList(ctx, filter.Machines, snapshot.Machines)
+	if err != nil {
+		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
+	}
+
+	return cli.listImages(ctx, listCtx, machines, filter)
+}
+
+func (cli *Client) listImages(
+	ctx context.Context,
+	listCtx context.Context,
+	machines api.MachineMembersList,
+	filter api.ImageFilter,
+) ([]api.MachineImages, error) {
 	opts := image.ListOptions{Manifests: true}
 	if filter.Name != "" {
 		opts.Filters = filters.NewArgs(

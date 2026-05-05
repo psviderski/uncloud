@@ -19,6 +19,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -88,14 +89,15 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 	defer clusterClient.Close()
 
-	// Get all machines to create ID to name mapping.
-	allMachines, err := clusterClient.ListMachines(ctx, nil)
+	snapshot, err := clusterClient.NewClusterSnapshot(ctx, client.ClusterSnapshotOptions{
+		Machines: true,
+	})
 	if err != nil {
-		return fmt.Errorf("list machines: %w", err)
+		return fmt.Errorf("load cluster snapshot: %w", err)
 	}
 
 	machineIDToName := make(map[string]string)
-	for _, machineMember := range allMachines {
+	for _, machineMember := range snapshot.Machines {
 		if machineMember.Machine != nil && machineMember.Machine.Id != "" && machineMember.Machine.Name != "" {
 			machineIDToName[machineMember.Machine.Id] = machineMember.Machine.Name
 		}
@@ -103,7 +105,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
 
-	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{
+	clusterImages, err := clusterClient.ListImagesWithSnapshot(ctx, snapshot, api.ImageFilter{
 		Machines: machines,
 		Name:     opts.nameFilter,
 	})
@@ -117,7 +119,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	for _, machineImages := range clusterImages {
 		// Get machine name for better readability.
 		machineName := machineImages.Metadata.Machine
-		if m := allMachines.FindByNameOrID(machineName); m != nil {
+		if m := snapshot.Machines.FindByNameOrID(machineName); m != nil {
 			machineName = m.Machine.Name
 		}
 

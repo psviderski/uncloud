@@ -89,6 +89,12 @@ func (cli *Client) ProxyMachinesContext(
 		return nil, nil, fmt.Errorf("list machines: %w", err)
 	}
 
+	return proxyMachinesContextFromList(ctx, namesOrIDs, machines)
+}
+
+func proxyMachinesContextFromList(
+	ctx context.Context, namesOrIDs []string, machines api.MachineMembersList,
+) (context.Context, api.MachineMembersList, error) {
 	var proxiedMachines api.MachineMembersList
 	var notFound []string
 	for _, nameOrID := range namesOrIDs {
