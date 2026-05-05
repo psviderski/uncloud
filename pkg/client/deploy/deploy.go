@@ -33,6 +33,10 @@ type Deployment struct {
 	Strategy Strategy
 	cli      Client
 	plan     *ServicePlan
+	// serviceKnown indicates Service has already been resolved for this request, including the "not found" case.
+	serviceKnown bool
+	// specResolver is an optional request-scoped resolver shared by batch planners.
+	specResolver *ServiceSpecResolver
 	// state is an optional current and planned cluster state used for scheduling decisions.
 	state *scheduler.ClusterState
 }
@@ -289,6 +293,19 @@ func NewDeploymentWithClusterState(
 	return d
 }
 
+// WithCurrentService sets the already-resolved current service for this deployment.
+func (d *Deployment) WithCurrentService(svc *api.Service) *Deployment {
+	d.Service = svc
+	d.serviceKnown = true
+	return d
+}
+
+// WithSpecResolver sets the already-created service spec resolver for this deployment.
+func (d *Deployment) WithSpecResolver(resolver *ServiceSpecResolver) *Deployment {
+	d.specResolver = resolver
+	return d
+}
+
 // Plan returns a plan of operations to reconcile the service to the desired state.
 // If a plan has already been created, the same plan will be returned.
 func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
@@ -301,13 +318,16 @@ func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
 		return ServicePlan{}, fmt.Errorf("invalid deployment: %w", err)
 	}
 
-	clusterDomain, err := d.cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, api.ErrNotFound) {
-		return ServicePlan{}, fmt.Errorf("get cluster domain: %w", err)
-	}
-	specResolver := &ServiceSpecResolver{
-		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: clusterDomain,
+	specResolver := d.specResolver
+	if specResolver == nil {
+		clusterDomain, err := d.cli.GetDomain(ctx)
+		if err != nil && !errors.Is(err, api.ErrNotFound) {
+			return ServicePlan{}, fmt.Errorf("get cluster domain: %w", err)
+		}
+		specResolver = &ServiceSpecResolver{
+			// If the domain is not found (not reserved), an empty domain is used for the resolver.
+			ClusterDomain: clusterDomain,
+		}
 	}
 
 	resolvedSpec, err := specResolver.Resolve(d.Spec)
@@ -337,7 +357,7 @@ func (d *Deployment) Validate(ctx context.Context) error {
 		return fmt.Errorf("invalid service spec: %w", err)
 	}
 
-	if d.Service == nil && d.Spec.Name != "" {
+	if !d.serviceKnown && d.Service == nil && d.Spec.Name != "" {
 		svc, err := d.cli.InspectService(ctx, d.Spec.Name)
 		if err == nil {
 			d.Service = &svc
