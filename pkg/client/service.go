@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"sync"
 
@@ -117,7 +116,7 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 		return svc, fmt.Errorf("list containers: %w", err)
 	}
 
-	servicesByID, err := servicesFromMachineContainers(machineContainers, machineIDByManagementIP, os.Stderr)
+	servicesByID, err := servicesFromMachineContainers(machineContainers, machineIDByManagementIP)
 	if err != nil {
 		return svc, err
 	}
@@ -316,7 +315,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 
-	servicesByID, err := servicesFromMachineContainers(machineContainers, machineIDByManagementIP, os.Stderr)
+	servicesByID, err := servicesFromMachineContainers(machineContainers, machineIDByManagementIP)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +330,6 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 func servicesFromMachineContainers(
 	machineContainers []machinedocker.MachineServiceContainers,
 	machineIDByManagementIP map[string]string,
-	warn io.Writer,
 ) (map[string]api.Service, error) {
 	servicesByID := make(map[string]api.Service)
 
@@ -342,10 +340,8 @@ func servicesFromMachineContainers(
 		}
 		if mc.Metadata != nil && mc.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
-			if warn != nil {
-				fmt.Fprintf(warn, "WARNING: failed to list containers on machine '%s': %s\n",
-					mc.Metadata.Machine, mc.Metadata.Error)
-			}
+			fmt.Fprintf(os.Stderr, "WARNING: failed to list containers on machine '%s': %s\n",
+				mc.Metadata.Machine, mc.Metadata.Error)
 			continue
 		}
 

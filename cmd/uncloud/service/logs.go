@@ -186,7 +186,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 	machineIDs := machineIDsSet.ToSlice()
 	machineNames := make([]string, 0, len(machineIDs))
 	for _, id := range machineIDs {
-		if m := snapshot.Machines.FindByNameOrID(id); m != nil {
+		if m := snapshot.FindMachineByNameOrID(id); m != nil {
 			machineNames = append(machineNames, m.Machine.Name)
 		}
 	}

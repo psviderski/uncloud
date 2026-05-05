@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"testing"
 
 	dockercontainer "github.com/docker/docker/api/types/container"
@@ -13,7 +12,6 @@ import (
 )
 
 func TestServicesFromMachineContainers(t *testing.T) {
-	var warnings bytes.Buffer
 	servicesByID, err := servicesFromMachineContainers(
 		[]machinedocker.MachineServiceContainers{
 			{
@@ -42,7 +40,6 @@ func TestServicesFromMachineContainers(t *testing.T) {
 			"10.0.0.2": "machine-2",
 			"10.0.0.3": "machine-3",
 		},
-		&warnings,
 	)
 	require.NoError(t, err)
 
@@ -66,8 +63,6 @@ func TestServicesFromMachineContainers(t *testing.T) {
 	duplicateName := servicesByID["svc-web-alt"]
 	assert.Equal(t, "web", duplicateName.Name)
 	require.Len(t, duplicateName.Containers, 1)
-
-	assert.Contains(t, warnings.String(), "WARNING: failed to list containers on machine '10.0.0.3': unavailable")
 }
 
 func TestServicesFromMachineContainersNilMetadataWithMultipleMachines(t *testing.T) {
@@ -77,7 +72,6 @@ func TestServicesFromMachineContainersNilMetadataWithMultipleMachines(t *testing
 			{Metadata: &pb.Metadata{Machine: "10.0.0.2"}},
 		},
 		map[string]string{"10.0.0.2": "machine-2"},
-		nil,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "metadata is missing")

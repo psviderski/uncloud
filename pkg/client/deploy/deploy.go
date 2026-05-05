@@ -33,12 +33,12 @@ type Deployment struct {
 	Strategy Strategy
 	cli      Client
 	plan     *ServicePlan
-	// serviceKnown indicates Service has already been resolved for this request, including the "not found" case.
+	// serviceKnown is true when Service has already been resolved for this request, including
+	// the "not found" case. Without it, Validate cannot distinguish "lookup not yet attempted"
+	// from "looked up and confirmed missing" since both have Service == nil.
 	serviceKnown bool
-	// specResolver is an optional request-scoped resolver shared by batch planners.
 	specResolver *ServiceSpecResolver
-	// state is an optional current and planned cluster state used for scheduling decisions.
-	state *scheduler.ClusterState
+	state        *scheduler.ClusterState
 }
 
 type ServicePlan struct {
@@ -293,14 +293,16 @@ func NewDeploymentWithClusterState(
 	return d
 }
 
-// WithCurrentService sets the already-resolved current service for this deployment.
+// WithCurrentService injects an already-resolved current service to skip the InspectService call
+// in Validate. Used by batch planners that share a single ListServices result across many deployments.
 func (d *Deployment) WithCurrentService(svc *api.Service) *Deployment {
 	d.Service = svc
 	d.serviceKnown = true
 	return d
 }
 
-// WithSpecResolver sets the already-created service spec resolver for this deployment.
+// WithSpecResolver injects a shared resolver to skip the per-deployment GetDomain call in Plan.
+// Used by batch planners that resolve the cluster domain once.
 func (d *Deployment) WithSpecResolver(resolver *ServiceSpecResolver) *Deployment {
 	d.specResolver = resolver
 	return d

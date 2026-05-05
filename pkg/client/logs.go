@@ -29,20 +29,21 @@ func (cli *Client) ServiceLogs(
 	return cli.ServiceLogsWithSnapshot(ctx, snapshot, serviceNameOrID, opts)
 }
 
-// ServiceLogsWithSnapshot streams log entries using a request-scoped snapshot for service and machine lookup.
+// ServiceLogsWithSnapshot is the snapshot-aware variant of ServiceLogs for callers that already
+// hold a cluster snapshot (e.g. when streaming logs from many services in one command).
 func (cli *Client) ServiceLogsWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, serviceNameOrID string, opts api.ServiceLogsOptions,
 ) (api.Service, <-chan api.ServiceLogEntry, error) {
 	svc, ok := snapshot.FindServiceByID(serviceNameOrID)
-	var err error
 	if !ok {
+		var err error
 		svc, ok, err = snapshot.FindServiceByName(serviceNameOrID)
 		if err != nil {
 			return svc, nil, err
 		}
-	}
-	if !ok {
-		return svc, nil, api.ErrNotFound
+		if !ok {
+			return svc, nil, api.ErrNotFound
+		}
 	}
 
 	containers := append(svc.Containers, svc.HookContainers...)
@@ -64,18 +65,19 @@ func (cli *Client) ServiceLogsWithSnapshot(
 		containers = slices.Collect(maps.Values(selected))
 	}
 
-	machines, err := filterSnapshotMachines(snapshot, opts.Machines)
+	allowedMachineIDs, err := resolveMachineIDFilter(snapshot, opts.Machines)
 	if err != nil {
 		return svc, nil, err
 	}
 
 	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(containers))
 	for _, ctr := range containers {
-		// Skip containers not running on the specified machines.
-		m := machines.FindByNameOrID(ctr.MachineID)
-		if len(opts.Machines) > 0 && m == nil {
-			continue
+		if allowedMachineIDs != nil {
+			if _, ok := allowedMachineIDs[ctr.MachineID]; !ok {
+				continue
+			}
 		}
+		m := snapshot.FindMachineByNameOrID(ctr.MachineID)
 		if m == nil {
 			return svc, nil, fmt.Errorf("machine '%s' not found in snapshot", ctr.MachineID)
 		}
@@ -200,11 +202,12 @@ func (cli *Client) MachineLogs(
 	return cli.MachineLogsWithSnapshot(ctx, snapshot, unit, opts)
 }
 
-// MachineLogsWithSnapshot streams journal logs using a request-scoped snapshot for machine lookup.
+// MachineLogsWithSnapshot is the snapshot-aware variant of MachineLogs for callers that already
+// hold a cluster snapshot. It avoids a second ListMachines round-trip per call.
 func (cli *Client) MachineLogsWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, unit string, opts api.ServiceLogsOptions,
 ) (<-chan api.ServiceLogEntry, error) {
-	machines, err := filterSnapshotMachines(snapshot, opts.Machines)
+	machines, err := selectSnapshotMachines(snapshot, opts.Machines)
 	if err != nil {
 		return nil, err
 	}
@@ -306,15 +309,17 @@ func (cli *Client) systemdServiceLogsWithContext(
 	return ch, nil
 }
 
-func filterSnapshotMachines(snapshot *ClusterSnapshot, namesOrIDs []string) (api.MachineMembersList, error) {
+// selectSnapshotMachines returns the snapshot machines matching namesOrIDs, or all machines if empty.
+// Returns an error listing any names/IDs that do not match a machine.
+func selectSnapshotMachines(snapshot *ClusterSnapshot, namesOrIDs []string) (api.MachineMembersList, error) {
 	if len(namesOrIDs) == 0 {
 		return snapshot.Machines, nil
 	}
 
-	var machines api.MachineMembersList
+	machines := make(api.MachineMembersList, 0, len(namesOrIDs))
 	var notFound []string
 	for _, nameOrID := range namesOrIDs {
-		if m := snapshot.Machines.FindByNameOrID(nameOrID); m != nil {
+		if m := snapshot.FindMachineByNameOrID(nameOrID); m != nil {
 			machines = append(machines, m)
 		} else {
 			notFound = append(notFound, nameOrID)
@@ -324,6 +329,23 @@ func filterSnapshotMachines(snapshot *ClusterSnapshot, namesOrIDs []string) (api
 		return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
 	}
 	return machines, nil
+}
+
+// resolveMachineIDFilter resolves namesOrIDs into a set of canonical machine IDs.
+// Returns nil if namesOrIDs is empty (meaning "no filter").
+func resolveMachineIDFilter(snapshot *ClusterSnapshot, namesOrIDs []string) (map[string]struct{}, error) {
+	if len(namesOrIDs) == 0 {
+		return nil, nil
+	}
+	machines, err := selectSnapshotMachines(snapshot, namesOrIDs)
+	if err != nil {
+		return nil, err
+	}
+	allowed := make(map[string]struct{}, len(machines))
+	for _, m := range machines {
+		allowed[m.Machine.Id] = struct{}{}
+	}
+	return allowed, nil
 }
 
 // logsStreamWithServiceMetadata wraps a container logs stream and enriches each log entry with service metadata.

@@ -96,19 +96,20 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		return fmt.Errorf("load cluster snapshot: %w", err)
 	}
 
-	machineNames := make([]string, 0, len(snapshot.Machines))
-	if len(logsOpts.Machines) == 0 {
-		for _, m := range snapshot.Machines {
-			machineNames = append(machineNames, m.Machine.Name)
-		}
-	} else {
+	machineSource := snapshot.Machines
+	if len(logsOpts.Machines) > 0 {
+		machineSource = make(api.MachineMembersList, 0, len(logsOpts.Machines))
 		for _, nameOrID := range logsOpts.Machines {
-			m := snapshot.Machines.FindByNameOrID(nameOrID)
+			m := snapshot.FindMachineByNameOrID(nameOrID)
 			if m == nil {
-				return fmt.Errorf("machines not found: %s", nameOrID)
+				return fmt.Errorf("machine not found: %s", nameOrID)
 			}
-			machineNames = append(machineNames, m.Machine.Name)
+			machineSource = append(machineSource, m)
 		}
+	}
+	machineNames := make([]string, 0, len(machineSource))
+	for _, m := range machineSource {
+		machineNames = append(machineNames, m.Machine.Name)
 	}
 
 	// Collect one log stream per unit. MachineLogs merges across machines internally.

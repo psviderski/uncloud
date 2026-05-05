@@ -119,7 +119,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	for _, machineImages := range clusterImages {
 		// Get machine name for better readability.
 		machineName := machineImages.Metadata.Machine
-		if m := snapshot.Machines.FindByNameOrID(machineName); m != nil {
+		if m := snapshot.FindMachineByNameOrID(machineName); m != nil {
 			machineName = m.Machine.Name
 		}
 
