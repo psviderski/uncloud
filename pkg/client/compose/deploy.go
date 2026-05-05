@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,14 +11,15 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
+	clusterclient "github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 )
 
 type Client interface {
-	api.DNSClient
 	deploy.Client
+	NewClusterSnapshot(ctx context.Context, opts clusterclient.ClusterSnapshotOptions) (*clusterclient.ClusterSnapshot, error)
 }
 
 type Deployment struct {
@@ -28,6 +28,7 @@ type Deployment struct {
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
+	snapshot     *clusterclient.ClusterSnapshot
 	plan         *Plan
 }
 
@@ -41,13 +42,16 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		return nil, fmt.Errorf("inspect cluster state: %w", err)
 	}
 
-	domain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, api.ErrNotFound) {
-		return nil, fmt.Errorf("get cluster domain: %w", err)
+	snapshot, err := cli.NewClusterSnapshot(ctx, clusterclient.ClusterSnapshotOptions{
+		Services: true,
+		Domain:   true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load cluster snapshot: %w", err)
 	}
 	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: domain,
+		ClusterDomain: snapshot.Domain,
 	}
 
 	return &Deployment{
@@ -56,6 +60,7 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		SpecResolver: resolver,
 		Strategy:     strategy,
 		state:        state,
+		snapshot:     snapshot,
 	}, nil
 }
 
@@ -96,6 +101,17 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
 		// Pass the updated cluster state with the scheduled volumes to the deployment.
 		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
+		deployment.WithSpecResolver(d.SpecResolver)
+		currentService, ok, err := d.snapshot.FindServiceByName(spec.Name)
+		if err != nil {
+			return plan, fmt.Errorf("find current service '%s': %w", spec.Name, err)
+		}
+		var current *api.Service
+		if ok {
+			current = &currentService
+		}
+		deployment.WithCurrentService(current)
+
 		servicePlan, err := deployment.Plan(ctx)
 		if err != nil {
 			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
