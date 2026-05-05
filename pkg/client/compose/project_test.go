@@ -189,7 +189,7 @@ REDIS_URL=redis://localhost:6379
 	}
 }
 
-// TestLoadProject_Unsupported checks that unsupported features lead to warnings.
+// TestLoadProject_Unsupported checks that unsupported features lead to warnings or errors.
 func TestLoadProject_Unsupported(t *testing.T) {
 	// captureStderr runs fn while capturing stderr output and returns what was written.
 	captureStderr := func(t *testing.T, fn func()) string {
@@ -214,6 +214,7 @@ func TestLoadProject_Unsupported(t *testing.T) {
 		composeYAML  string
 		warnCount    int
 		warnContains []string
+		shouldErr    bool
 	}{
 		{
 			name: "unsupported dns",
@@ -296,12 +297,30 @@ networks:
 `,
 			warnCount: 0,
 		},
+		{
+			name: "relative volume sources",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    volumes:
+      - ./mypath/conf:/conf:ro
+      - data:/var/lib/data
+
+volumes:
+  data:
+`,
+			shouldErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stderr := captureStderr(t, func() {
 				_, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+				if tt.shouldErr {
+					require.Error(t, err)
+					return
+				}
 				require.NoError(t, err)
 			})
 
