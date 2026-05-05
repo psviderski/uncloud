@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -21,9 +22,27 @@ import (
 func (cli *Client) ServiceLogs(
 	ctx context.Context, serviceNameOrID string, opts api.ServiceLogsOptions,
 ) (api.Service, <-chan api.ServiceLogEntry, error) {
-	svc, err := cli.InspectService(ctx, serviceNameOrID)
+	snapshot, err := cli.NewClusterSnapshot(ctx, ClusterSnapshotOptions{Machines: true, Services: true})
 	if err != nil {
-		return svc, nil, fmt.Errorf("inspect service: %w", err)
+		return api.Service{}, nil, fmt.Errorf("load cluster snapshot: %w", err)
+	}
+	return cli.ServiceLogsWithSnapshot(ctx, snapshot, serviceNameOrID, opts)
+}
+
+// ServiceLogsWithSnapshot streams log entries using a request-scoped snapshot for service and machine lookup.
+func (cli *Client) ServiceLogsWithSnapshot(
+	ctx context.Context, snapshot *ClusterSnapshot, serviceNameOrID string, opts api.ServiceLogsOptions,
+) (api.Service, <-chan api.ServiceLogEntry, error) {
+	svc, ok := snapshot.FindServiceByID(serviceNameOrID)
+	var err error
+	if !ok {
+		svc, ok, err = snapshot.FindServiceByName(serviceNameOrID)
+		if err != nil {
+			return svc, nil, err
+		}
+	}
+	if !ok {
+		return svc, nil, api.ErrNotFound
 	}
 
 	containers := append(svc.Containers, svc.HookContainers...)
@@ -45,11 +64,9 @@ func (cli *Client) ServiceLogs(
 		containers = slices.Collect(maps.Values(selected))
 	}
 
-	machines, err := cli.ListMachines(ctx, &api.MachineFilter{
-		NamesOrIDs: opts.Machines,
-	})
+	machines, err := filterSnapshotMachines(snapshot, opts.Machines)
 	if err != nil {
-		return svc, nil, fmt.Errorf("list machines: %w", err)
+		return svc, nil, err
 	}
 
 	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(containers))
@@ -59,14 +76,13 @@ func (cli *Client) ServiceLogs(
 		if len(opts.Machines) > 0 && m == nil {
 			continue
 		}
-
-		// Machine name for ServiceLogEntry metadata and friendlier error message.
-		machineName := ctr.MachineID
-		if m != nil {
-			machineName = m.Machine.Name
+		if m == nil {
+			return svc, nil, fmt.Errorf("machine '%s' not found in snapshot", ctr.MachineID)
 		}
 
-		stream, err := cli.ContainerLogs(ctx, ctr.MachineID, ctr.Container.ID, opts)
+		machineName := m.Machine.Name
+
+		stream, err := cli.containerLogsFromMachine(ctx, m.Machine, ctr.Container.ID, opts)
 		if err != nil {
 			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
 			//  be critical when used as SDK.
@@ -104,6 +120,18 @@ func (cli *Client) ContainerLogs(
 ) (<-chan api.LogEntry, error) {
 	proxyCtx := cli.ProxySingleMachineContext(ctx, machineNameOrID)
 
+	return cli.containerLogs(ctx, proxyCtx, containerID, opts)
+}
+
+func (cli *Client) containerLogsFromMachine(
+	ctx context.Context, machine *pb.MachineInfo, containerID string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
+	return cli.containerLogs(ctx, cli.ProxySingleMachineContext(ctx, machine.Id), containerID, opts)
+}
+
+func (cli *Client) containerLogs(
+	ctx context.Context, proxyCtx context.Context, containerID string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
 	req := &pb.LogsRequest{
 		Id:     containerID,
 		Follow: opts.Follow,
@@ -162,9 +190,20 @@ func (cli *Client) ContainerLogs(
 func (cli *Client) MachineLogs(
 	ctx context.Context, unit string, opts api.ServiceLogsOptions,
 ) (<-chan api.ServiceLogEntry, error) {
-	machines, err := cli.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: opts.Machines})
+	snapshot, err := cli.NewClusterSnapshot(ctx, ClusterSnapshotOptions{Machines: true})
 	if err != nil {
-		return nil, fmt.Errorf("list machines: %w", err)
+		return nil, fmt.Errorf("load cluster snapshot: %w", err)
+	}
+	return cli.MachineLogsWithSnapshot(ctx, snapshot, unit, opts)
+}
+
+// MachineLogsWithSnapshot streams journal logs using a request-scoped snapshot for machine lookup.
+func (cli *Client) MachineLogsWithSnapshot(
+	ctx context.Context, snapshot *ClusterSnapshot, unit string, opts api.ServiceLogsOptions,
+) (<-chan api.ServiceLogEntry, error) {
+	machines, err := filterSnapshotMachines(snapshot, opts.Machines)
+	if err != nil {
+		return nil, err
 	}
 	if len(machines) == 0 {
 		return nil, errors.New("no machines found")
@@ -172,7 +211,7 @@ func (cli *Client) MachineLogs(
 
 	streams := make([]<-chan api.ServiceLogEntry, 0, len(machines))
 	for _, m := range machines {
-		ch, err := cli.systemdServiceLogs(ctx, m.Machine.Id, unit, opts)
+		ch, err := cli.systemdServiceLogsFromMachine(ctx, m.Machine, unit, opts)
 		if err != nil {
 			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
 			//  be critical when used as SDK.
@@ -200,6 +239,18 @@ func (cli *Client) systemdServiceLogs(
 ) (<-chan api.LogEntry, error) {
 	proxyCtx := cli.ProxySingleMachineContext(ctx, machineID)
 
+	return cli.systemdServiceLogsWithContext(ctx, proxyCtx, unit, opts)
+}
+
+func (cli *Client) systemdServiceLogsFromMachine(
+	ctx context.Context, machine *pb.MachineInfo, unit string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
+	return cli.systemdServiceLogsWithContext(ctx, cli.ProxySingleMachineContext(ctx, machine.Id), unit, opts)
+}
+
+func (cli *Client) systemdServiceLogsWithContext(
+	ctx context.Context, proxyCtx context.Context, unit string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
 	req := &pb.LogsRequest{
 		Id:     unit,
 		Follow: opts.Follow,
@@ -247,6 +298,26 @@ func (cli *Client) systemdServiceLogs(
 	}()
 
 	return ch, nil
+}
+
+func filterSnapshotMachines(snapshot *ClusterSnapshot, namesOrIDs []string) (api.MachineMembersList, error) {
+	if len(namesOrIDs) == 0 {
+		return snapshot.Machines, nil
+	}
+
+	var machines api.MachineMembersList
+	var notFound []string
+	for _, nameOrID := range namesOrIDs {
+		if m := snapshot.Machines.FindByNameOrID(nameOrID); m != nil {
+			machines = append(machines, m)
+		} else {
+			notFound = append(notFound, nameOrID)
+		}
+	}
+	if len(notFound) > 0 {
+		return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
+	}
+	return machines, nil
 }
 
 // logsStreamWithServiceMetadata wraps a container logs stream and enriches each log entry with service metadata.

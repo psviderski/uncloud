@@ -19,6 +19,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -88,9 +89,16 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 	defer clusterClient.Close()
 
+	snapshot, err := clusterClient.NewClusterSnapshot(ctx, client.ClusterSnapshotOptions{
+		Machines: true,
+	})
+	if err != nil {
+		return fmt.Errorf("load cluster snapshot: %w", err)
+	}
+
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
 
-	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{
+	clusterImages, err := clusterClient.ListImagesWithSnapshot(ctx, snapshot, api.ImageFilter{
 		Machines: machines,
 		Name:     opts.nameFilter,
 	})

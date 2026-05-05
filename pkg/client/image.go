@@ -61,6 +61,39 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	// Broadcast the image list request to the specified machines or all machines if none specified.
 	listCtx := cli.ProxyMachinesContext(ctx, filter.Machines)
 
+	return cli.listImages(ctx, listCtx, filter)
+}
+
+// ListImagesWithSnapshot returns a list of images using machines from a request-scoped snapshot.
+func (cli *Client) ListImagesWithSnapshot(
+	ctx context.Context, snapshot *ClusterSnapshot, filter api.ImageFilter,
+) ([]api.MachineImages, error) {
+	machines := filter.Machines
+	if len(filter.Machines) > 0 {
+		machines = make([]string, 0, len(filter.Machines))
+		var notFound []string
+		for _, nameOrID := range filter.Machines {
+			m := snapshot.Machines.FindByNameOrID(nameOrID)
+			if m == nil {
+				notFound = append(notFound, nameOrID)
+				continue
+			}
+			machines = append(machines, m.Machine.Id)
+		}
+		if len(notFound) > 0 {
+			return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
+		}
+	}
+
+	listCtx := cli.ProxyMachinesContext(ctx, machines)
+	return cli.listImages(ctx, listCtx, filter)
+}
+
+func (cli *Client) listImages(
+	ctx context.Context,
+	listCtx context.Context,
+	filter api.ImageFilter,
+) ([]api.MachineImages, error) {
 	opts := image.ListOptions{Manifests: true}
 	if filter.Name != "" {
 		opts.Filters = filters.NewArgs(
