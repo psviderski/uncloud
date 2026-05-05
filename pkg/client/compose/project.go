@@ -50,6 +50,15 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, fmt.Errorf("create compose parser options: %w", err)
 	}
 
+	// compose-go reads env_file content while building the Project, and open(2)
+	// on a named pipe blocks until a writer connects. A typo or interrupted
+	// secrets-injection tool can leave a FIFO where a regular .env was expected,
+	// and `uc deploy` then hangs with no output. Stat the env_file paths up front
+	// so we can return a clear error instead of wedging the deploy. See #331.
+	if err := validateEnvFiles(ctx, options); err != nil {
+		return nil, err
+	}
+
 	project, err := options.LoadProject(ctx)
 	if err != nil {
 		return nil, err
