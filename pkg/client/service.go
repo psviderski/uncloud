@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
+	"io"
+	"os"
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 	"google.golang.org/grpc/codes"
@@ -114,77 +116,35 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 		return svc, fmt.Errorf("list containers: %w", err)
 	}
 
-	// Collect all containers on all machines that belong to the specified service.
-	foundByID := false
-	var containers []api.MachineServiceContainer
-	for _, mc := range machineContainers {
-		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
-		if mc.Metadata == nil {
-			tui.PrintWarning("metadata is missing in response from unknown server")
-			continue
-		}
-
-		if mc.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			tui.PrintWarning(fmt.Sprintf("failed to list containers on machine '%s': %s",
-				mc.Metadata.MachineName, mc.Metadata.Error))
-			continue
-		}
-
-		// Collect both regular and hook containers for the service.
-		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
-			containers = append(containers, api.MachineServiceContainer{
-				MachineID:   mc.Metadata.MachineId,
-				MachineName: mc.Metadata.MachineName,
-				Container:   ctr,
-			})
-
-			if ctr.ServiceID() == nameOrID {
-				foundByID = true
-			}
-		}
+	servicesByID, err := servicesFromMachineContainers(machineContainers, os.Stderr)
+	if err != nil {
+		return svc, err
 	}
-
-	if len(containers) == 0 {
+	if len(servicesByID) == 0 {
 		return svc, api.ErrNotFound
 	}
 
 	// Containers from different services may share the same service name (distributed and eventually consistent store
 	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
 	// priority over matching by name.
-	if foundByID {
-		containers = slices.DeleteFunc(containers, func(mc api.MachineServiceContainer) bool {
-			return mc.Container.ServiceID() != nameOrID
-		})
-	} else {
-		// Matched only by name but there could be multiple services with the same name.
-		serviceID := containers[0].Container.ServiceID()
-		for _, mc := range containers[1:] {
-			if mc.Container.ServiceID() != serviceID {
-				return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
-			}
+	if svc, ok := servicesByID[nameOrID]; ok {
+		return svc, nil
+	}
+
+	var matches []api.Service
+	for _, candidate := range servicesByID {
+		if candidate.Name == nameOrID {
+			matches = append(matches, candidate)
 		}
 	}
-
-	// Partition containers into regular service containers and hook containers.
-	var serviceContainers, hookContainers []api.MachineServiceContainer
-	for _, mc := range containers {
-		if mc.Container.IsHook() {
-			hookContainers = append(hookContainers, mc)
-		} else {
-			serviceContainers = append(serviceContainers, mc)
-		}
+	switch len(matches) {
+	case 0:
+		return svc, api.ErrNotFound
+	case 1:
+		return matches[0], nil
+	default:
+		return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
 	}
-
-	svc = api.Service{
-		ID:             containers[0].Container.ServiceID(),
-		Name:           containers[0].Container.ServiceName(),
-		Mode:           containers[0].Container.ServiceMode(),
-		Containers:     serviceContainers,
-		HookContainers: hookContainers,
-	}
-
-	return svc, nil
 }
 
 // InspectServiceFromStore returns detailed information about a service and its containers from the distributed store.
@@ -344,38 +304,9 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 
-	// TODO: optimise by extracting services from the list of all containers instead of inspecting each service.
-	//  Most of the code can be reused in both InspectService and ListServices.
-	servicesByID := make(map[string]api.Service)
-	for _, mc := range machineContainers {
-		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
-		if mc.Metadata == nil {
-			tui.PrintWarning("metadata is missing in response from unknown server")
-			continue
-		}
-
-		if mc.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			tui.PrintWarning(fmt.Sprintf("failed to list containers on machine '%s': %s",
-				mc.Metadata.MachineName, mc.Metadata.Error))
-			continue
-		}
-
-		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
-			if _, ok := servicesByID[ctr.ServiceID()]; ok {
-				continue
-			}
-
-			svc, err := cli.InspectService(ctx, ctr.ServiceID())
-			if err != nil {
-				if errors.Is(err, api.ErrNotFound) {
-					continue
-				}
-				return nil, fmt.Errorf("inspect service: %w", err)
-			}
-
-			servicesByID[ctr.ServiceID()] = svc
-		}
+	servicesByID, err := servicesFromMachineContainers(machineContainers, os.Stderr)
+	if err != nil {
+		return nil, err
 	}
 
 	services := make([]api.Service, 0, len(servicesByID))
@@ -383,4 +314,69 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		services = append(services, svc)
 	}
 	return services, nil
+}
+
+func servicesFromMachineContainers(
+	machineContainers []machinedocker.MachineServiceContainers,
+	warn io.Writer,
+) (map[string]api.Service, error) {
+	servicesByID := make(map[string]api.Service)
+
+	for _, mc := range machineContainers {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
+		if mc.Metadata == nil {
+			if warn != nil {
+				fmt.Fprintln(warn, "WARNING: metadata is missing in response from unknown server")
+			}
+			continue
+		}
+
+		if mc.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
+			if warn != nil {
+				fmt.Fprintf(warn, "WARNING: failed to list containers on machine '%s': %s\n",
+					mc.Metadata.MachineName, mc.Metadata.Error)
+			}
+			continue
+		}
+
+		for _, ctr := range mc.Containers {
+			addServiceContainer(servicesByID, mc.Metadata.MachineId, mc.Metadata.MachineName, ctr, false)
+		}
+		for _, ctr := range mc.HookContainers {
+			addServiceContainer(servicesByID, mc.Metadata.MachineId, mc.Metadata.MachineName, ctr, true)
+		}
+	}
+
+	return servicesByID, nil
+}
+
+func addServiceContainer(
+	servicesByID map[string]api.Service,
+	machineID string,
+	machineName string,
+	ctr api.ServiceContainer,
+	hook bool,
+) {
+	serviceID := ctr.ServiceID()
+	svc := servicesByID[serviceID]
+	if svc.ID == "" {
+		svc = api.Service{
+			ID:   serviceID,
+			Name: ctr.ServiceName(),
+			Mode: ctr.ServiceMode(),
+		}
+	}
+
+	mc := api.MachineServiceContainer{
+		MachineID:   machineID,
+		MachineName: machineName,
+		Container:   ctr,
+	}
+	if hook {
+		svc.HookContainers = append(svc.HookContainers, mc)
+	} else {
+		svc.Containers = append(svc.Containers, mc)
+	}
+	servicesByID[serviceID] = svc
 }
