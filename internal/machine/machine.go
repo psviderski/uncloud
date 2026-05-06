@@ -33,6 +33,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
@@ -405,6 +406,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		}
 		return nil
 	})
+
 	// Signal that the machine is ready.
 	close(m.started)
 
@@ -503,6 +505,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				dnsServer,
 				dnsResolver,
 				unreg,
+				prometheus.New(m.IP()),
 			)
 			m.mu.Unlock()
 			if err != nil {

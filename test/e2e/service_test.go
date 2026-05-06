@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,8 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -2221,6 +2225,65 @@ func TestServiceLifecycle(t *testing.T) {
 
 				assertNoDNSErrors(t, dnsOutput)
 			}
+		})
+	})
+}
+
+func TestPrometheus(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "ucind-test.prometheus"
+	ctx := context.Background()
+	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 1}, true)
+
+	cli, cErr := c.Machines[0].Connect(ctx)
+	require.NoError(t, cErr)
+
+	t.Run("internal prometheus", func(t *testing.T) {
+		t.Parallel()
+		// Deploy a test service to run curl from.
+		curlServiceName := "test-metrics-service"
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, curlServiceName)
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+		curlSvcSpec := api.ServiceSpec{
+			Name:     curlServiceName,
+			Mode:     api.ServiceModeReplicated,
+			Replicas: 1,
+			Placement: api.Placement{
+				Machines: []string{c.Machines[0].Name},
+			},
+			Container: api.ContainerSpec{
+				Image:   "curlimages/curl",
+				Command: []string{"sleep", "infinity"},
+			},
+		}
+		_, err := cli.RunService(ctx, curlSvcSpec)
+		require.NoError(t, err)
+
+		curlSvc, err := cli.InspectService(ctx, curlServiceName)
+		require.NoError(t, err)
+		curlContainer := curlSvc.Containers[0]
+
+		runCurl := func(t *testing.T, url string) string {
+			curlOutput, err := execInContainerAndReadOutput(
+				t, ctx, cli, curlServiceName, curlContainer.Container.ID,
+				[]string{"curl", "-s", url},
+			)
+			require.NoError(t, err)
+			return curlOutput
+		}
+
+		t.Run("version metric is available", func(t *testing.T) {
+			promIP := network.MachineIP(netip.PrefixFrom(curlContainer.Container.UncloudNetworkIP(), 24)).String()
+			endpoint := net.JoinHostPort(promIP, strconv.Itoa(prometheus.Port))
+			curlOutput := runCurl(t, "http://"+endpoint+"/metrics")
+			t.Logf("cURL metrics output from %s:\n%s", endpoint, curlOutput)
+
+			assert.Contains(t, curlOutput, "uncloud_uncloudd_build_info")
 		})
 	})
 }

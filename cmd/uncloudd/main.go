@@ -10,6 +10,7 @@ import (
 	"github.com/psviderski/uncloud/internal/daemon"
 	"github.com/psviderski/uncloud/internal/log"
 	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/metrics"
 	"github.com/psviderski/uncloud/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -44,6 +45,8 @@ func main() {
 
 	// Add dial-stdio subcommand.
 	cmd.AddCommand(newDialStdioCommand())
+
+	metrics.Version.WithLabelValues(version.String()).Set(1)
 
 	// ctx is canceled when the daemon command is interrupted.
 	ctx, cancel := context.WithCancel(context.Background())
