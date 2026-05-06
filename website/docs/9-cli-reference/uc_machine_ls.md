@@ -9,7 +9,8 @@ uc machine ls [flags]
 ## Options
 
 ```
-  -h, --help   help for ls
+  -h, --help            help for ls
+  -o, --output string   Output format. Currently only 'json' is supported.
 ```
 
 ## Options inherited from parent commands

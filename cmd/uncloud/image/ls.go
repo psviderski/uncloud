@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"slices"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/output"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -25,6 +27,7 @@ import (
 type listOptions struct {
 	machines   []string
 	nameFilter string
+	output     string
 }
 
 func NewListCommand() *cobra.Command {
@@ -57,11 +60,15 @@ func NewListCommand() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return list(cmd.Context(), uncli, opts)
 		},
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return output.FlagValue(opts.output)
+		},
 	}
 
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Filter images by machine name or ID. Can be specified multiple times or as a comma-separated list. "+
 			"(default is include all machines)")
+	output.Flag(cmd, &opts.output)
 
 	completion.MachinesFlag(cmd)
 
@@ -114,6 +121,12 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	// Collect all images from all machines.
 	var rows []imageRow
 
+	// Wrapper struct for json output.
+	type Images struct {
+		Images []image.Summary
+	}
+	images := Images{Images: []image.Summary{}}
+
 	for _, machineImages := range clusterImages {
 		// Get machine name for better readability.
 		machineName := machineImages.Metadata.Machine
@@ -124,6 +137,11 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		store := "docker"
 		if machineImages.ContainerdStore {
 			store = "containerd"
+		}
+
+		if opts.output == "json" {
+			images.Images = append(images.Images, machineImages.Images...)
+			continue
 		}
 
 		// Process each image for this machine.
@@ -169,6 +187,12 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 				machine:      machineName,
 			})
 		}
+	}
+
+	if opts.output == "json" {
+		data, _ := json.MarshalIndent(images, "", "  ")
+		fmt.Println(string(data))
+		return nil
 	}
 
 	if len(rows) == 0 {

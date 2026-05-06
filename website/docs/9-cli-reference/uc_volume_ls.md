@@ -11,6 +11,7 @@ uc volume ls [flags]
 ```
   -h, --help              help for ls
   -m, --machine strings   Filter volumes by machine name or ID. Can be specified multiple times or as a comma-separated list. (default is include all machines)
+  -o, --output string     Output format. Currently only 'json' is supported.
   -q, --quiet             Only display volume names.
 ```
 

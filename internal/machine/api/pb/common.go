@@ -27,6 +27,14 @@ func (ip *IP) Equal(other *IP) bool {
 	return bytes.Equal(ip.Ip, other.Ip)
 }
 
+func (ip *IP) MarshalJSON() ([]byte, error) {
+	if ip == nil {
+		return nil, nil
+	}
+	addr, _ := ip.ToAddr()
+	return []byte("\"" + addr.String() + "\""), nil
+}
+
 func NewIPPort(ap netip.AddrPort) *IPPort {
 	return &IPPort{Ip: NewIP(ap.Addr()), Port: uint32(ap.Port())}
 }
@@ -37,6 +45,14 @@ func (ipp *IPPort) ToAddrPort() (netip.AddrPort, error) {
 		return netip.AddrPort{}, err
 	}
 	return netip.AddrPortFrom(addr, uint16(ipp.Port)), nil
+}
+
+func (ipp *IPPort) MarshalJSON() ([]byte, error) {
+	if ipp == nil {
+		return nil, nil
+	}
+	addrPort, _ := ipp.ToAddrPort()
+	return []byte("\"" + addrPort.String() + "\""), nil
 }
 
 func NewIPPrefix(p netip.Prefix) *IPPrefix {
