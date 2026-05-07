@@ -187,7 +187,7 @@ func (cli *CLI) InitCluster(ctx context.Context, opts InitClusterOptions) (*clie
 }
 
 func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) (*client.Client, error) {
-	contextName, err := cli.newContextName(opts.Context)
+	contextName, err := cli.NewContextName(opts.Context)
 	if err != nil {
 		return nil, err
 	}
@@ -283,10 +283,10 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 	return machineClient, nil
 }
 
-// newContextName returns a unique name for a new cluster context. If the provided name is not DefaultContextName,
+// NewContextName returns a unique name for a new cluster context. If the provided name is not DefaultContextName,
 // and it's already taken, an error is returned. If the name is not provided or is DefaultContextName, the first
 // available name "default[-N]" is returned.
-func (cli *CLI) newContextName(name string) (string, error) {
+func (cli *CLI) NewContextName(name string) (string, error) {
 	if name == "" {
 		name = DefaultContextName
 	}
