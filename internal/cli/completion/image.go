@@ -67,5 +67,4 @@ func LocalImages(ctx context.Context, args []string, toComplete string) ([]cobra
 		}
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
-
 }
