@@ -58,6 +58,12 @@ func NewRunCommand(groupID string) *cobra.Command {
 
 			return run(cmd.Context(), uncli, opts)
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return completion.LocalImages(cmd.Context(), args, toComplete)
+		},
 		GroupID: groupID,
 	}
 
