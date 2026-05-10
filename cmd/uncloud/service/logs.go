@@ -127,12 +127,28 @@ func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 		Until:    opts.Until,
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
-	snapshot, err := c.NewClusterSnapshot(ctx, client.ClusterSnapshotOptions{
-		Machines: true,
-		Services: true,
-	})
+	allMachines, err := c.ListMachines(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("load cluster snapshot: %w", err)
+		return fmt.Errorf("list machines: %w", err)
+	}
+	machines, err := allMachines.SelectByNameOrID(baseOpts.Machines)
+	if err != nil {
+		return err
+	}
+
+	serviceNamesOrIDs := make([]string, 0, len(serviceArgs))
+	seenServices := make(map[string]struct{}, len(serviceArgs))
+	for _, sa := range serviceArgs {
+		if _, ok := seenServices[sa.Service]; ok {
+			continue
+		}
+		seenServices[sa.Service] = struct{}{}
+		serviceNamesOrIDs = append(serviceNamesOrIDs, sa.Service)
+	}
+
+	servicesByNameOrID, err := c.ListServicesByNameOrIDWithMachines(ctx, serviceNamesOrIDs, allMachines)
+	if err != nil {
+		return fmt.Errorf("list services: %w", err)
 	}
 
 	// Collect log streams from all services. When service names come from a Compose file,
@@ -145,12 +161,18 @@ func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 		svcOpts := baseOpts
 		svcOpts.Containers = sa.Containers
 
-		svc, ch, err := c.ServiceLogsWithSnapshot(ctx, snapshot, sa.Service, svcOpts)
-		if err != nil {
-			if errors.Is(err, api.ErrNotFound) && fromCompose {
+		svc, ok := servicesByNameOrID[sa.Service]
+		if !ok {
+			err := api.ErrNotFound
+			if fromCompose {
 				notFoundServices = append(notFoundServices, sa.Service)
 				continue
 			}
+			return fmt.Errorf("stream logs for service '%s': %w", sa.Service, err)
+		}
+
+		svc, ch, err := c.ServiceLogsForService(ctx, svc, machines, sa.Service, svcOpts)
+		if err != nil {
 			return fmt.Errorf("stream logs for service '%s': %w", sa.Service, err)
 		}
 		svcStreams = append(svcStreams, ch)
@@ -186,7 +208,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 	machineIDs := machineIDsSet.ToSlice()
 	machineNames := make([]string, 0, len(machineIDs))
 	for _, id := range machineIDs {
-		if m := snapshot.FindMachineByNameOrID(id); m != nil {
+		if m := machines.FindByNameOrID(id); m != nil {
 			machineNames = append(machineNames, m.Machine.Name)
 		}
 	}

@@ -89,16 +89,9 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
-	snapshot, err := c.NewClusterSnapshot(ctx, client.ClusterSnapshotOptions{
-		Machines: true,
-	})
+	machineSource, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: logsOpts.Machines})
 	if err != nil {
-		return fmt.Errorf("load cluster snapshot: %w", err)
-	}
-
-	machineSource, err := snapshot.SelectMachines(logsOpts.Machines)
-	if err != nil {
-		return err
+		return fmt.Errorf("list machines: %w", err)
 	}
 	machineNames := make([]string, 0, len(machineSource))
 	for _, m := range machineSource {
@@ -108,7 +101,7 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 	// Collect one log stream per unit. MachineLogs merges across machines internally.
 	unitStreams := make([]<-chan api.ServiceLogEntry, 0, len(units))
 	for _, unit := range units {
-		ch, err := c.MachineLogsWithSnapshot(ctx, snapshot, unit, logsOpts)
+		ch, err := c.MachineLogsWithMachines(ctx, machineSource, unit, logsOpts)
 		if err != nil {
 			return fmt.Errorf("stream logs for systemd service '%s': %w", unit, err)
 		}

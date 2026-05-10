@@ -33,12 +33,7 @@ type Deployment struct {
 	Strategy Strategy
 	cli      Client
 	plan     *ServicePlan
-	// serviceKnown is true when Service has already been resolved for this request, including
-	// the "not found" case. Without it, Validate cannot distinguish "lookup not yet attempted"
-	// from "looked up and confirmed missing" since both have Service == nil.
-	serviceKnown bool
-	specResolver *ServiceSpecResolver
-	state        *scheduler.ClusterState
+	state    *scheduler.ClusterState
 }
 
 type ServicePlan struct {
@@ -293,21 +288,6 @@ func NewDeploymentWithClusterState(
 	return d
 }
 
-// WithCurrentService injects an already-resolved current service to skip the InspectService call
-// in Validate. Used by batch planners that share a single ListServices result across many deployments.
-func (d *Deployment) WithCurrentService(svc *api.Service) *Deployment {
-	d.Service = svc
-	d.serviceKnown = true
-	return d
-}
-
-// WithSpecResolver injects a shared resolver to skip the per-deployment GetDomain call in Plan.
-// Used by batch planners that resolve the cluster domain once.
-func (d *Deployment) WithSpecResolver(resolver *ServiceSpecResolver) *Deployment {
-	d.specResolver = resolver
-	return d
-}
-
 // Plan returns a plan of operations to reconcile the service to the desired state.
 // If a plan has already been created, the same plan will be returned.
 func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
@@ -320,16 +300,13 @@ func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
 		return ServicePlan{}, fmt.Errorf("invalid deployment: %w", err)
 	}
 
-	specResolver := d.specResolver
-	if specResolver == nil {
-		clusterDomain, err := d.cli.GetDomain(ctx)
-		if err != nil && !errors.Is(err, api.ErrNotFound) {
-			return ServicePlan{}, fmt.Errorf("get cluster domain: %w", err)
-		}
-		specResolver = &ServiceSpecResolver{
-			// If the domain is not found (not reserved), an empty domain is used for the resolver.
-			ClusterDomain: clusterDomain,
-		}
+	clusterDomain, err := d.cli.GetDomain(ctx)
+	if err != nil && !errors.Is(err, api.ErrNotFound) {
+		return ServicePlan{}, fmt.Errorf("get cluster domain: %w", err)
+	}
+	specResolver := &ServiceSpecResolver{
+		// If the domain is not found (not reserved), an empty domain is used for the resolver.
+		ClusterDomain: clusterDomain,
 	}
 
 	resolvedSpec, err := specResolver.Resolve(d.Spec)
@@ -344,9 +321,9 @@ func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
 		}
 	}
 
-	plan, err := d.Strategy.Plan(d.state, d.Service, resolvedSpec)
+	plan, err := PlanService(d.state, d.Service, resolvedSpec, d.Strategy)
 	if err != nil {
-		return ServicePlan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
+		return ServicePlan{}, err
 	}
 	d.plan = &plan
 
@@ -359,7 +336,7 @@ func (d *Deployment) Validate(ctx context.Context) error {
 		return fmt.Errorf("invalid service spec: %w", err)
 	}
 
-	if !d.serviceKnown && d.Service == nil && d.Spec.Name != "" {
+	if d.Service == nil && d.Spec.Name != "" {
 		svc, err := d.cli.InspectService(ctx, d.Spec.Name)
 		if err == nil {
 			d.Service = &svc
@@ -367,26 +344,53 @@ func (d *Deployment) Validate(ctx context.Context) error {
 			return fmt.Errorf("inspect service: %w", err)
 		}
 	}
-	// d.Service is nil if the service doesn't exist yet (first deployment).
-	if d.Service == nil {
+
+	return ValidateServiceUpdate(d.Spec, d.Service)
+}
+
+// ValidateServiceUpdate checks whether spec can be applied to the current service.
+func ValidateServiceUpdate(spec api.ServiceSpec, current *api.Service) error {
+	if err := spec.Validate(); err != nil {
+		return fmt.Errorf("invalid service spec: %w", err)
+	}
+
+	// current is nil if the service doesn't exist yet (first deployment).
+	if current == nil {
 		return nil
 	}
 
-	if d.Service.Name != d.Spec.Name {
+	if current.Name != spec.Name {
 		return errors.New("service name cannot be changed")
 	}
 
 	// Resolve the default mode if not specified.
-	mode := d.Spec.Mode
+	mode := spec.Mode
 	if mode == "" {
 		mode = api.ServiceModeReplicated
 	}
 
-	if mode != d.Service.Mode {
+	if mode != current.Mode {
 		return errors.New("service mode cannot be changed")
 	}
 
 	return nil
+}
+
+// PlanService creates a service plan from already-resolved inputs.
+func PlanService(
+	state *scheduler.ClusterState, current *api.Service, spec api.ServiceSpec, strategy Strategy,
+) (ServicePlan, error) {
+	if strategy == nil {
+		strategy = &RollingStrategy{}
+	}
+	if err := ValidateServiceUpdate(spec, current); err != nil {
+		return ServicePlan{}, fmt.Errorf("invalid deployment: %w", err)
+	}
+	plan, err := strategy.Plan(state, current, spec)
+	if err != nil {
+		return ServicePlan{}, fmt.Errorf("create plan using %s strategy: %w", strategy.Type(), err)
+	}
+	return plan, nil
 }
 
 // Run executes the deployment plan and returns the ID of the created or updated service.

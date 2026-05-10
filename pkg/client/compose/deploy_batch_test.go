@@ -9,19 +9,18 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
-	clusterclient "github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeploymentPlanUsesSnapshotForCurrentServices(t *testing.T) {
+func TestDeploymentPlanUsesBatchCurrentServices(t *testing.T) {
 	project, err := LoadProjectFromContent(context.Background(), composeYAML(20))
 	require.NoError(t, err)
 
 	strategy := &recordingStrategy{}
-	fake := &composeSnapshotClient{
+	fake := &composeBatchClient{
 		services: []api.Service{
 			{ID: "svc-01", Name: "svc01", Mode: api.ServiceModeReplicated},
 			{ID: "svc-10", Name: "svc10", Mode: api.ServiceModeReplicated},
@@ -34,12 +33,10 @@ func TestDeploymentPlanUsesSnapshotForCurrentServices(t *testing.T) {
 	_, err = deployment.Plan(context.Background())
 	require.NoError(t, err)
 
-	assert.Equal(t, 2, fake.snapshotCalls)
-	require.Len(t, fake.snapshotOptions, 2)
-	assert.True(t, fake.snapshotOptions[0].Domain)
-	assert.True(t, fake.snapshotOptions[1].Services)
-	assert.Len(t, fake.snapshotOptions[1].ServiceNamesOrIDs, 20)
-	assert.Equal(t, 0, fake.getDomainCalls)
+	assert.Equal(t, 1, fake.batchServiceCalls)
+	require.Len(t, fake.batchServiceNamesOrIDs, 1)
+	assert.Len(t, fake.batchServiceNamesOrIDs[0], 20)
+	assert.Equal(t, 1, fake.getDomainCalls)
 	assert.Equal(t, 0, fake.inspectServiceCalls)
 	require.Len(t, strategy.calls, 20)
 
@@ -54,11 +51,11 @@ func TestDeploymentPlanUsesSnapshotForCurrentServices(t *testing.T) {
 	assert.Nil(t, seen["svc02"])
 }
 
-func TestDeploymentPlanErrorsOnDuplicateSnapshotServiceNames(t *testing.T) {
+func TestDeploymentPlanErrorsOnDuplicateBatchServiceNames(t *testing.T) {
 	project, err := LoadProjectFromContent(context.Background(), composeYAML(1))
 	require.NoError(t, err)
 
-	fake := &composeSnapshotClient{
+	fake := &composeBatchClient{
 		services: []api.Service{
 			{ID: "svc-a", Name: "svc01"},
 			{ID: "svc-b", Name: "svc01"},
@@ -73,12 +70,12 @@ func TestDeploymentPlanErrorsOnDuplicateSnapshotServiceNames(t *testing.T) {
 	assert.Equal(t, 0, fake.inspectServiceCalls)
 }
 
-func TestDeploymentPlanSnapshotsCurrentServicesAtPlanTime(t *testing.T) {
+func TestDeploymentPlanLoadsCurrentServicesAtPlanTime(t *testing.T) {
 	project, err := LoadProjectFromContent(context.Background(), composeYAML(1))
 	require.NoError(t, err)
 
 	strategy := &recordingStrategy{}
-	fake := &composeSnapshotClient{domain: "example.uncld.dev"}
+	fake := &composeBatchClient{domain: "example.uncld.dev"}
 
 	deployment, err := NewDeploymentWithStrategy(context.Background(), fake, project, strategy)
 	require.NoError(t, err)
@@ -94,11 +91,11 @@ func TestDeploymentPlanSnapshotsCurrentServicesAtPlanTime(t *testing.T) {
 	assert.Equal(t, "svc-01", strategy.calls[0].svc.ID)
 }
 
-func TestDeploymentPlanValidatesSnapshotCurrentService(t *testing.T) {
+func TestDeploymentPlanValidatesBatchCurrentService(t *testing.T) {
 	project, err := LoadProjectFromContent(context.Background(), composeYAML(1))
 	require.NoError(t, err)
 
-	fake := &composeSnapshotClient{
+	fake := &composeBatchClient{
 		services: []api.Service{
 			{ID: "svc-01", Name: "svc01", Mode: api.ServiceModeGlobal},
 		},
@@ -152,55 +149,60 @@ func (s *recordingStrategy) Plan(
 	}, nil
 }
 
-type composeSnapshotClient struct {
+type composeBatchClient struct {
 	api.Client
 
 	services []api.Service
 	domain   string
 
-	snapshotCalls       int
-	snapshotOptions     []clusterclient.ClusterSnapshotOptions
-	getDomainCalls      int
-	inspectServiceCalls int
+	batchServiceCalls      int
+	batchServiceNamesOrIDs [][]string
+	getDomainCalls         int
+	inspectServiceCalls    int
 }
 
-func (c *composeSnapshotClient) NewClusterSnapshot(
-	_ context.Context, opts clusterclient.ClusterSnapshotOptions,
-) (*clusterclient.ClusterSnapshot, error) {
-	c.snapshotCalls++
-	c.snapshotOptions = append(c.snapshotOptions, opts)
-	snapshot := &clusterclient.ClusterSnapshot{}
-	if opts.Services {
-		snapshot.Services = matchingServices(c.services, opts.ServiceNamesOrIDs)
-	}
-	if opts.Domain {
-		snapshot.Domain = c.domain
-	}
-	return snapshot, nil
-}
+func (c *composeBatchClient) ListServicesByNameOrID(
+	_ context.Context, namesOrIDs []string,
+) (map[string]api.Service, error) {
+	c.batchServiceCalls++
+	c.batchServiceNamesOrIDs = append(c.batchServiceNamesOrIDs, append([]string(nil), namesOrIDs...))
 
-func matchingServices(services []api.Service, namesOrIDs []string) []api.Service {
-	if len(namesOrIDs) == 0 {
-		return services
-	}
-	want := make(map[string]struct{}, len(namesOrIDs))
+	matched := make(map[string]api.Service, len(namesOrIDs))
 	for _, nameOrID := range namesOrIDs {
-		want[nameOrID] = struct{}{}
-	}
-	var matched []api.Service
-	for _, svc := range services {
-		if _, ok := want[svc.ID]; ok {
-			matched = append(matched, svc)
+		if svc, ok := serviceByID(c.services, nameOrID); ok {
+			matched[nameOrID] = svc
 			continue
 		}
-		if _, ok := want[svc.Name]; ok {
-			matched = append(matched, svc)
+
+		var matches []api.Service
+		for _, svc := range c.services {
+			if svc.Name == nameOrID {
+				matches = append(matches, svc)
+			}
+		}
+		switch len(matches) {
+		case 0:
+			continue
+		case 1:
+			matched[nameOrID] = matches[0]
+		default:
+			return nil, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
 		}
 	}
-	return matched
+
+	return matched, nil
 }
 
-func (c *composeSnapshotClient) ListMachines(context.Context, *api.MachineFilter) (api.MachineMembersList, error) {
+func serviceByID(services []api.Service, id string) (api.Service, bool) {
+	for _, svc := range services {
+		if svc.ID == id {
+			return svc, true
+		}
+	}
+	return api.Service{}, false
+}
+
+func (c *composeBatchClient) ListMachines(context.Context, *api.MachineFilter) (api.MachineMembersList, error) {
 	return api.MachineMembersList{
 		{
 			Machine: &pb.MachineInfo{
@@ -212,30 +214,30 @@ func (c *composeSnapshotClient) ListMachines(context.Context, *api.MachineFilter
 	}, nil
 }
 
-func (c *composeSnapshotClient) ListVolumes(context.Context, *api.VolumeFilter) ([]api.MachineVolume, error) {
+func (c *composeBatchClient) ListVolumes(context.Context, *api.VolumeFilter) ([]api.MachineVolume, error) {
 	return nil, nil
 }
 
-func (c *composeSnapshotClient) GetDomain(context.Context) (string, error) {
+func (c *composeBatchClient) GetDomain(context.Context) (string, error) {
 	c.getDomainCalls++
 	return c.domain, nil
 }
 
-func (c *composeSnapshotClient) InspectService(context.Context, string) (api.Service, error) {
+func (c *composeBatchClient) InspectService(context.Context, string) (api.Service, error) {
 	c.inspectServiceCalls++
 	return api.Service{}, api.ErrNotFound
 }
 
-func (c *composeSnapshotClient) CreateVolume(
+func (c *composeBatchClient) CreateVolume(
 	context.Context, string, volume.CreateOptions,
 ) (api.MachineVolume, error) {
 	return api.MachineVolume{}, nil
 }
 
-func (c *composeSnapshotClient) RemoveVolume(context.Context, string, string, bool) error {
+func (c *composeBatchClient) RemoveVolume(context.Context, string, string, bool) error {
 	return nil
 }
 
-func (c *composeSnapshotClient) StopService(context.Context, string, container.StopOptions) error {
+func (c *composeBatchClient) StopService(context.Context, string, container.StopOptions) error {
 	return nil
 }

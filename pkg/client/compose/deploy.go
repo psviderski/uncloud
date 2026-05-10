@@ -12,7 +12,6 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
-	clusterclient "github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
@@ -22,8 +21,8 @@ type Client interface {
 	deploy.Client
 }
 
-type clusterSnapshotClient interface {
-	NewClusterSnapshot(ctx context.Context, opts clusterclient.ClusterSnapshotOptions) (*clusterclient.ClusterSnapshot, error)
+type serviceBatchClient interface {
+	ListServicesByNameOrID(ctx context.Context, namesOrIDs []string) (map[string]api.Service, error)
 }
 
 type Deployment struct {
@@ -104,11 +103,12 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
 		// Pass the updated cluster state with the scheduled volumes to the deployment.
-		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
-		deployment.WithSpecResolver(d.SpecResolver)
-		deployment.WithCurrentService(currentServices[spec.Name])
+		resolvedSpec, err := d.SpecResolver.Resolve(spec)
+		if err != nil {
+			return plan, fmt.Errorf("resolve service spec for service '%s': %w", spec.Name, err)
+		}
 
-		servicePlan, err := deployment.Plan(ctx)
+		servicePlan, err := deploy.PlanService(d.state, currentServices[spec.Name], resolvedSpec, d.Strategy)
 		if err != nil {
 			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
 		}
@@ -124,14 +124,6 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 }
 
 func clusterDomain(ctx context.Context, cli Client) (string, error) {
-	if snapshotClient, ok := cli.(clusterSnapshotClient); ok {
-		snapshot, err := snapshotClient.NewClusterSnapshot(ctx, clusterclient.ClusterSnapshotOptions{Domain: true})
-		if err != nil {
-			return "", fmt.Errorf("load cluster snapshot: %w", err)
-		}
-		return snapshot.Domain, nil
-	}
-
 	domain, err := cli.GetDomain(ctx)
 	if err != nil && !errors.Is(err, api.ErrNotFound) {
 		return "", fmt.Errorf("get cluster domain: %w", err)
@@ -153,19 +145,13 @@ func (d *Deployment) currentServices(
 	}
 
 	servicesByName := make(map[string]*api.Service, len(names))
-	if snapshotClient, ok := d.Client.(clusterSnapshotClient); ok {
-		snapshot, err := snapshotClient.NewClusterSnapshot(ctx, clusterclient.ClusterSnapshotOptions{
-			Services:          true,
-			ServiceNamesOrIDs: names,
-		})
+	if batchClient, ok := d.Client.(serviceBatchClient); ok {
+		services, err := batchClient.ListServicesByNameOrID(ctx, names)
 		if err != nil {
-			return nil, fmt.Errorf("load cluster snapshot: %w", err)
+			return nil, fmt.Errorf("list current services: %w", err)
 		}
 		for _, name := range names {
-			svc, ok, err := snapshot.FindServiceByName(name)
-			if err != nil {
-				return nil, fmt.Errorf("find current service '%s': %w", name, err)
-			}
+			svc, ok := services[name]
 			if ok {
 				svc := svc
 				servicesByName[name] = &svc

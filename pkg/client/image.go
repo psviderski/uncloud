@@ -66,21 +66,16 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	return cli.listImages(ctx, listCtx, machines, filter)
 }
 
-// ListImagesWithSnapshot is the snapshot-aware variant of ListImages for callers that already
-// hold a cluster snapshot. It avoids a second ListMachines round-trip per call.
-func (cli *Client) ListImagesWithSnapshot(
-	ctx context.Context, snapshot *ClusterSnapshot, filter api.ImageFilter,
+// ListImagesWithMachines lists images using an already-resolved machine list.
+func (cli *Client) ListImagesWithMachines(
+	ctx context.Context, machines api.MachineMembersList, filter api.ImageFilter,
 ) ([]api.MachineImages, error) {
-	if !snapshot.HasMachines() {
-		return nil, errors.New("cluster snapshot does not include machines")
-	}
-
-	listCtx, machines, err := proxyMachinesContextFromList(ctx, filter.Machines, snapshot.Machines)
+	listCtx, selectedMachines, err := proxyMachinesContextFromList(ctx, filter.Machines, machines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)
 	}
 
-	return cli.listImages(ctx, listCtx, machines, filter)
+	return cli.listImages(ctx, listCtx, selectedMachines, filter)
 }
 
 func (cli *Client) listImages(

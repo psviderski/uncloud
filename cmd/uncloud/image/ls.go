@@ -19,7 +19,6 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -89,17 +88,15 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 	defer clusterClient.Close()
 
-	snapshot, err := clusterClient.NewClusterSnapshot(ctx, client.ClusterSnapshotOptions{
-		Machines: true,
-	})
+	machines, err := clusterClient.ListMachines(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("load cluster snapshot: %w", err)
+		return fmt.Errorf("list machines: %w", err)
 	}
 
-	machines := cli.ExpandCommaSeparatedValues(opts.machines)
+	machineNamesOrIDs := cli.ExpandCommaSeparatedValues(opts.machines)
 
-	clusterImages, err := clusterClient.ListImagesWithSnapshot(ctx, snapshot, api.ImageFilter{
-		Machines: machines,
+	clusterImages, err := clusterClient.ListImagesWithMachines(ctx, machines, api.ImageFilter{
+		Machines: machineNamesOrIDs,
 		Name:     opts.nameFilter,
 	})
 	if err != nil {
@@ -112,7 +109,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	for _, machineImages := range clusterImages {
 		// Get machine name for better readability.
 		machineName := machineImages.Metadata.Machine
-		if m := snapshot.FindMachineByNameOrID(machineName); m != nil {
+		if m := machines.FindByNameOrID(machineName); m != nil {
 			machineName = m.Machine.Name
 		}
 

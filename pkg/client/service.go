@@ -303,6 +303,82 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		return nil, fmt.Errorf("list machines: %w", err)
 	}
 
+	servicesByID, err := cli.listServices(ctx, machines)
+	if err != nil {
+		return nil, err
+	}
+
+	services := make([]api.Service, 0, len(servicesByID))
+	for _, svc := range servicesByID {
+		services = append(services, svc)
+	}
+	return services, nil
+}
+
+// ListServicesByNameOrID returns the matching services keyed by the requested names or IDs.
+// Missing services are omitted from the result.
+func (cli *Client) ListServicesByNameOrID(ctx context.Context, namesOrIDs []string) (map[string]api.Service, error) {
+	machines, err := cli.ListMachines(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("list machines: %w", err)
+	}
+
+	return cli.ListServicesByNameOrIDWithMachines(ctx, namesOrIDs, machines)
+}
+
+// ListServicesByNameOrIDWithMachines returns the matching services using an already-resolved machine list.
+func (cli *Client) ListServicesByNameOrIDWithMachines(
+	ctx context.Context, namesOrIDs []string, machines api.MachineMembersList,
+) (map[string]api.Service, error) {
+	matched := make(map[string]api.Service, len(namesOrIDs))
+	if len(namesOrIDs) == 0 {
+		return matched, nil
+	}
+
+	if len(namesOrIDs) == 1 {
+		svc, err := cli.inspectService(ctx, namesOrIDs[0], machines)
+		if errors.Is(err, api.ErrNotFound) {
+			return matched, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		matched[namesOrIDs[0]] = svc
+		return matched, nil
+	}
+
+	servicesByID, err := cli.listServices(ctx, machines)
+	if err != nil {
+		return nil, err
+	}
+
+	return matchServicesByNameOrID(servicesByID, namesOrIDs)
+}
+
+func matchServicesByNameOrID(
+	servicesByID map[string]api.Service, namesOrIDs []string,
+) (map[string]api.Service, error) {
+	matched := make(map[string]api.Service, len(namesOrIDs))
+	for _, nameOrID := range namesOrIDs {
+		if _, ok := matched[nameOrID]; ok {
+			continue
+		}
+		svc, err := selectServiceByNameOrID(servicesByID, nameOrID)
+		if errors.Is(err, api.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		matched[nameOrID] = svc
+	}
+
+	return matched, nil
+}
+
+func (cli *Client) listServices(
+	ctx context.Context, machines api.MachineMembersList,
+) (map[string]api.Service, error) {
 	// Broadcast the container list request to all available machines.
 	machineIDByManagementIP := make(map[string]string)
 	md := metadata.New(nil)
@@ -328,11 +404,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		return nil, err
 	}
 
-	services := make([]api.Service, 0, len(servicesByID))
-	for _, svc := range servicesByID {
-		services = append(services, svc)
-	}
-	return services, nil
+	return servicesByID, nil
 }
 
 func servicesFromMachineContainers(

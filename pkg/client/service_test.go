@@ -107,6 +107,35 @@ func TestSelectServiceByNameOrIDNotFound(t *testing.T) {
 	require.ErrorIs(t, err, api.ErrNotFound)
 }
 
+func TestMatchServicesByNameOrIDPrefersID(t *testing.T) {
+	matched, err := matchServicesByNameOrID(map[string]api.Service{
+		"svc-id":   {ID: "svc-id", Name: "web"},
+		"other-id": {ID: "other-id", Name: "svc-id"},
+	}, []string{"svc-id"})
+	require.NoError(t, err)
+	require.Len(t, matched, 1)
+	assert.Equal(t, "svc-id", matched["svc-id"].ID)
+}
+
+func TestMatchServicesByNameOrIDOmitsMissingServices(t *testing.T) {
+	matched, err := matchServicesByNameOrID(map[string]api.Service{
+		"svc-a": {ID: "svc-a", Name: "web"},
+	}, []string{"web", "api"})
+	require.NoError(t, err)
+	require.Len(t, matched, 1)
+	assert.Equal(t, "svc-a", matched["web"].ID)
+	assert.NotContains(t, matched, "api")
+}
+
+func TestMatchServicesByNameOrIDDuplicateName(t *testing.T) {
+	_, err := matchServicesByNameOrID(map[string]api.Service{
+		"svc-a": {ID: "svc-a", Name: "web"},
+		"svc-b": {ID: "svc-b", Name: "web"},
+	}, []string{"web"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multiple services found with name 'web'")
+}
+
 func testServiceContainer(id, serviceID, serviceName, mode string, hook bool) api.ServiceContainer {
 	labels := map[string]string{
 		api.LabelServiceID:   serviceID,
