@@ -9,11 +9,16 @@ import (
 	"charm.land/lipgloss/v2"
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/logs"
 	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
+	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/spf13/cobra"
 )
 
@@ -44,6 +49,9 @@ func NewDeployCommand() *cobra.Command {
 			return runDeploy(cmd.Context(), uncli, opts)
 		},
 		GroupID: "service",
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			return completion.ComposeServices(cmd.Context(), args, toComplete, opts.files, opts.profiles)
+		},
 	}
 
 	cmd.Flags().StringArrayVar(&opts.BuildServicesOptions.BuildArgs, "build-arg", nil,
@@ -214,8 +222,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 			return fmt.Errorf("confirm deployment: %w", err)
 		}
 		if !confirmed {
-			fmt.Println("Cancelled. No changes were made.")
-			return nil
+			return cli.Cancelled("Deploy cancelled. No changes were made.")
 		}
 	}
 
@@ -223,10 +230,76 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	if deployTarget != "" {
 		title += " to " + tui.NameStyle.Render(deployTarget)
 	}
-	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
+	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		if err := plan.Execute(ctx, clusterClient); err != nil {
 			return fmt.Errorf("deploy services: %w", err)
 		}
 		return nil
 	}, uncli.ProgressOut(), title)
+	if err != nil {
+		fmt.Println()
+
+		tail := failedContainerLogsTail()
+		if hookErr, ok := errors.AsType[*operation.PreDeployHookError](err); ok {
+			printFailedContainerLogs(ctx, clusterClient,
+				hookErr.ServiceName, hookErr.ContainerID, hookErr.MachineName, tail,
+				fmt.Sprintf("Last %d log lines from failed pre-deploy hook:", tail))
+			fmt.Println()
+		} else if startErr, ok := errors.AsType[*operation.ContainerHealthError](err); ok {
+			printFailedContainerLogs(ctx, clusterClient,
+				startErr.ServiceName, startErr.ContainerID, startErr.MachineName, tail,
+				fmt.Sprintf("Last %d log lines from failed container:", tail))
+			fmt.Println()
+		}
+
+		return err
+	}
+	return nil
+}
+
+// printFailedContainerLogs fetches the last tail log lines from a container that failed during deployment and prints
+// them using the standard log formatter under the provided header.
+func printFailedContainerLogs(
+	ctx context.Context, cli *client.Client, serviceName, containerID, machineName string, tail int, header string,
+) {
+	_, ch, err := cli.ServiceLogs(ctx, serviceName, api.ServiceLogsOptions{
+		Containers: []string{containerID},
+		Machines:   []string{machineName},
+		Tail:       tail,
+	})
+	if err != nil {
+		shortCtrID := stringid.TruncateID(containerID)
+		fmt.Fprintf(os.Stderr, "Failed to fetch container logs '%s/%s': %v\n", serviceName, shortCtrID, err)
+		fmt.Fprintf(os.Stderr, "You can try manually with: uc logs %s/%s\n", serviceName, shortCtrID)
+		return
+	}
+
+	fmt.Println(tui.BoldRed.Render(header))
+
+	logsEmpty := true
+	formatter := logs.NewFormatter([]string{machineName}, []string{serviceName}, false)
+	for entry := range ch {
+		logsEmpty = false
+		formatter.PrintEntry(entry)
+	}
+
+	if logsEmpty {
+		fmt.Println("<no logs available>")
+	}
+}
+
+// defaultFailedContainerLogsTail is the default number of recent log lines to print from a failed container to give
+// the user immediate context without requiring a follow-up 'uc logs' invocation.
+// Overridable via UNCLOUD_FAILED_CONTAINER_LOGS_TAIL.
+const defaultFailedContainerLogsTail = 10
+
+// failedContainerLogsTail returns the number of log lines to fetch from a failed container, honouring the
+// UNCLOUD_FAILED_CONTAINER_LOGS_TAIL environment variable override when set and valid.
+func failedContainerLogsTail() int {
+	if v := os.Getenv("UNCLOUD_FAILED_CONTAINER_LOGS_TAIL"); v != "" {
+		if tail, err := logs.Tail(v); err == nil && (tail == -1 || tail > 0) {
+			return tail
+		}
+	}
+	return defaultFailedContainerLogsTail
 }

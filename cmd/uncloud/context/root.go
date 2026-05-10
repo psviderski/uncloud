@@ -20,6 +20,7 @@ func NewRootCommand() *cobra.Command {
 		NewListCommand(),
 		NewUseCommand(),
 		NewConnectionCommand(),
+		NewShowCommand(),
 	)
 
 	return cmd

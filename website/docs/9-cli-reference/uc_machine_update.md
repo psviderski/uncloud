@@ -38,8 +38,9 @@ uc machine update MACHINE [flags]
   -h, --help                  help for update
       --name string           New name for the machine
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'none' or '' to remove the public IP.
-      --wg-endpoint strings   WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port 51820 is used if omitted.
-                              Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.
+      --wg-endpoint strings   WireGuard endpoint address that other machines in the cluster should use to establish WireGuard connections
+                              to this machine. This doesn't change the address/port WireGuard listens on the machine.
+                              Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is 51820 if omitted.
                               Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
 ```
 

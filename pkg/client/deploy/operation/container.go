@@ -13,6 +13,18 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
+// ContainerHealthError indicates that a service container failed to become healthy during deployment.
+type ContainerHealthError struct {
+	error
+	ServiceName string
+	ContainerID string
+	MachineName string
+}
+
+func (e *ContainerHealthError) Unwrap() error {
+	return e.error
+}
+
 // RunContainerOperation creates and starts a new container on a specific machine.
 type RunContainerOperation struct {
 	ServiceID string
@@ -43,8 +55,13 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 
 	opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
 	if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
-		return fmt.Errorf("container '%s/%s' failed to become healthy: %w",
-			o.Spec.Name, stringid.TruncateID(resp.ID), err)
+		return &ContainerHealthError{
+			error: fmt.Errorf("container '%s/%s' failed to become healthy: %w",
+				o.Spec.Name, stringid.TruncateID(resp.ID), err),
+			ServiceName: o.Spec.Name,
+			ContainerID: resp.ID,
+			MachineName: o.MachineName,
+		}
 	}
 
 	return nil
@@ -187,7 +204,6 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		if err = cli.WaitContainerHealthy(newCtx, o.ServiceID, resp.ID, opts); err != nil {
 			// New container failed to become healthy. Stop it and roll back to the previous container.
 			// Don't remove the new stopped container to allow users to inspect logs and state.
-			// TODO: collect logs from the new container and include in the error message to speed up debugging.
 
 			// Use context without progress to not overwrite the container Unhealthy status with Stopped.
 			ctxWithoutProgress := progress.WithContextWriter(ctx, nil)
@@ -196,21 +212,28 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 			newCtr := fmt.Sprintf("%s/%s", o.Spec.Name, stringid.TruncateID(resp.ID))
 			healthErr := fmt.Errorf(
 				"new container '%s' failed to become healthy: %w. "+
-					"It's stopped and available for inspection. Fetch logs with 'uc logs %s'",
-				newCtr, err, o.Spec.Name,
+					"It's stopped and available for inspection. View logs with 'uc logs %s'",
+				newCtr, err, newCtr,
 			)
 
+			finalErr := healthErr
 			if stopFirst && wasRunning {
 				// Restart the old container only if it was running before we stopped it.
 				oldCtr := fmt.Sprintf("%s/%s", o.OldContainer.ServiceSpec.Name, o.OldContainer.ShortID())
 				if rollbackErr := cli.StartContainer(ctx, o.ServiceID, o.OldContainer.ID); rollbackErr != nil {
-					return fmt.Errorf("%w. Rolled back to old container '%s' but failed to restart it: %w",
+					finalErr = fmt.Errorf("%w. Rolled back to old container '%s' but failed to restart it: %w",
 						healthErr, oldCtr, rollbackErr)
+				} else {
+					finalErr = fmt.Errorf("%w. Rolled back to old container '%s'", healthErr, oldCtr)
 				}
-				return fmt.Errorf("%w. Rolled back to old container '%s'", healthErr, oldCtr)
 			}
 
-			return healthErr
+			return &ContainerHealthError{
+				error:       finalErr,
+				ServiceName: o.Spec.Name,
+				ContainerID: resp.ID,
+				MachineName: o.MachineName,
+			}
 		}
 	}
 

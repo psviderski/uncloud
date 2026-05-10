@@ -16,6 +16,7 @@ import (
 	"github.com/docker/go-units"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -61,6 +62,8 @@ func NewListCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
 		"Filter images by machine name or ID. Can be specified multiple times or as a comma-separated list. "+
 			"(default is include all machines)")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }
@@ -242,6 +245,14 @@ func formatImageTable(rows []imageRow) string {
 	if !inUseInfoAvailable {
 		// Hide "IN USE" column.
 		columns[5].hide = true
+	}
+
+	// Hide the "STORE" column if all machines use the containerd store.
+	hasNonContainerd := slices.ContainsFunc(rows, func(r imageRow) bool {
+		return r.store != "containerd"
+	})
+	if !hasNonContainerd {
+		columns[6].hide = true
 	}
 
 	t := tui.NewTable()

@@ -6,11 +6,14 @@ View service logs.
 
 View logs from all replicas of the specified service(s) across all machines in the cluster.
 
+To view logs from specific replicas (containers) within a service, use the SERVICE/CONTAINER form,
+where CONTAINER is a container name, full ID, or unique ID prefix.
+
 If no services are specified, streams logs from all services defined in the Compose file
 (compose.yaml by default or the file(s) specified with --file).
 
 ```
-uc logs [SERVICE...] [flags]
+uc logs [SERVICE[/CONTAINER]...] [flags]
 ```
 
 ## Examples
@@ -36,6 +39,9 @@ uc logs [SERVICE...] [flags]
 
   # View logs from a specific time range.
   uc logs --since 3h --until 1h30m web
+
+  # View logs only from specific replicas (containers).
+  uc logs web/61d57fd3428f api/2f60
 
   # View logs only from replicas running on specific machines.
   uc logs -m machine1,machine2 web api

@@ -242,8 +242,8 @@ func (c *Controller) writeCaddyfileIfChanged(caddyfile string) error {
 // caddyfileBody returns the Caddyfile content without its first line, which carries a generation timestamp that
 // rotates on every regeneration.
 func caddyfileBody(caddyfile string) string {
-	if i := strings.IndexByte(caddyfile, '\n'); i >= 0 {
-		return caddyfile[i+1:]
+	if _, after, ok := strings.Cut(caddyfile, "\n"); ok {
+		return after
 	}
 	return caddyfile
 }

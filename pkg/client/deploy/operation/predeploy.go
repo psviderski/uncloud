@@ -16,6 +16,18 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
+// PreDeployHookError indicates that a pre-deploy hook container exited with a non-zero code or timed out.
+type PreDeployHookError struct {
+	error
+	ServiceName string
+	ContainerID string
+	MachineName string
+}
+
+func (e *PreDeployHookError) Unwrap() error {
+	return e.error
+}
+
 // DefaultPreDeployTimeout is the maximum duration to wait for a pre-deploy hook container to complete.
 const DefaultPreDeployTimeout = 5 * time.Minute
 
@@ -128,9 +140,14 @@ func (o *RunPreDeployOperation) waitForExit(
 				return fmt.Errorf("pre-deploy hook container '%s': %w", ctrID, ctx.Err())
 			}
 			pw.Event(progress.NewEvent(eventID, progress.Error, fmt.Sprintf("Timeout (%s)", timeout)))
-			return fmt.Errorf("pre-deploy hook container '%s' timed out after %s. "+
-				"It's stopped and available for inspection. Fetch logs with 'uc logs %s'",
-				ctrID, timeout, o.Spec.Name)
+			return &PreDeployHookError{
+				ServiceName: o.Spec.Name,
+				ContainerID: containerID,
+				MachineName: o.MachineName,
+				error: fmt.Errorf("pre-deploy hook container '%s' timed out after %s. "+
+					"It's stopped and available for inspection. View logs with 'uc logs %s'",
+					ctrID, timeout, o.Spec.Name),
+			}
 
 		case <-ticker.C:
 			mc, err := cli.InspectContainer(ctx, o.ServiceID, containerID)
@@ -157,9 +174,14 @@ func (o *RunPreDeployOperation) waitForExit(
 
 			pw.Event(progress.ErrorEvent(eventID))
 			ctrID := fmt.Sprintf("%s/%s", o.Spec.Name, ctr.ShortID())
-			return fmt.Errorf("pre-deploy hook container '%s' failed with exit code: %d. "+
-				"It's stopped and available for inspection. Fetch logs with 'uc logs %s'",
-				ctrID, ctr.State.ExitCode, o.Spec.Name)
+			return &PreDeployHookError{
+				ServiceName: o.Spec.Name,
+				ContainerID: containerID,
+				MachineName: o.MachineName,
+				error: fmt.Errorf("pre-deploy hook container '%s' failed with exit code: %d. "+
+					"It's stopped and available for inspection. View logs with 'uc logs %s'",
+					ctrID, ctr.State.ExitCode, o.Spec.Name),
+			}
 		}
 	}
 }

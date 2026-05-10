@@ -38,10 +38,11 @@ const (
 )
 
 var (
-	// currentVersion is the version of this binary (CLI or daemon).
-	currentVersion = semver.MustParse(version.String())
 	// zeroVersion is used when no version is specified (treated as 0.0.0).
 	zeroVersion = semver.MustParse("0.0.0")
+	// currentVersion is the version of this binary (CLI or daemon). It's injected via an ldflag at build time.
+	// Fall back to zeroVersion if the injected string isn't valid semver.
+	currentVersion = parseVersionOrZero(version.String())
 	// Pre-parsed minimum versions for comparison.
 	minClientVersion = semver.MustParse(MinClientVersion)
 	minServerVersion = semver.MustParse(MinServerVersion)
@@ -54,6 +55,15 @@ var (
 	// Tests can override this to capture warning output.
 	WarnWriter io.Writer = os.Stderr
 )
+
+// parseVersionOrZero parses v as a semver, returning zeroVersion if parsing fails.
+func parseVersionOrZero(v string) *semver.Version {
+	parsed, err := semver.NewVersion(v)
+	if err != nil {
+		return zeroVersion
+	}
+	return parsed
+}
 
 func extractVersion(md metadata.MD, key string) *semver.Version {
 	if md == nil {

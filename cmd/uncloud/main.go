@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
+	"os"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -152,5 +154,11 @@ func main() {
 		volume.NewRootCommand(),
 		wg.NewRootCommand(),
 	)
-	cobra.CheckErr(cmd.Execute())
+	if err := cmd.Execute(); err != nil {
+		if cancelled, ok := errors.AsType[*cli.CancelledError](err); ok {
+			fmt.Fprintln(os.Stderr, cancelled.Error())
+			os.Exit(1)
+		}
+		cobra.CheckErr(err)
+	}
 }

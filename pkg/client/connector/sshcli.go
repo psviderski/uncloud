@@ -25,7 +25,7 @@ type SSHCLIConnector struct {
 	config SSHConnectorConfig
 	// Path to SSH control socket for connection reuse.
 	controlSockPath string
-	// fwdCheckOnce ensures the TCP forwarding check runs only once.
+	// fwdCheckOnce ensures the TCP forwarding check runs only once per connector.
 	fwdCheckOnce sync.Once
 	// fwdCheckErr caches the result of the TCP forwarding check.
 	fwdCheckErr error
@@ -75,7 +75,7 @@ func controlSocketPath() string {
 func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 	// Validate SSH connectivity by running a no-op command on the remote machine. This also
 	// establishes the control socket (ControlMaster=auto) so subsequent connections reuse it.
-	probeArgs := append(c.buildSSHArgs(), "true")
+	probeArgs := append(c.buildSSHArgs(true), "true")
 	probe := exec.CommandContext(ctx, "ssh", probeArgs...)
 	if output, err := probe.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("SSH connection to '%s': %w: %s",
@@ -91,7 +91,7 @@ func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error)
 		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
 		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			dialArgs := append(c.buildSSHArgs(), "uncloudd", "dial-stdio")
+			dialArgs := append(c.buildSSHArgs(true), "uncloudd", "dial-stdio")
 			if c.config.SockPath != "" {
 				dialArgs = append(dialArgs, "--socket", c.config.SockPath)
 			}
@@ -111,13 +111,13 @@ func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error)
 }
 
 // buildSSHArgs constructs the SSH command arguments with connection options and destination. The options
-// include control socket settings for connection reuse if necessary.
+// include control socket settings for connection reuse if the path is configured and useControlMaster is true.
 // The remote command is not included and should be appended by the caller.
-func (c *SSHCLIConnector) buildSSHArgs() []string {
+func (c *SSHCLIConnector) buildSSHArgs(useControlMaster bool) []string {
 	var args []string
 
 	// Add control socket options for connection reuse if available.
-	if c.controlSockPath != "" {
+	if useControlMaster && c.controlSockPath != "" {
 		args = append(args, "-o", "ControlMaster=auto")
 		args = append(args, "-o", "ControlPath="+c.controlSockPath)
 
@@ -170,11 +170,22 @@ func (c *SSHCLIConnector) DialContext(ctx context.Context, network, address stri
 	if network != "tcp" {
 		return nil, fmt.Errorf("unsupported network type: %s", network)
 	}
-	if err := c.CheckTCPForwarding(ctx); err != nil {
-		return nil, err
+
+	c.fwdCheckOnce.Do(func() {
+		c.fwdCheckErr = c.CheckTCPForwarding(ctx)
+		if c.fwdCheckErr != nil {
+			// Close the cached ControlMaster so the next call picks up the new sshd policy once the
+			// user enables forwarding. Fresh context so close runs even if the parent already timed out.
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer closeCancel()
+			c.CloseControlMaster(closeCtx)
+		}
+	})
+	if c.fwdCheckErr != nil {
+		return nil, c.fwdCheckErr
 	}
 
-	args := append(c.buildSSHArgs(), "-W", address)
+	args := append(c.buildSSHArgs(true), "-W", address)
 	conn, err := commandconn.New(ctx, "ssh", args...)
 	if err != nil {
 		return nil, fmt.Errorf("SSH connection to '%s' for dialing '%s': %w", c.config.Destination(), address, err)
@@ -183,32 +194,25 @@ func (c *SSHCLIConnector) DialContext(ctx context.Context, network, address stri
 	return conn, nil
 }
 
-// CheckTCPForwarding verifies that TCP forwarding is enabled on the remote SSH server. It probes the server once
-// and caches the result for subsequent calls. Returns an error with actionable instructions if forwarding is disabled.
+// CheckTCPForwarding returns an actionable error when the remote SSH server doesn't allow TCP forwarding.
 func (c *SSHCLIConnector) CheckTCPForwarding(ctx context.Context) error {
-	c.fwdCheckOnce.Do(func() {
-		// Probe TCP forwarding by requesting a forward to 127.0.0.1:1 (a port almost never in use).
-		// If forwarding is disabled, sshd rejects the channel. The error message differs depending on
-		// whether the connection goes through a ControlMaster mux or directly:
-		//   - Multiplexed: "Session open refused by peer"
-		//   - Direct: "administratively prohibited"
-		probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
+	// Do not use ControlMaster because disabled forwarding and a refused port both surface as
+	// "Session open refused by peer" over it and can't be told apart.
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 
-		args := append(c.buildSSHArgs(), "-W", "127.0.0.1:1")
-		probe := exec.CommandContext(probeCtx, "ssh", args...)
-		output, _ := probe.CombinedOutput()
-		outStr := string(output)
-		if strings.Contains(outStr, "administratively prohibited") ||
-			strings.Contains(outStr, "Session open refused by peer") {
-			c.fwdCheckErr = fmt.Errorf(
-				"SSH TCP forwarding appears to be disabled on '%s': ensure 'AllowTcpForwarding yes' is set "+
-					"in /etc/ssh/sshd_config on the remote machine and restart sshd (sudo systemctl restart ssh)",
-				c.config.Destination(),
-			)
-		}
-	})
-	return c.fwdCheckErr
+	// Request forwarding to a port that is almost never in use (:1) so sshd rejects the channel if forwarding
+	// is disabled or fails to connect otherwise.
+	args := append(c.buildSSHArgs(false), "-W", "127.0.0.1:1")
+	output, _ := exec.CommandContext(probeCtx, "ssh", args...).CombinedOutput()
+	if strings.Contains(string(output), "administratively prohibited") {
+		return fmt.Errorf("SSH TCP forwarding appears to be disabled on '%s': ensure 'AllowTcpForwarding yes' "+
+			"is set in /etc/ssh/sshd_config on the remote machine and restart sshd (sudo systemctl restart ssh), "+
+			"then retry",
+			c.config.Destination())
+	}
+
+	return nil
 }
 
 // CloseControlMaster terminates the SSH ControlMaster process for this destination so the next connection starts
@@ -217,7 +221,7 @@ func (c *SSHCLIConnector) CloseControlMaster(ctx context.Context) {
 	if c.controlSockPath == "" {
 		return
 	}
-	args := append(c.buildSSHArgs(), "-O", "exit")
+	args := append(c.buildSSHArgs(true), "-O", "exit")
 	_ = exec.CommandContext(ctx, "ssh", args...).Run()
 }
 

@@ -7,30 +7,42 @@ import (
 )
 
 func TestInstallCmd(t *testing.T) {
-	t.Run("root", func(t *testing.T) {
-		cmd := installCmd("root", "")
-		assert.NotContains(t, cmd, "sudo")
-		assert.NotContains(t, cmd, "UNCLOUD_GROUP_ADD_USER")
-	})
+	const scriptB64 = "SCRIPT_BASE64_PLACEHOLDER"
 
-	// Test with version
-	t.Run("root with version", func(t *testing.T) {
-		cmd := installCmd("root", "v1.2.3")
-		assert.NotContains(t, cmd, "sudo")
-		assert.NotContains(t, cmd, "UNCLOUD_GROUP_ADD_USER")
-		assert.Contains(t, cmd, "UNCLOUD_VERSION=v1.2.3")
-	})
+	tests := []struct {
+		name    string
+		user    string
+		version string
+		want    string
+	}{
+		{
+			name: "root",
+			user: "root",
+			want: "printf '%s' SCRIPT_BASE64_PLACEHOLDER | base64 -d | bash",
+		},
+		{
+			name:    "root with version",
+			user:    "root",
+			version: "v1.2.3",
+			want:    "printf '%s' SCRIPT_BASE64_PLACEHOLDER | base64 -d | UNCLOUD_VERSION=v1.2.3 bash",
+		},
+		{
+			name: "nonroot",
+			user: "nonroot",
+			want: "printf '%s' SCRIPT_BASE64_PLACEHOLDER | base64 -d | sudo UNCLOUD_GROUP_ADD_USER=nonroot bash",
+		},
+		{
+			name:    "nonroot with version",
+			user:    "nonroot",
+			version: "v1.2.3",
+			want: "printf '%s' SCRIPT_BASE64_PLACEHOLDER | base64 -d | " +
+				"sudo UNCLOUD_GROUP_ADD_USER=nonroot UNCLOUD_VERSION=v1.2.3 bash",
+		},
+	}
 
-	t.Run("nonroot", func(t *testing.T) {
-		cmd := installCmd("nonroot", "")
-		assert.Contains(t, cmd, "sudo")
-		assert.Contains(t, cmd, "UNCLOUD_GROUP_ADD_USER=nonroot")
-	})
-
-	t.Run("nonroot with version", func(t *testing.T) {
-		cmd := installCmd("nonroot", "v1.2.3")
-		assert.Contains(t, cmd, "sudo")
-		assert.Contains(t, cmd, "UNCLOUD_GROUP_ADD_USER=nonroot")
-		assert.Contains(t, cmd, "UNCLOUD_VERSION=v1.2.3")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, installCmd(scriptB64, tt.user, tt.version))
+		})
+	}
 }

@@ -62,7 +62,7 @@ type MockCaddyfileValidator_Validate_Call struct {
 // Validate is a helper method to define mock.On call
 //   - ctx context.Context
 //   - caddyfile string
-func (_e *MockCaddyfileValidator_Expecter) Validate(ctx interface{}, caddyfile interface{}) *MockCaddyfileValidator_Validate_Call {
+func (_e *MockCaddyfileValidator_Expecter) Validate(ctx any, caddyfile any) *MockCaddyfileValidator_Validate_Call {
 	return &MockCaddyfileValidator_Validate_Call{Call: _e.mock.On("Validate", ctx, caddyfile)}
 }
 

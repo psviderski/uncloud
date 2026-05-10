@@ -30,8 +30,7 @@ func TestContainerFingerprint_EqualCoversAllFields(t *testing.T) {
 	assert.True(t, base.Equal(base), "base fingerprint must be equal to itself")
 
 	rt := reflect.TypeOf(base)
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
+	for field := range rt.Fields() {
 		t.Run(field.Name, func(t *testing.T) {
 			t.Parallel()
 

@@ -42,6 +42,15 @@ func ThemeConfirm() huh.Theme {
 	})
 }
 
+// ThemeConfirmDanger returns a huh theme with a bold red title style for dangerous confirmation prompts.
+func ThemeConfirmDanger() huh.Theme {
+	return huh.ThemeFunc(func(isDark bool) *huh.Styles {
+		t := huh.ThemeBase(isDark)
+		t.Focused.Title = t.Focused.Title.Foreground(lipgloss.Red).Bold(true)
+		return t
+	})
+}
+
 // IsStdinTerminal checks if the standard input is a terminal (TTY).
 func IsStdinTerminal() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))

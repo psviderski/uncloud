@@ -112,17 +112,23 @@ func NewCaddyfileGenerator(
 func (g *CaddyfileGenerator) Generate(
 	ctx context.Context, records []store.ContainerRecord, includeCustom bool,
 ) (string, error) {
+	// Sort records by local machine first, then by service name and creation time. Placing containers on the local
+	// machine first lets user-defined Caddy configs pair this ordering with the "first" lb_policy to always send
+	// traffic to the same-host replica (skipping the cross-machine hop) and only fall back to remote upstreams when
+	// the local one is unhealthy.
+	// The service name and creation time tiebreakers keep the generated Caddyfile stable across regenerations.
+	slices.SortStableFunc(records, func(a, b store.ContainerRecord) int {
+		return cmp.Or(
+			g.localMachineRank(a.MachineID)-g.localMachineRank(b.MachineID),
+			strings.Compare(a.Container.ServiceName(), b.Container.ServiceName()),
+			a.Container.CreatedTime().Compare(b.Container.CreatedTime()),
+		)
+	})
+
 	containers := make([]api.ServiceContainer, len(records))
 	for i, cr := range records {
 		containers[i] = cr.Container
 	}
-	// Sort containers by service name and creation time to generate a stable Caddyfile.
-	slices.SortStableFunc(containers, func(a, b api.ServiceContainer) int {
-		return cmp.Or(
-			strings.Compare(a.ServiceName(), b.ServiceName()),
-			a.CreatedTime().Compare(b.CreatedTime()),
-		)
-	})
 
 	caddyfile, err := g.generateBaseFromPorts(containers)
 	if err != nil {
@@ -241,6 +247,15 @@ func (g *CaddyfileGenerator) Generate(
 	}
 
 	return caddyfileHeader + "\n" + caddyfile, nil
+}
+
+// localMachineRank returns 0 if the given machineID matches the local machine and 1 otherwise.
+// Useful for sorting containers running locally first.
+func (g *CaddyfileGenerator) localMachineRank(machineID string) int {
+	if g.machineID == machineID {
+		return 0
+	}
+	return 1
 }
 
 func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceContainer) (string, error) {

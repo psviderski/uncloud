@@ -162,6 +162,25 @@ https://secure.example.com {
 `,
 		},
 		{
+			name: "local machine upstreams listed first",
+			containers: []store.ContainerRecord{
+				newContainerRecord(newContainer("10.210.0.2", "app.example.com:8080/http"), "mach1"),
+				newContainerRecord(newContainer("10.210.1.2", "app.example.com:8080/http"), "test-machine-id"),
+				newContainerRecord(newContainer("10.210.2.2", "app.example.com:8080/http"), "mach2"),
+				newContainerRecord(newContainer("10.210.1.3", "app.example.com:8080/http"), "test-machine-id"),
+			},
+			want: testCaddyfileHeader + `
+# Sites generated from service ports.
+
+http://app.example.com {
+	reverse_proxy 10.210.1.2:8080 10.210.1.3:8080 10.210.0.2:8080 10.210.2.2:8080 {
+		import common_proxy
+	}
+	log
+}
+`,
+		},
+		{
 			name: "container without uncloud network ignored",
 			containers: []store.ContainerRecord{
 				newContainerRecord(newContainerWithoutNetwork("ignored.example.com:8080/http"), "mach1"),

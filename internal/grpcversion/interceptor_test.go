@@ -12,6 +12,47 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func TestParseVersionOrZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "valid semver",
+			input:    "1.2.3",
+			expected: "1.2.3",
+		},
+		{
+			name:     "valid semver with prerelease",
+			input:    "0.19.0-nightly-abc1234",
+			expected: "0.19.0-nightly-abc1234",
+		},
+		{
+			name:     "dev version",
+			input:    "999.0.0-dev",
+			expected: "999.0.0-dev",
+		},
+		{
+			name:     "invalid ldflag-injected string falls back to zero",
+			input:    "nightly-SNAPSHOT-abc1234",
+			expected: "0.0.0",
+		},
+		{
+			name:     "empty string falls back to zero",
+			input:    "",
+			expected: "0.0.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseVersionOrZero(tt.input)
+			assert.Equal(t, tt.expected, got.String())
+		})
+	}
+}
+
 func TestExtractVersion(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -2026,6 +2026,52 @@ func TestServiceLifecycle(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "machines not found")
+
+		// Test filter logs by container.
+		targetCtr := svc.Containers[0].Container
+		expectedStdout := fmt.Sprintf("Hello from %s\n", targetCtr.Name)
+		expectedStderr := fmt.Sprintf("Hello stderr from %s\n", targetCtr.Name)
+
+		// Filter by full container ID.
+		_, ctrStream, err := cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+			Containers: []string{targetCtr.ID},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{expectedStdout, expectedStderr}, collectLogs(ctrStream))
+
+		// Filter by container name.
+		_, ctrStream, err = cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+			Containers: []string{targetCtr.Name},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{expectedStdout, expectedStderr}, collectLogs(ctrStream))
+
+		// Filter by short ID prefix (12 chars is Docker's standard short ID length).
+		_, ctrStream, err = cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+			Containers: []string{targetCtr.ID[:12]},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{expectedStdout, expectedStderr}, collectLogs(ctrStream))
+
+		// Filter by multiple containers in the same service.
+		secondCtr := svc.Containers[1].Container
+		_, ctrStream, err = cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+			Containers: []string{targetCtr.ID, secondCtr.ID},
+		})
+		require.NoError(t, err)
+		multiLogs := collectLogs(ctrStream)
+		require.Len(t, multiLogs, 4, "should have 4 log entries from 2 containers")
+		assert.Contains(t, multiLogs, expectedStdout)
+		assert.Contains(t, multiLogs, expectedStderr)
+		assert.Contains(t, multiLogs, fmt.Sprintf("Hello from %s\n", secondCtr.Name))
+		assert.Contains(t, multiLogs, fmt.Sprintf("Hello stderr from %s\n", secondCtr.Name))
+
+		// Test non-existent container filter returns error.
+		_, _, err = cli.ServiceLogs(ctx, name, api.ServiceLogsOptions{
+			Containers: []string{"non-existent-container"},
+		})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "container 'non-existent-container' in service 'test-service-logs': not found")
 	})
 
 	t.Run("internal DNS", func(t *testing.T) {

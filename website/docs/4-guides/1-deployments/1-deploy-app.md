@@ -64,7 +64,7 @@ This command looks for a Compose file in your current working directory and:
 
 See the [`uc deploy` ](../../9-cli-reference/uc_deploy.md) reference for all available options.
 
-Watch `uc deploy` building and deploying a demo app (18 seconds):
+Watch `uc deploy` building and deploying a demo app (12 seconds):
 
 <video controls width="100%">
   <source src="https://media.uncloud.run/docs/uc-deploy-demo.mp4"/>

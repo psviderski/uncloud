@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/spf13/cobra"
@@ -44,6 +45,9 @@ func newShowCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine to show the configuration for. (default is connected machine)")
+
+	completion.MachinesFlag(cmd)
+
 	return cmd
 }
 

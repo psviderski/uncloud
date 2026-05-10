@@ -104,27 +104,6 @@ func (c *Config) SetDefaults() (*Config, error) {
 		}
 		cfg.DockerClient = cli
 	}
-	if cfg.ContainerdSockPath == "" {
-		// Auto-detect the containerd.sock path used by Docker.
-		paths := []string{
-			"/run/containerd/containerd.sock", // Default path on most Linux distributions.
-			"/run/docker/containerd/containerd.sock",
-			"/var/run/containerd/containerd.sock",
-			"/var/run/docker/containerd/containerd.sock",
-		}
-		for _, path := range paths {
-			if _, err := os.Stat(path); err == nil {
-				cfg.ContainerdSockPath = path
-				slog.Debug("Detected containerd socket used by Docker.", "path", path)
-				break
-			}
-		}
-
-		if cfg.ContainerdSockPath == "" {
-			slog.Warn("Failed to auto-detect containerd socket used by Docker.")
-		}
-	}
-
 	if cfg.CorrosionDir == "" {
 		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
 	}
@@ -341,6 +320,31 @@ func (m *Machine) Initialised() bool {
 	return m.state.ID != ""
 }
 
+// ContainerdSock returns the path to the containerd socket used by Docker, auto-discovering it from well-known
+// locations if it's not explicitly configured.
+// Returns an empty string if the socket cannot be detected.
+func (m *Machine) ContainerdSock() string {
+	if m.config.ContainerdSockPath != "" {
+		return m.config.ContainerdSockPath
+	}
+
+	paths := []string{
+		"/run/containerd/containerd.sock", // Default path on most Linux distributions.
+		"/run/docker/containerd/containerd.sock",
+		"/var/run/containerd/containerd.sock",
+		"/var/run/docker/containerd/containerd.sock",
+	}
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			slog.Debug("Detected containerd socket used by Docker.", "path", path)
+			return path
+		}
+	}
+
+	slog.Warn("Failed to auto-detect containerd socket used by Docker.")
+	return ""
+}
+
 // IP returns the machine IPv4 address in the cluster network which is the first address in the machine subnet.
 func (m *Machine) IP() netip.Addr {
 	if !m.Initialised() {
@@ -461,7 +465,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			}
 
 			var unreg *unregistry.Registry
-			if m.config.ContainerdSockPath != "" {
+			if containerdSock := m.ContainerdSock(); containerdSock != "" {
 				isContainerdStore, err := m.dockerService.IsContainerdImageStoreEnabled(ctx)
 				if err != nil {
 					return fmt.Errorf("check if Docker uses containerd image store: %w", err)
@@ -473,7 +477,7 @@ func (m *Machine) Run(ctx context.Context) error {
 					unreg, err = unregistry.NewRegistry(unregistry.Config{
 						Addr:                net.JoinHostPort(m.IP().String(), strconv.Itoa(constants.UnregistryPort)),
 						ContainerdNamespace: "moby",
-						ContainerdSock:      m.config.ContainerdSockPath,
+						ContainerdSock:      containerdSock,
 						LogFormatter:        "text",
 						LogLevel:            "info",
 					})
@@ -484,7 +488,7 @@ func (m *Machine) Run(ctx context.Context) error {
 					slog.Warn("Skipping embedded unregistry setup as Docker is not using the containerd image store.")
 				}
 			} else {
-				slog.Warn("Skipping embedded unregistry setup as the containerd socket path is not configured.")
+				slog.Warn("Skipping embedded unregistry setup as the containerd socket path could not be detected.")
 			}
 
 			m.mu.Lock()
@@ -1132,7 +1136,7 @@ func (m *Machine) InspectService(
 const logsHeartbeatInterval = 200 * time.Millisecond
 
 // MachineLogs streams logs from a systemd service.
-func (s *Machine) MachineLogs(
+func (m *Machine) MachineLogs(
 	req *pb.LogsRequest, stream grpc.ServerStreamingServer[pb.LogEntry],
 ) error {
 	// TODO(miek): almost duplicate of docker/server.ContainerLogs
@@ -1210,7 +1214,6 @@ func (s *Machine) MachineLogs(
 				return status.Errorf(codes.Internal, "send log stream heartbeat: %v", err)
 			}
 			lastSent = heartbeat.Timestamp.AsTime()
-			log.Debug("Sent log stream heartbeat.", "timestamp", lastSent)
 
 		case <-ctx.Done():
 			return status.Error(codes.Canceled, ctx.Err().Error())

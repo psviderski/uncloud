@@ -49,13 +49,13 @@ complexity of Kubernetes.
 
 ## 🎬 Quick demo
 
-The screenshot below demonstrates how I use Uncloud to deploy https://uncloud.run website to 2 remote machines from
-the [`compose.yaml`](website/compose.yaml) file on my local machine.
+The screenshot below demonstrates how we use Uncloud to deploy https://uncloud.run website to 2 remote machines from
+the [`compose.yaml`](website/compose.yaml) file on the local machine.
 
-It exposes the container port `8000/tcp` as HTTPS on the domain `uncloud.run`, served by the Caddy reverse proxy on the
+It exposes the container port `8000/tcp` as HTTPS on `uncloud.run` domain, served by the Caddy reverse proxy on the
 remote machines. All managed by Uncloud.
 
-![Uncloud compose deployment demo](.github/images/compose-deploy.jpg)
+![Uncloud compose deployment demo](.github/images/website-deploy.jpg)
 
 Here is a more advanced use case. Deploy a highly available web app with automatic HTTPS across multiple regions and
 on-premises in just a couple minutes.
@@ -100,7 +100,10 @@ platform, whether you're running on a $5 VPS, a spare Mac mini, or a rack of bar
    curl -fsS https://get.uncloud.run/install.sh | sh
    ```
 
-   See [Installation](https://uncloud.run/docs/getting-started/install-cli) for more options. There's also a [nightly rolling release](https://github.com/psviderski/uncloud/releases/tag/nightly) available if you want to try the latest features and fixes before they're included in an official release.
+   See [Installation](https://uncloud.run/docs/getting-started/install-cli) for more options.
+
+   There's also a [nightly rolling release](https://github.com/psviderski/uncloud/releases/tag/nightly) available if you
+   want to try the latest features and fixes before they're included in an official release.
 
 2. Initialise your first machine:
 
@@ -283,18 +286,24 @@ machine is a full backup of your control plane.
 
 ## 🧪 Interactive tutorials
 
-To give you a chance to play with Uncloud without even leaving your browser, we're providing interactive tutorials and playgrounds on the [iximiuz Labs](https://labs.iximiuz.com/) platform.
+To give you a chance to play with Uncloud without even leaving your browser, we're providing interactive tutorials and
+playgrounds on the [iximiuz Labs](https://labs.iximiuz.com/) platform.
 
 Available tutorials:
 
-1. [Setting up a new Uncloud cluster](https://labs.iximiuz.com/tutorials/uncloud-create-cluster-ebebf72b) - the tutorial walks you through creating a new cluster with two machines and then deploying a simple web service to it.
+1. [Setting up a new Uncloud cluster](https://labs.iximiuz.com/tutorials/uncloud-create-cluster-ebebf72b) - the tutorial
+   walks you through creating a new cluster with two machines and then deploying a simple web service to it.
+2. [Deploying a Django web application](https://labs.iximiuz.com/tutorials/uncloud-deploy-django-app-7a378bc3) - deploy
+   a Django web app from source code to a remote Linux server using Uncloud.
 
-You can also launch the [Uncloud playground](https://labs.iximiuz.com/playgrounds/uncloud-cluster-64523f7c) where you can play with an already initialized Uncloud cluster.
+You can also launch the [Uncloud playground](https://labs.iximiuz.com/playgrounds/uncloud-cluster-64523f7c) where you
+can play with an already initialized Uncloud cluster.
 
 ## 🏗 Project status
 
-Uncloud is currently in active development and is **not ready for production use**. Features may change significantly
-and there may be breaking changes between releases.
+Uncloud is under active development and pre-1.0, so expect occasional breaking changes between releases. The core build,
+push, and deploy workflows are stable, and much of the runtime relies on battle-tested projects: Docker, Caddy,
+WireGuard, and Corrosion.
 
 We'd love your input! Here's how you can contribute:
 
@@ -332,8 +341,8 @@ SQLite database used to share Uncloud's cluster state.
 
 * Join our [Discord server](https://discord.gg/eR35KQJhPu) for real-time discussions, support, and updates.
 * Follow [@psviderski](https://x.com/psviderski) on X/Twitter.
-* Subscribe to [my newsletter](https://uncloud.run/#subscribe) to follow the progress, get early insights into new
-  features, and be the first to know when it's ready for production use.
+* Subscribe to [our newsletter](https://uncloud.run/#subscribe) to follow the journey of building Uncloud: progress
+  updates, user stories, and the occasional deep dive.
 * Watch this repository for releases.
 
 ## 💖 Sponsors
@@ -350,8 +359,6 @@ These companies and projects are helping Uncloud with their generous sponsorship
 <a href="https://trendshift.io/repositories/14069">
     <img alt="Trendshift" src="https://trendshift.io/api/badge/repositories/14069" />
 </a>
-
-Thank you [@cedws](https://github.com/cedws) for being the first contributor to Uncloud! 🎉
 
 <a href="https://github.com/psviderski/uncloud/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=psviderski/uncloud" />

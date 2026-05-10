@@ -216,6 +216,37 @@ func TestLogMerger_ErrorForwarding(t *testing.T) {
 	assert.Equal(t, "ch1-first", string(results[0].Message))
 }
 
+func TestLogMerger_ZeroTimestampForwarding(t *testing.T) {
+	t.Parallel()
+
+	// Regression for https://github.com/psviderski/uncloud/issues/324: zero-timestamp entries sent
+	// before any real timestamp used to pile up in the heap (watermark stuck at zero) until the
+	// per-stream semaphore saturated and the reader blocked.
+	const zeroCount = logMergerMaxInFlightPerStream + 50
+	ch := make(chan api.ServiceLogEntry, zeroCount+10)
+	merger := NewLogMerger([]<-chan api.ServiceLogEntry{ch}, LogMergerOptions{})
+	output := merger.Stream()
+
+	for range zeroCount {
+		ch <- testEntry(api.LogStreamStdout, time.Time{}, "zero")
+	}
+	t1 := time.Now()
+	ch <- testEntry(api.LogStreamStdout, t1, "real-after")
+	close(ch)
+
+	results := collectEntries(t, output, 0)
+	require.Len(t, results, zeroCount+1)
+
+	for i := range zeroCount {
+		assert.True(t, results[i].Timestamp.IsZero(), "entry %d should have zero timestamp", i)
+		assert.Equal(t, "zero", string(results[i].Message))
+	}
+
+	last := results[len(results)-1]
+	assert.Equal(t, "real-after", string(last.Message))
+	assert.Equal(t, t1, last.Timestamp)
+}
+
 func TestLogMerger_OutOfOrderSingleStream(t *testing.T) {
 	t.Parallel()
 
@@ -323,16 +354,6 @@ func TestLogMerger_StalledStreamExcludedFromWatermark(t *testing.T) {
 		StallCheckInterval: 20 * time.Millisecond,
 	})
 	output := merger.Stream()
-
-	//// Collect all output entries in a separate goroutine.
-	//var results []api.ServiceLogEntry
-	//doneCollecting := make(chan struct{})
-	//go func() {
-	//	for entry := range output {
-	//		results = append(results, entry)
-	//	}
-	//	close(doneCollecting)
-	//}()
 
 	t1 := time.Now()
 	t2 := t1.Add(time.Second)

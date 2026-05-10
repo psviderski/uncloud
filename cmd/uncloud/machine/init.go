@@ -135,11 +135,12 @@ Connection methods:
 	)
 	cmd.Flags().StringSliceVar(
 		&opts.wgEndpoints, "wg-endpoint", nil,
-		fmt.Sprintf("WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. "+
-			"Default port %d is used if omitted.\n", network.WireGuardPort)+
-			"Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.\n"+
+		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
+			"WireGuard connections\n"+
+			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.WireGuardPort)+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.\n"+
-			"If not specified, the machine's routable IPs and public IP are auto-detected and used as endpoints.",
+			"Defaults to the auto-detected public and routable machine IPs.",
 	)
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+

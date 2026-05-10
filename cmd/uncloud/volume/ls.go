@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -35,6 +36,8 @@ func NewListCommand() *cobra.Command {
 			"(default is include all machines)")
 	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false,
 		"Only display volume names.")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }

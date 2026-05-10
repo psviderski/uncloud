@@ -57,8 +57,8 @@ hook and regular service containers.
 Since your command runs in the same image as the service, any tools or dependencies it needs must be installed in that
 image.
 
-See [`x-pre_deploy`](../../8-compose-file-reference/2-extensions.md#x-pre_deploy) for all available attributes and
-their defaults.
+See [`x-pre_deploy`](../../8-compose-file-reference/2-extensions.md#x-pre_deploy) for all available attributes and their
+defaults.
 
 ### Database migrations
 
@@ -171,21 +171,15 @@ entrypoint script or your command to detect when it's running as a pre-deploy ho
 ### Non-zero exit code
 
 When the hook command exits with a non-zero code, the deployment stops immediately. No service containers are created or
-replaced. `uc deploy` prints the latest logs from the hook container to help you diagnose the issue.
-
-The failed hook container is not automatically removed, so you can inspect it with `uc inspect` and `uc ps`, and fetch
-its full logs as part of the service logs:
-
-```shell
-uc logs web
-```
+replaced. `uc deploy` prints the latest logs from the failed hook container to help you diagnose the issue and keeps it
+around for inspection. See [Failed hook logs](#failed-hook-logs) below for details.
 
 Fix the issue and run `uc deploy` again to retry.
 
 ### Timeout
 
 If the hook doesn't finish within the timeout (default **5 minutes**), Uncloud kills the container and fails the
-deployment. The stopped container is kept for inspection, same as with a non-zero exit code.
+deployment. The killed container is kept for inspection. See [Failed hook logs](#failed-hook-logs) below for details.
 
 You can increase the timeout for long-running tasks like large database migrations or data uploads:
 
@@ -197,6 +191,23 @@ services:
       timeout: 30m
 ```
 
+### Failed hook logs
+
+When a hook fails with a non-zero exit code or a timeout, `uc deploy` prints the last 10 log lines from the failed hook
+container to help you diagnose the issue.
+
+You can change how many lines are printed with the `UNCLOUD_FAILED_CONTAINER_LOGS_TAIL` environment variable. Set it to
+a number or to `all` to print the full container log. The same setting applies to regular containers that fail during a
+[rolling deployment](4-rolling-deployments.md#failed-container-logs):
+
+```shell
+export UNCLOUD_FAILED_CONTAINER_LOGS_TAIL=50
+```
+
+You can fetch the full logs as part of the service logs with [`uc logs`](../../9-cli-reference/uc_logs.md) or inspect
+the status of the failed container with [`uc inspect`](../../9-cli-reference/uc_inspect.md)
+or [`uc ps`](../../9-cli-reference/uc_ps.md).
+
 ### Idempotency
 
 Design your hook commands to be **idempotent** when possible. If a deployment fails after the hook succeeds (for
@@ -206,7 +217,7 @@ Most database migration tools handle this naturally since they track which migra
 
 ## See also
 
-- [`x-pre_deploy` reference](../../8-compose-file-reference/2-extensions.md#x-pre_deploy): All available attributes
-  and their defaults
+- [`x-pre_deploy` reference](../../8-compose-file-reference/2-extensions.md#x-pre_deploy): All available attributes and
+  their defaults
 - [Rolling deployments](4-rolling-deployments.md): How Uncloud updates containers with zero downtime
 - [Deploy an app](1-deploy-app.md): Build and deploy from source code or pre-built images

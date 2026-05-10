@@ -520,6 +520,29 @@ type MachineServiceContainer struct {
 	Container   ServiceContainer
 }
 
+// FindContainer returns the service container by exact name, ID, or unique ID prefix.
+// Returns ErrNotFound if no container matches, or an error if an ID prefix matches more than one container.
+func (s *Service) FindContainer(nameOrID string) (MachineServiceContainer, error) {
+	var prefixMatches []MachineServiceContainer
+	for _, c := range append(s.Containers, s.HookContainers...) {
+		if c.Container.ID == nameOrID || c.Container.Name == nameOrID {
+			return c, nil
+		}
+		if strings.HasPrefix(c.Container.ID, nameOrID) {
+			prefixMatches = append(prefixMatches, c)
+		}
+	}
+
+	if len(prefixMatches) == 1 {
+		return prefixMatches[0], nil
+	}
+	if len(prefixMatches) > 1 {
+		return MachineServiceContainer{}, fmt.Errorf("multiple containers found with ID prefix '%s'", nameOrID)
+	}
+
+	return MachineServiceContainer{}, ErrNotFound
+}
+
 // MachineIDs returns a list of unique machine IDs where the service containers are running.
 func (s *Service) MachineIDs() []string {
 	ids := mapset.NewSet[string]()

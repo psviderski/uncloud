@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -30,6 +31,10 @@ func NewRemoveCommand() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return remove(cmd.Context(), uncli, args, opts)
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Volumes(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 
 	cmd.Flags().BoolVarP(&opts.force, "force", "f", false,
@@ -40,6 +45,8 @@ func NewRemoveCommand() *cobra.Command {
 			"If not specified, the found volume(s) will be removed from all machines.")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Do not prompt for confirmation before removing the volume(s).")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }

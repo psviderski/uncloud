@@ -186,6 +186,13 @@ func (m *LogMerger) run() {
 				e.stream.lastSeen = e.entry.Timestamp
 			}
 			if e.entry.Stream == api.LogStreamStdout || e.entry.Stream == api.LogStreamStderr {
+				// Forward log entries with unparseable timestamps immediately. Without a timestamp we can't place
+				// them on the merged timeline, and buffering them would stall the watermark.
+				if e.entry.Timestamp.IsZero() {
+					m.output <- e.entry
+					<-e.stream.semaphore
+					continue
+				}
 				heap.Push(&m.queue, queuedEntry{entry: e.entry, semaphore: e.stream.semaphore})
 			}
 

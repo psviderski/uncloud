@@ -5,7 +5,8 @@ A short guide on setting up your local development environment.
 ## Prerequisites
 
 - [mise](https://mise.jdx.dev/) (development environment setup tool)
-- [Docker](https://docs.docker.com/get-docker/) (for running end-to-end tests)
+- [Docker](https://docs.docker.com/get-docker/) with BuildKit (for running end-to-end tests). Make sure the
+  [`docker buildx`](https://docs.docker.com/build/concepts/overview/) plugin is installed.
 
 ## Setup
 
@@ -123,8 +124,8 @@ make mocks
 The [`ucind`](./cmd/ucind) CLI lets you run Uncloud clusters locally using Docker containers instead of real machines.
 Each cluster machine runs as a Docker container connected to a shared Docker network.
 
-Cluster machines use the `ghcr.io/psviderski/ucind:latest` Docker image by default. It may not always have the
-latest changes to the `uncloudd` daemon code as it's not automatically rebuilt on CI yet.
+Cluster machines use the `ghcr.io/psviderski/ucind:latest` Docker image by default. It may not always have the latest
+changes to the `uncloudd` daemon code as it's not automatically rebuilt on CI yet.
 
 You can rebuild it locally to pick up the latest changes, including your work in progress, and test them in a UCinD
 cluster:

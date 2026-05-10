@@ -12,6 +12,7 @@ type Client interface {
 	ContainerClient
 	DNSClient
 	ImageClient
+	LogsClient
 	MachineClient
 	ServiceClient
 	VolumeClient
@@ -41,6 +42,13 @@ type DNSClient interface {
 type ImageClient interface {
 	InspectImage(ctx context.Context, id string) ([]MachineImage, error)
 	InspectRemoteImage(ctx context.Context, id string) ([]MachineRemoteImage, error)
+}
+
+type LogsClient interface {
+	ServiceLogs(
+		ctx context.Context, serviceNameOrID string, opts ServiceLogsOptions,
+	) (Service, <-chan ServiceLogEntry, error)
+	MachineLogs(ctx context.Context, unit string, opts ServiceLogsOptions) (<-chan ServiceLogEntry, error)
 }
 
 type MachineClient interface {

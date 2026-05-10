@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +33,8 @@ func NewConfigCommand() *cobra.Command {
 		"Name or ID of the machine to get the configuration from. (default is connected machine)")
 	cmd.Flags().BoolVar(&opts.noColor, "no-color", false,
 		"Disable syntax highlighting for the output.")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }

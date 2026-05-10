@@ -1,6 +1,6 @@
-2026-01-23T17:19:33.686964+01:00 fedora kernel: apple-dcp 271c00000.dcp: DCP index:1 dptx target phy: 5 dptx die: 0
-2026-01-23T17:19:33.687155+01:00 fedora kernel: platform 271c00000.dcp:piodma: Adding to iommu group 9
-2026-01-23T17:19:33.687343+01:00 fedora kernel: apple-dcp 271c00000.dcp: RTKit: Initializing (protocol version 12)
-2026-01-23T17:19:33.687500+01:00 fedora kernel: apple-dcp 271c00000.dcp: shmem_setup: iova: 880255000 -> pa: be4f29000 -> iomem: ffff800082>
-2026-01-23T17:19:33.687657+01:00 fedora kernel: apple-dcp 271c00000.dcp: shmem_setup: iova: ffffec000, buffer: ffff8000817cc000
-2026-01-23T17:19:33.687826+01:00 fedora kernel: apple-dcp 271c00000.dcp: shmem_setup: iova: ffffe8000, buffer: ffff8000817d4000
+1769188773.686964 fedora kernel: apple-dcp 271c00000.dcp: DCP index:1 dptx target phy: 5 dptx die: 0
+1769188773.687155 fedora kernel: platform 271c00000.dcp:piodma: Adding to iommu group 9
+1769188773.687343 fedora kernel: apple-dcp 271c00000.dcp: RTKit: Initializing (protocol version 12)
+1769188773.687500 fedora kernel: apple-dcp 271c00000.dcp: shmem_setup: iova: 880255000 -> pa: be4f29000 -> iomem: ffff800082>
+1769188773.687657 fedora kernel: apple-dcp 271c00000.dcp: shmem_setup: iova: ffffec000, buffer: ffff8000817cc000
+1769188773.687826 fedora kernel: apple-dcp 271c00000.dcp: shmem_setup: iova: ffffe8000, buffer: ffff8000817d4000

@@ -322,6 +322,26 @@ func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout t
 	return nil
 }
 
+func (p *Provisioner) ListClusters(ctx context.Context) ([]Cluster, error) {
+	nets, err := p.dockerCli.NetworkList(ctx, network.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("label", ManagedLabel),
+		),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	clusters := []Cluster{}
+	for _, net := range nets {
+		cluster, err := p.InspectCluster(ctx, net.Name)
+		if err == nil {
+			clusters = append(clusters, cluster)
+		}
+	}
+	return clusters, nil
+}
+
 func (p *Provisioner) RemoveCluster(ctx context.Context, name string) error {
 	if _, err := p.InspectCluster(ctx, name); err != nil {
 		if errors.Is(err, ErrNotFound) {

@@ -256,26 +256,7 @@ func (cli *Client) InspectContainer(
 		return api.MachineServiceContainer{}, fmt.Errorf("inspect service: %w", err)
 	}
 
-	prefixMatchCandidates := []api.MachineServiceContainer{}
-	for _, c := range append(svc.Containers, svc.HookContainers...) {
-		if c.Container.ID == containerNameOrID ||
-			c.Container.Name == containerNameOrID {
-			return c, nil
-		}
-
-		if strings.HasPrefix(c.Container.ID, containerNameOrID) {
-			prefixMatchCandidates = append(prefixMatchCandidates, c)
-		}
-	}
-
-	if len(prefixMatchCandidates) == 1 {
-		return prefixMatchCandidates[0], nil
-	} else if len(prefixMatchCandidates) > 1 {
-		return api.MachineServiceContainer{}, fmt.Errorf(
-			"multiple containers found with ID prefix '%s'", containerNameOrID)
-	}
-
-	return api.MachineServiceContainer{}, api.ErrNotFound
+	return svc.FindContainer(containerNameOrID)
 }
 
 // containerOperationContext holds the context needed to perform an operation on a container.

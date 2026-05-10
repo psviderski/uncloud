@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/psviderski/uncloud/pkg/api"
@@ -12,16 +13,11 @@ import (
 
 // Logs streams logs from a service and returns entries via a channel.
 func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
-	// Hard code unit check for now
-	switch unit {
-	case "uncloud":
-	case "uncloud-corrosion":
-	case "docker":
-	default:
+	if !ValidUnit(unit) {
 		return nil, fmt.Errorf("journal logs: invalid unit: %s", unit)
 	}
 
-	reader, err := logs(ctx, unit, opts)
+	reader, wait, err := logs(ctx, unit, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -31,30 +27,43 @@ func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan
 	go func() {
 		defer close(outCh)
 		follow(ctx, reader, outCh)
+		wait()
 	}()
 
 	return outCh, nil
 }
 
 func entry(data []byte) api.LogEntry {
-	// 2025-10-12T11:03:27+02:00 systemd[1]:
+	// 1758193407.686964 systemd[1]: ...
 	timestamp := time.Time{}
 	message := data
-	if len(data) > 30 && data[4] == '-' && data[7] == '-' && data[10] == 'T' {
-		timestampPart, messagePart, found := bytes.Cut(data, []byte(" "))
-		var err error
-		if found {
-			timestamp, err = time.Parse(time.RFC3339Nano, string(timestampPart))
-			if err != nil {
-				timestamp = time.Time{}
-			}
+	if timestampPart, messagePart, found := bytes.Cut(data, []byte(" ")); found {
+		if t, ok := parseUnixTimestamp(timestampPart); ok {
+			timestamp = t
 			message = messagePart
 		}
 	}
 
 	return api.LogEntry{
 		Timestamp: timestamp,
-		Message:   slices.Clone(message), // scanner controls the buffer
+		Message:   append(slices.Clone(message), '\n'), // scanner controls the buffer so Clone and re-add newline
 		Stream:    api.LogStreamStdout,
 	}
+}
+
+// parseUnixTimestamp parses a journalctl short-unix timestamp "SSSSSSSSSS.UUUUUU" with microsecond precision.
+func parseUnixTimestamp(b []byte) (time.Time, bool) {
+	secPart, usecPart, found := bytes.Cut(b, []byte("."))
+	if !found {
+		return time.Time{}, false
+	}
+	sec, err := strconv.ParseInt(string(secPart), 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	usec, err := strconv.ParseInt(string(usecPart), 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(sec, usec*1000), true
 }
