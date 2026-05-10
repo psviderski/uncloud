@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -19,6 +20,9 @@ import (
 
 type Client interface {
 	deploy.Client
+}
+
+type clusterSnapshotClient interface {
 	NewClusterSnapshot(ctx context.Context, opts clusterclient.ClusterSnapshotOptions) (*clusterclient.ClusterSnapshot, error)
 }
 
@@ -28,7 +32,6 @@ type Deployment struct {
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
-	snapshot     *clusterclient.ClusterSnapshot
 	plan         *Plan
 }
 
@@ -42,16 +45,13 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		return nil, fmt.Errorf("inspect cluster state: %w", err)
 	}
 
-	snapshot, err := cli.NewClusterSnapshot(ctx, clusterclient.ClusterSnapshotOptions{
-		Services: true,
-		Domain:   true,
-	})
+	domain, err := clusterDomain(ctx, cli)
 	if err != nil {
-		return nil, fmt.Errorf("load cluster snapshot: %w", err)
+		return nil, err
 	}
 	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: snapshot.Domain,
+		ClusterDomain: domain,
 	}
 
 	return &Deployment{
@@ -60,7 +60,6 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		SpecResolver: resolver,
 		Strategy:     strategy,
 		state:        state,
-		snapshot:     snapshot,
 	}, nil
 }
 
@@ -89,6 +88,11 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		return plan, err
 	}
 
+	currentServices, err := d.currentServices(ctx, serviceSpecs)
+	if err != nil {
+		return plan, err
+	}
+
 	// Check external volumes and plan the creation of missing volumes before deploying services.
 	// Updates the cluster state (d.state) with the scheduled volumes.
 	volumeOps, err := d.planVolumes(serviceSpecs)
@@ -102,15 +106,7 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		// Pass the updated cluster state with the scheduled volumes to the deployment.
 		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
 		deployment.WithSpecResolver(d.SpecResolver)
-		currentService, ok, err := d.snapshot.FindServiceByName(spec.Name)
-		if err != nil {
-			return plan, fmt.Errorf("find current service '%s': %w", spec.Name, err)
-		}
-		var current *api.Service
-		if ok {
-			current = &currentService
-		}
-		deployment.WithCurrentService(current)
+		deployment.WithCurrentService(currentServices[spec.Name])
 
 		servicePlan, err := deployment.Plan(ctx)
 		if err != nil {
@@ -125,6 +121,71 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 
 	d.plan = &plan
 	return plan, nil
+}
+
+func clusterDomain(ctx context.Context, cli Client) (string, error) {
+	if snapshotClient, ok := cli.(clusterSnapshotClient); ok {
+		snapshot, err := snapshotClient.NewClusterSnapshot(ctx, clusterclient.ClusterSnapshotOptions{Domain: true})
+		if err != nil {
+			return "", fmt.Errorf("load cluster snapshot: %w", err)
+		}
+		return snapshot.Domain, nil
+	}
+
+	domain, err := cli.GetDomain(ctx)
+	if err != nil && !errors.Is(err, api.ErrNotFound) {
+		return "", fmt.Errorf("get cluster domain: %w", err)
+	}
+	return domain, nil
+}
+
+func (d *Deployment) currentServices(
+	ctx context.Context, serviceSpecs []api.ServiceSpec,
+) (map[string]*api.Service, error) {
+	names := make([]string, 0, len(serviceSpecs))
+	seen := make(map[string]struct{}, len(serviceSpecs))
+	for _, spec := range serviceSpecs {
+		if _, ok := seen[spec.Name]; ok {
+			continue
+		}
+		seen[spec.Name] = struct{}{}
+		names = append(names, spec.Name)
+	}
+
+	servicesByName := make(map[string]*api.Service, len(names))
+	if snapshotClient, ok := d.Client.(clusterSnapshotClient); ok {
+		snapshot, err := snapshotClient.NewClusterSnapshot(ctx, clusterclient.ClusterSnapshotOptions{
+			Services:          true,
+			ServiceNamesOrIDs: names,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("load cluster snapshot: %w", err)
+		}
+		for _, name := range names {
+			svc, ok, err := snapshot.FindServiceByName(name)
+			if err != nil {
+				return nil, fmt.Errorf("find current service '%s': %w", name, err)
+			}
+			if ok {
+				svc := svc
+				servicesByName[name] = &svc
+			}
+		}
+		return servicesByName, nil
+	}
+
+	for _, name := range names {
+		svc, err := d.Client.InspectService(ctx, name)
+		if errors.Is(err, api.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("inspect service '%s': %w", name, err)
+		}
+		svcCopy := svc
+		servicesByName[name] = &svcCopy
+	}
+	return servicesByName, nil
 }
 
 // ServiceSpec returns the service specification for the given compose service that is ready for deployment.

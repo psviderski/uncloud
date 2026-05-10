@@ -96,13 +96,6 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		return fmt.Errorf("load cluster snapshot: %w", err)
 	}
 
-	machineIDToName := make(map[string]string)
-	for _, machineMember := range snapshot.Machines {
-		if machineMember.Machine != nil && machineMember.Machine.Id != "" && machineMember.Machine.Name != "" {
-			machineIDToName[machineMember.Machine.Id] = machineMember.Machine.Name
-		}
-	}
-
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
 
 	clusterImages, err := clusterClient.ListImagesWithSnapshot(ctx, snapshot, api.ImageFilter{

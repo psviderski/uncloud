@@ -71,6 +71,10 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 func (cli *Client) ListImagesWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, filter api.ImageFilter,
 ) ([]api.MachineImages, error) {
+	if !snapshot.HasMachines() {
+		return nil, errors.New("cluster snapshot does not include machines")
+	}
+
 	listCtx, machines, err := proxyMachinesContextFromList(ctx, filter.Machines, snapshot.Machines)
 	if err != nil {
 		return nil, fmt.Errorf("create request context to broadcast to machines: %w", err)

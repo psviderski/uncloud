@@ -88,13 +88,17 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 // InspectService returns detailed information about a service and its containers.
 // The nameOrID parameter can be either a service name or ID.
 func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Service, error) {
-	var svc api.Service
-
 	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
-		return svc, fmt.Errorf("list machines: %w", err)
+		return api.Service{}, fmt.Errorf("list machines: %w", err)
 	}
 
+	return cli.inspectService(ctx, nameOrID, machines)
+}
+
+func (cli *Client) inspectService(
+	ctx context.Context, nameOrID string, machines api.MachineMembersList,
+) (api.Service, error) {
 	// Broadcast the container list request to all available machines.
 	machineIDByManagementIP := make(map[string]string)
 	md := metadata.New(nil)
@@ -113,17 +117,21 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	opts := container.ListOptions{All: true}
 	machineContainers, err := cli.Docker.ListServiceContainers(listCtx, nameOrID, opts)
 	if err != nil {
-		return svc, fmt.Errorf("list containers: %w", err)
+		return api.Service{}, fmt.Errorf("list containers: %w", err)
 	}
 
 	servicesByID, err := servicesFromMachineContainers(machineContainers, machineIDByManagementIP)
 	if err != nil {
-		return svc, err
+		return api.Service{}, err
 	}
 	if len(servicesByID) == 0 {
-		return svc, api.ErrNotFound
+		return api.Service{}, api.ErrNotFound
 	}
 
+	return selectServiceByNameOrID(servicesByID, nameOrID)
+}
+
+func selectServiceByNameOrID(servicesByID map[string]api.Service, nameOrID string) (api.Service, error) {
 	// Containers from different services may share the same service name (distributed and eventually consistent store
 	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
 	// priority over matching by name.
@@ -139,11 +147,11 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	}
 	switch len(matches) {
 	case 0:
-		return svc, api.ErrNotFound
+		return api.Service{}, api.ErrNotFound
 	case 1:
 		return matches[0], nil
 	default:
-		return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
+		return api.Service{}, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
 	}
 }
 

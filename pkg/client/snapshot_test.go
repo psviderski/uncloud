@@ -43,6 +43,10 @@ func (f *fakeSnapshotClient) ListServices(context.Context) ([]api.Service, error
 	return nil, nil
 }
 
+func (f *fakeSnapshotClient) InspectService(context.Context, string) (api.Service, error) {
+	return api.Service{}, api.ErrNotFound
+}
+
 func (f *fakeSnapshotClient) GetDomain(context.Context) (string, error) {
 	return "", f.getDomainErr
 }

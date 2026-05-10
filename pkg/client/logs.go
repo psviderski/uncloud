@@ -7,7 +7,6 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -22,11 +21,81 @@ import (
 func (cli *Client) ServiceLogs(
 	ctx context.Context, serviceNameOrID string, opts api.ServiceLogsOptions,
 ) (api.Service, <-chan api.ServiceLogEntry, error) {
-	snapshot, err := cli.NewClusterSnapshot(ctx, ClusterSnapshotOptions{Machines: true, Services: true})
+	svc, err := cli.InspectService(ctx, serviceNameOrID)
 	if err != nil {
-		return api.Service{}, nil, fmt.Errorf("load cluster snapshot: %w", err)
+		return svc, nil, fmt.Errorf("inspect service: %w", err)
 	}
-	return cli.ServiceLogsWithSnapshot(ctx, snapshot, serviceNameOrID, opts)
+
+	containers := append(svc.Containers, svc.HookContainers...)
+	if len(containers) == 0 {
+		return svc, nil, fmt.Errorf("no containers found for service: %s", serviceNameOrID)
+	}
+
+	if len(opts.Containers) > 0 {
+		selected := make(map[string]api.MachineServiceContainer, len(opts.Containers))
+		for _, nameOrID := range opts.Containers {
+			ctr, err := svc.FindContainer(nameOrID)
+			if err != nil {
+				return svc, nil, fmt.Errorf("find container '%s' in service '%s': %w",
+					nameOrID, serviceNameOrID, err)
+			}
+			selected[ctr.Container.ID] = ctr
+		}
+
+		containers = slices.Collect(maps.Values(selected))
+	}
+
+	machines, err := cli.ListMachines(ctx, &api.MachineFilter{
+		NamesOrIDs: opts.Machines,
+	})
+	if err != nil {
+		return svc, nil, fmt.Errorf("list machines: %w", err)
+	}
+
+	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(containers))
+	for _, ctr := range containers {
+		// Skip containers not running on the specified machines.
+		m := machines.FindByNameOrID(ctr.MachineID)
+		if len(opts.Machines) > 0 && m == nil {
+			continue
+		}
+
+		// Machine name for ServiceLogEntry metadata and friendlier error message.
+		machineName := ctr.MachineID
+		if m != nil {
+			machineName = m.Machine.Name
+		}
+
+		stream, err := cli.ContainerLogs(ctx, ctr.MachineID, ctr.Container.ID, opts)
+		if err != nil {
+			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
+			//  be critical when used as SDK.
+			return svc, nil, fmt.Errorf("stream logs from service container '%s' on machine '%s': %w",
+				stringid.TruncateID(ctr.Container.ID), machineName, err)
+		}
+
+		// Enrich log entries from the container with service metadata.
+		metadata := api.ServiceLogEntryMetadata{
+			ServiceID:   svc.ID,
+			ServiceName: svc.Name,
+			ContainerID: ctr.Container.ID,
+			MachineID:   ctr.MachineID,
+			MachineName: machineName,
+			Hook:        ctr.Container.Config.Labels[api.LabelHook],
+		}
+		enrichedStream := logsStreamWithServiceMetadata(stream, metadata)
+		ctrStreams = append(ctrStreams, enrichedStream)
+	}
+
+	if len(ctrStreams) == 0 {
+		return svc, nil, errors.New("no service containers found on the specified machine(s)")
+	}
+
+	// Use the log merger to combine streams from all containers in chronological order.
+	merger := NewLogMerger(ctrStreams, DefaultLogMergerOptions)
+	mergedStream := merger.Stream()
+
+	return svc, mergedStream, nil
 }
 
 // ServiceLogsWithSnapshot is the snapshot-aware variant of ServiceLogs for callers that already
@@ -34,6 +103,13 @@ func (cli *Client) ServiceLogs(
 func (cli *Client) ServiceLogsWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, serviceNameOrID string, opts api.ServiceLogsOptions,
 ) (api.Service, <-chan api.ServiceLogEntry, error) {
+	if !snapshot.HasServices() {
+		return api.Service{}, nil, errors.New("cluster snapshot does not include services")
+	}
+	if !snapshot.HasMachines() {
+		return api.Service{}, nil, errors.New("cluster snapshot does not include machines")
+	}
+
 	svc, ok := snapshot.FindServiceByID(serviceNameOrID)
 	if !ok {
 		var err error
@@ -78,13 +154,15 @@ func (cli *Client) ServiceLogsWithSnapshot(
 			}
 		}
 		m := snapshot.FindMachineByNameOrID(ctr.MachineID)
+		machineName := ctr.MachineID
+		var stream <-chan api.LogEntry
 		if m == nil {
-			return svc, nil, fmt.Errorf("machine '%s' not found in snapshot", ctr.MachineID)
+			stream, err = cli.ContainerLogs(ctx, ctr.MachineID, ctr.Container.ID, opts)
+		} else {
+			machineName = m.Machine.Name
+			stream, err = cli.containerLogs(ctx, proxyToMachine(ctx, m.Machine), ctr.Container.ID, opts)
 		}
 
-		machineName := m.Machine.Name
-
-		stream, err := cli.containerLogsFromMachine(ctx, m.Machine, ctr.Container.ID, opts)
 		if err != nil {
 			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
 			//  be critical when used as SDK.
@@ -126,12 +204,6 @@ func (cli *Client) ContainerLogs(
 	}
 
 	return cli.containerLogs(ctx, proxyCtx, containerID, opts)
-}
-
-func (cli *Client) containerLogsFromMachine(
-	ctx context.Context, machine *pb.MachineInfo, containerID string, opts api.ServiceLogsOptions,
-) (<-chan api.LogEntry, error) {
-	return cli.containerLogs(ctx, proxyToMachine(ctx, machine), containerID, opts)
 }
 
 func (cli *Client) containerLogs(
@@ -207,6 +279,10 @@ func (cli *Client) MachineLogs(
 func (cli *Client) MachineLogsWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, unit string, opts api.ServiceLogsOptions,
 ) (<-chan api.ServiceLogEntry, error) {
+	if !snapshot.HasMachines() {
+		return nil, errors.New("cluster snapshot does not include machines")
+	}
+
 	machines, err := selectSnapshotMachines(snapshot, opts.Machines)
 	if err != nil {
 		return nil, err
@@ -217,7 +293,7 @@ func (cli *Client) MachineLogsWithSnapshot(
 
 	streams := make([]<-chan api.ServiceLogEntry, 0, len(machines))
 	for _, m := range machines {
-		ch, err := cli.systemdServiceLogsFromMachine(ctx, m.Machine, unit, opts)
+		ch, err := cli.systemdServiceLogsWithContext(ctx, proxyToMachine(ctx, m.Machine), unit, opts)
 		if err != nil {
 			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
 			//  be critical when used as SDK.
@@ -249,12 +325,6 @@ func (cli *Client) systemdServiceLogs(
 	}
 
 	return cli.systemdServiceLogsWithContext(ctx, proxyCtx, unit, opts)
-}
-
-func (cli *Client) systemdServiceLogsFromMachine(
-	ctx context.Context, machine *pb.MachineInfo, unit string, opts api.ServiceLogsOptions,
-) (<-chan api.LogEntry, error) {
-	return cli.systemdServiceLogsWithContext(ctx, proxyToMachine(ctx, machine), unit, opts)
 }
 
 func (cli *Client) systemdServiceLogsWithContext(
@@ -312,23 +382,7 @@ func (cli *Client) systemdServiceLogsWithContext(
 // selectSnapshotMachines returns the snapshot machines matching namesOrIDs, or all machines if empty.
 // Returns an error listing any names/IDs that do not match a machine.
 func selectSnapshotMachines(snapshot *ClusterSnapshot, namesOrIDs []string) (api.MachineMembersList, error) {
-	if len(namesOrIDs) == 0 {
-		return snapshot.Machines, nil
-	}
-
-	machines := make(api.MachineMembersList, 0, len(namesOrIDs))
-	var notFound []string
-	for _, nameOrID := range namesOrIDs {
-		if m := snapshot.FindMachineByNameOrID(nameOrID); m != nil {
-			machines = append(machines, m)
-		} else {
-			notFound = append(notFound, nameOrID)
-		}
-	}
-	if len(notFound) > 0 {
-		return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
-	}
-	return machines, nil
+	return snapshot.SelectMachines(namesOrIDs)
 }
 
 // resolveMachineIDFilter resolves namesOrIDs into a set of canonical machine IDs.

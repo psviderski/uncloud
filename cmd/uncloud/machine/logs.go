@@ -96,16 +96,9 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		return fmt.Errorf("load cluster snapshot: %w", err)
 	}
 
-	machineSource := snapshot.Machines
-	if len(logsOpts.Machines) > 0 {
-		machineSource = make(api.MachineMembersList, 0, len(logsOpts.Machines))
-		for _, nameOrID := range logsOpts.Machines {
-			m := snapshot.FindMachineByNameOrID(nameOrID)
-			if m == nil {
-				return fmt.Errorf("machine not found: %s", nameOrID)
-			}
-			machineSource = append(machineSource, m)
-		}
+	machineSource, err := snapshot.SelectMachines(logsOpts.Machines)
+	if err != nil {
+		return err
 	}
 	machineNames := make([]string, 0, len(machineSource))
 	for _, m := range machineSource {

@@ -34,7 +34,11 @@ func TestDeploymentPlanUsesSnapshotForCurrentServices(t *testing.T) {
 	_, err = deployment.Plan(context.Background())
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, fake.snapshotCalls)
+	assert.Equal(t, 2, fake.snapshotCalls)
+	require.Len(t, fake.snapshotOptions, 2)
+	assert.True(t, fake.snapshotOptions[0].Domain)
+	assert.True(t, fake.snapshotOptions[1].Services)
+	assert.Len(t, fake.snapshotOptions[1].ServiceNamesOrIDs, 20)
 	assert.Equal(t, 0, fake.getDomainCalls)
 	assert.Equal(t, 0, fake.inspectServiceCalls)
 	require.Len(t, strategy.calls, 20)
@@ -66,6 +70,45 @@ func TestDeploymentPlanErrorsOnDuplicateSnapshotServiceNames(t *testing.T) {
 	_, err = deployment.Plan(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "multiple services found with name 'svc01'")
+	assert.Equal(t, 0, fake.inspectServiceCalls)
+}
+
+func TestDeploymentPlanSnapshotsCurrentServicesAtPlanTime(t *testing.T) {
+	project, err := LoadProjectFromContent(context.Background(), composeYAML(1))
+	require.NoError(t, err)
+
+	strategy := &recordingStrategy{}
+	fake := &composeSnapshotClient{domain: "example.uncld.dev"}
+
+	deployment, err := NewDeploymentWithStrategy(context.Background(), fake, project, strategy)
+	require.NoError(t, err)
+
+	fake.services = []api.Service{
+		{ID: "svc-01", Name: "svc01", Mode: api.ServiceModeReplicated},
+	}
+	_, err = deployment.Plan(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, strategy.calls, 1)
+	require.NotNil(t, strategy.calls[0].svc)
+	assert.Equal(t, "svc-01", strategy.calls[0].svc.ID)
+}
+
+func TestDeploymentPlanValidatesSnapshotCurrentService(t *testing.T) {
+	project, err := LoadProjectFromContent(context.Background(), composeYAML(1))
+	require.NoError(t, err)
+
+	fake := &composeSnapshotClient{
+		services: []api.Service{
+			{ID: "svc-01", Name: "svc01", Mode: api.ServiceModeGlobal},
+		},
+	}
+	deployment, err := NewDeploymentWithStrategy(context.Background(), fake, project, &recordingStrategy{})
+	require.NoError(t, err)
+
+	_, err = deployment.Plan(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "service mode cannot be changed")
 	assert.Equal(t, 0, fake.inspectServiceCalls)
 }
 
@@ -116,6 +159,7 @@ type composeSnapshotClient struct {
 	domain   string
 
 	snapshotCalls       int
+	snapshotOptions     []clusterclient.ClusterSnapshotOptions
 	getDomainCalls      int
 	inspectServiceCalls int
 }
@@ -124,14 +168,36 @@ func (c *composeSnapshotClient) NewClusterSnapshot(
 	_ context.Context, opts clusterclient.ClusterSnapshotOptions,
 ) (*clusterclient.ClusterSnapshot, error) {
 	c.snapshotCalls++
+	c.snapshotOptions = append(c.snapshotOptions, opts)
 	snapshot := &clusterclient.ClusterSnapshot{}
 	if opts.Services {
-		snapshot.Services = c.services
+		snapshot.Services = matchingServices(c.services, opts.ServiceNamesOrIDs)
 	}
 	if opts.Domain {
 		snapshot.Domain = c.domain
 	}
 	return snapshot, nil
+}
+
+func matchingServices(services []api.Service, namesOrIDs []string) []api.Service {
+	if len(namesOrIDs) == 0 {
+		return services
+	}
+	want := make(map[string]struct{}, len(namesOrIDs))
+	for _, nameOrID := range namesOrIDs {
+		want[nameOrID] = struct{}{}
+	}
+	var matched []api.Service
+	for _, svc := range services {
+		if _, ok := want[svc.ID]; ok {
+			matched = append(matched, svc)
+			continue
+		}
+		if _, ok := want[svc.Name]; ok {
+			matched = append(matched, svc)
+		}
+	}
+	return matched
 }
 
 func (c *composeSnapshotClient) ListMachines(context.Context, *api.MachineFilter) (api.MachineMembersList, error) {

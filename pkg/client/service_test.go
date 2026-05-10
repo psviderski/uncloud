@@ -77,6 +77,36 @@ func TestServicesFromMachineContainersNilMetadataWithMultipleMachines(t *testing
 	assert.Contains(t, err.Error(), "metadata is missing")
 }
 
+func TestSelectServiceByNameOrIDPrefersID(t *testing.T) {
+	servicesByID := map[string]api.Service{
+		"svc-id":   {ID: "svc-id", Name: "web"},
+		"other-id": {ID: "other-id", Name: "svc-id"},
+		"third-id": {ID: "third-id", Name: "api"},
+	}
+
+	svc, err := selectServiceByNameOrID(servicesByID, "svc-id")
+	require.NoError(t, err)
+	assert.Equal(t, "svc-id", svc.ID)
+}
+
+func TestSelectServiceByNameOrIDDuplicateName(t *testing.T) {
+	servicesByID := map[string]api.Service{
+		"svc-a": {ID: "svc-a", Name: "web"},
+		"svc-b": {ID: "svc-b", Name: "web"},
+	}
+
+	_, err := selectServiceByNameOrID(servicesByID, "web")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multiple services found with name 'web'")
+}
+
+func TestSelectServiceByNameOrIDNotFound(t *testing.T) {
+	_, err := selectServiceByNameOrID(map[string]api.Service{
+		"svc-a": {ID: "svc-a", Name: "web"},
+	}, "api")
+	require.ErrorIs(t, err, api.ErrNotFound)
+}
+
 func testServiceContainer(id, serviceID, serviceName, mode string, hook bool) api.ServiceContainer {
 	labels := map[string]string{
 		api.LabelServiceID:   serviceID,
