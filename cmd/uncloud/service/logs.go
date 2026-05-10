@@ -127,6 +127,29 @@ func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 		Until:    opts.Until,
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
+	allMachines, err := c.ListMachines(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("list machines: %w", err)
+	}
+	machines, err := allMachines.SelectByNameOrID(baseOpts.Machines)
+	if err != nil {
+		return err
+	}
+
+	serviceNamesOrIDs := make([]string, 0, len(serviceArgs))
+	seenServices := make(map[string]struct{}, len(serviceArgs))
+	for _, sa := range serviceArgs {
+		if _, ok := seenServices[sa.Service]; ok {
+			continue
+		}
+		seenServices[sa.Service] = struct{}{}
+		serviceNamesOrIDs = append(serviceNamesOrIDs, sa.Service)
+	}
+
+	servicesByNameOrID, err := c.ListServicesByNameOrIDWithMachines(ctx, serviceNamesOrIDs, allMachines)
+	if err != nil {
+		return fmt.Errorf("list services: %w", err)
+	}
 
 	// Collect log streams from all services. When service names come from a Compose file,
 	// skip the ones that are not found in the cluster (they may have been removed or not deployed yet).
@@ -138,12 +161,18 @@ func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 		svcOpts := baseOpts
 		svcOpts.Containers = sa.Containers
 
-		svc, ch, err := c.ServiceLogs(ctx, sa.Service, svcOpts)
-		if err != nil {
-			if errors.Is(err, api.ErrNotFound) && fromCompose {
+		svc, ok := servicesByNameOrID[sa.Service]
+		if !ok {
+			err := api.ErrNotFound
+			if fromCompose {
 				notFoundServices = append(notFoundServices, sa.Service)
 				continue
 			}
+			return fmt.Errorf("stream logs for service '%s': %w", sa.Service, err)
+		}
+
+		svc, ch, err := c.ServiceLogsForService(ctx, svc, machines, sa.Service, svcOpts)
+		if err != nil {
 			return fmt.Errorf("stream logs for service '%s': %w", sa.Service, err)
 		}
 		svcStreams = append(svcStreams, ch)
@@ -176,13 +205,12 @@ func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 	// Fetch machine names for all machines (machineIDsSet) service containers are running on.
 	// Note: this is the full set per service, not narrowed by --machine or per-container filters,
 	// so the formatter may pad columns wider than strictly needed when filters are active.
-	machines, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: machineIDsSet.ToSlice()})
-	if err != nil {
-		return fmt.Errorf("list machines: %w", err)
-	}
-	machineNames := make([]string, 0, len(machines))
-	for _, m := range machines {
-		machineNames = append(machineNames, m.Machine.Name)
+	machineIDs := machineIDsSet.ToSlice()
+	machineNames := make([]string, 0, len(machineIDs))
+	for _, id := range machineIDs {
+		if m := machines.FindByNameOrID(id); m != nil {
+			machineNames = append(machineNames, m.Machine.Name)
+		}
 	}
 
 	formatter := logs.NewFormatter(machineNames, foundServices, opts.UTC)

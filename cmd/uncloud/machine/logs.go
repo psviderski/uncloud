@@ -89,22 +89,19 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
-	// Resolve machine records for the formatter's column width computation.
-	machines, err := c.ListMachines(ctx, &api.MachineFilter{
-		NamesOrIDs: logsOpts.Machines,
-	})
+	machineSource, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: logsOpts.Machines})
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
-	machineNames := make([]string, 0, len(machines))
-	for _, m := range machines {
+	machineNames := make([]string, 0, len(machineSource))
+	for _, m := range machineSource {
 		machineNames = append(machineNames, m.Machine.Name)
 	}
 
 	// Collect one log stream per unit. MachineLogs merges across machines internally.
 	unitStreams := make([]<-chan api.ServiceLogEntry, 0, len(units))
 	for _, unit := range units {
-		ch, err := c.MachineLogs(ctx, unit, logsOpts)
+		ch, err := c.MachineLogsWithMachines(ctx, machineSource, unit, logsOpts)
 		if err != nil {
 			return fmt.Errorf("stream logs for systemd service '%s': %w", unit, err)
 		}

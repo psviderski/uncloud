@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 	"google.golang.org/grpc/codes"
@@ -88,13 +88,17 @@ func (cli *Client) RunService(ctx context.Context, spec api.ServiceSpec) (api.Ru
 // InspectService returns detailed information about a service and its containers.
 // The nameOrID parameter can be either a service name or ID.
 func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Service, error) {
-	var svc api.Service
-
 	machines, err := cli.ListMachines(ctx, nil)
 	if err != nil {
-		return svc, fmt.Errorf("list machines: %w", err)
+		return api.Service{}, fmt.Errorf("list machines: %w", err)
 	}
 
+	return cli.inspectService(ctx, nameOrID, machines)
+}
+
+func (cli *Client) inspectService(
+	ctx context.Context, nameOrID string, machines api.MachineMembersList,
+) (api.Service, error) {
 	// Broadcast the container list request to all available machines.
 	machineIDByManagementIP := make(map[string]string)
 	md := metadata.New(nil)
@@ -113,92 +117,42 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	opts := container.ListOptions{All: true}
 	machineContainers, err := cli.Docker.ListServiceContainers(listCtx, nameOrID, opts)
 	if err != nil {
-		return svc, fmt.Errorf("list containers: %w", err)
+		return api.Service{}, fmt.Errorf("list containers: %w", err)
 	}
 
-	// Collect all containers on all machines that belong to the specified service.
-	foundByID := false
-	var containers []api.MachineServiceContainer
-	for _, mc := range machineContainers {
-		// Metadata can be nil if the request was broadcasted to only one machine.
-		if mc.Metadata == nil && len(machineContainers) > 1 {
-			return svc, errors.New("something went wrong with gRPC proxy: metadata is missing for a machine response")
-		}
-		if mc.Metadata != nil && mc.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
-				mc.Metadata.Machine, mc.Metadata.Error)
-			continue
-		}
-
-		machineID := ""
-		if mc.Metadata == nil {
-			// ListServiceContainers was proxied to only one machine.
-			for _, v := range machineIDByManagementIP {
-				machineID = v
-				break
-			}
-		} else {
-			var ok bool
-			machineID, ok = machineIDByManagementIP[mc.Metadata.Machine]
-			if !ok {
-				return svc, fmt.Errorf("machine name not found for management IP: %s", mc.Metadata.Machine)
-			}
-		}
-
-		// Collect both regular and hook containers for the service.
-		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
-			containers = append(containers, api.MachineServiceContainer{
-				MachineID: machineID,
-				Container: ctr,
-			})
-
-			if ctr.ServiceID() == nameOrID {
-				foundByID = true
-			}
-		}
+	servicesByID, err := servicesFromMachineContainers(machineContainers, machineIDByManagementIP)
+	if err != nil {
+		return api.Service{}, err
+	}
+	if len(servicesByID) == 0 {
+		return api.Service{}, api.ErrNotFound
 	}
 
-	if len(containers) == 0 {
-		return svc, api.ErrNotFound
-	}
+	return selectServiceByNameOrID(servicesByID, nameOrID)
+}
 
+func selectServiceByNameOrID(servicesByID map[string]api.Service, nameOrID string) (api.Service, error) {
 	// Containers from different services may share the same service name (distributed and eventually consistent store
 	// may not prevent this), or a service name might match another service's ID. In these cases, matching by ID takes
 	// priority over matching by name.
-	if foundByID {
-		containers = slices.DeleteFunc(containers, func(mc api.MachineServiceContainer) bool {
-			return mc.Container.ServiceID() != nameOrID
-		})
-	} else {
-		// Matched only by name but there could be multiple services with the same name.
-		serviceID := containers[0].Container.ServiceID()
-		for _, mc := range containers[1:] {
-			if mc.Container.ServiceID() != serviceID {
-				return svc, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
-			}
+	if svc, ok := servicesByID[nameOrID]; ok {
+		return svc, nil
+	}
+
+	var matches []api.Service
+	for _, candidate := range servicesByID {
+		if candidate.Name == nameOrID {
+			matches = append(matches, candidate)
 		}
 	}
-
-	// Partition containers into regular service containers and hook containers.
-	var serviceContainers, hookContainers []api.MachineServiceContainer
-	for _, mc := range containers {
-		if mc.Container.IsHook() {
-			hookContainers = append(hookContainers, mc)
-		} else {
-			serviceContainers = append(serviceContainers, mc)
-		}
+	switch len(matches) {
+	case 0:
+		return api.Service{}, api.ErrNotFound
+	case 1:
+		return matches[0], nil
+	default:
+		return api.Service{}, fmt.Errorf("multiple services found with name '%s', use the service ID instead", nameOrID)
 	}
-
-	svc = api.Service{
-		ID:             containers[0].Container.ServiceID(),
-		Name:           containers[0].Container.ServiceName(),
-		Mode:           containers[0].Container.ServiceMode(),
-		Containers:     serviceContainers,
-		HookContainers: hookContainers,
-	}
-
-	return svc, nil
 }
 
 // InspectServiceFromStore returns detailed information about a service and its containers from the distributed store.
@@ -349,12 +303,90 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		return nil, fmt.Errorf("list machines: %w", err)
 	}
 
+	servicesByID, err := cli.listServices(ctx, machines)
+	if err != nil {
+		return nil, err
+	}
+
+	services := make([]api.Service, 0, len(servicesByID))
+	for _, svc := range servicesByID {
+		services = append(services, svc)
+	}
+	return services, nil
+}
+
+// ListServicesByNameOrID returns the matching services keyed by the requested names or IDs.
+// Missing services are omitted from the result.
+func (cli *Client) ListServicesByNameOrID(ctx context.Context, namesOrIDs []string) (map[string]api.Service, error) {
+	machines, err := cli.ListMachines(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("list machines: %w", err)
+	}
+
+	return cli.ListServicesByNameOrIDWithMachines(ctx, namesOrIDs, machines)
+}
+
+// ListServicesByNameOrIDWithMachines returns the matching services using an already-resolved machine list.
+func (cli *Client) ListServicesByNameOrIDWithMachines(
+	ctx context.Context, namesOrIDs []string, machines api.MachineMembersList,
+) (map[string]api.Service, error) {
+	matched := make(map[string]api.Service, len(namesOrIDs))
+	if len(namesOrIDs) == 0 {
+		return matched, nil
+	}
+
+	if len(namesOrIDs) == 1 {
+		svc, err := cli.inspectService(ctx, namesOrIDs[0], machines)
+		if errors.Is(err, api.ErrNotFound) {
+			return matched, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		matched[namesOrIDs[0]] = svc
+		return matched, nil
+	}
+
+	servicesByID, err := cli.listServices(ctx, machines)
+	if err != nil {
+		return nil, err
+	}
+
+	return matchServicesByNameOrID(servicesByID, namesOrIDs)
+}
+
+func matchServicesByNameOrID(
+	servicesByID map[string]api.Service, namesOrIDs []string,
+) (map[string]api.Service, error) {
+	matched := make(map[string]api.Service, len(namesOrIDs))
+	for _, nameOrID := range namesOrIDs {
+		if _, ok := matched[nameOrID]; ok {
+			continue
+		}
+		svc, err := selectServiceByNameOrID(servicesByID, nameOrID)
+		if errors.Is(err, api.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		matched[nameOrID] = svc
+	}
+
+	return matched, nil
+}
+
+func (cli *Client) listServices(
+	ctx context.Context, machines api.MachineMembersList,
+) (map[string]api.Service, error) {
 	// Broadcast the container list request to all available machines.
+	machineIDByManagementIP := make(map[string]string)
 	md := metadata.New(nil)
 	for _, m := range machines {
 		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
 			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
 			md.Append("machines", machineIP.String())
+			machineIDByManagementIP[machineIP.String()] = m.Machine.Id
 		}
 		// TODO: warning about machines that are DOWN.
 	}
@@ -367,10 +399,25 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 
-	// TODO: optimise by extracting services from the list of all containers instead of inspecting each service.
-	//  Most of the code can be reused in both InspectService and ListServices.
+	servicesByID, err := servicesFromMachineContainers(machineContainers, machineIDByManagementIP)
+	if err != nil {
+		return nil, err
+	}
+
+	return servicesByID, nil
+}
+
+func servicesFromMachineContainers(
+	machineContainers []machinedocker.MachineServiceContainers,
+	machineIDByManagementIP map[string]string,
+) (map[string]api.Service, error) {
 	servicesByID := make(map[string]api.Service)
+
 	for _, mc := range machineContainers {
+		// Metadata can be nil if the request was broadcasted to only one machine.
+		if mc.Metadata == nil && len(machineContainers) > 1 {
+			return nil, errors.New("something went wrong with gRPC proxy: metadata is missing for a machine response")
+		}
 		if mc.Metadata != nil && mc.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
 			fmt.Fprintf(os.Stderr, "WARNING: failed to list containers on machine '%s': %s\n",
@@ -378,26 +425,56 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 			continue
 		}
 
-		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
-			if _, ok := servicesByID[ctr.ServiceID()]; ok {
-				continue
+		machineID := ""
+		if mc.Metadata == nil {
+			// ListServiceContainers was proxied to only one machine.
+			for _, v := range machineIDByManagementIP {
+				machineID = v
+				break
 			}
-
-			svc, err := cli.InspectService(ctx, ctr.ServiceID())
-			if err != nil {
-				if errors.Is(err, api.ErrNotFound) {
-					continue
-				}
-				return nil, fmt.Errorf("inspect service: %w", err)
+		} else {
+			var ok bool
+			machineID, ok = machineIDByManagementIP[mc.Metadata.Machine]
+			if !ok {
+				return nil, fmt.Errorf("machine name not found for management IP: %s", mc.Metadata.Machine)
 			}
+		}
 
-			servicesByID[ctr.ServiceID()] = svc
+		for _, ctr := range mc.Containers {
+			addServiceContainer(servicesByID, machineID, ctr, false)
+		}
+		for _, ctr := range mc.HookContainers {
+			addServiceContainer(servicesByID, machineID, ctr, true)
 		}
 	}
 
-	services := make([]api.Service, 0, len(servicesByID))
-	for _, svc := range servicesByID {
-		services = append(services, svc)
+	return servicesByID, nil
+}
+
+func addServiceContainer(
+	servicesByID map[string]api.Service,
+	machineID string,
+	ctr api.ServiceContainer,
+	hook bool,
+) {
+	serviceID := ctr.ServiceID()
+	svc := servicesByID[serviceID]
+	if svc.ID == "" {
+		svc = api.Service{
+			ID:   serviceID,
+			Name: ctr.ServiceName(),
+			Mode: ctr.ServiceMode(),
+		}
 	}
-	return services, nil
+
+	mc := api.MachineServiceContainer{
+		MachineID: machineID,
+		Container: ctr,
+	}
+	if hook {
+		svc.HookContainers = append(svc.HookContainers, mc)
+	} else {
+		svc.Containers = append(svc.Containers, mc)
+	}
+	servicesByID[serviceID] = svc
 }

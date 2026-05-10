@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -42,22 +41,10 @@ func (cli *Client) ListMachines(ctx context.Context, filter *api.MachineFilter) 
 		return machines, nil
 	}
 
-	// Apply the filter.
 	if len(filter.NamesOrIDs) > 0 {
-		var matched api.MachineMembersList
-		var notFound []string
-
-		for _, nameOrID := range filter.NamesOrIDs {
-			if m := machines.FindByNameOrID(nameOrID); m != nil {
-				matched = append(matched, m)
-			} else {
-				notFound = append(notFound, nameOrID)
-			}
-		}
-		machines = matched
-
-		if len(notFound) > 0 {
-			return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
+		machines, err = machines.SelectByNameOrID(filter.NamesOrIDs)
+		if err != nil {
+			return nil, err
 		}
 	}
 

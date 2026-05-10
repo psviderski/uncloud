@@ -33,8 +33,7 @@ type Deployment struct {
 	Strategy Strategy
 	cli      Client
 	plan     *ServicePlan
-	// state is an optional current and planned cluster state used for scheduling decisions.
-	state *scheduler.ClusterState
+	state    *scheduler.ClusterState
 }
 
 type ServicePlan struct {
@@ -322,9 +321,9 @@ func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
 		}
 	}
 
-	plan, err := d.Strategy.Plan(d.state, d.Service, resolvedSpec)
+	plan, err := PlanService(d.state, d.Service, resolvedSpec, d.Strategy)
 	if err != nil {
-		return ServicePlan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
+		return ServicePlan{}, err
 	}
 	d.plan = &plan
 
@@ -345,26 +344,53 @@ func (d *Deployment) Validate(ctx context.Context) error {
 			return fmt.Errorf("inspect service: %w", err)
 		}
 	}
-	// d.Service is nil if the service doesn't exist yet (first deployment).
-	if d.Service == nil {
+
+	return ValidateServiceUpdate(d.Spec, d.Service)
+}
+
+// ValidateServiceUpdate checks whether spec can be applied to the current service.
+func ValidateServiceUpdate(spec api.ServiceSpec, current *api.Service) error {
+	if err := spec.Validate(); err != nil {
+		return fmt.Errorf("invalid service spec: %w", err)
+	}
+
+	// current is nil if the service doesn't exist yet (first deployment).
+	if current == nil {
 		return nil
 	}
 
-	if d.Service.Name != d.Spec.Name {
+	if current.Name != spec.Name {
 		return errors.New("service name cannot be changed")
 	}
 
 	// Resolve the default mode if not specified.
-	mode := d.Spec.Mode
+	mode := spec.Mode
 	if mode == "" {
 		mode = api.ServiceModeReplicated
 	}
 
-	if mode != d.Service.Mode {
+	if mode != current.Mode {
 		return errors.New("service mode cannot be changed")
 	}
 
 	return nil
+}
+
+// PlanService creates a service plan from already-resolved inputs.
+func PlanService(
+	state *scheduler.ClusterState, current *api.Service, spec api.ServiceSpec, strategy Strategy,
+) (ServicePlan, error) {
+	if strategy == nil {
+		strategy = &RollingStrategy{}
+	}
+	if err := ValidateServiceUpdate(spec, current); err != nil {
+		return ServicePlan{}, fmt.Errorf("invalid deployment: %w", err)
+	}
+	plan, err := strategy.Plan(state, current, spec)
+	if err != nil {
+		return ServicePlan{}, fmt.Errorf("create plan using %s strategy: %w", strategy.Type(), err)
+	}
+	return plan, nil
 }
 
 // Run executes the deployment plan and returns the ID of the created or updated service.

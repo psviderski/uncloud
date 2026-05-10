@@ -18,8 +18,11 @@ import (
 )
 
 type Client interface {
-	api.DNSClient
 	deploy.Client
+}
+
+type serviceBatchClient interface {
+	ListServicesByNameOrID(ctx context.Context, namesOrIDs []string) (map[string]api.Service, error)
 }
 
 type Deployment struct {
@@ -41,9 +44,9 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		return nil, fmt.Errorf("inspect cluster state: %w", err)
 	}
 
-	domain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, api.ErrNotFound) {
-		return nil, fmt.Errorf("get cluster domain: %w", err)
+	domain, err := clusterDomain(ctx, cli)
+	if err != nil {
+		return nil, err
 	}
 	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
@@ -84,6 +87,11 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		return plan, err
 	}
 
+	currentServices, err := d.currentServices(ctx, serviceSpecs)
+	if err != nil {
+		return plan, err
+	}
+
 	// Check external volumes and plan the creation of missing volumes before deploying services.
 	// Updates the cluster state (d.state) with the scheduled volumes.
 	volumeOps, err := d.planVolumes(serviceSpecs)
@@ -95,8 +103,12 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
 		// Pass the updated cluster state with the scheduled volumes to the deployment.
-		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
-		servicePlan, err := deployment.Plan(ctx)
+		resolvedSpec, err := d.SpecResolver.Resolve(spec)
+		if err != nil {
+			return plan, fmt.Errorf("resolve service spec for service '%s': %w", spec.Name, err)
+		}
+
+		servicePlan, err := deploy.PlanService(d.state, currentServices[spec.Name], resolvedSpec, d.Strategy)
 		if err != nil {
 			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
 		}
@@ -109,6 +121,57 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 
 	d.plan = &plan
 	return plan, nil
+}
+
+func clusterDomain(ctx context.Context, cli Client) (string, error) {
+	domain, err := cli.GetDomain(ctx)
+	if err != nil && !errors.Is(err, api.ErrNotFound) {
+		return "", fmt.Errorf("get cluster domain: %w", err)
+	}
+	return domain, nil
+}
+
+func (d *Deployment) currentServices(
+	ctx context.Context, serviceSpecs []api.ServiceSpec,
+) (map[string]*api.Service, error) {
+	names := make([]string, 0, len(serviceSpecs))
+	seen := make(map[string]struct{}, len(serviceSpecs))
+	for _, spec := range serviceSpecs {
+		if _, ok := seen[spec.Name]; ok {
+			continue
+		}
+		seen[spec.Name] = struct{}{}
+		names = append(names, spec.Name)
+	}
+
+	servicesByName := make(map[string]*api.Service, len(names))
+	if batchClient, ok := d.Client.(serviceBatchClient); ok {
+		services, err := batchClient.ListServicesByNameOrID(ctx, names)
+		if err != nil {
+			return nil, fmt.Errorf("list current services: %w", err)
+		}
+		for _, name := range names {
+			svc, ok := services[name]
+			if ok {
+				svc := svc
+				servicesByName[name] = &svc
+			}
+		}
+		return servicesByName, nil
+	}
+
+	for _, name := range names {
+		svc, err := d.Client.InspectService(ctx, name)
+		if errors.Is(err, api.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("inspect service '%s': %w", name, err)
+		}
+		svcCopy := svc
+		servicesByName[name] = &svcCopy
+	}
+	return servicesByName, nil
 }
 
 // ServiceSpec returns the service specification for the given compose service that is ready for deployment.

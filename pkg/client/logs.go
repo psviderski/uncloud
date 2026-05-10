@@ -26,6 +26,24 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("inspect service: %w", err)
 	}
 
+	machines, err := cli.ListMachines(ctx, &api.MachineFilter{
+		NamesOrIDs: opts.Machines,
+	})
+	if err != nil {
+		return svc, nil, fmt.Errorf("list machines: %w", err)
+	}
+
+	return cli.ServiceLogsForService(ctx, svc, machines, serviceNameOrID, opts)
+}
+
+// ServiceLogsForService streams logs for an already-resolved service on the selected machines.
+func (cli *Client) ServiceLogsForService(
+	ctx context.Context,
+	svc api.Service,
+	machines api.MachineMembersList,
+	serviceNameOrID string,
+	opts api.ServiceLogsOptions,
+) (api.Service, <-chan api.ServiceLogEntry, error) {
 	containers := append(svc.Containers, svc.HookContainers...)
 	if len(containers) == 0 {
 		return svc, nil, fmt.Errorf("no containers found for service: %s", serviceNameOrID)
@@ -45,28 +63,15 @@ func (cli *Client) ServiceLogs(
 		containers = slices.Collect(maps.Values(selected))
 	}
 
-	machines, err := cli.ListMachines(ctx, &api.MachineFilter{
-		NamesOrIDs: opts.Machines,
-	})
-	if err != nil {
-		return svc, nil, fmt.Errorf("list machines: %w", err)
-	}
-
 	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(containers))
 	for _, ctr := range containers {
-		// Skip containers not running on the specified machines.
 		m := machines.FindByNameOrID(ctr.MachineID)
-		if len(opts.Machines) > 0 && m == nil {
+		if m == nil {
 			continue
 		}
 
-		// Machine name for ServiceLogEntry metadata and friendlier error message.
-		machineName := ctr.MachineID
-		if m != nil {
-			machineName = m.Machine.Name
-		}
-
-		stream, err := cli.ContainerLogs(ctx, ctr.MachineID, ctr.Container.ID, opts)
+		machineName := m.Machine.Name
+		stream, err := cli.containerLogs(ctx, proxyToMachine(ctx, m.Machine), ctr.Container.ID, opts)
 		if err != nil {
 			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
 			//  be critical when used as SDK.
@@ -107,6 +112,12 @@ func (cli *Client) ContainerLogs(
 		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineNameOrID, err)
 	}
 
+	return cli.containerLogs(ctx, proxyCtx, containerID, opts)
+}
+
+func (cli *Client) containerLogs(
+	ctx context.Context, proxyCtx context.Context, containerID string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
 	req := &pb.LogsRequest{
 		Id:     containerID,
 		Follow: opts.Follow,
@@ -169,13 +180,20 @@ func (cli *Client) MachineLogs(
 	if err != nil {
 		return nil, fmt.Errorf("list machines: %w", err)
 	}
+	return cli.MachineLogsWithMachines(ctx, machines, unit, opts)
+}
+
+// MachineLogsWithMachines streams machine logs for an already-resolved machine list.
+func (cli *Client) MachineLogsWithMachines(
+	ctx context.Context, machines api.MachineMembersList, unit string, opts api.ServiceLogsOptions,
+) (<-chan api.ServiceLogEntry, error) {
 	if len(machines) == 0 {
 		return nil, errors.New("no machines found")
 	}
 
 	streams := make([]<-chan api.ServiceLogEntry, 0, len(machines))
 	for _, m := range machines {
-		ch, err := cli.systemdServiceLogs(ctx, m.Machine.Id, unit, opts)
+		ch, err := cli.systemdServiceLogsWithContext(ctx, proxyToMachine(ctx, m.Machine), unit, opts)
 		if err != nil {
 			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
 			//  be critical when used as SDK.
@@ -206,6 +224,12 @@ func (cli *Client) systemdServiceLogs(
 		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineID, err)
 	}
 
+	return cli.systemdServiceLogsWithContext(ctx, proxyCtx, unit, opts)
+}
+
+func (cli *Client) systemdServiceLogsWithContext(
+	ctx context.Context, proxyCtx context.Context, unit string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
 	req := &pb.LogsRequest{
 		Id:     unit,
 		Follow: opts.Follow,

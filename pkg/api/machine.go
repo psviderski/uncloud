@@ -1,6 +1,11 @@
 package api
 
-import "github.com/psviderski/uncloud/internal/machine/api/pb"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+)
 
 // MachineFilter defines criteria to filter machines in ListMachines.
 type MachineFilter struct {
@@ -35,4 +40,25 @@ func (m MachineMembersList) FindByNameOrID(nameOrID string) *pb.MachineMember {
 	}
 
 	return nil
+}
+
+func (m MachineMembersList) SelectByNameOrID(namesOrIDs []string) (MachineMembersList, error) {
+	if len(namesOrIDs) == 0 {
+		return m, nil
+	}
+
+	var selected MachineMembersList
+	var notFound []string
+	for _, nameOrID := range namesOrIDs {
+		if machine := m.FindByNameOrID(nameOrID); machine != nil {
+			selected = append(selected, machine)
+		} else {
+			notFound = append(notFound, nameOrID)
+		}
+	}
+	if len(notFound) > 0 {
+		return nil, fmt.Errorf("machines not found: %s", strings.Join(notFound, ", "))
+	}
+
+	return selected, nil
 }

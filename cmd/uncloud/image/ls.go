@@ -88,23 +88,15 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 	defer clusterClient.Close()
 
-	// Get all machines to create ID to name mapping.
-	allMachines, err := clusterClient.ListMachines(ctx, nil)
+	machines, err := clusterClient.ListMachines(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
 
-	machineIDToName := make(map[string]string)
-	for _, machineMember := range allMachines {
-		if machineMember.Machine != nil && machineMember.Machine.Id != "" && machineMember.Machine.Name != "" {
-			machineIDToName[machineMember.Machine.Id] = machineMember.Machine.Name
-		}
-	}
+	machineNamesOrIDs := cli.ExpandCommaSeparatedValues(opts.machines)
 
-	machines := cli.ExpandCommaSeparatedValues(opts.machines)
-
-	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{
-		Machines: machines,
+	clusterImages, err := clusterClient.ListImagesWithMachines(ctx, machines, api.ImageFilter{
+		Machines: machineNamesOrIDs,
 		Name:     opts.nameFilter,
 	})
 	if err != nil {
@@ -117,7 +109,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	for _, machineImages := range clusterImages {
 		// Get machine name for better readability.
 		machineName := machineImages.Metadata.Machine
-		if m := allMachines.FindByNameOrID(machineName); m != nil {
+		if m := machines.FindByNameOrID(machineName); m != nil {
 			machineName = m.Machine.Name
 		}
 
