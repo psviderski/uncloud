@@ -15,13 +15,15 @@ func addrOfPrefix(prefix netip.Prefix) ([]string, error) {
 	var addrs []string
 	for _, ifi := range ifis {
 		ifaddrs, _ := ifi.Addrs()
+		println(len(ifaddrs))
 		for _, addr := range ifaddrs {
-			ip, err := netip.ParseAddr(addr.String())
-			if err != nil {
+			ipnet, ok := addr.(*net.IPNet)
+			if !ok {
 				continue
 			}
-			if prefix.Contains(ip) {
-				addrs = append(addrs, ip.String())
+			nip, _ := netip.ParseAddr(ipnet.IP.String()) // round about way is needed to get ipv6 addrs, not mapped v4 in v6.
+			if prefix.Contains(nip) {
+				addrs = append(addrs, nip.String())
 			}
 		}
 	}
