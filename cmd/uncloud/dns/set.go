@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/miekg/dns"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -32,13 +33,16 @@ func NewSetCommand() *cobra.Command {
 }
 
 func set(ctx context.Context, uncli *cli.CLI, name string) error {
+	labels, ok := dns.IsDomainName(name)
+	if !ok || labels < 3 {
+		return fmt.Errorf("domain '%s' is not a valid name", name)
+	}
+
 	clusterClient, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer clusterClient.Close()
-
-	// need 2 dots normally, and most be domain name.
 
 	domain, err := clusterClient.SetDomain(ctx, &pb.SetDomainRequest{Name: name})
 	if err != nil {
