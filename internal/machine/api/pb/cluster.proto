@@ -15,6 +15,7 @@ service Cluster {
   rpc RemoveMachine(RemoveMachineRequest) returns (google.protobuf.Empty);
 
   rpc ReserveDomain(ReserveDomainRequest) returns (Domain);
+  rpc SetDomain(SetDomainRequest) returns (Domain);
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
   rpc ReleaseDomain(google.protobuf.Empty) returns (Domain);
   rpc CreateDomainRecords(CreateDomainRecordsRequest) returns (CreateDomainRecordsResponse);
@@ -75,6 +76,10 @@ message Domain {
 
 message ReserveDomainRequest {
   string endpoint = 1;
+}
+
+message SetDomainRequest {
+  string name = 1;
 }
 
 message CreateDomainRecordsRequest {
