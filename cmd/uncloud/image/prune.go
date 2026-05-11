@@ -9,6 +9,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -34,7 +35,7 @@ func NewPruneCommand() *cobra.Command {
 				} else {
 					fmt.Println("WARNING! This will remove all dangling images.")
 				}
-				confirmed, err := cli.Confirm()
+				confirmed, err := tui.Confirm("Are you sure you want to continue?")
 				if err != nil {
 					return err
 				}

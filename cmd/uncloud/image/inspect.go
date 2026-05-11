@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -48,19 +49,19 @@ func inspect(ctx context.Context, uncli *cli.CLI, images []string) error {
 					machineName = m.Machine.Name
 				}
 
-				fmt.Printf("Machine: %s\n", machineName)
-				if mi.Metadata.Error != "" {
-					fmt.Printf("Error: %s\n", mi.Metadata.Error)
-					continue
-				}
+			fmt.Printf("Machine: %s\n", machineName)
+			if mi.Metadata.Error != "" {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", mi.Metadata.Error)
+				continue
+			}
 
-				// Pretty print the image info
-				b, err := json.MarshalIndent(mi.Image, "", "    ")
-				if err != nil {
-					fmt.Printf("Error marshaling image info: %v\n", err)
-					continue
-				}
-				fmt.Println(string(b))
+			// Pretty print the image info
+			b, err := json.MarshalIndent(mi.Image, "", "    ")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error marshaling image info: %v\n", err)
+				continue
+			}
+			fmt.Println(string(b))
 			}
 			continue
 		}
@@ -68,13 +69,13 @@ func inspect(ctx context.Context, uncli *cli.CLI, images []string) error {
 		// If not found on cluster, try remote inspect from registry.
 		// For other errors (network, auth, etc.), report them directly.
 		if !errors.Is(err, api.ErrNotFound) {
-			fmt.Printf("Error inspecting image '%s': %v\n", img, err)
+			fmt.Fprintf(os.Stderr, "Error inspecting image '%s': %v\n", img, err)
 			continue
 		}
 
 		remoteImages, err := clusterClient.InspectRemoteImage(ctx, img)
 		if err != nil {
-			fmt.Printf("Error inspecting image '%s': %v\n", img, err)
+			fmt.Fprintf(os.Stderr, "Error inspecting image '%s': %v\n", img, err)
 			continue
 		}
 
@@ -86,13 +87,13 @@ func inspect(ctx context.Context, uncli *cli.CLI, images []string) error {
 
 			fmt.Printf("Machine (Remote Lookup): %s\n", machineName)
 			if ri.Metadata.Error != "" {
-				fmt.Printf("Error: %s\n", ri.Metadata.Error)
+				fmt.Fprintf(os.Stderr, "Error: %s\n", ri.Metadata.Error)
 				continue
 			}
 
 			b, err := json.MarshalIndent(ri.Image, "", "    ")
 			if err != nil {
-				fmt.Printf("Error marshaling image info: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Error marshaling image info: %v\n", err)
 				continue
 			}
 			fmt.Println(string(b))
