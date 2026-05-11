@@ -15,7 +15,6 @@ func addrOfPrefix(prefix netip.Prefix) ([]string, error) {
 	var addrs []string
 	for _, ifi := range ifis {
 		ifaddrs, _ := ifi.Addrs()
-		println(len(ifaddrs))
 		for _, addr := range ifaddrs {
 			ipnet, ok := addr.(*net.IPNet)
 			if !ok {
