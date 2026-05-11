@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
-	"text/tabwriter"
 	"time"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -31,6 +31,13 @@ func NewInspectCommand(groupID string) *cobra.Command {
 			return inspect(cmd.Context(), uncli, opts)
 		},
 		GroupID: groupID,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Services(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 	return cmd
 }
@@ -61,25 +68,33 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	fmt.Printf("Mode:       %s\n", svc.Mode)
 	fmt.Println()
 
+	// Combine regular and hook containers.
+	allContainers := append(svc.Containers, svc.HookContainers...)
+
 	// Parse created times for sorting and display.
-	createdTimes := make(map[string]time.Time, len(svc.Containers))
-	for _, ctr := range svc.Containers {
+	createdTimes := make(map[string]time.Time, len(allContainers))
+	for _, ctr := range allContainers {
 		createdTimes[ctr.Container.ID], _ = time.Parse(time.RFC3339Nano, ctr.Container.Created)
 	}
 
 	// Sort containers by created time (newest first).
-	slices.SortFunc(svc.Containers, func(a, b api.MachineServiceContainer) int {
+	slices.SortFunc(allContainers, func(a, b api.MachineServiceContainer) int {
 		return createdTimes[b.Container.ID].Compare(createdTimes[a.Container.ID])
 	})
 
 	// Print the list of containers in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "CONTAINER ID\tIMAGE\tCREATED\tSTATUS\tIP ADDRESS\tMACHINE"); err != nil {
-		return fmt.Errorf("write header: %w", err)
+	// Show HOOK column only when hook containers are present.
+	hasHooks := len(svc.HookContainers) > 0
+
+	t := tui.NewTable()
+	if hasHooks {
+		t.Headers("CONTAINER ID", "IMAGE", "CREATED", "STATUS", "HOOK", "IP ADDRESS", "MACHINE")
+	} else {
+		t.Headers("CONTAINER ID", "IMAGE", "CREATED", "STATUS", "IP ADDRESS", "MACHINE")
 	}
 
 	now := time.Now().UTC()
-	for _, ctr := range svc.Containers {
+	for _, ctr := range allContainers {
 		created := units.HumanDuration(now.Sub(createdTimes[ctr.Container.ID])) + " ago"
 
 		machine := machinesNamesByID[ctr.MachineID]
@@ -98,19 +113,28 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 			ipStr = ip.String()
 		}
 
-		_, err = fmt.Fprintf(
-			tw,
-			"%s\t%s\t%s\t%s\t%s\t%s\n",
-			stringid.TruncateID(ctr.Container.ID),
-			ctr.Container.Config.Image,
-			created,
-			state,
-			ipStr,
-			machine,
-		)
-		if err != nil {
-			return fmt.Errorf("write row: %w", err)
+		if hasHooks {
+			t.Row(
+				stringid.TruncateID(ctr.Container.ID),
+				tui.FormatImage(ctr.Container.Config.Image, tui.NoStyle),
+				created,
+				state,
+				ctr.Container.Config.Labels[api.LabelHook],
+				ipStr,
+				machine,
+			)
+		} else {
+			t.Row(
+				stringid.TruncateID(ctr.Container.ID),
+				tui.FormatImage(ctr.Container.Config.Image, tui.NoStyle),
+				created,
+				state,
+				ipStr,
+				machine,
+			)
 		}
 	}
-	return tw.Flush()
+
+	fmt.Println(t)
+	return nil
 }

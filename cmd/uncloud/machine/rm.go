@@ -9,11 +9,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/tree"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/tree"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -35,6 +37,13 @@ func NewRmCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return remove(cmd.Context(), uncli, args[0], opts)
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Machines(cmd.Context(), uncli, args, toComplete)
 		},
 	}
 
@@ -75,9 +84,12 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 			return fmt.Errorf("list machines: %w", err)
 		}
 		if len(allMachines) > 1 {
-			return errors.New("cannot remove the machine you are currently connected to. " +
-				"Please connect to another machine in the cluster and try again. " +
-				"Use --connect flag or update 'connections' for the cluster context in your Uncloud config")
+			return fmt.Errorf("cannot remove the machine you are currently connected to. "+
+				"Please connect to another machine in the cluster and try again. "+
+				"Change the default connection for the current cluster using 'uc ctx conn' or "+
+				"manually update 'connections' in your Uncloud config (%s). "+
+				"For more information on connecting to a cluster, see "+
+				"https://uncloud.run/docs/concepts/clusters/connecting/", uncli.Config.Path())
 			// It's ok to remove the proxy machine if it's the last one in the cluster.
 		}
 	}
@@ -118,7 +130,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	}
 
 	if !opts.yes {
-		confirmed, err := cli.Confirm()
+		confirmed, err := tui.Confirm("")
 		if err != nil {
 			return fmt.Errorf("confirm removal: %w", err)
 		}
@@ -154,7 +166,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 
 	// Remove the connection to the machine from the uncloud config if it exists.
 	if uncli.Config != nil {
-		contextName := uncli.GetContextOverrideOrCurrent()
+		contextName := uncli.ContextOverrideOrCurrent()
 		if context, ok := uncli.Config.Contexts[contextName]; ok {
 			for i, c := range context.Connections {
 				if c.MachineID == m.Id {
@@ -205,7 +217,7 @@ func formatContainerTree(containers []api.ServiceContainer) string {
 		// Add containers as children.
 		for _, ctr := range ctrs {
 			state, _ := ctr.HumanState()
-			info := fmt.Sprintf("%s • %s • %s", ctr.Name, ctr.Config.Image, state)
+			info := fmt.Sprintf("%s • %s • %s", ctr.Name, tui.FormatImage(ctr.Config.Image, tui.NoStyle), state)
 			t.Child(info)
 		}
 

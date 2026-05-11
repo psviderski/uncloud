@@ -8,11 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// uint64Ptr is a convenience function to create a pointer to a uint64 value
-func uint64Ptr(v uint64) *uint64 {
-	return &v
-}
-
 func TestConfigMount_GetNumericUid(t *testing.T) {
 	t.Parallel()
 
@@ -30,12 +25,12 @@ func TestConfigMount_GetNumericUid(t *testing.T) {
 		{
 			name:     "valid numeric uid",
 			uid:      "1000",
-			expected: uint64Ptr(1000),
+			expected: new(uint64(1000)),
 		},
 		{
 			name:     "zero uid",
 			uid:      "0",
-			expected: uint64Ptr(0),
+			expected: new(uint64(0)),
 		},
 		{
 			name:    "invalid non-numeric uid",
@@ -96,12 +91,12 @@ func TestConfigMount_GetNumericGid(t *testing.T) {
 		{
 			name:     "valid numeric gid",
 			gid:      "1000",
-			expected: uint64Ptr(1000),
+			expected: new(uint64(1000)),
 		},
 		{
 			name:     "zero gid",
 			gid:      "0",
-			expected: uint64Ptr(0),
+			expected: new(uint64(0)),
 		},
 		{
 			name:    "invalid non-numeric gid",

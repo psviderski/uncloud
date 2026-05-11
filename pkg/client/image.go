@@ -6,14 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/containerd/errdefs"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
@@ -32,6 +35,12 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	netproxy "golang.org/x/net/proxy"
 )
+
+// This is the container image used to run socat proxy containers.
+// TODO: it's an external dependency that we don't control, so we should consider vendoring it or
+// automatically building an ad-hoc image with socat-like functionality (e.g. using a lightweight Go
+// proxy) as part of the push process.
+const socatImage = "alpine/socat:1.8.0.3"
 
 func (cli *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImage, error) {
 	images, err := cli.Docker.InspectImage(ctx, id)
@@ -392,19 +401,55 @@ func (cli *Client) pushImageToMachine(
 		return fmt.Errorf("get proxy dialer: %w", err)
 	}
 
+	dockerEnv, err := detectDockerEnvironment(ctx, dockerCli)
+	if err != nil {
+		return err
+	}
+	slog.Debug("Detected Docker environment:", "virtualised", dockerEnv.Virtualised, "rootless", dockerEnv.Rootless)
+
 	proxyEventID := fmt.Sprintf("Proxy to unregistry on %s", boldStyle.Render(machine.Name))
 	pw.Event(progress.StartingEvent(proxyEventID))
 
-	// Forward local port 127.0.0.1:PORT to the machine's unregistry over the established client connection.
-	unregProxy, err := newUnregistryProxy(ctx, unregistryAddr, dialer, func(err error) {
+	// The proxy runs in a goroutine. Capture the first error in a channel
+	// so we can surface it alongside the push error if push fails.
+	proxyErrCh := make(chan error, 1)
+	onProxyError := func(err error) {
+		select {
+		case proxyErrCh <- fmt.Errorf("proxy to unregistry: %w", err):
+		default:
+		}
 		pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
-	})
-	if err != nil {
-		pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
-		return fmt.Errorf("create local proxy to unregistry on machine '%s': %w", machine.Name, err)
 	}
-	// Get the local port the unregistry proxy is listening on.
-	proxyPort := unregProxy.Listener.Addr().(*net.TCPAddr).Port
+
+	// socketPath is set for plain rootless Docker (not running inside a VM): the Go proxy listens on a unix
+	// socket that is bind-mounted into the socat container, bypassing slirp4netns network routing entirely.
+	var (
+		socketPath string
+		proxyPort  int
+	)
+	var unregProxy *proxy.Proxy
+	if shouldUseUnregistryUnixProxy(dockerEnv) {
+		suffix, err := secret.RandomAlphaNumeric(4)
+		if err != nil {
+			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
+			return fmt.Errorf("generate socket path suffix: %w", err)
+		}
+		socketPath = filepath.Join(os.TempDir(), fmt.Sprintf("uncloud-push-%s.sock", suffix))
+		unregProxy, err = newUnregistryUnixProxy(ctx, unregistryAddr, dialer, socketPath, onProxyError)
+		if err != nil {
+			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
+			return fmt.Errorf("create local unix socket proxy to unregistry on machine '%s': %w", machine.Name, err)
+		}
+		slog.Debug("Listening for unregistry proxy connections.", "mode", "unix", "socket", socketPath)
+	} else {
+		unregProxy, err = newUnregistryTcpProxy(ctx, unregistryAddr, dialer, onProxyError)
+		if err != nil {
+			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
+			return fmt.Errorf("create local tcp proxy to unregistry on machine '%s': %w", machine.Name, err)
+		}
+		proxyPort = unregProxy.Listener.Addr().(*net.TCPAddr).Port
+		slog.Debug("Listening for unregistry proxy connections.", "mode", "tcp", "port", proxyPort)
+	}
 
 	proxyCtx, cancelProxy := context.WithCancel(ctx)
 	proxyCtrID := ""
@@ -422,31 +467,47 @@ func (cli *Client) pushImageToMachine(
 			dockerCli.ContainerRemove(ctx, proxyCtrID, container.RemoveOptions{Force: true})
 		}
 
+		// Remove the unix socket file used for rootless Docker proxying.
+		if socketPath != "" {
+			os.Remove(socketPath)
+		}
+
 		cancelProxy()
 	}
 	defer cleanup()
 
 	go unregProxy.Run(proxyCtx)
 
-	dockerVirtualised, err := isDockerVirtualised(ctx, dockerCli)
-	if err != nil {
-		return err
-	}
-
-	if dockerVirtualised {
-		// Run socat proxy container to forward a localhost port from within the Docker VM to the host machine.
+	if dockerEnv.Virtualised {
+		// VM-based Docker (Docker Desktop, Rancher Desktop, etc.): run a socat container inside the VM
+		// to forward a port via host.docker.internal back to the host-side proxy.
 		pw.Event(progress.Event{
 			ID:         proxyEventID,
 			Status:     progress.Working,
 			StatusText: "Starting",
 			Text:       "(detected Docker in VM locally, starting socat proxy container)",
 		})
-
 		proxyCtrID, proxyPort, err = runDockerVMProxyContainer(ctx, dockerCli, proxyPort)
 		if err != nil {
 			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
-			return fmt.Errorf("run socat container to proxy unregistry to Docker VM: %w", err)
+			return fmt.Errorf("run socat container to proxy unregistry: %w", err)
 		}
+		slog.Debug("Started VM socat proxy container.", "id", proxyCtrID, "hostPort", proxyPort)
+	} else if shouldUseUnregistryUnixProxy(dockerEnv) {
+		// Plain rootless Docker: run a socat container that forwards via a bind-mounted unix socket,
+		// bypassing the slirp4netns --disable-host-loopback restriction.
+		pw.Event(progress.Event{
+			ID:         proxyEventID,
+			Status:     progress.Working,
+			StatusText: "Starting",
+			Text:       "(detected rootless Docker, starting socat proxy container)",
+		})
+		proxyCtrID, proxyPort, err = runUnixSocketProxyContainer(ctx, dockerCli, socketPath)
+		if err != nil {
+			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
+			return fmt.Errorf("run socat container with unix socket to proxy unregistry: %w", err)
+		}
+		slog.Debug("Started unix socket socat proxy container.", "id", proxyCtrID, "hostPort", proxyPort, "socket", socketPath)
 	}
 
 	pw.Event(progress.Event{
@@ -478,6 +539,13 @@ func (cli *Client) pushImageToMachine(
 	for msg := range pushCh {
 		if msg.Err != nil {
 			pw.Event(progress.NewEvent(pushEventID, progress.Error, msg.Err.Error()))
+			// Include the proxy error (if any) to expose the root cause behind a generic push failure.
+			select {
+			case proxyErr := <-proxyErrCh:
+				return fmt.Errorf("push image: %w", errors.Join(msg.Err, proxyErr))
+			default:
+			}
+
 			return fmt.Errorf("push image: %w", msg.Err)
 		}
 
@@ -493,18 +561,27 @@ func (cli *Client) pushImageToMachine(
 	return nil
 }
 
-func newUnregistryProxy(
-	ctx context.Context, remoteAddr string, dialer netproxy.ContextDialer, onError func(error),
-) (*proxy.Proxy, error) {
-	// Test remote connectivity before creating a proxy.
+// checkRemoteConnectivity verifies that remoteAddr is reachable via dialer within a timeout.
+func checkRemoteConnectivity(ctx context.Context, dialer netproxy.ContextDialer, remoteAddr string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	testConn, err := dialer.DialContext(ctx, "tcp", remoteAddr)
+	conn, err := dialer.DialContext(ctx, "tcp", remoteAddr)
 	if err != nil {
-		return nil, fmt.Errorf("connect to remote address '%s': %w", remoteAddr, err)
+		return fmt.Errorf("connect to remote address '%s': %w", remoteAddr, err)
 	}
-	testConn.Close()
+	conn.Close()
+	return nil
+}
+
+// newUnregistryTcpProxy creates a TCP proxy that listens on localhost and forwards to the unregistry
+// address on the target machine.
+func newUnregistryTcpProxy(
+	ctx context.Context, remoteAddr string, dialer netproxy.ContextDialer, onError func(error),
+) (*proxy.Proxy, error) {
+	if err := checkRemoteConnectivity(ctx, dialer, remoteAddr); err != nil {
+		return nil, err
+	}
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -521,39 +598,109 @@ func newUnregistryProxy(
 	return p, nil
 }
 
-// isDockerVirtualised checks if Docker is running in a virtualised environment like Docker/Rancher Desktop or Colima.
-// On macOS, Docker always requires a VM, so it returns true unless OrbStack is detected (which handles host networking
-// natively). On other platforms, it checks for known virtualised Docker hostnames.
-func isDockerVirtualised(ctx context.Context, dockerCli *docker.Client) (bool, error) {
-	info, err := dockerCli.Info(ctx)
-	if err != nil {
-		return false, fmt.Errorf("get Docker info: %w", err)
+// newUnregistryUnixProxy creates a proxy that listens on a unix socket at socketPath and forwards to the
+// unregistry address on the target machine.
+func newUnregistryUnixProxy(
+	ctx context.Context, remoteAddr string, dialer netproxy.ContextDialer, socketPath string, onError func(error),
+) (*proxy.Proxy, error) {
+	if err := checkRemoteConnectivity(ctx, dialer, remoteAddr); err != nil {
+		return nil, err
 	}
 
-	// On macOS, Docker always runs in a VM. OrbStack is the only known exception that doesn't need a proxy.
-	if runtime.GOOS == "darwin" {
-		if info.Name == "orbstack" {
-			return false, nil
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("listen on unix socket %s: %w", socketPath, err)
+	}
+	// Restrict socket access to the current user to prevent other local users from connecting
+	// to the proxy and reaching the unregistry for the duration of the push.
+	if err = os.Chmod(socketPath, 0o600); err != nil {
+		listener.Close()
+		return nil, fmt.Errorf("set unix socket permissions on %s: %w", socketPath, err)
+	}
+
+	return &proxy.Proxy{
+		Listener:    listener,
+		RemoteAddr:  remoteAddr,
+		DialContext: dialer.DialContext,
+		OnError:     onError,
+	}, nil
+}
+
+// dockerEnvironment describes the local Docker environment type.
+type dockerEnvironment struct {
+	// Virtualised indicates Docker runs inside a VM (Docker Desktop, Rancher Desktop, Colima).
+	Virtualised bool
+	// Rootless indicates Docker is running in rootless mode
+	Rootless bool
+}
+
+// detectDockerEnvironment inspects the local Docker daemon to determine if it is running in a virtualised
+// environment (VM) or in rootless mode. Both cases require a socat proxy container to route connections
+// across the network boundary between the local Docker daemon and the host.
+func detectDockerEnvironment(ctx context.Context, dockerCli *docker.Client) (dockerEnvironment, error) {
+	info, err := dockerCli.Info(ctx)
+	if err != nil {
+		return dockerEnvironment{}, fmt.Errorf("get Docker info: %w", err)
+	}
+
+	env := dockerEnvironment{}
+
+	for _, opt := range info.SecurityOptions {
+		if strings.Contains(opt, "rootless") {
+			env.Rootless = true
+			break
 		}
-		return true, nil
+	}
+
+	// On macOS, Docker always requires a VM, so set Virtualised to true unless OrbStack is
+	// detected (which handles host networking natively).
+	if runtime.GOOS == "darwin" {
+		if info.Name != "orbstack" {
+			env.Virtualised = true
+		}
+		return env, nil
 	}
 
 	// On other platforms, check for known virtualised Docker environments.
 	virtualisedHostnames := []string{"docker-desktop", "rancher-desktop", "colima"}
 	for _, name := range virtualisedHostnames {
 		if strings.Contains(strings.ToLower(info.Name), name) {
-			return true, nil
+			env.Virtualised = true
+			break
 		}
 	}
-
-	return false, nil
+	return env, nil
 }
 
-// runDockerVMProxyContainer creates a socat container to proxy an available localhost port within the Docker VM
-// (e.g. Docker Desktop on macOS) to the specified target port on the host machine.
+// shouldUseUnregistryUnixProxy reports whether the local Docker environment requires a unix socket proxy
+// to reach the unregistry. This is the case for rootless Docker not running inside a VM, where
+// slirp4netns --disable-host-loopback blocks TCP routing from the container network namespace back to the host.
+func shouldUseUnregistryUnixProxy(env dockerEnvironment) bool {
+	// TODO: handle Virtualised AND Rootless case when we encounter it.
+	return env.Rootless && !env.Virtualised
+}
+
+// runDockerVMProxyContainer creates a socat container inside the Docker VM (e.g. Docker Desktop on macOS)
+// to forward TCP connections from a localhost port to the specified target port on the host via host.docker.internal.
 // Returns the container ID and the localhost port the container port is bound to.
-// TODO: accept custom image name.
 func runDockerVMProxyContainer(ctx context.Context, dockerCli *docker.Client, targetPort int) (string, int, error) {
+	return runSocatProxyContainer(ctx, dockerCli,
+		fmt.Sprintf("TCP-CONNECT:host.docker.internal:%d", targetPort), nil)
+}
+
+// runUnixSocketProxyContainer creates a socat container that forwards TCP connections to the host-side Go
+// proxy via a bind-mounted unix socket.
+// Returns the container ID and the localhost port that 'docker push' should target.
+func runUnixSocketProxyContainer(ctx context.Context, dockerCli *docker.Client, socketPath string) (string, int, error) {
+	return runSocatProxyContainer(ctx, dockerCli,
+		fmt.Sprintf("UNIX-CONNECT:%s", socketPath),
+		[]string{fmt.Sprintf("%s:%s", socketPath, socketPath)})
+}
+
+// runSocatProxyContainer creates a socat container that listens on TCP port 5000 and forwards to socatDst.
+// binds is an optional list of host:container bind mounts (e.g. for a unix socket).
+// Returns the container ID and the localhost port that clients should connect to.
+func runSocatProxyContainer(ctx context.Context, dockerCli *docker.Client, socatDst string, binds []string) (string, int, error) {
 	suffix, err := secret.RandomAlphaNumeric(4)
 	if err != nil {
 		return "", 0, fmt.Errorf("generate random suffix: %w", err)
@@ -563,14 +710,14 @@ func runDockerVMProxyContainer(ctx context.Context, dockerCli *docker.Client, ta
 	containerPort := nat.Port("5000/tcp")
 	config := &container.Config{
 		// TODO: make image configurable.
-		Image: "alpine/socat:latest",
+		Image: socatImage,
 		// Reset the default entrypoint "socat".
 		Entrypoint: []string{},
 		Cmd: []string{
 			"timeout", "1800", // Auto-terminate socat after 30 minutes.
 			"socat",
 			"TCP-LISTEN:5000,fork,reuseaddr",
-			fmt.Sprintf("TCP-CONNECT:host.docker.internal:%d", targetPort),
+			socatDst,
 		},
 		ExposedPorts: nat.PortSet{
 			containerPort: {},
@@ -592,6 +739,7 @@ func runDockerVMProxyContainer(ctx context.Context, dockerCli *docker.Client, ta
 
 	hostConfig := &container.HostConfig{
 		AutoRemove: true,
+		Binds:      binds,
 		PortBindings: nat.PortMap{
 			containerPort: []nat.PortBinding{
 				{
@@ -617,7 +765,30 @@ func runDockerVMProxyContainer(ctx context.Context, dockerCli *docker.Client, ta
 		return "", 0, fmt.Errorf("start socat proxy container %s: %w", resp.ID, err)
 	}
 
+	// Wait for socat to start listening inside the container. ContainerStart returns as soon as the
+	// container process is launched, but socat may not have bound its port yet. Without this check,
+	// the first 'docker push' connection can arrive before socat is ready and get reset.
+	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
+	if err = waitForTCPPort(addr, 10*time.Second); err != nil {
+		cleanup()
+		return "", 0, fmt.Errorf("socat proxy container %s: %w", resp.ID, err)
+	}
+
 	return resp.ID, hostPort, nil
+}
+
+// waitForTCPPort polls addr until a TCP connection succeeds or timeout is reached.
+func waitForTCPPort(addr string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, time.Second)
+		if err == nil {
+			conn.Close()
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("port %s did not become ready within %s", addr, timeout)
 }
 
 // toPushProgressEvent converts a JSON progress message from the Docker API to a progress event.
@@ -631,12 +802,10 @@ func toPushProgressEvent(jm jsonmessage.JSONMessage) *progress.Event {
 	percent := 0
 
 	if jm.Progress.Total > 0 {
-		percent = int(jm.Progress.Current * 100 / jm.Progress.Total)
-		// Cap percent at 100 to prevent index out of bounds in progress display.
-		// Docker can report Current > Total in some cases (e.g., compression).
-		if percent > 100 {
-			percent = 100
-		}
+		percent = min(
+			// Cap percent at 100 to prevent index out of bounds in progress display.
+			// Docker can report Current > Total in some cases (e.g., compression).
+			int(jm.Progress.Current*100/jm.Progress.Total), 100)
 	}
 
 	switch jm.Status {

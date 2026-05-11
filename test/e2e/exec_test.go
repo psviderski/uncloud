@@ -121,7 +121,7 @@ func TestExecBasicCommands(t *testing.T) {
 
 		exitCode, err := cli.ExecContainer(ctx, serviceName, "", execOptions)
 		require.NoError(t, err, "exec should not fail, but command should return non-zero exit")
-		assert.Equal(t, 126, exitCode, "invalid command should return non-zero exit code")
+		assert.Equal(t, 127, exitCode, "invalid command should return non-zero exit code")
 		assert.Contains(t, stdout.String(), "executable file not found")
 		assert.Equal(t, "", stderr.String(), "stderr should be empty")
 	})

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -72,6 +74,9 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 
 	containersCount := 0
 	for _, record := range containers {
+		if record.Container.IsHook() {
+			continue
+		}
 		if !record.Container.Healthy() {
 			continue
 		}
@@ -99,12 +104,21 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 		containersCount++
 	}
 
+	// Sort each service's IPs so they have a deterministic order for comparison.
+	for _, ips := range newServiceIPs {
+		slices.SortFunc(ips, func(a, b netip.Addr) int { return a.Compare(b) })
+	}
+	// Skip the swap when the services or their container IPs haven't changed.
+	if maps.EqualFunc(r.serviceIPs, newServiceIPs, slices.Equal[[]netip.Addr]) {
+		return
+	}
+
 	// Update the serviceIPs map atomically.
 	r.mu.Lock()
 	r.serviceIPs = newServiceIPs
 	r.mu.Unlock()
 
-	r.log.Debug("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
+	r.log.Info("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
 }
 
 // Resolve returns IP addresses of the service containers.

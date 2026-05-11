@@ -3,13 +3,14 @@ package wg
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/spf13/cobra"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"google.golang.org/grpc/codes"
@@ -44,6 +45,9 @@ func newShowCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine to show the configuration for. (default is connected machine)")
+
+	completion.MachinesFlag(cmd)
+
 	return cmd
 }
 
@@ -75,16 +79,18 @@ func runShow(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
 	}
-	machinesNamesByPublicKey := make(map[string]string)
+	machinesByPublicKey := make(map[string]*pb.MachineInfo)
 	for _, m := range machines {
 		publicKey := wgtypes.Key(m.Machine.Network.PublicKey).String()
-		machinesNamesByPublicKey[publicKey] = m.Machine.Name
+		machinesByPublicKey[publicKey] = m.Machine
 	}
 
-	// Fetch the machine's name for more descriptive output
+	// Fetch the machine's info and RTTs for display.
+	var selfMachine *pb.MachineDetails
 	inspectResp, err := client.MachineClient.InspectMachine(ctx, nil)
 	if err == nil {
-		fmt.Printf("Machine name:         %s\n", inspectResp.Machines[0].Machine.Name)
+		selfMachine = inspectResp.Machines[0]
+		fmt.Printf("Machine name:         %s\n", selfMachine.Machine.Name)
 	}
 
 	fmt.Printf("WireGuard interface:  %s\n", resp.InterfaceName)
@@ -97,15 +103,20 @@ func runShow(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 		return nil
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if _, err = fmt.Fprintln(tw, "PEER\tPUBLIC KEY\tENDPOINT\tHANDSHAKE\tRECEIVED\tSENT\tALLOWED IPS"); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
+	t := tui.NewTable()
+	t.Headers("PEER", "PUBLIC KEY", "ENDPOINT", "HANDSHAKE", "RTT", "RECEIVED", "SENT", "ALLOWED IPS")
 
 	for _, peer := range resp.Peers {
-		machineName, ok := machinesNamesByPublicKey[wgtypes.Key(peer.PublicKey).String()]
-		if !ok {
-			machineName = "(unknown)"
+		publicKeyStr := wgtypes.Key(peer.PublicKey).String()
+		machineName := "(unknown)"
+		rtt := "-"
+		if m, ok := machinesByPublicKey[publicKeyStr]; ok {
+			machineName = m.Name
+			if selfMachine != nil {
+				if stats, ok := selfMachine.Rtts[m.Id]; ok {
+					rtt = tui.FormatRTT(stats.Median.AsDuration())
+				}
+			}
 		}
 
 		lastHandshake := ""
@@ -113,20 +124,18 @@ func runShow(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 			lastHandshake = time.Since(peer.LastHandshakeTime.AsTime()).Round(time.Second).String() + " ago"
 		}
 
-		_, err = fmt.Fprintf(
-			tw,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		t.Row(
 			machineName,
-			wgtypes.Key(peer.PublicKey).String(),
+			publicKeyStr,
 			peer.Endpoint,
 			lastHandshake,
+			rtt,
 			units.HumanSize(float64(peer.ReceiveBytes)),
 			units.HumanSize(float64(peer.TransmitBytes)),
-			strings.Join(peer.AllowedIps, ", "),
+			strings.Join(peer.AllowedIps, tui.Faint.Render(", ")),
 		)
-		if err != nil {
-			return fmt.Errorf("write row: %w", err)
-		}
 	}
-	return tw.Flush()
+
+	fmt.Println(t)
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"strconv"
 	"time"
 
 	"github.com/containerd/errdefs"
@@ -62,6 +63,16 @@ func (p *Provisioner) CreateMachine(ctx context.Context, clusterName string, opt
 	}
 
 	apiPort := nat.Port(fmt.Sprintf("%d/tcp", UncloudAPIPort))
+	// Pre-allocate a free host port on 127.0.0.1 and bind it explicitly. Letting Docker assign a random port
+	// (HostPort: "") breaks the cached machine address when the container restarts because Docker picks a new random
+	// port each time.
+	// It's been noticed ucind restarts on rare first-boot failures, which showed up as flaky
+	// "connection refused" errors in e2e tests. This has been addressed by upgrading to the latest dind image.
+	hostPort, err := availableLocalPort()
+	if err != nil {
+		return m, fmt.Errorf("reserve host port for machine API: %w", err)
+	}
+
 	config := &container.Config{
 		Image: img,
 		Labels: map[string]string{
@@ -78,8 +89,8 @@ func (p *Provisioner) CreateMachine(ctx context.Context, clusterName string, opt
 		PortBindings: nat.PortMap{
 			apiPort: []nat.PortBinding{
 				{
-					HostIP: "127.0.0.1",
-					// Host port is a random available port.
+					HostIP:   "127.0.0.1",
+					HostPort: strconv.Itoa(hostPort),
 				},
 			},
 		},
@@ -183,6 +194,21 @@ func (p *Provisioner) waitPortPublished(ctx context.Context, containerID string,
 			return nil, ctx.Err()
 		}
 	}
+}
+
+// availableLocalPort asks the kernel for a free TCP port on 127.0.0.1 and returns it.
+func availableLocalPort() (int, error) {
+	l, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		return 0, err
+	}
+
+	port := l.Addr().(*net.TCPAddr).Port
+	if err = l.Close(); err != nil {
+		return 0, err
+	}
+
+	return port, nil
 }
 
 func randomMachineName() (string, error) {

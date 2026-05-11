@@ -1,13 +1,13 @@
 # Deploy to specific machines
 
 Deploy services to specific machines in your cluster using the
-[`x-machines`](../../8-compose-file-reference/1-support-matrix.md#x-machines) extension in your Compose file.
+[`x-machines`](../../8-compose-file-reference/2-extensions.md#x-machines) extension in your Compose file.
 
 ## When to target specific machines
 
 By default, Uncloud randomly chooses available machines to run your services on, evenly spreading multiple replicas of a
 service across all machines for high availability. You can restrict which machines can run your service using the
-[`x-machines`](../../8-compose-file-reference/1-support-matrix.md#x-machines) extension in your Compose file.
+[`x-machines`](../../8-compose-file-reference/2-extensions.md#x-machines) extension in your Compose file.
 
 This is useful when you want to:
 
@@ -78,7 +78,7 @@ See [Push local images to cluster machines](1-deploy-app.md#push-local-images-to
 
 ## See also
 
-- [Deploy an app](1-deploy-app.md): Build and deploy from source code or prebuilt images
+- [Deploy an app](1-deploy-app.md): Build and deploy from source code or pre-built images
 - [Deploy a global service](3-deploy-global-services.md): Deploy one service replica on each cluster machine
 - [Compose support matrix](../../8-compose-file-reference/1-support-matrix.md): Supported Compose features and Uncloud
   extensions

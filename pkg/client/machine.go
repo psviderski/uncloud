@@ -120,7 +120,7 @@ func (cli *Client) WaitMachineReady(ctx context.Context, timeout time.Duration) 
 	return backoff.Retry(inspect, boff)
 }
 
-// WaitClusterReady waits for the connected machine to be ready to server cluster requests.
+// WaitClusterReady waits for the connected machine to be ready to serve cluster requests.
 func (cli *Client) WaitClusterReady(ctx context.Context, timeout time.Duration) error {
 	// Backoff is not really needed here as the default service config for the gRPC client is already
 	// doing retries with backoff for Unavailable errors. However, it's still convenient to use backoff

@@ -31,6 +31,10 @@ func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpe
 	for _, mc := range svc.Containers {
 		assertContainerMatchesSpec(t, mc.Container, spec)
 	}
+
+	if spec.PreDeploy != nil {
+		assertHookContainersMatchSpec(t, svc, spec)
+	}
 }
 
 func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api.ServiceSpec) {
@@ -137,6 +141,78 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 	// Verify network settings.
 	assert.Len(t, ctr.NetworkSettings.Networks, 1)
 	assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
+}
+
+// assertHookContainersMatchSpec validates that hook containers in the service match the pre-deploy hook spec.
+func assertHookContainersMatchSpec(t *testing.T, svc api.Service, spec api.ServiceSpec) {
+	t.Helper()
+	require.NotEmpty(t, svc.HookContainers, "Expected at least one hook container")
+
+	for _, mc := range svc.HookContainers {
+		ctr := mc.Container
+
+		// Verify labels.
+		assert.True(t, api.ValidateServiceID(ctr.Config.Labels[api.LabelServiceID]))
+		assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
+		assert.Equal(t, api.LabelHookPreDeploy, ctr.Config.Labels[api.LabelHook])
+		assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
+		assert.NotContains(t, ctr.Config.Labels, api.LabelServiceMode,
+			"Hook containers should not have the service mode label")
+
+		assert.EqualValues(t, spec.PreDeploy.Command, ctr.Config.Cmd)
+		if spec.Container.Entrypoint != nil {
+			assert.EqualValues(t, spec.Container.Entrypoint, ctr.Config.Entrypoint)
+		}
+
+		// Service env vars are inherited by hook containers.
+		for _, env := range spec.Container.Env.ToSlice() {
+			assert.Contains(t, ctr.Config.Env, env)
+		}
+		// Hook-specific env vars.
+		for _, env := range spec.PreDeploy.Env.ToSlice() {
+			assert.Contains(t, ctr.Config.Env, env)
+		}
+		assert.Contains(t, ctr.Config.Env, "UNCLOUD_HOOK_PRE_DEPLOY=true")
+
+		assert.Equal(t, spec.Container.Image, ctr.Config.Image)
+		assert.Equal(t, spec.Container.Init, ctr.HostConfig.Init)
+		assert.True(t, strings.HasPrefix(ctr.Name, spec.Name+"-pre-deploy-"),
+			"Hook container name %q should start with %q", ctr.Name, spec.Name+"-pre-deploy-")
+
+		// Privileged is overridden by PreDeploy.Privileged if set, otherwise inherited from the service.
+		if spec.PreDeploy.Privileged != nil {
+			assert.Equal(t, *spec.PreDeploy.Privileged, ctr.HostConfig.Privileged)
+		} else {
+			assert.Equal(t, spec.Container.Privileged, ctr.HostConfig.Privileged)
+		}
+
+		// User is overridden by PreDeploy.User if set.
+		if spec.PreDeploy.User != "" {
+			assert.Equal(t, spec.PreDeploy.User, ctr.Config.User)
+		} else if spec.Container.User != "" {
+			assert.Equal(t, spec.Container.User, ctr.Config.User)
+		}
+
+		// Compute resources.
+		assert.Equal(t, spec.Container.Resources.CPU, ctr.HostConfig.Resources.NanoCPUs)
+		assert.Equal(t, spec.Container.Resources.Memory, ctr.HostConfig.Resources.Memory)
+		assert.Equal(t, spec.Container.Resources.MemoryReservation, ctr.HostConfig.Resources.MemoryReservation)
+
+		// Hook-specific overrides: disabled restart, disabled healthcheck, no ports.
+		assert.Equal(t, container.RestartPolicy{Name: container.RestartPolicyDisabled}, ctr.HostConfig.RestartPolicy)
+		require.NotNil(t, ctr.Config.Healthcheck)
+		assert.Equal(t, []string{"NONE"}, ctr.Config.Healthcheck.Test)
+		assert.Empty(t, ctr.HostConfig.PortBindings)
+
+		assert.False(t, ctr.State.Running, "Hook container should not be running")
+		assert.Equal(t, 0, ctr.State.ExitCode, "Hook container should exit with code 0")
+
+		assertContainerMountsMatchSpec(t, ctr.HostConfig.Mounts, spec)
+
+		// Verify network settings.
+		assert.Len(t, ctr.NetworkSettings.Networks, 1)
+		assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
+	}
 }
 
 func assertContainerMountsMatchSpec(t *testing.T, mounts []mount.Mount, spec api.ServiceSpec) {

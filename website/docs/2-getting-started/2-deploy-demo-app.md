@@ -446,6 +446,6 @@ Note: Docker installation was preserved. If you want to completely remove Docker
 ## Further reading
 
 - **[Add more machines](../9-cli-reference/uc_machine_add.md)**: Scale horizontally by creating a cluster of machines
-- **[Ingress & HTTP](../3-concepts/1-ingress/1-overview.md)**: Learn how Uncloud handles incoming traffic and how to
+- **[Ingress & HTTP](../3-concepts/2-ingress/1-overview.md)**: Learn how Uncloud handles incoming traffic and how to
   expose your services to the internet
 - **[CLI reference](../9-cli-reference/uc.md)**: Explore all available commands and options

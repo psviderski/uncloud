@@ -107,7 +107,7 @@ func (d *Director) remoteBackend(addr string) (*RemoteBackend, error) {
 
 // FlushRemoteBackends closes all remote backend connections and removes them from the cache.
 func (d *Director) FlushRemoteBackends() {
-	d.remoteBackends.Range(func(key, value interface{}) bool {
+	d.remoteBackends.Range(func(key, value any) bool {
 		backend, ok := value.(*RemoteBackend)
 		if !ok {
 			return true

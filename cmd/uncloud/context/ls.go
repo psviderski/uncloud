@@ -3,11 +3,10 @@ package context
 import (
 	"fmt"
 	"maps"
-	"os"
 	"slices"
-	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -38,8 +37,8 @@ func list(uncli *cli.CLI) error {
 	contextNames := slices.Sorted(maps.Keys(uncli.Config.Contexts))
 	currentContext := uncli.Config.CurrentContext
 
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tCURRENT\tCONNECTIONS")
+	t := tui.NewTable()
+	t.Headers("NAME", "CURRENT", "CONNECTIONS")
 
 	for _, name := range contextNames {
 		current := ""
@@ -47,8 +46,9 @@ func list(uncli *cli.CLI) error {
 			current = "✓"
 		}
 		connCount := len(uncli.Config.Contexts[name].Connections)
-		fmt.Fprintf(tw, "%s\t%s\t%d\n", name, current, connCount)
+		t.Row(name, current, fmt.Sprintf("%d", connCount))
 	}
 
-	return tw.Flush()
+	fmt.Println(t)
+	return nil
 }

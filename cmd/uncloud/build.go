@@ -6,6 +6,7 @@ import (
 
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/spf13/cobra"
 )
@@ -50,6 +51,9 @@ to cluster machines or --push-registry to upload them to external registries.`,
 			return runBuild(cmd.Context(), uncli, opts)
 		},
 		GroupID: "service",
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			return completion.ComposeServices(cmd.Context(), args, toComplete, opts.files, opts.profiles)
+		},
 	}
 
 	cmd.Flags().StringArrayVar(&opts.BuildArgs, "build-arg", nil,
@@ -76,6 +80,8 @@ to cluster machines or --push-registry to upload them to external registries.`,
 	cmd.Flags().BoolVar(&opts.PushRegistry, "push-registry", false,
 		"Upload the built images to external registries (e.g., Docker Hub) after building.")
 
+	completion.MachinesFlag(cmd)
+
 	return cmd
 }
 
@@ -97,6 +103,8 @@ func runBuild(ctx context.Context, uncli *cli.CLI, opts buildOptions) error {
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
+
+	uncli.SetClusterContextIfUnset(compose.ClusterContext(project))
 
 	servicesToBuild, err := cli.ServicesThatNeedBuild(project, opts.Services, opts.Deps)
 	if err != nil {

@@ -34,6 +34,12 @@
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
+/* GitHub-style themed images */
+[data-theme='light'] img[src$='#gh-dark-mode-only'],
+[data-theme='dark'] img[src$='#gh-light-mode-only'] {
+    display: none;
+}
+
 .menu {
   font-size: 0.875rem;
   font-weight: var(--ifm-font-weight-normal);

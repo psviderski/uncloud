@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -24,8 +26,23 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("inspect service: %w", err)
 	}
 
-	if len(svc.Containers) == 0 {
+	containers := append(svc.Containers, svc.HookContainers...)
+	if len(containers) == 0 {
 		return svc, nil, fmt.Errorf("no containers found for service: %s", serviceNameOrID)
+	}
+
+	if len(opts.Containers) > 0 {
+		selected := make(map[string]api.MachineServiceContainer, len(opts.Containers))
+		for _, nameOrID := range opts.Containers {
+			ctr, err := svc.FindContainer(nameOrID)
+			if err != nil {
+				return svc, nil, fmt.Errorf("find container '%s' in service '%s': %w",
+					nameOrID, serviceNameOrID, err)
+			}
+			selected[ctr.Container.ID] = ctr
+		}
+
+		containers = slices.Collect(maps.Values(selected))
 	}
 
 	machines, err := cli.ListMachines(ctx, &api.MachineFilter{
@@ -35,8 +52,8 @@ func (cli *Client) ServiceLogs(
 		return svc, nil, fmt.Errorf("list machines: %w", err)
 	}
 
-	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(svc.Containers))
-	for _, ctr := range svc.Containers {
+	ctrStreams := make([]<-chan api.ServiceLogEntry, 0, len(containers))
+	for _, ctr := range containers {
 		// Skip containers not running on the specified machines.
 		m := machines.FindByNameOrID(ctr.MachineID)
 		if len(opts.Machines) > 0 && m == nil {
@@ -51,6 +68,8 @@ func (cli *Client) ServiceLogs(
 
 		stream, err := cli.ContainerLogs(ctx, ctr.MachineID, ctr.Container.ID, opts)
 		if err != nil {
+			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
+			//  be critical when used as SDK.
 			return svc, nil, fmt.Errorf("stream logs from service container '%s' on machine '%s': %w",
 				stringid.TruncateID(ctr.Container.ID), machineName, err)
 		}
@@ -62,6 +81,7 @@ func (cli *Client) ServiceLogs(
 			ContainerID: ctr.Container.ID,
 			MachineID:   ctr.MachineID,
 			MachineName: machineName,
+			Hook:        ctr.Container.Config.Labels[api.LabelHook],
 		}
 		enrichedStream := logsStreamWithServiceMetadata(stream, metadata)
 		ctrStreams = append(ctrStreams, enrichedStream)
@@ -81,18 +101,18 @@ func (cli *Client) ServiceLogs(
 // ContainerLogs streams log entries from a single container on a specified machine.
 func (cli *Client) ContainerLogs(
 	ctx context.Context, machineNameOrID string, containerID string, opts api.ServiceLogsOptions,
-) (<-chan api.ContainerLogEntry, error) {
+) (<-chan api.LogEntry, error) {
 	proxyCtx, _, err := cli.ProxyMachinesContext(ctx, []string{machineNameOrID})
 	if err != nil {
 		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineNameOrID, err)
 	}
 
-	req := &pb.ContainerLogsRequest{
-		ContainerId: containerID,
-		Follow:      opts.Follow,
-		Tail:        int32(opts.Tail),
-		Since:       opts.Since,
-		Until:       opts.Until,
+	req := &pb.LogsRequest{
+		Id:     containerID,
+		Follow: opts.Follow,
+		Tail:   int32(opts.Tail),
+		Since:  opts.Since,
+		Until:  opts.Until,
 	}
 	if !opts.Follow && opts.Tail == 0 {
 		// If not following and tail is 0, set tail to -1 to return all logs.
@@ -105,7 +125,7 @@ func (cli *Client) ContainerLogs(
 		return nil, err
 	}
 
-	ch := make(chan api.ContainerLogEntry)
+	ch := make(chan api.LogEntry)
 
 	go func() {
 		defer close(ch)
@@ -116,13 +136,109 @@ func (cli *Client) ContainerLogs(
 				return
 			}
 			if err != nil {
-				ch <- api.ContainerLogEntry{
+				ch <- api.LogEntry{
 					Err: err,
 				}
 				return
 			}
 
-			entry := api.ContainerLogEntry{
+			entry := api.LogEntry{
+				Stream:    api.LogStreamTypeFromProto(pbEntry.Stream),
+				Message:   pbEntry.Message,
+				Timestamp: pbEntry.Timestamp.AsTime(),
+			}
+
+			select {
+			case ch <- entry:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
+// MachineLogs streams journal logs for the given systemd service across one or more machines in
+// chronological order based on timestamps. If opts.Machines is empty, logs are streamed from all
+// machines in the cluster.
+func (cli *Client) MachineLogs(
+	ctx context.Context, unit string, opts api.ServiceLogsOptions,
+) (<-chan api.ServiceLogEntry, error) {
+	machines, err := cli.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: opts.Machines})
+	if err != nil {
+		return nil, fmt.Errorf("list machines: %w", err)
+	}
+	if len(machines) == 0 {
+		return nil, errors.New("no machines found")
+	}
+
+	streams := make([]<-chan api.ServiceLogEntry, 0, len(machines))
+	for _, m := range machines {
+		ch, err := cli.systemdServiceLogs(ctx, m.Machine.Id, unit, opts)
+		if err != nil {
+			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
+			//  be critical when used as SDK.
+			return nil, fmt.Errorf("stream logs from systemd service '%s' on machine '%s': %w",
+				unit, m.Machine.Name, err)
+		}
+
+		// Enrich journal log entries with the systemd service name and machine metadata.
+		metadata := api.ServiceLogEntryMetadata{
+			ServiceID:   unit,
+			ServiceName: unit,
+			MachineID:   m.Machine.Id,
+			MachineName: m.Machine.Name,
+		}
+		streams = append(streams, logsStreamWithServiceMetadata(ch, metadata))
+	}
+
+	merger := NewLogMerger(streams, DefaultLogMergerOptions)
+	return merger.Stream(), nil
+}
+
+// systemdServiceLogs streams log entries from a single systemd service on the specified machine.
+func (cli *Client) systemdServiceLogs(
+	ctx context.Context, machineID, unit string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
+	proxyCtx, _, err := cli.ProxyMachinesContext(ctx, []string{machineID})
+	if err != nil {
+		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineID, err)
+	}
+
+	req := &pb.LogsRequest{
+		Id:     unit,
+		Follow: opts.Follow,
+		Tail:   int32(opts.Tail),
+		Since:  opts.Since,
+		Until:  opts.Until,
+	}
+	if !opts.Follow && opts.Tail == 0 {
+		// If not following and tail is 0, set tail to -1 to return all logs.
+		// Otherwise, no logs will be returned at all.
+		req.Tail = -1
+	}
+
+	stream, err := cli.MachineClient.MachineLogs(proxyCtx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan api.LogEntry)
+	go func() {
+		defer close(ch)
+
+		for {
+			pbEntry, err := stream.Recv()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				ch <- api.LogEntry{Err: err}
+				return
+			}
+
+			entry := api.LogEntry{
 				Stream:    api.LogStreamTypeFromProto(pbEntry.Stream),
 				Message:   pbEntry.Message,
 				Timestamp: pbEntry.Timestamp.AsTime(),
@@ -141,15 +257,15 @@ func (cli *Client) ContainerLogs(
 
 // logsStreamWithServiceMetadata wraps a container logs stream and enriches each log entry with service metadata.
 func logsStreamWithServiceMetadata(
-	stream <-chan api.ContainerLogEntry, metadata api.ServiceLogEntryMetadata,
+	stream <-chan api.LogEntry, metadata api.ServiceLogEntryMetadata,
 ) <-chan api.ServiceLogEntry {
 	out := make(chan api.ServiceLogEntry)
 
 	go func() {
 		for entry := range stream {
 			out <- api.ServiceLogEntry{
-				Metadata:          metadata,
-				ContainerLogEntry: entry,
+				Metadata: metadata,
+				LogEntry: entry,
 			}
 		}
 		close(out)

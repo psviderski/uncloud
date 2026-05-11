@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"os"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/spf13/cobra"
 )
@@ -39,12 +38,9 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 	}
 
 	// Print the list of machines in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	// Print header.
-	if _, err = fmt.Fprintln(tw, "NAME\tSTATE\tADDRESS\tPUBLIC IP\tWIREGUARD ENDPOINTS\tMACHINE ID"); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
-	// Print rows.
+	t := tui.NewTable()
+	t.Headers("NAME", "STATE", "ADDRESS", "PUBLIC IP", "WIREGUARD ENDPOINTS", "MACHINE ID")
+
 	for _, member := range machines {
 		m := member.Machine
 		subnet, _ := m.Network.Subnet.ToPrefix()
@@ -62,14 +58,18 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			endpoints[i] = addrPort.String()
 		}
 
-		if _, err = fmt.Fprintf(
-			tw, "%s\t%s\t%s\t%s\t%s\t%s\n", m.Name, capitalise(member.State.String()), subnet, publicIP,
-			strings.Join(endpoints, ", "), member.Machine.Id,
-		); err != nil {
-			return fmt.Errorf("write row: %w", err)
-		}
+		t.Row(
+			m.Name,
+			capitalise(member.State.String()),
+			subnet.String(),
+			publicIP,
+			strings.Join(endpoints, tui.Faint.Render(", ")),
+			member.Machine.Id,
+		)
 	}
-	return tw.Flush()
+
+	fmt.Println(t)
+	return nil
 }
 
 // capitalise returns a string where the first character is upper case, and the rest is lower case.

@@ -131,7 +131,7 @@ services:
 :::info important
 
 If a health check fails after the deployment, Uncloud automatically removes the unhealthy container from the
-[Caddy](../../3-concepts/1-ingress/1-overview.md) configuration to prevent routing traffic to that container. But it
+[Caddy](../../3-concepts/2-ingress/1-overview.md) configuration to prevent routing traffic to that container. But it
 doesn't automatically restart or roll it back.
 
 Uncloud automatically adds it back to Caddy when it recovers and becomes healthy again. You can inspect the health
@@ -154,12 +154,26 @@ deployment. Use this only for emergency deployments when you are confident the n
 
 ## Rollback on failure
 
-If a new container fails health monitoring during a deployment, Uncloud stops it but keeps it around so you can inspect
-its state and logs. For `stop-first` order, Uncloud also restarts the old container. The deployment then stops and the
-remaining containers are left untouched.
+If a new container fails health monitoring during a deployment, Uncloud stops it but keeps it around for inspection. For
+`stop-first` order, Uncloud also restarts the old container. The deployment then stops and the remaining containers are
+left untouched.
 
 For example, if the first container in a rolling update succeeds but the second one fails, the first replacement stays
 in place.
+
+### Failed container logs
+
+To help you diagnose the failure, `uc deploy` prints the last 10 log lines from the failed container.
+
+You can change how many lines are printed with the `UNCLOUD_FAILED_CONTAINER_LOGS_TAIL` environment variable. Set it to
+a number or to `all` to print the full container log:
+
+```shell
+export UNCLOUD_FAILED_CONTAINER_LOGS_TAIL=50
+```
+
+You can fetch the full logs with [`uc logs`](../../9-cli-reference/uc_logs.md) or inspect the status of the stopped
+container with [`uc inspect`](../../9-cli-reference/uc_inspect.md) or [`uc ps`](../../9-cli-reference/uc_ps.md).
 
 ## Retry after failure
 
@@ -168,6 +182,7 @@ configuration hasn't changed and only redeploy the remaining ones.
 
 ## See also
 
+- [Pre-deploy hooks](5-pre-deploy-hooks.md): Run a command before deploying service containers
 - [Deploy an app](1-deploy-app.md): Build and deploy from source code or pre-built images
 - [Compose support matrix](../../8-compose-file-reference/1-support-matrix.md): Supported Compose features and Uncloud
   extensions

@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"sort"
@@ -165,18 +166,14 @@ func (v *VolumeSpec) Clone() VolumeSpec {
 			driver := *v.VolumeOptions.Driver
 			if driver.Options != nil {
 				driver.Options = make(map[string]string, len(v.VolumeOptions.Driver.Options))
-				for k, val := range v.VolumeOptions.Driver.Options {
-					driver.Options[k] = val
-				}
+				maps.Copy(driver.Options, v.VolumeOptions.Driver.Options)
 			}
 			opts.Driver = &driver
 		}
 
 		if opts.Labels != nil {
 			opts.Labels = make(map[string]string, len(v.VolumeOptions.Labels))
-			for k, val := range v.VolumeOptions.Labels {
-				opts.Labels[k] = val
-			}
+			maps.Copy(opts.Labels, v.VolumeOptions.Labels)
 		}
 
 		spec.VolumeOptions = &opts

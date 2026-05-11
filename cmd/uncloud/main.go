@@ -2,16 +2,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
+	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/cmd/uncloud/image"
-	"github.com/psviderski/uncloud/cmd/uncloud/machine"
+	cmdmachine "github.com/psviderski/uncloud/cmd/uncloud/machine"
 	"github.com/psviderski/uncloud/cmd/uncloud/service"
 	"github.com/psviderski/uncloud/cmd/uncloud/volume"
 	"github.com/psviderski/uncloud/cmd/uncloud/wg"
@@ -19,6 +21,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/internal/log"
+	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -46,24 +49,29 @@ func main() {
 
 			var conn *config.MachineConnection
 			if opts.connect != "" {
-				if strings.HasPrefix(opts.connect, "tcp://") {
-					addrPort, err := netip.ParseAddrPort(opts.connect[len("tcp://"):])
+				if after, ok := strings.CutPrefix(opts.connect, "tcp://"); ok {
+					addrPort, err := netip.ParseAddrPort(after)
 					if err != nil {
 						return fmt.Errorf("parse TCP address: %w", err)
 					}
 					conn = &config.MachineConnection{
 						TCP: &addrPort,
 					}
-				} else if strings.HasPrefix(opts.connect, "ssh+cli://") {
-					dest := opts.connect[len("ssh+cli://"):]
+				} else if after, ok := strings.CutPrefix(opts.connect, "ssh+go://"); ok {
 					conn = &config.MachineConnection{
-						SSHCLI: config.SSHDestination(dest),
+						SSHGo: config.SSHDestination(after),
+					}
+				} else if after, ok := strings.CutPrefix(opts.connect, "ssh+cli://"); ok {
+					// Backward-compatible alias for ssh://.
+					conn = &config.MachineConnection{
+						SSH: config.SSHDestination(after),
 					}
 				} else if strings.HasPrefix(opts.connect, "unix://") {
 					conn = &config.MachineConnection{
 						Unix: opts.connect[len("unix://"):],
 					}
 				} else {
+					// Default: system ssh CLI command (no prefix or ssh:// prefix).
 					dest := strings.TrimPrefix(opts.connect, "ssh://")
 					conn = &config.MachineConnection{
 						SSH: config.SSHDestination(dest),
@@ -72,6 +80,15 @@ func main() {
 			}
 
 			configPath := fs.ExpandHomeDir(opts.configPath)
+
+			if opts.connect == "" {
+				if !fs.Exists(configPath) && fs.Exists(machine.DefaultUncloudSockPath) {
+					conn = &config.MachineConnection{
+						Unix: machine.DefaultUncloudSockPath,
+					}
+				}
+			}
+
 			uncli, err := cli.New(configPath, conn, opts.context)
 			if err != nil {
 				return fmt.Errorf("initialise CLI: %w", err)
@@ -83,7 +100,7 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&opts.connect, "connect", "",
 		"Connect to a remote cluster machine without using the Uncloud configuration file. [$UNCLOUD_CONNECT]\n"+
-			"Format: [ssh://]user@host[:port], ssh+cli://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock")
+			"Format: [ssh://]user@host[:port], ssh+go://user@host[:port], tcp://host:port, or unix:///path/to/uncloud.sock")
 	cmd.PersistentFlags().StringVar(&opts.configPath, "uncloud-config", "~/.config/uncloud/config.yaml",
 		"Path to the Uncloud configuration file. [$UNCLOUD_CONFIG]")
 	_ = cmd.MarkPersistentFlagFilename("uncloud-config", "yaml", "yml")
@@ -123,7 +140,7 @@ func main() {
 		cmdcontext.NewRootCommand(),
 		dns.NewRootCommand(),
 		image.NewRootCommand(),
-		machine.NewRootCommand(),
+		cmdmachine.NewRootCommand(),
 		service.NewRootCommand(),
 		service.NewExecCommand("service"),
 		service.NewInspectCommand("service"),
@@ -137,5 +154,11 @@ func main() {
 		volume.NewRootCommand(),
 		wg.NewRootCommand(),
 	)
-	cobra.CheckErr(cmd.Execute())
+	if err := cmd.Execute(); err != nil {
+		if cancelled, ok := errors.AsType[*cli.CancelledError](err); ok {
+			fmt.Fprintln(os.Stderr, cancelled.Error())
+			os.Exit(1)
+		}
+		cobra.CheckErr(err)
+	}
 }

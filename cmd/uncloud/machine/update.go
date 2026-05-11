@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/spf13/cobra"
@@ -46,6 +47,13 @@ At least one flag must be specified to perform an update.`,
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return update(cmd.Context(), uncli, cmd, opts, args[0])
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Machines(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 
 	cmd.Flags().StringVar(
@@ -59,9 +67,10 @@ At least one flag must be specified to perform an update.`,
 	)
 	cmd.Flags().StringSliceVar(
 		&opts.wgEndpoints, "wg-endpoint", nil,
-		fmt.Sprintf("WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. "+
-			"Default port %d is used if omitted.\n", network.WireGuardPort)+
-			"Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.\n"+
+		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
+			"WireGuard connections\n"+
+			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.WireGuardPort)+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.",
 	)
 

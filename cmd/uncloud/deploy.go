@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"os"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	composecli "github.com/compose-spec/compose-go/v2/cli"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/logs"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
@@ -45,6 +49,9 @@ func NewDeployCommand() *cobra.Command {
 			return runDeploy(cmd.Context(), uncli, opts)
 		},
 		GroupID: "service",
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			return completion.ComposeServices(cmd.Context(), args, toComplete, opts.files, opts.profiles)
+		},
 	}
 
 	cmd.Flags().StringArrayVar(&opts.BuildServicesOptions.BuildArgs, "build-arg", nil,
@@ -82,6 +89,8 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	if err != nil {
 		return fmt.Errorf("load compose file(s): %w", err)
 	}
+
+	uncli.SetClusterContextIfUnset(compose.ClusterContext(project))
 
 	if len(opts.services) > 0 {
 		// Includes service dependencies by default. This is the default docker compose behavior.
@@ -168,71 +177,129 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		return fmt.Errorf("plan deployment: %w", err)
 	}
 
-	if len(plan.Operations) == 0 {
+	if plan.IsEmpty() {
 		fmt.Println("Services are up to date.")
 		return nil
 	}
 
-	fmt.Println(lipgloss.NewStyle().Bold(true).Render("Deployment plan"))
-	if err = printPlan(ctx, clusterClient, plan); err != nil {
-		return fmt.Errorf("print deployment plan: %w", err)
-	}
+	fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
 	fmt.Println()
+
+	directConn := uncli.DirectConnection()
+	contextName := uncli.ContextOverrideOrCurrent()
+	deployTarget := ""
+	if directConn != "" {
+		deployTarget = directConn
+		fmt.Println(tui.Faint.Render("connection: ") + tui.NameStyle.Render(directConn))
+		fmt.Println()
+	} else if contextName != "" && len(uncli.Config.Contexts) > 1 {
+		// Only show context if there's more than one to avoid unnecessary clutter.
+		deployTarget = contextName
+		fmt.Println(tui.Faint.Render("context: ") + tui.NameStyle.Render(contextName))
+		fmt.Println()
+	}
+
+	fmt.Println(plan.Format())
 
 	// Ask for plan confirmation before proceeding with the deployment unless auto-confirmed with --yes.
 	if !opts.yes {
-		if !cli.IsStdinTerminal() {
+		if !tui.IsStdinTerminal() {
 			return errors.New("cannot ask to confirm deployment plan in non-interactive mode, " +
 				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
 		}
 
-		confirmed, err := cli.Confirm()
+		title := "Proceed with deployment?"
+		// Include the direct connection or context name in the confirmation prompt to avoid accidentally
+		// deploying to the wrong cluster.
+		if deployTarget != "" {
+			isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+			confirmStyle := tui.ThemeConfirm().Theme(isDark).Focused.Title
+			title = "Proceed with deployment to " + tui.NameStyle.Render(deployTarget) + confirmStyle.Render("?")
+		}
+
+		confirmed, err := tui.Confirm(title)
 		if err != nil {
 			return fmt.Errorf("confirm deployment: %w", err)
 		}
 		if !confirmed {
-			fmt.Println("Cancelled. No changes were made.")
-			return nil
+			return cli.Cancelled("Deploy cancelled. No changes were made.")
 		}
 	}
 
-	return progress.RunWithTitle(ctx, func(ctx context.Context) error {
+	title := "Deploying"
+	if deployTarget != "" {
+		title += " to " + tui.NameStyle.Render(deployTarget)
+	}
+	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		if err := plan.Execute(ctx, clusterClient); err != nil {
 			return fmt.Errorf("deploy services: %w", err)
 		}
 		return nil
-	}, uncli.ProgressOut(), "Deploying services")
-}
+	}, uncli.ProgressOut(), title)
+	if err != nil {
+		fmt.Println()
 
-func printPlan(ctx context.Context, cli *client.Client, plan operation.SequenceOperation) error {
-	for _, op := range plan.Operations {
-		svcPlan, ok := op.(*deploy.Plan)
-		if !ok {
-			fmt.Println("- " + op.Format(nil))
-			continue
+		tail := failedContainerLogsTail()
+		if hookErr, ok := errors.AsType[*operation.PreDeployHookError](err); ok {
+			printFailedContainerLogs(ctx, clusterClient,
+				hookErr.ServiceName, hookErr.ContainerID, hookErr.MachineName, tail,
+				fmt.Sprintf("Last %d log lines from failed pre-deploy hook:", tail))
+			fmt.Println()
+		} else if startErr, ok := errors.AsType[*operation.ContainerHealthError](err); ok {
+			printFailedContainerLogs(ctx, clusterClient,
+				startErr.ServiceName, startErr.ContainerID, startErr.MachineName, tail,
+				fmt.Sprintf("Last %d log lines from failed container:", tail))
+			fmt.Println()
 		}
 
-		svc, err := cli.InspectService(ctx, svcPlan.ServiceID)
-		if err != nil && !errors.Is(err, api.ErrNotFound) {
-			return fmt.Errorf("inspect service: %w", err)
-		}
-		// Initialise a machine and container name resolver to properly format the service plan output.
-		resolver, err := cli.ServiceOperationNameResolver(ctx, svc)
-		if err != nil {
-			return fmt.Errorf("create machine and container name resolver for service operations: %w", err)
-		}
-
-		fmt.Printf("- Deploy service [name=%s]\n", svcPlan.ServiceName)
-		fmt.Println(indent(svcPlan.Format(resolver), "  "))
+		return err
 	}
-
 	return nil
 }
 
-func indent(text, prefix string) string {
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		lines[i] = prefix + line
+// printFailedContainerLogs fetches the last tail log lines from a container that failed during deployment and prints
+// them using the standard log formatter under the provided header.
+func printFailedContainerLogs(
+	ctx context.Context, cli *client.Client, serviceName, containerID, machineName string, tail int, header string,
+) {
+	_, ch, err := cli.ServiceLogs(ctx, serviceName, api.ServiceLogsOptions{
+		Containers: []string{containerID},
+		Machines:   []string{machineName},
+		Tail:       tail,
+	})
+	if err != nil {
+		shortCtrID := stringid.TruncateID(containerID)
+		fmt.Fprintf(os.Stderr, "Failed to fetch container logs '%s/%s': %v\n", serviceName, shortCtrID, err)
+		fmt.Fprintf(os.Stderr, "You can try manually with: uc logs %s/%s\n", serviceName, shortCtrID)
+		return
 	}
-	return strings.Join(lines, "\n")
+
+	fmt.Println(tui.BoldRed.Render(header))
+
+	logsEmpty := true
+	formatter := logs.NewFormatter([]string{machineName}, []string{serviceName}, false)
+	for entry := range ch {
+		logsEmpty = false
+		formatter.PrintEntry(entry)
+	}
+
+	if logsEmpty {
+		fmt.Println("<no logs available>")
+	}
+}
+
+// defaultFailedContainerLogsTail is the default number of recent log lines to print from a failed container to give
+// the user immediate context without requiring a follow-up 'uc logs' invocation.
+// Overridable via UNCLOUD_FAILED_CONTAINER_LOGS_TAIL.
+const defaultFailedContainerLogsTail = 10
+
+// failedContainerLogsTail returns the number of log lines to fetch from a failed container, honouring the
+// UNCLOUD_FAILED_CONTAINER_LOGS_TAIL environment variable override when set and valid.
+func failedContainerLogsTail() int {
+	if v := os.Getenv("UNCLOUD_FAILED_CONTAINER_LOGS_TAIL"); v != "" {
+		if tail, err := logs.Tail(v); err == nil && (tail == -1 || tail > 0) {
+			return tail
+		}
+	}
+	return defaultFailedContainerLogsTail
 }

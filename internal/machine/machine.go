@@ -14,12 +14,16 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/grpcversion"
+	"github.com/psviderski/uncloud/internal/journal"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	apiproxy "github.com/psviderski/uncloud/internal/machine/api/proxy"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
@@ -30,6 +34,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"golang.org/x/sync/errgroup"
@@ -37,6 +42,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -98,27 +104,6 @@ func (c *Config) SetDefaults() (*Config, error) {
 		}
 		cfg.DockerClient = cli
 	}
-	if cfg.ContainerdSockPath == "" {
-		// Auto-detect the containerd.sock path used by Docker.
-		paths := []string{
-			"/run/containerd/containerd.sock", // Default path on most Linux distributions.
-			"/run/docker/containerd/containerd.sock",
-			"/var/run/containerd/containerd.sock",
-			"/var/run/docker/containerd/containerd.sock",
-		}
-		for _, path := range paths {
-			if _, err := os.Stat(path); err == nil {
-				cfg.ContainerdSockPath = path
-				slog.Debug("Detected containerd socket used by Docker.", "path", path)
-				break
-			}
-		}
-
-		if cfg.ContainerdSockPath == "" {
-			slog.Warn("Failed to auto-detect containerd socket used by Docker.")
-		}
-	}
-
 	if cfg.CorrosionDir == "" {
 		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
 	}
@@ -268,6 +253,8 @@ func NewMachine(config *Config) (*Machine, error) {
 	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort)
 	localProxyServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
+		grpc.UnaryInterceptor(grpcversion.ServerUnaryInterceptor),
+		grpc.StreamInterceptor(grpcversion.ServerStreamInterceptor),
 		grpc.UnknownServiceHandler(
 			proxy.TransparentHandler(proxyDirector.Director),
 		),
@@ -330,6 +317,31 @@ func (m *Machine) Initialised() bool {
 	defer m.state.mu.RUnlock()
 
 	return m.state.ID != ""
+}
+
+// ContainerdSock returns the path to the containerd socket used by Docker, auto-discovering it from well-known
+// locations if it's not explicitly configured.
+// Returns an empty string if the socket cannot be detected.
+func (m *Machine) ContainerdSock() string {
+	if m.config.ContainerdSockPath != "" {
+		return m.config.ContainerdSockPath
+	}
+
+	paths := []string{
+		"/run/containerd/containerd.sock", // Default path on most Linux distributions.
+		"/run/docker/containerd/containerd.sock",
+		"/var/run/containerd/containerd.sock",
+		"/var/run/docker/containerd/containerd.sock",
+	}
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			slog.Debug("Detected containerd socket used by Docker.", "path", path)
+			return path
+		}
+	}
+
+	slog.Warn("Failed to auto-detect containerd socket used by Docker.")
+	return ""
 }
 
 // IP returns the machine IPv4 address in the cluster network which is the first address in the machine subnet.
@@ -421,6 +433,8 @@ func (m *Machine) Run(ctx context.Context) error {
 			m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
 			proxyServer := grpc.NewServer(
 				grpc.ForceServerCodecV2(proxy.Codec()),
+				grpc.UnaryInterceptor(grpcversion.ServerUnaryInterceptor),
+				grpc.StreamInterceptor(grpcversion.ServerStreamInterceptor),
 				grpc.UnknownServiceHandler(
 					proxy.TransparentHandler(m.proxyDirector.Director),
 				),
@@ -450,7 +464,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			}
 
 			var unreg *unregistry.Registry
-			if m.config.ContainerdSockPath != "" {
+			if containerdSock := m.ContainerdSock(); containerdSock != "" {
 				isContainerdStore, err := m.dockerService.IsContainerdImageStoreEnabled(ctx)
 				if err != nil {
 					return fmt.Errorf("check if Docker uses containerd image store: %w", err)
@@ -462,7 +476,7 @@ func (m *Machine) Run(ctx context.Context) error {
 					unreg, err = unregistry.NewRegistry(unregistry.Config{
 						Addr:                net.JoinHostPort(m.IP().String(), strconv.Itoa(constants.UnregistryPort)),
 						ContainerdNamespace: "moby",
-						ContainerdSock:      m.config.ContainerdSockPath,
+						ContainerdSock:      containerdSock,
 						LogFormatter:        "text",
 						LogLevel:            "info",
 					})
@@ -473,7 +487,7 @@ func (m *Machine) Run(ctx context.Context) error {
 					slog.Warn("Skipping embedded unregistry setup as Docker is not using the containerd image store.")
 				}
 			} else {
-				slog.Warn("Skipping embedded unregistry setup as the containerd socket path is not configured.")
+				slog.Warn("Skipping embedded unregistry setup as the containerd socket path could not be detected.")
 			}
 
 			m.mu.Lock()
@@ -903,6 +917,14 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 		return nil, status.Errorf(codes.Internal, "get database version of the cluster store: %v", err)
 	}
 
+	var rtts map[string]*pb.RTTStats
+	if m.Initialised() {
+		rtts, err = m.getMachineRTTs(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &pb.InspectMachineResponse{
 		Machines: []*pb.MachineDetails{
 			{
@@ -917,9 +939,44 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 					},
 				},
 				StoreDbVersion: dbVersion,
+				Rtts:           rtts,
 			},
 		},
 	}, nil
+}
+
+// getMachineRTTs retrieves round-trip times to other machines in the cluster.
+func (m *Machine) getMachineRTTs(ctx context.Context) (map[string]*pb.RTTStats, error) {
+	rtts, err := m.cluster.MemberRTTs()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get member rtts: %v", err)
+	}
+
+	// List machines to map IPs to Machine IDs.
+	machines, err := m.store.ListMachines(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list machines: %v", err)
+	}
+
+	// Map Management IP -> Machine ID
+	ipToMachineID := make(map[netip.Addr]string)
+	for _, mach := range machines {
+		ip, _ := mach.Network.ManagementIp.ToAddr()
+		ipToMachineID[ip] = mach.Id
+	}
+
+	pbRTTs := make(map[string]*pb.RTTStats)
+	for _, stats := range rtts {
+		// Corrosion uses the management IP for gossip.
+		if mid, ok := ipToMachineID[stats.Addr.Addr()]; ok {
+			pbRTTs[mid] = &pb.RTTStats{
+				Median: durationpb.New(stats.Median),
+				StdDev: durationpb.New(stats.StdDev),
+			}
+		}
+	}
+
+	return pbRTTs, nil
 }
 
 // IsNetworkReady returns true if the Docker network is ready for containers.
@@ -1072,4 +1129,93 @@ func (m *Machine) InspectService(
 		Containers: containers,
 	}
 	return &pb.InspectServiceResponse{Service: svc}, nil
+}
+
+// logsHeartbeatInterval is the interval at which heartbeat entries are sent when there are no logs to stream.
+const logsHeartbeatInterval = 200 * time.Millisecond
+
+// MachineLogs streams logs from a systemd service.
+func (m *Machine) MachineLogs(
+	req *pb.LogsRequest, stream grpc.ServerStreamingServer[pb.LogEntry],
+) error {
+	// TODO(miek): almost duplicate of docker/server.ContainerLogs
+	ctx := stream.Context()
+
+	opts := api.ServiceLogsOptions{
+		Follow: req.Follow,
+		Tail:   int(req.Tail),
+		Since:  req.Since,
+		Until:  req.Until,
+	}
+
+	logsCh, err := journal.Logs(ctx, req.Id, opts)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return status.Error(codes.NotFound, err.Error())
+		}
+		return status.Errorf(codes.Internal, "get journal logs: %v", err)
+	}
+
+	log := slog.With("unit", req.Id, "stream_id", fmt.Sprintf("%p", stream)[2:])
+	log.Debug("Starting systemd service logs streaming.",
+		"follow", req.Follow, "tail", req.Tail, "since", req.Since, "until", req.Until)
+
+	// Heartbeats are needed only when following logs to let the client know when there are no new log entries
+	// to allow it to advance the watermark of last received log timestamp.
+	var heartbeatCh <-chan time.Time
+	if req.Follow {
+		heartbeatTicker := time.NewTicker(logsHeartbeatInterval)
+		defer heartbeatTicker.Stop()
+		heartbeatCh = heartbeatTicker.C
+	}
+
+	started := time.Now()
+	lastSent := time.Time{}
+
+	for {
+		select {
+		case entry, ok := <-logsCh:
+			if !ok {
+				// Channel closed, no more log entries.
+				return nil
+			}
+
+			if entry.Err != nil {
+				return status.Error(codes.Internal, entry.Err.Error())
+			}
+
+			pbEntry := &pb.LogEntry{
+				Stream:    api.LogStreamTypeToProto(entry.Stream),
+				Timestamp: timestamppb.New(entry.Timestamp),
+				Message:   entry.Message,
+			}
+			if err = stream.Send(pbEntry); err != nil {
+				return status.Errorf(codes.Internal, "send log entry: %v", err)
+			}
+			lastSent = entry.Timestamp
+
+		case now := <-heartbeatCh:
+			// Only send heartbeat if no log entries have been sent since the last heartbeat interval or
+			// if no log entries have been sent at all for at least a heartbeat interval since starting.
+			if now.Sub(lastSent) < logsHeartbeatInterval ||
+				(lastSent.IsZero() && now.Sub(started) < logsHeartbeatInterval) {
+				continue
+			}
+
+			// Use the timestamp one heartbeat in the past to be conservative. This reduces the chance of sending
+			// a timestamp that is greater than a log entry currently being parsed but not yet sent, which would
+			// cause the client to incorrectly believe it has received all logs up to that point.
+			heartbeat := &pb.LogEntry{
+				Stream:    pb.LogEntry_HEARTBEAT,
+				Timestamp: timestamppb.New(now.Add(-logsHeartbeatInterval)),
+			}
+			if err = stream.Send(heartbeat); err != nil {
+				return status.Errorf(codes.Internal, "send log stream heartbeat: %v", err)
+			}
+			lastSent = heartbeat.Timestamp.AsTime()
+
+		case <-ctx.Done():
+			return status.Error(codes.Canceled, ctx.Err().Error())
+		}
+	}
 }

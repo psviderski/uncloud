@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/huh/spinner"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/huh/v2/spinner"
+	"charm.land/lipgloss/v2"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
@@ -45,8 +45,8 @@ func NewInitCommand() *cobra.Command {
 This command creates a new context in your Uncloud config to manage the cluster.
 
 Connection methods:
-  ssh://user@host       - Use built-in SSH library (default, no prefix required)
-  ssh+cli://user@host   - Use system SSH command (supports ProxyJump, SSH config)`,
+  [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
+  ssh+go://user@host  - Use Go's built-in SSH library`,
 		Example: `  # Initialise a new cluster with default settings.
   uc machine init root@<your-server-ip>
 
@@ -68,9 +68,10 @@ Connection methods:
 
 			var remoteMachine *cli.RemoteMachine
 			if len(args) > 0 {
-				// Determine if SSH CLI is requested and strip scheme
+				// Determine connection mode and strip scheme.
 				destination := args[0]
-				useSSHCLI := strings.HasPrefix(destination, "ssh+cli://")
+				useSSHGo := strings.HasPrefix(destination, "ssh+go://")
+				destination = strings.TrimPrefix(destination, "ssh+go://")
 				destination = strings.TrimPrefix(destination, "ssh+cli://")
 				destination = strings.TrimPrefix(destination, "ssh://")
 
@@ -79,11 +80,11 @@ Connection methods:
 					return fmt.Errorf("parse remote machine: %w", err)
 				}
 				remoteMachine = &cli.RemoteMachine{
-					User:      user,
-					Host:      host,
-					Port:      port,
-					KeyPath:   opts.sshKey,
-					UseSSHCLI: useSSHCLI,
+					User:     user,
+					Host:     host,
+					Port:     port,
+					KeyPath:  opts.sshKey,
+					UseSSHGo: useSSHGo,
 				}
 			}
 
@@ -134,11 +135,12 @@ Connection methods:
 	)
 	cmd.Flags().StringSliceVar(
 		&opts.wgEndpoints, "wg-endpoint", nil,
-		fmt.Sprintf("WireGuard endpoint address in format: IP, IP:PORT, IPv6, or [IPv6]:PORT. "+
-			"Default port %d is used if omitted.\n", network.WireGuardPort)+
-			"Other machines in the cluster will use this endpoint to establish a WireGuard connection to this machine.\n"+
+		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
+			"WireGuard connections\n"+
+			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.WireGuardPort)+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.\n"+
-			"If not specified, the machine's routable IPs and public IP are auto-detected and used as endpoints.",
+			"Defaults to the auto-detected public and routable machine IPs.",
 	)
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
@@ -149,8 +151,13 @@ Connection methods:
 
 func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, opts initOptions) error {
 	if uncli.Config == nil {
-		// Config is nil when connecting directly to a remote machine (--connect) without using Uncloud config.
-		return fmt.Errorf("do not specify --connect when initialising a new cluster")
+		// Config is nil when connecting directly to a remote machine (--connect) without using Uncloud config
+		// or when being logged in on a machine and using the uncloud socket directly.
+		return fmt.Errorf(
+			"do not use --connect when initialising a new cluster: --connect is for overriding the connection " +
+				"to an existing cluster, but 'machine init' creates a new one and writes the new cluster context " +
+				"to the Uncloud config file (--uncloud-config), when logged in on a cluster machine, 'machine init' " +
+				"is not supported")
 	}
 
 	netPrefix, err := netip.ParsePrefix(opts.network)
@@ -202,8 +209,12 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	err = spinner.New().
 		Title(" Waiting for the cluster to be ready...").
 		Type(spinner.MiniDot).
-		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("3"))).
-		TitleStyle(lipgloss.NewStyle()).
+		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
+			return &spinner.Styles{
+				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
+				Title:   lipgloss.NewStyle(),
+			}
+		})).
 		ActionWithErr(func(ctx context.Context) error {
 			return client.WaitClusterReady(ctx, 1*time.Minute)
 		}).

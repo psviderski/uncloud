@@ -376,8 +376,6 @@ func (cc *clusterController) waitStoreSync(ctx context.Context) {
 			}
 
 			if version >= minVersion {
-				slog.Info("Cluster store completed the initial sync.", "version", version, "min_version", minVersion)
-
 				// Clear MinStoreDBVersion so next restart doesn't wait for sync.
 				cc.state.mu.Lock()
 				cc.state.MinStoreDBVersion = 0
@@ -385,6 +383,25 @@ func (cc *clusterController) waitStoreSync(ctx context.Context) {
 					slog.Error("Failed to save machine state after the initial cluster store sync.", "err", err)
 				}
 				cc.state.mu.Unlock()
+
+				// Wait for all known missing changes to be synced before returning.
+				// TODO: reevaluate if this is necessary after migrating to the latest Corrosion version:
+				//  https://github.com/psviderski/uncloud/issues/172
+				//  This works on the best effort basis as the missing changes may not be yet known when we start
+				//  checking it after reaching the minimum version.
+				//  Reaching the minimum version doesn't guarantee that the store is actually synced to
+				//  the state we observed on the source node. db_version is a machine-local Lamport clock.
+				//  When changes are received from a remote machine, the local db_version is set to
+				//  max(local_db_version, incoming_db_version) + 1 for each applied transaction. This means
+				//  the new machine's db_version can jump well past the source machine's db_version on the very
+				//  first batch of replicated changes, without having received all changes from all machines
+				//  in the cluster.
+				cc.waitKnownMissingChanges(ctx)
+
+				if ver, verErr := cc.store.DBVersion(ctx); verErr == nil {
+					version = ver
+				}
+				slog.Info("Cluster store completed the initial sync.", "version", version, "min_version", minVersion)
 
 				return
 			}
@@ -395,6 +412,34 @@ func (cc *clusterController) waitStoreSync(ctx context.Context) {
 				lastLogTime = time.Now()
 				lastVersion = version
 			}
+		}
+	}
+}
+
+// waitKnownMissingChanges polls the store until all known missing changes have been synced.
+func (cc *clusterController) waitKnownMissingChanges(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			changes, err := cc.store.KnownMissingChanges(ctx)
+			if err != nil {
+				slog.Error("Failed to get known missing changes from the cluster store, skipping check.",
+					"err", err)
+				return
+			}
+
+			if len(changes) == 0 {
+				slog.Debug("All known missing changes have been synced to the cluster store.")
+				return
+			}
+
+			slog.Debug("Waiting for known missing changes to be synced to the cluster store.", "remaining",
+				len(changes))
 		}
 	}
 }
@@ -458,7 +503,8 @@ func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
 
 		// The machine store may be empty when a machine first joins the cluster, before store synchronization
 		// completes. Skip configuration now and apply it when the store changes are received.
-		// TODO: remove this check after releasing 0.17.0 and assuming cluster machines wait for store sync on join.
+		// TODO: remove this check after ensuring the store is actually synced to the latest known state at this point.
+		//  See TODO in waitStoreSync.
 		if len(machines) > 0 {
 			slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
 			if err = cc.configurePeers(machines); err != nil {

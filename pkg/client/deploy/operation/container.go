@@ -8,14 +8,30 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stringid"
+	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 )
+
+// ContainerHealthError indicates that a service container failed to become healthy during deployment.
+type ContainerHealthError struct {
+	error
+	ServiceName string
+	ContainerID string
+	MachineName string
+}
+
+func (e *ContainerHealthError) Unwrap() error {
+	return e.error
+}
 
 // RunContainerOperation creates and starts a new container on a specific machine.
 type RunContainerOperation struct {
 	ServiceID string
 	Spec      api.ServiceSpec
 	MachineID string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName string
 	// SkipHealthMonitor skips the monitoring period and health checks after starting a container.
 	SkipHealthMonitor bool
 }
@@ -25,6 +41,10 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 	if err != nil {
 		return fmt.Errorf("create container: %w", err)
 	}
+	// Override event ID so StartContainer and WaitContainerHealthy update the same progress line as creation.
+	// TODO: This is a hack to work around the limitations of the compose progress library.
+	//  We likely need to fork or create our own to decouple event IDs from presentation layer.
+	ctx = cliprogress.WithEventID(ctx, cliprogress.NewContainerEventID(ctx, resp.Name, o.MachineName))
 	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
 		return fmt.Errorf("start container: %w", err)
 	}
@@ -35,16 +55,24 @@ func (o *RunContainerOperation) Execute(ctx context.Context, cli Client) error {
 
 	opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
 	if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
-		return fmt.Errorf("container '%s/%s' failed to become healthy: %w",
-			o.Spec.Name, stringid.TruncateID(resp.ID), err)
+		return &ContainerHealthError{
+			error: fmt.Errorf("container '%s/%s' failed to become healthy: %w",
+				o.Spec.Name, stringid.TruncateID(resp.ID), err),
+			ServiceName: o.Spec.Name,
+			ContainerID: resp.ID,
+			MachineName: o.MachineName,
+		}
 	}
 
 	return nil
 }
 
-func (o *RunContainerOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Run container [image=%s]", machineName, o.Spec.Container.Image)
+func (o *RunContainerOperation) Format() string {
+	return tui.BoldGreen.Render("+") + "   " +
+		tui.Faint.Render("run container") + " " +
+		o.Spec.Name + " " +
+		tui.Faint.Render("on") + " " +
+		o.MachineName
 }
 
 func (o *RunContainerOperation) String() string {
@@ -54,9 +82,11 @@ func (o *RunContainerOperation) String() string {
 
 // StopContainerOperation stops a container on a specific machine.
 type StopContainerOperation struct {
-	ServiceID       string
-	ContainerID     string
-	MachineID       string
+	ServiceID   string
+	ContainerID string
+	MachineID   string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName     string
 	StopGracePeriod *time.Duration
 }
 
@@ -67,10 +97,15 @@ func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error 
 	return nil
 }
 
-func (o *StopContainerOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Stop container [id=%s name=%s]", machineName,
-		o.ContainerID[:12], resolver.ContainerName(o.ContainerID))
+func (o *StopContainerOperation) Format() string {
+	// TODO: pass service name to format the display name consistently with other operations.
+	displayName := stringid.TruncateID(o.ContainerID)
+
+	return tui.BoldRed.Render("-") + "   " +
+		tui.Faint.Render("stop container") + " " +
+		displayName + " " +
+		tui.Faint.Render("on") + " " +
+		o.MachineName
 }
 
 func (o *StopContainerOperation) String() string {
@@ -80,7 +115,9 @@ func (o *StopContainerOperation) String() string {
 
 // RemoveContainerOperation stops and removes a container from a specific machine.
 type RemoveContainerOperation struct {
-	MachineID       string
+	MachineID string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName     string
 	Container       api.ServiceContainer
 	StopGracePeriod *time.Duration
 }
@@ -101,10 +138,14 @@ func (o *RemoveContainerOperation) Execute(ctx context.Context, cli Client) erro
 	return nil
 }
 
-func (o *RemoveContainerOperation) Format(resolver NameResolver) string {
-	machineName := resolver.MachineName(o.MachineID)
-	return fmt.Sprintf("%s: Remove container [id=%s image=%s]",
-		machineName, o.Container.ShortID(), o.Container.Config.Image)
+func (o *RemoveContainerOperation) Format() string {
+	displayName := o.Container.ServiceSpec.Name + tui.Faint.Render("/") + o.Container.ShortID()
+
+	return tui.BoldRed.Render("-") + "   " +
+		tui.Faint.Render("remove container") + " " +
+		displayName + " " +
+		tui.Faint.Render("on") + " " +
+		o.MachineName
 }
 
 func (o *RemoveContainerOperation) String() string {
@@ -116,9 +157,11 @@ func (o *RemoveContainerOperation) String() string {
 // For start-first: starts new container, then removes old container.
 // For stop-first: stops old container, starts new container, then removes old container.
 type ReplaceContainerOperation struct {
-	ServiceID    string
-	Spec         api.ServiceSpec
-	MachineID    string
+	ServiceID string
+	Spec      api.ServiceSpec
+	MachineID string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName  string
 	OldContainer api.ServiceContainer
 	// Order specifies the update order: "start-first" or "stop-first".
 	Order string
@@ -150,16 +193,17 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 	if err != nil {
 		return fmt.Errorf("create new container: %w", err)
 	}
-	if err = cli.StartContainer(ctx, o.ServiceID, resp.ID); err != nil {
+	// Override event ID so StartContainer and WaitContainerHealthy update the same progress line as creation.
+	newCtx := cliprogress.WithEventID(ctx, cliprogress.NewContainerEventID(ctx, resp.Name, o.MachineName))
+	if err = cli.StartContainer(newCtx, o.ServiceID, resp.ID); err != nil {
 		return fmt.Errorf("start new container: %w", err)
 	}
 
 	if !o.SkipHealthMonitor {
 		opts := api.WaitContainerHealthyOptions{MonitorPeriod: o.Spec.UpdateConfig.MonitorPeriod}
-		if err = cli.WaitContainerHealthy(ctx, o.ServiceID, resp.ID, opts); err != nil {
+		if err = cli.WaitContainerHealthy(newCtx, o.ServiceID, resp.ID, opts); err != nil {
 			// New container failed to become healthy. Stop it and roll back to the previous container.
 			// Don't remove the new stopped container to allow users to inspect logs and state.
-			// TODO: collect logs from the new container and include in the error message to speed up debugging.
 
 			// Use context without progress to not overwrite the container Unhealthy status with Stopped.
 			ctxWithoutProgress := progress.WithContextWriter(ctx, nil)
@@ -168,21 +212,28 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 			newCtr := fmt.Sprintf("%s/%s", o.Spec.Name, stringid.TruncateID(resp.ID))
 			healthErr := fmt.Errorf(
 				"new container '%s' failed to become healthy: %w. "+
-					"It's stopped and available for inspection. Fetch logs with 'uc logs %s'",
-				newCtr, err, o.Spec.Name,
+					"It's stopped and available for inspection. View logs with 'uc logs %s'",
+				newCtr, err, newCtr,
 			)
 
+			finalErr := healthErr
 			if stopFirst && wasRunning {
 				// Restart the old container only if it was running before we stopped it.
 				oldCtr := fmt.Sprintf("%s/%s", o.OldContainer.ServiceSpec.Name, o.OldContainer.ShortID())
 				if rollbackErr := cli.StartContainer(ctx, o.ServiceID, o.OldContainer.ID); rollbackErr != nil {
-					return fmt.Errorf("%w. Rolled back to old container '%s' but failed to restart it: %w",
+					finalErr = fmt.Errorf("%w. Rolled back to old container '%s' but failed to restart it: %w",
 						healthErr, oldCtr, rollbackErr)
+				} else {
+					finalErr = fmt.Errorf("%w. Rolled back to old container '%s'", healthErr, oldCtr)
 				}
-				return fmt.Errorf("%w. Rolled back to old container '%s'", healthErr, oldCtr)
 			}
 
-			return healthErr
+			return &ContainerHealthError{
+				error:       finalErr,
+				ServiceName: o.Spec.Name,
+				ContainerID: resp.ID,
+				MachineName: o.MachineName,
+			}
 		}
 	}
 
@@ -207,9 +258,22 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 	return nil
 }
 
-func (o *ReplaceContainerOperation) Format(resolver NameResolver) string {
-	return fmt.Sprintf("%s: Replace container [id=%s image=%s order=%s]",
-		resolver.MachineName(o.MachineID), o.OldContainer.ShortID(), o.Spec.Container.Image, o.Order)
+func (o *ReplaceContainerOperation) Format() string {
+	displayName := o.Spec.Name + tui.Faint.Render("/") + o.OldContainer.ShortID()
+
+	if o.Order == api.UpdateOrderStopFirst {
+		return tui.BoldYellow.Render("-") + tui.Yellow.Render("/") + tui.BoldYellow.Render("+") + " " +
+			tui.Faint.Render("replace container") + " " +
+			displayName + " " +
+			tui.Faint.Render("on") + " " +
+			o.MachineName + " " +
+			tui.Yellow.Render("(stop-first)")
+	}
+	return tui.BoldGreen.Render("+") + tui.Green.Render("/") + tui.BoldGreen.Render("-") + " " +
+		tui.Faint.Render("replace container") + " " +
+		displayName + " " +
+		tui.Faint.Render("on") + " " +
+		o.MachineName
 }
 
 func (o *ReplaceContainerOperation) String() string {

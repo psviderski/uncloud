@@ -67,3 +67,11 @@ func (s *ClusterState) Machine(nameOrID string) (*Machine, bool) {
 	}
 	return nil, false
 }
+
+// MachineName returns the machine name by ID from the cluster state. If the id is not found, ("", false) is returned.
+func (s *ClusterState) MachineName(id string) (string, bool) {
+	if m, ok := s.Machine(id); ok {
+		return m.Info.Name, true
+	}
+	return "", false
+}

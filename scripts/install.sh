@@ -166,6 +166,9 @@ install_uncloud_binaries() {
     if [ "${UNCLOUD_VERSION}" == "latest" ]; then
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.tar.gz"
         uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh"
+    elif [ "${UNCLOUD_VERSION}" == "nightly" ]; then
+        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/nightly/uncloudd_linux_${file_arch}.tar.gz"
+        uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh"
     else
         uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/v${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.tar.gz"
         uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/tags/v${UNCLOUD_VERSION}/scripts/uninstall.sh"
@@ -201,7 +204,7 @@ install_uncloud_systemd() {
     cat > "${uncloud_service_path}" << EOF
 [Unit]
 Description=Uncloud machine daemon
-After=network-online.target
+After=network-online.target docker.service
 Wants=network-online.target
 
 [Service]
@@ -339,8 +342,8 @@ if [ "$DOCKER_ALREADY_INSTALLED" = "true" ] && [ "$CONTAINERD_IMAGE_STORE_ENABLE
     warning "Docker was already installed on the machine but it doesn't use the containerd"
     warning "image store. Uncloud works best with the containerd image store enabled in Docker."
     warning "It allows Docker to directly use the images stored in containerd (pushed with"
-    warning "'uc image push') without duplicating them in Docker. This saves disk space and"
-    warning "makes image management more efficient."
+    warning "'uc deploy' or 'uc image push') without duplicating them in Docker. This saves"
+    warning "disk space and makes image management more efficient."
     echo ""
     warning "See https://docs.docker.com/engine/storage/containerd/ for more details."
     echo ""

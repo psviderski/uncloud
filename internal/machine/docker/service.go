@@ -74,11 +74,20 @@ func (s *Service) InspectServiceContainer(ctx context.Context, nameOrID string) 
 	return serviceCtr, nil
 }
 
+// ListServiceContainersResult holds the result of listing service containers, split into regular
+// service containers and one-off hook containers.
+type ListServiceContainersResult struct {
+	Containers     []api.ServiceContainer
+	HookContainers []api.ServiceContainer
+}
+
 // ListServiceContainers lists Docker containers that belong to the service with the given name or ID.
 // If serviceIDOrName is empty, all service containers are returned. The opts parameter allows additional filtering.
 func (s *Service) ListServiceContainers(
 	ctx context.Context, serviceNameOrID string, opts container.ListOptions,
-) ([]api.ServiceContainer, error) {
+) (ListServiceContainersResult, error) {
+	var result ListServiceContainersResult
+
 	if opts.Filters.Len() == 0 {
 		opts.Filters = filters.NewArgs()
 	}
@@ -88,10 +97,9 @@ func (s *Service) ListServiceContainers(
 
 	containerSummaries, err := s.Client.ContainerList(ctx, opts)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
-	var containers []api.ServiceContainer
 	for _, cs := range containerSummaries {
 		// Filter by service name or ID if provided.
 		if serviceNameOrID != "" &&
@@ -106,10 +114,15 @@ func (s *Service) ListServiceContainers(
 			slog.Error("Failed to inspect service container.", "service", serviceNameOrID, "id", cs.ID, "err", err)
 			continue
 		}
-		containers = append(containers, ctr)
+
+		if ctr.IsHook() {
+			result.HookContainers = append(result.HookContainers, ctr)
+		} else {
+			result.Containers = append(result.Containers, ctr)
+		}
 	}
 
-	return containers, nil
+	return result, nil
 }
 
 // IsContainerdImageStoreEnabled checks if Docker is configured to use the containerd image store:
@@ -155,18 +168,9 @@ func (s *Service) ListImages(ctx context.Context, opts image.ListOptions) (Image
 	return imagesResp, nil
 }
 
-// ContainerLogsOptions specifies parameters for ContainerLogs.
-type ContainerLogsOptions struct {
-	ContainerID string
-	Follow      bool
-	Tail        int
-	Since       string
-	Until       string
-}
-
 // ContainerLogs streams logs from a container and returns demultiplexed entries via a channel.
 // The channel is closed when streaming completes or context is cancelled.
-func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) (<-chan api.ContainerLogEntry, error) {
+func (s *Service) ContainerLogs(ctx context.Context, containerID string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
 	dockerOpts := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -177,12 +181,12 @@ func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) 
 		Timestamps: true,
 	}
 
-	reader, err := s.Client.ContainerLogs(ctx, opts.ContainerID, dockerOpts)
+	reader, err := s.Client.ContainerLogs(ctx, containerID, dockerOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	outCh := make(chan api.ContainerLogEntry)
+	outCh := make(chan api.LogEntry)
 	stdoutWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: false}
 	stderrWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: true}
 
@@ -198,7 +202,7 @@ func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) 
 		if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader); err != nil {
 			// Send error as the last entry.
 			select {
-			case outCh <- api.ContainerLogEntry{Err: fmt.Errorf("demultiplex container logs: %w", err)}:
+			case outCh <- api.LogEntry{Err: fmt.Errorf("demultiplex container logs: %w", err)}:
 			case <-ctx.Done():
 			}
 		}
@@ -216,7 +220,7 @@ func (s *Service) ContainerLogs(ctx context.Context, opts ContainerLogsOptions) 
 // logsChannelWriter is a writer for stdcopy.StdCopy that sends demultiplexed container logs to a channel.
 type logsChannelWriter struct {
 	ctx      context.Context
-	ch       chan<- api.ContainerLogEntry
+	ch       chan<- api.LogEntry
 	isStderr bool
 }
 
@@ -236,7 +240,7 @@ func (w *logsChannelWriter) Write(data []byte) (n int, err error) {
 		}
 	}
 
-	entry := api.ContainerLogEntry{
+	entry := api.LogEntry{
 		Timestamp: timestamp,
 		// Clone is required because message is a slice into data, which stdcopy.StdCopy may reuse
 		// after Write returns but before the entry is consumed from the channel.

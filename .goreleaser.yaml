@@ -11,6 +11,14 @@ before:
 
 report_sizes: true
 
+git:
+  # Skip the stale 'nightly' tag so {{.Version}} resolves to the latest semver tag for --snapshot builds.
+  ignore_tags:
+    - nightly
+snapshot:
+  # Semver-compliant nightly version, e.g. "0.19.0-nightly-abc1234" when the latest tag is v0.18.0.
+  version_template: "{{ incminor .Version }}-nightly-{{.ShortCommit}}"
+
 builds:
   - id: uncloud
     main: ./cmd/uncloud

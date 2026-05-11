@@ -34,21 +34,16 @@ func NewCaddyAdminClient(socketPath string) *CaddyAdminClient {
 	}
 }
 
-// IsAvailable checks if the local Caddy instance is running and responding to admin API requests.
-func (c *CaddyAdminClient) IsAvailable(ctx context.Context) bool {
-	// Caddy doesn't serve a /ping endpoint. It's a random endpoint we can use to check if Caddy is running.
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/ping", nil)
+// IsAvailable checks if the local Caddy instance is listening on the admin socket.
+func (c *CaddyAdminClient) IsAvailable() bool {
+	conn, err := net.DialTimeout("unix", c.socketPath, 1*time.Second)
+	// A stale socket file left over from a crashed Caddy container returns ECONNREFUSED so this is correctly handled
+	// as unavailable.
 	if err != nil {
 		return false
 	}
+	conn.Close()
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	// Any HTTP response means Caddy is running and accessible.
 	return true
 }
 

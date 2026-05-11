@@ -21,6 +21,8 @@ type ContainerResources struct {
 	Devices []DeviceMapping
 	// DeviceReservations requests for access to things like GPUs.
 	DeviceReservations []container.DeviceRequest
+	// SharedMemory is the size of the shared memory (in bytes) mounted at /dev/shm in the container.
+	SharedMemory int64
 	// Ulimits defines the resource limits for the container.
 	Ulimits map[string]Ulimit
 }

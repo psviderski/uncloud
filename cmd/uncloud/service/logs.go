@@ -4,40 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"slices"
-	"strconv"
 	"strings"
-	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/logs"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/spf13/cobra"
 )
 
-type logsOptions struct {
-	files    []string
-	follow   bool
-	tail     string
-	since    string
-	until    string
-	utc      bool
-	machines []string
-}
-
 func NewLogsCommand(groupID string) *cobra.Command {
-	var options logsOptions
+	var options logs.Options
 
 	cmd := &cobra.Command{
-		Use:     "logs [SERVICE...]",
+		Use:     "logs [SERVICE[/CONTAINER]...]",
 		Aliases: []string{"log"},
 		Short:   "View service logs.",
 		Long: `View logs from all replicas of the specified service(s) across all machines in the cluster.
+
+To view logs from specific replicas (containers) within a service, use the SERVICE/CONTAINER form,
+where CONTAINER is a container name, full ID, or unique ID prefix.
 
 If no services are specified, streams logs from all services defined in the Compose file
 (compose.yaml by default or the file(s) specified with --file).`,
@@ -62,6 +52,9 @@ If no services are specified, streams logs from all services defined in the Comp
   # View logs from a specific time range.
   uc logs --since 3h --until 1h30m web
 
+  # View logs only from specific replicas (containers).
+  uc logs web/61d57fd3428f api/2f60
+
   # View logs only from replicas running on specific machines.
   uc logs -m machine1,machine2 web api`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -69,56 +62,56 @@ If no services are specified, streams logs from all services defined in the Comp
 			return runLogs(cmd.Context(), uncli, args, options)
 		},
 		GroupID: groupID,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Services(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 
-	cmd.Flags().StringSliceVar(&options.files, "file", nil,
+	cmd.Flags().StringSliceVar(&options.Files, "file", nil,
 		"One or more Compose files to load service names from when no services are specified. (default compose.yaml)")
-	cmd.Flags().BoolVarP(&options.follow, "follow", "f", false,
-		"Continually stream new logs.")
-	cmd.Flags().StringSliceVarP(&options.machines, "machine", "m", nil,
-		"Filter logs by machine name or ID. Can be specified multiple times or as a comma-separated list.")
-	cmd.Flags().StringVar(&options.since, "since", "",
-		"Show logs generated on or after the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
-			"Examples:\n"+
-			"  --since 2m30s                      Relative duration (2 minutes 30 seconds ago)\n"+
-			"  --since 1h                         Relative duration (1 hour ago)\n"+
-			"  --since 2025-11-24                 RFC 3339 date only (midnight using local timezone)\n"+
-			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using local timezone\n"+
-			"  --since 2024-01-31T10:30:00Z       RFC 3339 date/time in UTC\n"+
-			"  --since 1763953966                 Unix timestamp (seconds since January 1, 1970)")
-	cmd.Flags().StringVarP(&options.tail, "tail", "n", "100",
-		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.")
-	cmd.Flags().StringVar(&options.until, "until", "",
-		"Show logs generated before the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
-			"See --since for examples.")
-	cmd.Flags().BoolVar(&options.utc, "utc", false,
-		"Print timestamps in UTC instead of local timezone.")
+
+	cmd.Flags().AddFlagSet(logs.Flags(&options))
+	completion.MachinesFlag(cmd)
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }
 
-func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts logsOptions) error {
+func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Options) error {
+	serviceArgs, err := logs.ParseServiceArgs(args)
+	if err != nil {
+		return err
+	}
+
 	// If no services specified, try to load them from the Compose file(s).
-	if len(serviceNames) == 0 {
-		project, err := compose.LoadProject(ctx, opts.files)
+	fromCompose := false
+	if len(serviceArgs) == 0 {
+		fromCompose = true
+		project, err := compose.LoadProject(ctx, opts.Files)
 		if err != nil {
-			return fmt.Errorf("load compose file(s): %w", err)
+			return fmt.Errorf("load Compose file(s): %w", err)
 		}
+
+		uncli.SetClusterContextIfUnset(compose.ClusterContext(project))
+
 		// View logs for all services, including disabled by inactive profiles.
-		serviceNames = append(project.ServiceNames(), project.DisabledServiceNames()...)
-		if len(serviceNames) == 0 {
-			return errors.New("no services found in compose file(s)")
+		composeServices := append(project.ServiceNames(), project.DisabledServiceNames()...)
+		if len(composeServices) == 0 {
+			return errors.New("no services found in Compose file(s)")
+		}
+
+		serviceArgs = make([]logs.ServiceArg, len(composeServices))
+		for i, name := range composeServices {
+			serviceArgs[i] = logs.ServiceArg{Service: name}
 		}
 	}
 
 	// Parse tail option.
-	tail := -1
-	if opts.tail != "all" {
-		tailInt, err := strconv.Atoi(opts.tail)
-		if err != nil {
-			return fmt.Errorf("invalid --tail value '%s': %w", opts.tail, err)
-		}
-		tail = tailInt
+	tail, err := logs.Tail(opts.Tail)
+	if err != nil {
+		return err
 	}
 
 	c, err := uncli.ConnectCluster(ctx)
@@ -127,30 +120,52 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 	}
 	defer c.Close()
 
-	logsOpts := api.ServiceLogsOptions{
-		Follow:   opts.follow,
+	baseOpts := api.ServiceLogsOptions{
+		Follow:   opts.Follow,
 		Tail:     tail,
-		Since:    opts.since,
-		Until:    opts.until,
-		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
+		Since:    opts.Since,
+		Until:    opts.Until,
+		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
-	// Collect log streams from all services.
+	// Collect log streams from all services. When service names come from a Compose file,
+	// skip the ones that are not found in the cluster (they may have been removed or not deployed yet).
 	machineIDsSet := mapset.NewSet[string]()
-	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceNames))
-	for _, serviceName := range serviceNames {
-		svc, ch, err := c.ServiceLogs(ctx, serviceName, logsOpts)
+	svcStreams := make([]<-chan api.ServiceLogEntry, 0, len(serviceArgs))
+	var foundServices, notFoundServices []string
+
+	for _, sa := range serviceArgs {
+		svcOpts := baseOpts
+		svcOpts.Containers = sa.Containers
+
+		svc, ch, err := c.ServiceLogs(ctx, sa.Service, svcOpts)
 		if err != nil {
-			return fmt.Errorf("stream logs for service '%s': %w", serviceName, err)
+			if errors.Is(err, api.ErrNotFound) && fromCompose {
+				notFoundServices = append(notFoundServices, sa.Service)
+				continue
+			}
+			return fmt.Errorf("stream logs for service '%s': %w", sa.Service, err)
 		}
 		svcStreams = append(svcStreams, ch)
+		foundServices = append(foundServices, sa.Service)
 
 		machineIDs := svc.MachineIDs()
 		machineIDsSet.Append(machineIDs...)
 	}
 
+	if fromCompose {
+		if len(foundServices) == 0 {
+			return fmt.Errorf("stream logs for services defined in %s: no services found in the cluster",
+				strings.Join(opts.Files, ", "))
+		}
+
+		for _, name := range notFoundServices {
+			tui.PrintWarning(fmt.Sprintf("service '%s' not found in the cluster, skipping", name))
+		}
+	}
+
 	var stream <-chan api.ServiceLogEntry
-	if len(serviceNames) == 1 {
+	if len(svcStreams) == 1 {
 		stream = svcStreams[0]
 	} else {
 		// Merge all service streams into a single sorted stream without stall detection as its handled per-service.
@@ -159,6 +174,8 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 	}
 
 	// Fetch machine names for all machines (machineIDsSet) service containers are running on.
+	// Note: this is the full set per service, not narrowed by --machine or per-container filters,
+	// so the formatter may pad columns wider than strictly needed when filters are active.
 	machines, err := c.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: machineIDsSet.ToSlice()})
 	if err != nil {
 		return fmt.Errorf("list machines: %w", err)
@@ -168,169 +185,12 @@ func runLogs(ctx context.Context, uncli *cli.CLI, serviceNames []string, opts lo
 		machineNames = append(machineNames, m.Machine.Name)
 	}
 
-	formatter := newLogFormatter(machineNames, serviceNames, opts.utc)
+	formatter := logs.NewFormatter(machineNames, foundServices, opts.UTC)
 
 	// Print merged logs.
 	for entry := range stream {
-		if entry.Err != nil {
-			formatter.printError(entry)
-			continue
-		}
-		formatter.printEntry(entry)
+		formatter.PrintEntry(entry)
 	}
 
 	return nil
-}
-
-// Available colors for machine/service differentiation.
-var colorPalette = []lipgloss.Color{
-	lipgloss.Color("10"), // Bright green
-	lipgloss.Color("11"), // Bright yellow
-	lipgloss.Color("12"), // Bright blue
-	lipgloss.Color("13"), // Bright magenta
-	lipgloss.Color("14"), // Bright cyan
-	lipgloss.Color("2"),  // Green
-	lipgloss.Color("3"),  // Yellow
-	lipgloss.Color("4"),  // Blue
-	lipgloss.Color("5"),  // Magenta
-	lipgloss.Color("6"),  // Cyan
-}
-
-// logFormatter handles formatting and printing of log entries with dynamic column alignment.
-type logFormatter struct {
-	machineNames []string
-	serviceNames []string
-
-	maxMachineWidth int
-	maxServiceWidth int
-
-	utc bool
-}
-
-func newLogFormatter(machineNames, serviceNames []string, utc bool) *logFormatter {
-	slices.Sort(machineNames)
-	slices.Sort(serviceNames)
-
-	maxMachineWidth := 0
-	for _, name := range machineNames {
-		if len(name) > maxMachineWidth {
-			maxMachineWidth = len(name)
-		}
-	}
-
-	maxServiceWidth := 0
-	for _, name := range serviceNames {
-		if len(name) > maxServiceWidth {
-			maxServiceWidth = len(name)
-		}
-	}
-
-	return &logFormatter{
-		machineNames:    machineNames,
-		serviceNames:    serviceNames,
-		maxMachineWidth: maxMachineWidth,
-		maxServiceWidth: maxServiceWidth,
-		utc:             utc,
-	}
-}
-
-// formatTimestamp formats timestamp using local timezone or UTC if configured.
-func (f *logFormatter) formatTimestamp(t time.Time) string {
-	if f.utc {
-		t = t.UTC()
-	} else {
-		t = t.In(time.Local)
-	}
-	dimStyle := lipgloss.NewStyle().Faint(true)
-
-	return dimStyle.Render(t.Format(time.StampMilli))
-}
-
-func (f *logFormatter) formatMachine(name string) string {
-	style := lipgloss.NewStyle().Bold(true).PaddingRight(f.maxMachineWidth - len(name))
-
-	if len(f.serviceNames) == 1 {
-		// Machine name is coloured for single-service logs.
-		i := slices.Index(f.machineNames, name)
-		if i == -1 {
-			f.machineNames = append(f.machineNames, name)
-			i = len(f.machineNames) - 1
-		}
-
-		style = style.Foreground(colorPalette[i%len(colorPalette)])
-	}
-
-	return style.Render(name)
-}
-
-func (f *logFormatter) formatServiceContainer(serviceName, containerID string) string {
-	styleService := lipgloss.NewStyle().Bold(true).PaddingRight(f.maxServiceWidth - len(serviceName))
-	styleContainer := lipgloss.NewStyle().Faint(true)
-
-	if len(f.serviceNames) > 1 {
-		// Service name is coloured for multi-service logs.
-		i := slices.Index(f.serviceNames, serviceName)
-		if i == -1 {
-			f.serviceNames = append(f.serviceNames, serviceName)
-			i = len(f.serviceNames) - 1
-		}
-
-		styleService = styleService.Foreground(colorPalette[i%len(colorPalette)])
-	}
-
-	return styleService.Render(serviceName) + styleContainer.Render("["+containerID[:5]+"]")
-}
-
-// printEntry prints a single log entry with proper formatting.
-func (f *logFormatter) printEntry(entry api.ServiceLogEntry) {
-	if entry.Stream != api.LogStreamStdout && entry.Stream != api.LogStreamStderr {
-		return
-	}
-
-	var output strings.Builder
-
-	// Timestamp
-	output.WriteString(f.formatTimestamp(entry.Timestamp))
-	output.WriteString(" ")
-
-	// Machine name
-	output.WriteString(f.formatMachine(entry.Metadata.MachineName))
-	output.WriteString(" ")
-
-	// Service[container_id]
-	output.WriteString(f.formatServiceContainer(entry.Metadata.ServiceName, entry.Metadata.ContainerID))
-	output.WriteString(" ")
-
-	// Message
-	output.Write(entry.Message)
-
-	// Print to appropriate stream.
-	if entry.Stream == api.LogStreamStderr {
-		fmt.Fprint(os.Stderr, output.String())
-	} else {
-		fmt.Print(output.String())
-	}
-}
-
-// printError prints an error entry (e.g., stalled stream warning).
-func (f *logFormatter) printError(entry api.ServiceLogEntry) {
-	if entry.Metadata.ContainerID != "" {
-		msg := fmt.Sprintf("WARNING: log stream from %s[%s] on machine '%s'",
-			entry.Metadata.ServiceName,
-			stringid.TruncateID(entry.Metadata.ContainerID),
-			entry.Metadata.MachineName)
-
-		if errors.Is(entry.Err, api.ErrLogStreamStalled) {
-			msg += " stopped responding"
-		} else {
-			msg += fmt.Sprintf(": %v", entry.Err)
-		}
-
-		style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11")) // Bold bright yellow
-		fmt.Fprintln(os.Stderr, style.Render(msg))
-	} else {
-		msg := fmt.Sprintf("ERROR: %v", entry.Err)
-		style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9")) // Bold bright red
-		fmt.Fprintln(os.Stderr, style.Render(msg))
-	}
 }

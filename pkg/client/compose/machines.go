@@ -11,7 +11,7 @@ const MachinesExtensionKey = "x-machines"
 type MachinesSource []string
 
 // DecodeMapstructure implements custom decoding for multiple input types
-func (m *MachinesSource) DecodeMapstructure(value interface{}) error {
+func (m *MachinesSource) DecodeMapstructure(value any) error {
 	switch v := value.(type) {
 	case *MachinesSource:
 		// Handle case where compose-go passes a pointer to an already created instance
@@ -38,7 +38,7 @@ func (m *MachinesSource) DecodeMapstructure(value interface{}) error {
 		}
 		*m = MachinesSource(machines)
 		return nil
-	case []interface{}:
+	case []any:
 		// Support interface array that may come from YAML parsing
 		machineNames := make([]string, 0, len(v))
 		for i, machine := range v {

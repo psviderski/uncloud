@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Stop uncloud daemon and wipe state on dev machines"
+#USAGE arg "<hosts>" var=#true var_min=1 help="Hosts in [user@]host format"
+
+for host in ${usage_hosts}; do
+  # Strip optional /arch suffix since reset doesn't need it.
+  host="${host%/*}"
+  echo "==> Resetting ${host}..."
+  ssh "$host" "sudo systemctl stop uncloud && sudo rm -rf /var/lib/uncloud"
+done
+
+echo "==> Done"

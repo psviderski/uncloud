@@ -420,34 +420,6 @@ func (c *Client) RemoveVolume(ctx context.Context, id string, force bool) error 
 	return err
 }
 
-// CreateServiceContainer creates a new container for the service with the given specifications.
-func (c *Client) CreateServiceContainer(
-	ctx context.Context, serviceID string, spec api.ServiceSpec, containerName string,
-) (container.CreateResponse, error) {
-	var resp container.CreateResponse
-
-	specBytes, err := json.Marshal(spec)
-	if err != nil {
-		return resp, fmt.Errorf("marshal service spec: %w", err)
-	}
-	grpcResp, err := c.GRPCClient.CreateServiceContainer(ctx, &pb.CreateServiceContainerRequest{
-		ServiceId:     serviceID,
-		ServiceSpec:   specBytes,
-		ContainerName: containerName,
-	})
-	if err != nil {
-		if status.Convert(err).Code() == codes.NotFound {
-			return resp, errdefs.NotFound(err)
-		}
-		return resp, err
-	}
-
-	if err = json.Unmarshal(grpcResp.Response, &resp); err != nil {
-		return resp, fmt.Errorf("unmarshal gRPC response: %w", err)
-	}
-	return resp, nil
-}
-
 // InspectServiceContainer returns the container information and service specification that was used to create the
 // container with the given ID.
 func (c *Client) InspectServiceContainer(ctx context.Context, id string) (api.ServiceContainer, error) {
@@ -474,10 +446,13 @@ func (c *Client) InspectServiceContainer(ctx context.Context, id string) (api.Se
 type MachineServiceContainers struct {
 	Metadata   *pb.Metadata
 	Containers []api.ServiceContainer
+	// HookContainers are one-shot containers for deployment hooks (e.g. pre-deploy).
+	HookContainers []api.ServiceContainer
 }
 
 // ListServiceContainers returns all containers on requested machines that belong to the service with the given
 // name or ID. If serviceNameOrID is empty, all service containers are returned.
+// Set opts.All to true to include hook containers.
 func (c *Client) ListServiceContainers(
 	ctx context.Context, serviceNameOrID string, opts container.ListOptions,
 ) ([]MachineServiceContainers, error) {
@@ -501,20 +476,31 @@ func (c *Client) ListServiceContainers(
 			continue
 		}
 
-		containers := make([]api.ServiceContainer, len(msg.Containers))
-		for j, sc := range msg.Containers {
-			if err = json.Unmarshal(sc.Container, &containers[j].Container); err != nil {
-				return nil, fmt.Errorf("unmarshal container: %w", err)
-			}
-			if err = json.Unmarshal(sc.ServiceSpec, &containers[j].ServiceSpec); err != nil {
-				return nil, fmt.Errorf("unmarshal service spec: %w", err)
-			}
+		machineContainers[i].Containers, err = serviceContainersFromProto(msg.Containers)
+		if err != nil {
+			return nil, err
 		}
-
-		machineContainers[i].Containers = containers
+		machineContainers[i].HookContainers, err = serviceContainersFromProto(msg.HookContainers)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return machineContainers, nil
+}
+
+// serviceContainersFromProto converts a slice of protobuf service containers to api.ServiceContainer.
+func serviceContainersFromProto(pbContainers []*pb.ServiceContainer) ([]api.ServiceContainer, error) {
+	containers := make([]api.ServiceContainer, len(pbContainers))
+	for i, sc := range pbContainers {
+		if err := json.Unmarshal(sc.Container, &containers[i].Container); err != nil {
+			return nil, fmt.Errorf("unmarshal container: %w", err)
+		}
+		if err := json.Unmarshal(sc.ServiceSpec, &containers[i].ServiceSpec); err != nil {
+			return nil, fmt.Errorf("unmarshal service spec: %w", err)
+		}
+	}
+	return containers, nil
 }
 
 // RemoveServiceContainer stops (kills after grace period) and removes a service container with the given ID.

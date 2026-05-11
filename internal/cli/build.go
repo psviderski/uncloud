@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/docker/cli/cli/command"

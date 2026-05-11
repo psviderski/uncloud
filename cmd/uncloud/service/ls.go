@@ -3,12 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -50,20 +49,22 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 	})
 
 	// Print the list of services in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	t := tui.NewTable()
 
 	// Include the ID column if there are duplicate service names to differentiate them.
+	headers := []string{"NAME", "MODE", "REPLICAS", "IMAGE", "ENDPOINTS"}
 	if haveDuplicateNames {
-		if _, err = fmt.Fprintf(tw, "ID\t"); err != nil {
-			return fmt.Errorf("write header: %w", err)
-		}
+		headers = append([]string{"ID"}, headers...)
 	}
-	if _, err = fmt.Fprintln(tw, "NAME\tMODE\tREPLICAS\tIMAGE\tENDPOINTS"); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
+	t.Headers(headers...)
+
 	for _, s := range services {
-		images := strings.Join(s.Images(), ", ")
-		endpoints := strings.Join(s.Endpoints(), ", ")
+		images := s.Images()
+		for i, img := range images {
+			images[i] = tui.FormatImage(img, tui.NoStyle)
+		}
+		formattedImages := strings.Join(images, tui.Faint.Render(", "))
+		endpoints := strings.Join(s.Endpoints(), tui.Faint.Render(", "))
 
 		// If no endpoints from ports, check if the service uses custom Caddy config.
 		if endpoints == "" {
@@ -74,15 +75,13 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			}
 		}
 
+		row := []string{s.Name, s.Mode, fmt.Sprintf("%d", len(s.Containers)), formattedImages, endpoints}
 		if haveDuplicateNames {
-			if _, err = fmt.Fprintf(tw, "%s\t", s.ID); err != nil {
-				return fmt.Errorf("write row: %w", err)
-			}
+			row = append([]string{s.ID}, row...)
 		}
-		if _, err = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\n",
-			s.Name, s.Mode, len(s.Containers), images, endpoints); err != nil {
-			return fmt.Errorf("write row: %w", err)
-		}
+		t.Row(row...)
 	}
-	return tw.Flush()
+
+	fmt.Println(t)
+	return nil
 }

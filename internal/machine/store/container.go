@@ -1,14 +1,17 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -49,10 +52,9 @@ type DeleteOptions struct {
 // CreateOrUpdateContainer creates a new container record or updates an existing one in the store database.
 // The container is associated with the given machine ID that indicates which machine the container is running on.
 func (s *Store) CreateOrUpdateContainer(ctx context.Context, ctr api.ServiceContainer, machineID string) error {
-	// Remove the environment variables from the container record before storing it in the database
-	// to avoid leaking secrets.
-	ctr.Config.Env = nil
-	ctr.ServiceSpec.Container.Env = nil
+	// Stabilise the order of slices that Docker returns non-deterministically, so that byte-level
+	// comparison of the serialised container does not flag spurious changes.
+	normaliseContainerForStore(&ctr)
 
 	cJSON, err := json.Marshal(ctr)
 	if err != nil {
@@ -78,6 +80,23 @@ func (s *Store) CreateOrUpdateContainer(ctx context.Context, ctr api.ServiceCont
 	}
 
 	return nil
+}
+
+// normaliseContainerForStore removes potentially sensitive data and normalises the container fields that Docker may
+// return in non-deterministic order so that byte-level comparison of the serialised container does not flag spurious
+// changes.
+func normaliseContainerForStore(ctr *api.ServiceContainer) {
+	// Remove the environment variables to avoid leaking secrets.
+	ctr.Config.Env = nil
+	ctr.ServiceSpec.Container.Env = nil
+
+	// Docker returns Mounts in a non-deterministic order so sort them.
+	slices.SortFunc(ctr.Mounts, func(a, b container.MountPoint) int {
+		return cmp.Or(
+			strings.Compare(a.Destination, b.Destination),
+			strings.Compare(a.Source, b.Source),
+		)
+	})
 }
 
 // ListContainers returns a list of container records from the store database that match the given options.

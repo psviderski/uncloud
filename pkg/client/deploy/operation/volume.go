@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/docker/docker/api/types/volume"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -12,7 +13,7 @@ import (
 type CreateVolumeOperation struct {
 	VolumeSpec api.VolumeSpec
 	MachineID  string
-	// MachineName is used for formatting the operation output only.
+	// MachineName is used for formatting the operation as part of the deployment plan.
 	MachineName string
 }
 
@@ -39,8 +40,12 @@ func (o *CreateVolumeOperation) Execute(ctx context.Context, cli Client) error {
 	return nil
 }
 
-func (o *CreateVolumeOperation) Format(_ NameResolver) string {
-	return fmt.Sprintf("%s: Create volume [name=%s]", o.MachineName, o.VolumeSpec.DockerVolumeName())
+func (o *CreateVolumeOperation) Format() string {
+	return fmt.Sprintf("%s create volume %s %s %s",
+		tui.BoldGreen.Render("+"),
+		tui.NameStyle.Render(o.VolumeSpec.DockerVolumeName()),
+		tui.Faint.Render("on"),
+		o.MachineName)
 }
 
 func (o *CreateVolumeOperation) String() string {

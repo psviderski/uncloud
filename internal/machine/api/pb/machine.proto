@@ -4,6 +4,7 @@ package api;
 
 option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "internal/machine/api/pb/common.proto";
@@ -24,6 +25,8 @@ service Machine {
   rpc Reset(ResetRequest) returns (google.protobuf.Empty);
 
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
+
+  rpc MachineLogs(LogsRequest) returns (stream LogEntry);
 }
 
 message MachineInfo {
@@ -81,6 +84,8 @@ message MachineDetails {
   MachineInfo machine = 2;
   // Current Corrosion cr-sqlite database version (Lamport timestamp) of the cluster store.
   int64 store_db_version = 3;
+  // Round-trip times to other machines in the cluster, keyed by peer machine ID.
+  map<string, RTTStats> rtts = 4;
 }
 
 message TokenResponse {
@@ -126,4 +131,9 @@ message WireGuardPeer {
   int64 receive_bytes = 4;
   int64 transmit_bytes = 5;
   repeated string allowed_ips = 6;
+}
+
+message RTTStats {
+  google.protobuf.Duration median = 1;
+  google.protobuf.Duration std_dev = 2;
 }

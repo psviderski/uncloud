@@ -7,6 +7,8 @@ import (
 
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -47,14 +49,20 @@ If the service has multiple replicas and no container ID is specified, the comma
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			serviceName := args[0]
-			command := args[1:]
+			serviceName, command := normalizeExecArgs(args)
 			if len(command) == 0 {
 				command = DEFAULT_COMMAND
 			}
 			return runExec(cmd.Context(), uncli, serviceName, command, opts)
 		},
 		GroupID: groupID,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Services(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 
 	execCmd.Flags().BoolVarP(&opts.detach, "detach", "d", false, "Detached mode: run command in the background")
@@ -81,9 +89,18 @@ If the service has multiple replicas and no container ID is specified, the comma
 	return execCmd
 }
 
+func normalizeExecArgs(args []string) (serviceName string, command []string) {
+	serviceName = args[0]
+	command = args[1:]
+	if len(command) > 0 && command[0] == "--" {
+		command = command[1:]
+	}
+	return serviceName, command
+}
+
 func runExec(ctx context.Context, uncli *cli.CLI, serviceName string, command []string, opts execCliOptions) error {
 	// Disable TTY allocation if not connected to a terminal
-	if !cli.IsStdoutTerminal() {
+	if !tui.IsStdoutTerminal() {
 		opts.noTty = true
 	}
 

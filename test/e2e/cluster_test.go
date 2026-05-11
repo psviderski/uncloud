@@ -55,7 +55,7 @@ func createTestCluster(
 	})
 
 	if waitReady {
-		require.NoError(t, p.WaitClusterReady(ctx, c, 60*time.Second))
+		require.NoError(t, p.WaitClusterReady(ctx, c, 90*time.Second))
 	}
 
 	return c, p
@@ -104,7 +104,7 @@ func TestClusterLifecycle(t *testing.T) {
 				}
 
 				return true
-			}, 15*time.Second, 50*time.Millisecond, "cluster store not reconciled on machine #%d", i+1)
+			}, 30*time.Second, 50*time.Millisecond, "cluster store not reconciled on machine #%d", i+1)
 		}
 	})
 

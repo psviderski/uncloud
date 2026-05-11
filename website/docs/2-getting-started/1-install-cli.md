@@ -48,6 +48,16 @@ cat install.sh
 sh install.sh
 ```
 
+### Nightly builds
+
+If you want to try the latest features and fixes before they are included in an official release, you can install the `nightly` version of Uncloud CLI (as well as the Uncloud daemon) which are built from the latest main branch code. Just set the `VERSION` environment variable to `nightly` when running the install script:
+
+```shell
+curl -fsS https://get.uncloud.run/install.sh | VERSION=nightly sh
+```
+
+More information about nightly builds of the CLI and daemon can be found [here](https://github.com/psviderski/uncloud/releases/tag/nightly).
+
 ## GitHub download (macOS, Linux)
 
 You can manually download and use a pre-built binary from the

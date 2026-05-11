@@ -3,12 +3,12 @@ package volume
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
@@ -36,6 +36,8 @@ func NewListCommand() *cobra.Command {
 			"(default is include all machines)")
 	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false,
 		"Only display volume names.")
+
+	completion.MachinesFlag(cmd)
 
 	return cmd
 }
@@ -86,16 +88,13 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	}
 
 	// Print the volumes in a table format.
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tDRIVER\tMACHINE")
+	t := tui.NewTable()
+	t.Headers("NAME", "DRIVER", "MACHINE")
 
 	for _, v := range volumes {
-		fmt.Fprintf(tw, "%s\t%s\t%s\n",
-			v.Volume.Name,
-			v.Volume.Driver,
-			v.MachineName,
-		)
+		t.Row(v.Volume.Name, v.Volume.Driver, v.MachineName)
 	}
 
-	return tw.Flush()
+	fmt.Println(t)
+	return nil
 }

@@ -20,7 +20,7 @@ type Strategy interface {
 	// Plan returns the operation to reconcile the service to the desired state.
 	// If the service does not exist (new deployment), svc will be nil. state provides the current and planned state
 	// of the cluster for scheduling decisions.
-	Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (Plan, error)
+	Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (ServicePlan, error)
 }
 
 // RollingStrategy implements a rolling update deployment pattern where containers are updated one at a time
@@ -40,9 +40,9 @@ func (s *RollingStrategy) Type() string {
 	return "rolling"
 }
 
-func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (Plan, error) {
+func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
 	if state == nil {
-		return Plan{}, fmt.Errorf("cluster state must be provided")
+		return ServicePlan{}, fmt.Errorf("cluster state must be provided")
 	}
 	s.state = state
 
@@ -53,7 +53,7 @@ func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, 
 	case api.ServiceModeGlobal:
 		return s.planGlobal(svc, spec)
 	default:
-		return Plan{}, fmt.Errorf("unsupported service mode: '%s'", spec.Mode)
+		return ServicePlan{}, fmt.Errorf("unsupported service mode: '%s'", spec.Mode)
 	}
 }
 
@@ -61,10 +61,16 @@ func (s *RollingStrategy) Plan(state *scheduler.ClusterState, svc *api.Service, 
 // For replicated services, we want to maintain a specific number of containers (replicas) across the available machines
 // in the cluster.
 // TODO: schedule containers only on machines that contain the image if pull policy is set to 'never'.
-func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
-	plan, err := newEmptyPlan(svc, spec)
+func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
+	plan, err := newEmptyServicePlan(svc, spec)
 	if err != nil {
 		return plan, err
+	}
+
+	// Build a machine ID to name map from the cluster state to resolve IDs for operations.
+	machineNames := make(map[string]string, len(s.state.Machines))
+	for _, m := range s.state.Machines {
+		machineNames[m.Info.Id] = m.Info.Name
 	}
 
 	sched := scheduler.NewServiceScheduler(s.state, spec)
@@ -151,6 +157,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 				ServiceID:         plan.ServiceID,
 				Spec:              spec,
 				MachineID:         m.Id,
+				MachineName:       m.Name,
 				SkipHealthMonitor: s.SkipHealthMonitor,
 			})
 			continue
@@ -172,10 +179,11 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 			ServiceID:         plan.ServiceID,
 			Spec:              spec,
 			MachineID:         m.Id,
+			MachineName:       m.Name,
 			OldContainer:      ctr,
 			Order:             order,
 			SkipHealthMonitor: s.SkipHealthMonitor,
-			StopGracePeriod:   spec.StopGracePeriod,
+			StopGracePeriod:   spec.Container.StopGracePeriod,
 		})
 	}
 
@@ -184,10 +192,15 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID:       mid,
+				MachineName:     machineNames[mid],
 				Container:       c,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
+	}
+
+	if ops := s.preDeployOperations(svc, plan); len(ops) > 0 {
+		plan.Operations = append(ops, plan.Operations...)
 	}
 
 	return plan, nil
@@ -198,10 +211,16 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 // possible. If the new container would have port conflicts with the existing one, the old container is removed first.
 // It handles multiple containers per machine (though this should not occur in normal operation) and skips machines
 // that are down.
-func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
-	plan, err := newEmptyPlan(svc, spec)
+func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
+	plan, err := newEmptyServicePlan(svc, spec)
 	if err != nil {
 		return plan, err
+	}
+
+	// Build a machine ID to name map from the cluster state to resolve IDs for operations.
+	machineNames := make(map[string]string, len(s.state.Machines))
+	for _, m := range s.state.Machines {
+		machineNames[m.Info.Id] = m.Info.Name
 	}
 
 	// Map machineID to service containers on that machine. For the global mode, there should be at most one
@@ -223,7 +242,13 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 	for _, m := range availableMachines {
 		containers := containersOnMachine[m.Info.Id]
 		ops, err := reconcileGlobalContainer(
-			containers, spec, plan.ServiceID, m.Info.Id, s.ForceRecreate, s.SkipHealthMonitor)
+			containers,
+			spec,
+			plan.ServiceID,
+			m.Info,
+			s.ForceRecreate,
+			s.SkipHealthMonitor,
+		)
 		if err != nil {
 			return plan, err
 		}
@@ -237,10 +262,15 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 		for _, c := range containers {
 			plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
 				MachineID:       c.MachineID,
+				MachineName:     machineNames[c.MachineID],
 				Container:       c.Container,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
+	}
+
+	if ops := s.preDeployOperations(svc, plan); len(ops) > 0 {
+		plan.Operations = append(ops, plan.Operations...)
 	}
 
 	return plan, nil
@@ -250,7 +280,10 @@ func (s *RollingStrategy) planGlobal(svc *api.Service, spec api.ServiceSpec) (Pl
 // It ensures exactly one container with the desired spec is running on the machine by creating a new container and
 // removing old ones. If there is a host port conflict, it stops the old container before starting a new one.
 func reconcileGlobalContainer(
-	containers []api.MachineServiceContainer, spec api.ServiceSpec, serviceID, machineID string,
+	containers []api.MachineServiceContainer,
+	spec api.ServiceSpec,
+	serviceID string,
+	machine *pb.MachineInfo,
 	forceRecreate, skipHealthCheck bool,
 ) ([]operation.Operation, error) {
 	var ops []operation.Operation
@@ -260,7 +293,8 @@ func reconcileGlobalContainer(
 		ops = append(ops, &operation.RunContainerOperation{
 			ServiceID:         serviceID,
 			Spec:              spec,
-			MachineID:         machineID,
+			MachineID:         machine.Id,
+			MachineName:       machine.Name,
 			SkipHealthMonitor: skipHealthCheck,
 		})
 		return ops, nil
@@ -290,13 +324,15 @@ func reconcileGlobalContainer(
 				}
 				ops = append(ops, &operation.RemoveContainerOperation{
 					MachineID:       old.MachineID,
+					MachineName:     machine.Name,
 					Container:       old.Container,
-					StopGracePeriod: spec.StopGracePeriod,
+					StopGracePeriod: spec.Container.StopGracePeriod,
 				})
 			}
 			break
 		}
 		// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
+		//  Make sure to update preDeployOperation accordingly.
 	}
 	if upToDate {
 		return ops, nil
@@ -325,8 +361,9 @@ func reconcileGlobalContainer(
 				ops = append(ops, &operation.StopContainerOperation{
 					ServiceID:       serviceID,
 					ContainerID:     c.Container.ID,
-					MachineID:       machineID,
-					StopGracePeriod: spec.StopGracePeriod,
+					MachineID:       machine.Id,
+					MachineName:     machine.Name,
+					StopGracePeriod: spec.Container.StopGracePeriod,
 				})
 			}
 		}
@@ -336,11 +373,12 @@ func reconcileGlobalContainer(
 		ops = append(ops, &operation.ReplaceContainerOperation{
 			ServiceID:         serviceID,
 			Spec:              spec,
-			MachineID:         machineID,
+			MachineID:         machine.Id,
+			MachineName:       machine.Name,
 			OldContainer:      containerToReplace.Container,
 			Order:             order,
 			SkipHealthMonitor: skipHealthCheck,
-			StopGracePeriod:   spec.StopGracePeriod,
+			StopGracePeriod:   spec.Container.StopGracePeriod,
 		})
 
 		// Remove any other containers (there shouldn't be any in normal operation).
@@ -350,8 +388,9 @@ func reconcileGlobalContainer(
 			}
 			ops = append(ops, &operation.RemoveContainerOperation{
 				MachineID:       c.MachineID,
+				MachineName:     machine.Name,
 				Container:       c.Container,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
 	} else {
@@ -359,14 +398,16 @@ func reconcileGlobalContainer(
 		ops = append(ops, &operation.RunContainerOperation{
 			ServiceID:         serviceID,
 			Spec:              spec,
-			MachineID:         machineID,
+			MachineID:         machine.Id,
+			MachineName:       machine.Name,
 			SkipHealthMonitor: skipHealthCheck,
 		})
 		for _, c := range containers {
 			ops = append(ops, &operation.RemoveContainerOperation{
 				MachineID:       c.MachineID,
+				MachineName:     machine.Name,
 				Container:       c.Container,
-				StopGracePeriod: spec.StopGracePeriod,
+				StopGracePeriod: spec.Container.StopGracePeriod,
 			})
 		}
 	}
@@ -403,15 +444,76 @@ func determineUpdateOrder(oldContainer api.ServiceContainer, spec api.ServiceSpe
 	return api.UpdateOrderStartFirst
 }
 
-// newEmptyPlan creates a new empty plan for a service deployment with initialised service ID and name.
-func newEmptyPlan(svc *api.Service, spec api.ServiceSpec) (Plan, error) {
-	var plan Plan
+// preDeployOperations returns operations for the pre-deploy hook if the spec has one and the plan updates the service.
+// It prepends StopPreDeployOperations for any running hook containers, followed by a RunPreDeployOperation on the same
+// machine as the first run/replace operation.
+func (s *RollingStrategy) preDeployOperations(svc *api.Service, plan ServicePlan) []operation.Operation {
+	if plan.Spec.PreDeploy == nil {
+		return nil
+	}
+
+	// Find the first run or replace operation to determine the target machine.
+	var machineID, machineName string
+	for _, op := range plan.Operations {
+		switch o := op.(type) {
+		case *operation.RunContainerOperation:
+			machineID = o.MachineID
+			machineName = o.MachineName
+		case *operation.ReplaceContainerOperation:
+			machineID = o.MachineID
+			machineName = o.MachineName
+		default:
+			continue
+		}
+		break
+	}
+
+	// Skip the hook as there are no run or replace operations.
+	if machineID == "" {
+		return nil
+	}
+
+	var ops []operation.Operation
+
+	// Collect old pre-deploy container IDs to clean up and stop any that are still running.
+	var oldContainerIDs []string
+	if svc != nil {
+		for _, c := range svc.HookContainers {
+			oldContainerIDs = append(oldContainerIDs, c.Container.ID)
+			if c.Container.State.Running {
+				hookMachineName, _ := s.state.MachineName(c.MachineID)
+				ops = append(ops, &operation.StopPreDeployOperation{
+					MachineID:   c.MachineID,
+					MachineName: hookMachineName,
+					Container:   c.Container,
+				})
+			}
+		}
+	}
+
+	ops = append(ops, &operation.RunPreDeployOperation{
+		ServiceID:       plan.ServiceID,
+		Spec:            plan.Spec,
+		MachineID:       machineID,
+		MachineName:     machineName,
+		OldContainerIDs: oldContainerIDs,
+	})
+
+	return ops
+}
+
+// newEmptyServicePlan creates a new empty plan for a service deployment with initialised service ID and name.
+func newEmptyServicePlan(svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
+	plan := ServicePlan{
+		Spec: spec,
+	}
 
 	// Generate a new service ID for the initial service deployment if it doesn't exist yet.
 	if svc != nil {
 		plan.ServiceID = svc.ID
 		plan.ServiceName = svc.Name
 	} else {
+		plan.IsNewService = true
 		var err error
 		plan.ServiceID, err = secret.NewID()
 		if err != nil {

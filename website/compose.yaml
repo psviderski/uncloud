@@ -1,6 +1,6 @@
 services:
   uncloud-website:
-    image: ghcr.io/psviderski/uncloud-website
+    image: uncloud-website
     build:
       cache_from:
         - type=gha,scope=uncloud-website
@@ -16,6 +16,7 @@ services:
 
           reverse_proxy {{upstreams 8000}} {
               import common_proxy
+              lb_policy first
           }
           log
       }
@@ -23,3 +24,5 @@ services:
     x-machines:
       - uc-prod-us2
       - uc-prod-ap1
+
+x-context: uc-prod

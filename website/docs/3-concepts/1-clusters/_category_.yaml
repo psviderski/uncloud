@@ -1,0 +1,4 @@
+label: Clusters
+collapsed: true # keep the category closed by default
+link:
+  type: generated-index

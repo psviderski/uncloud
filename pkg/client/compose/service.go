@@ -33,7 +33,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		return api.ServiceSpec{}, fmt.Errorf("unsupported pull policy: '%s'", service.PullPolicy)
 	}
 
-	env := make(map[string]string, len(service.Environment))
+	env := make(api.EnvVars, len(service.Environment))
 	for k, v := range service.Environment {
 		if v == nil {
 			// nil value means the variable misses a value in the compose file, and it hasn't been resolved
@@ -53,6 +53,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Healthcheck: healthcheckFromCompose(service.HealthCheck),
 			Image:       service.Image,
 			Init:        service.Init,
+			PidMode:     service.Pid,
 			Privileged:  service.Privileged,
 			PullPolicy:  pullPolicy,
 			Resources:   resourcesFromCompose(service),
@@ -87,7 +88,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 	if service.StopGracePeriod != nil {
 		d := time.Duration(*service.StopGracePeriod)
-		spec.StopGracePeriod = &d
+		spec.Container.StopGracePeriod = &d
 	}
 
 	if service.Scale != nil {
@@ -141,6 +142,27 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	spec.Configs = configSpecs
 	spec.Container.ConfigMounts = configMounts
 
+	if h, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+		hook := &api.PreDeployHook{
+			Command:    h.Command,
+			Privileged: h.Privileged,
+			User:       h.User,
+		}
+		if h.Environment != nil {
+			hook.Env = make(api.EnvVars)
+			for k, v := range h.Environment {
+				if v != nil {
+					hook.Env[k] = *v
+				}
+			}
+		}
+		if h.Timeout != nil {
+			d := time.Duration(*h.Timeout)
+			hook.Timeout = &d
+		}
+		spec.PreDeploy = hook
+	}
+
 	return spec, nil
 }
 
@@ -177,6 +199,7 @@ func resourcesFromCompose(service types.ServiceConfig) api.ContainerResources {
 		CPU:               int64(service.CPUS * 1e9),
 		Memory:            int64(service.MemLimit),
 		MemoryReservation: int64(service.MemReservation),
+		SharedMemory:      int64(service.ShmSize),
 		Ulimits:           ulimitsFromCompose(service.Ulimits),
 	}
 
@@ -345,9 +368,7 @@ func dockerVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig, volume
 func mergeLabels(labels ...types.Labels) types.Labels {
 	merged := types.Labels{}
 	for _, l := range labels {
-		for k, v := range l {
-			merged[k] = v
-		}
+		maps.Copy(merged, l)
 	}
 	return merged
 }
@@ -418,7 +439,78 @@ func validateServicesExtensions(project *types.Project) error {
 					"Host mode ports in 'x-caddy' can be used with 'x-caddy'", service.Name)
 			}
 		}
+
+		if hook, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+			if err := hook.Validate(); err != nil {
+				return fmt.Errorf("service '%s': %w", service.Name, err)
+			}
+		}
 	}
 
 	return nil
+}
+
+// validateServicesFeatures checks services for unsupported features and returns all found.
+func validateServicesFeatures(project *types.Project) []error {
+	err := func(service, feature string) error {
+		return fmt.Errorf("service '%s': unsupported feature '%s', see %s",
+			service, feature, "https://uncloud.run/docs/compose-file-reference/support-matrix")
+	}
+
+	// TODO: check other commonly used but unsupported features.
+	var errs []error
+	for _, service := range project.Services {
+		if service.SecurityOpt != nil {
+			errs = append(errs, err(service.Name, "security_opt"))
+		}
+		if service.DNS != nil {
+			errs = append(errs, err(service.Name, "dns"))
+		}
+		if service.DNSSearch != nil {
+			errs = append(errs, err(service.Name, "dns_search"))
+		}
+		if service.Labels != nil {
+			errs = append(errs, err(service.Name, "labels"))
+		}
+		if service.Links != nil {
+			errs = append(errs, err(service.Name, "links"))
+		}
+		if service.MemSwappiness > 0 {
+			errs = append(errs, err(service.Name, "mem_swappiness"))
+		}
+		if service.MemSwapLimit > 0 {
+			errs = append(errs, err(service.Name, "memswap_limit"))
+		}
+		if service.Secrets != nil {
+			errs = append(errs, err(service.Name, "secrets"))
+		}
+		if service.StorageOpt != nil {
+			errs = append(errs, err(service.Name, "storage_opt"))
+		}
+		// we only allow the 'default' network, nothing else.
+		if x := service.Networks; x != nil {
+			if len(x) != 1 {
+				errs = append(errs, err(service.Name, "networks"))
+			} else if _, ok := x["default"]; !ok {
+				errs = append(errs, err(service.Name, "networks"))
+			}
+		}
+
+		// Err about depends_on conditions 'service_completed_successfully' that we do not support because services in
+		// Uncloud are long-running. Services that run to completion need a separate abstraction, e.g. a Job.
+		// Plus we don't want the lifecycle of a service to control the lifecycle of another one. It should be fully
+		// owned. Otherwise, it's hard to make the behaviour deterministic when each service could also be deployed and
+		// managed independently.
+		for depName, dep := range service.DependsOn {
+			if dep.Condition == types.ServiceConditionCompletedSuccessfully {
+				errs = append(errs, fmt.Errorf(
+					"service '%s': depends_on condition '%s' on service '%s' is not supported, "+
+						"use a pre-deploy hook instead: %s",
+					service.Name, types.ServiceConditionCompletedSuccessfully, depName,
+					"https://uncloud.run/docs/guides/deployments/pre-deploy-hooks"))
+			}
+		}
+	}
+
+	return errs
 }

@@ -109,7 +109,7 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	}
 	listCtx := metadata.NewOutgoingContext(ctx, md)
 
-	// List all service containers including stopped ones.
+	// List all service containers including stopped ones and deployment hooks.
 	opts := container.ListOptions{All: true}
 	machineContainers, err := cli.Docker.ListServiceContainers(listCtx, nameOrID, opts)
 	if err != nil {
@@ -146,16 +146,15 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 			}
 		}
 
-		for _, ctr := range mc.Containers {
-			if ctr.ServiceID() == nameOrID || ctr.ServiceName() == nameOrID {
-				containers = append(containers, api.MachineServiceContainer{
-					MachineID: machineID,
-					Container: ctr,
-				})
+		// Collect both regular and hook containers for the service.
+		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
+			containers = append(containers, api.MachineServiceContainer{
+				MachineID: machineID,
+				Container: ctr,
+			})
 
-				if ctr.ServiceID() == nameOrID {
-					foundByID = true
-				}
+			if ctr.ServiceID() == nameOrID {
+				foundByID = true
 			}
 		}
 	}
@@ -181,14 +180,22 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 		}
 	}
 
-	svc = api.Service{
-		ID:         containers[0].Container.ServiceID(),
-		Name:       containers[0].Container.ServiceName(),
-		Mode:       containers[0].Container.ServiceMode(),
-		Containers: containers,
+	// Partition containers into regular service containers and hook containers.
+	var serviceContainers, hookContainers []api.MachineServiceContainer
+	for _, mc := range containers {
+		if mc.Container.IsHook() {
+			hookContainers = append(hookContainers, mc)
+		} else {
+			serviceContainers = append(serviceContainers, mc)
+		}
 	}
-	if svc.Mode == "" {
-		svc.Mode = api.ServiceModeReplicated
+
+	svc = api.Service{
+		ID:             containers[0].Container.ServiceID(),
+		Name:           containers[0].Container.ServiceName(),
+		Mode:           containers[0].Container.ServiceMode(),
+		Containers:     serviceContainers,
+		HookContainers: hookContainers,
 	}
 
 	return svc, nil
@@ -239,7 +246,7 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 	errCh := make(chan error)
 
 	// Remove all containers on all machines that belong to the service.
-	for _, mc := range svc.Containers {
+	for _, mc := range append(svc.Containers, svc.HookContainers...) {
 		wg.Go(func() {
 			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, container.StopOptions{})
 			if err != nil {
@@ -280,8 +287,8 @@ func (cli *Client) StopService(ctx context.Context, id string, opts container.St
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
 
-	// Stop all containers on all machines that belong to the service.
-	for _, mc := range svc.Containers {
+	// Stop all containers on all machines that belong to the service, including hook containers.
+	for _, mc := range append(svc.Containers, svc.HookContainers...) {
 		wg.Go(func() {
 			err := cli.StopContainer(ctx, svc.ID, mc.Container.ID, opts)
 			if err != nil {
@@ -371,7 +378,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 			continue
 		}
 
-		for _, ctr := range mc.Containers {
+		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
 			if _, ok := servicesByID[ctr.ServiceID()]; ok {
 				continue
 			}

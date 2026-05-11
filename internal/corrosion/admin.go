@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/netip"
+	"sort"
 	"time"
 )
 
@@ -255,4 +257,117 @@ func (c *AdminClient) ClusterMembershipStates(latest bool) ([]ClusterMembershipS
 		}
 	}
 	return states, parseErr
+}
+
+type MemberRTTStats struct {
+	Addr   netip.AddrPort
+	Median time.Duration
+	StdDev time.Duration
+}
+
+// ClusterMemberRTTs returns the median and standard deviation of round-trip times to each cluster member.
+func (c *AdminClient) ClusterMemberRTTs() ([]MemberRTTStats, error) {
+	respCh, err := c.SendCommand([]byte("{\"Cluster\":\"Members\"}"))
+	if err != nil {
+		return nil, err
+	}
+
+	var stats []MemberRTTStats
+	var parseErr error
+
+	for r := range respCh {
+		if r.Err != nil {
+			return nil, r.Err
+		}
+
+		addr, rtts, err := parseClusterMemberRTT(r.JSON)
+		if err != nil {
+			parseErr = errors.Join(parseErr, err)
+			continue
+		}
+
+		if len(rtts) == 0 {
+			continue
+		}
+
+		// Corrosion reports RTT samples as floating-point milliseconds.
+		medianMs, stdDevMs := computeRTTStatsMs(rtts)
+		stats = append(stats, MemberRTTStats{
+			Addr:   addr,
+			Median: time.Duration(medianMs * float64(time.Millisecond)),
+			StdDev: time.Duration(stdDevMs * float64(time.Millisecond)),
+		})
+	}
+
+	return stats, parseErr
+}
+
+// computeRTTStatsMs returns the median and population standard deviation (ms) of the given samples.
+func computeRTTStatsMs(rtts []float64) (median, stdDev float64) {
+	if len(rtts) == 0 {
+		return 0, 0
+	}
+
+	sort.Float64s(rtts)
+	n := len(rtts)
+	if n%2 == 0 {
+		median = (rtts[n/2-1] + rtts[n/2]) / 2
+	} else {
+		median = rtts[n/2]
+	}
+
+	var sum float64
+	for _, rtt := range rtts {
+		sum += rtt
+	}
+	avg := sum / float64(n)
+
+	var varianceSum float64
+	for _, rtt := range rtts {
+		diff := rtt - avg
+		varianceSum += diff * diff
+	}
+	stdDev = math.Sqrt(varianceSum / float64(n))
+
+	return median, stdDev
+}
+
+func parseClusterMemberRTT(json map[string]any) (netip.AddrPort, []float64, error) {
+	var addr netip.AddrPort
+	var rtts []float64
+	var err error
+
+	// Parse state to get Addr.
+	stateObj, ok := json["state"].(map[string]any)
+	if !ok {
+		return addr, nil, fmt.Errorf("missing or invalid 'state' field")
+	}
+
+	if addrStr, ok := stateObj["addr"].(string); ok {
+		addr, err = netip.ParseAddrPort(addrStr)
+		if err != nil {
+			return addr, nil, fmt.Errorf("parse 'addr' field: %w", err)
+		}
+	} else {
+		return addr, nil, fmt.Errorf("missing or invalid 'addr' field in 'state'")
+	}
+
+	// The absent 'rtts' key or equal to null are treated as no samples yet.
+	rttsVal, ok := json["rtts"]
+	if !ok || rttsVal == nil {
+		return addr, nil, nil
+	}
+	rttsSlice, ok := rttsVal.([]any)
+	if !ok {
+		return addr, nil, fmt.Errorf("invalid 'rtts' field type: %T", rttsVal)
+	}
+	for _, v := range rttsSlice {
+		f, ok := v.(float64)
+		if !ok {
+			return addr, nil, fmt.Errorf("invalid rtt value type: %T", v)
+		}
+		rtts = append(rtts, f)
+	}
+
+	return addr, rtts, nil
 }

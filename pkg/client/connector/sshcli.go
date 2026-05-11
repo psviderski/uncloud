@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/docker/cli/cli/connhelper/commandconn"
-	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/grpcversion"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -21,6 +25,10 @@ type SSHCLIConnector struct {
 	config SSHConnectorConfig
 	// Path to SSH control socket for connection reuse.
 	controlSockPath string
+	// fwdCheckOnce ensures the TCP forwarding check runs only once per connector.
+	fwdCheckOnce sync.Once
+	// fwdCheckErr caches the result of the TCP forwarding check.
+	fwdCheckErr error
 }
 
 func NewSSHCLIConnector(cfg *SSHConnectorConfig) *SSHCLIConnector {
@@ -37,9 +45,13 @@ func controlSocketPath() string {
 	// of the ProxyJump option. This ensures that shared connections are uniquely identified.
 	sockName := fmt.Sprintf("uc_control_%%C.sock")
 
-	// Prefer XDG_RUNTIME_DIR if set, fall back to ~/.ssh if it exists.
+	// Prefer XDG_RUNTIME_DIR if set and the directory exists, fall back to ~/.ssh if it exists.
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-		return filepath.Join(dir, sockName)
+		// On WSL2 without systemd, XDG_RUNTIME_DIR may be set to /run/user/$UID that doesn't actually exist,
+		// so existence must be verified before use: https://github.com/psviderski/uncloud/issues/319.
+		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+			return filepath.Join(dir, sockName)
+		}
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		sshDir := filepath.Join(home, ".ssh")
@@ -61,17 +73,32 @@ func controlSocketPath() string {
 }
 
 func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
-	// Create gRPC client with a dialer that spawns a new SSH connection on demand.
-	// Each dial attempt runs `ssh ... uncloudd dial-stdio`, reusing the control socket if available.
+	// Validate SSH connectivity by running a no-op command on the remote machine. This also
+	// establishes the control socket (ControlMaster=auto) so subsequent connections reuse it.
+	probeArgs := append(c.buildSSHArgs(true), "true")
+	probe := exec.CommandContext(ctx, "ssh", probeArgs...)
+	if output, err := probe.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("SSH connection to '%s': %w: %s",
+			c.config.Destination(), err, strings.TrimSpace(string(output)))
+	}
+
+	// Create gRPC client with a dialer that spawns new SSH connections on demand,
+	// reusing the control socket established above.
 	grpcConn, err := grpc.NewClient(
 		"passthrough:///", // Dummy target since we're using a custom dialer.
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(defaultServiceConfig),
+		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
+		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			args := c.buildSSHArgs()
-			conn, err := commandconn.New(ctx, "ssh", args...)
+			dialArgs := append(c.buildSSHArgs(true), "uncloudd", "dial-stdio")
+			if c.config.SockPath != "" {
+				dialArgs = append(dialArgs, "--socket", c.config.SockPath)
+			}
+
+			conn, err := commandconn.New(ctx, "ssh", dialArgs...)
 			if err != nil {
-				return nil, fmt.Errorf("SSH connection to %s: %w", c.config.Destination(), err)
+				return nil, fmt.Errorf("SSH connection to '%s': %w", c.config.Destination(), err)
 			}
 			return conn, nil
 		}),
@@ -83,13 +110,14 @@ func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error)
 	return grpcConn, nil
 }
 
-// buildSSHArgs constructs the SSH command arguments to run `uncloudd dial-stdio` on the remote machine reusing
-// the established connection via control socket.
-func (c *SSHCLIConnector) buildSSHArgs() []string {
+// buildSSHArgs constructs the SSH command arguments with connection options and destination. The options
+// include control socket settings for connection reuse if the path is configured and useControlMaster is true.
+// The remote command is not included and should be appended by the caller.
+func (c *SSHCLIConnector) buildSSHArgs(useControlMaster bool) []string {
 	var args []string
 
 	// Add control socket options for connection reuse if available.
-	if c.controlSockPath != "" {
+	if useControlMaster && c.controlSockPath != "" {
 		args = append(args, "-o", "ControlMaster=auto")
 		args = append(args, "-o", "ControlPath="+c.controlSockPath)
 
@@ -104,6 +132,11 @@ func (c *SSHCLIConnector) buildSSHArgs() []string {
 
 	// Add connection timeout to fail fast when node is down.
 	args = append(args, "-o", "ConnectTimeout=5")
+	// Disable interactive prompts (e.g., passphrase input) to prevent interference with the TUI.
+	// Authentication must succeed non-interactively via SSH agent or unencrypted key.
+	args = append(args, "-o", "BatchMode=yes")
+	// Disable host key checking for parity with go+ssh.
+	args = append(args, "-o", "StrictHostKeyChecking=accept-new")
 	// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
 	args = append(args, "-T")
 
@@ -120,14 +153,6 @@ func (c *SSHCLIConnector) buildSSHArgs() []string {
 	// Add [user@]host destination.
 	args = append(args, c.config.Destination())
 
-	// Add remote command: uncloudd dial-stdio
-	args = append(args, "uncloudd", "dial-stdio")
-
-	// Add socket path if non-default.
-	if c.config.SockPath != "" && c.config.SockPath != machine.DefaultUncloudSockPath {
-		args = append(args, "--socket", c.config.SockPath)
-	}
-
 	return args
 }
 
@@ -137,75 +162,71 @@ func (c *SSHCLIConnector) Dialer() (proxy.ContextDialer, error) {
 		return nil, fmt.Errorf("SSH connector not configured")
 	}
 
-	return &sshCLIDialer{
-		config:          c.config,
-		controlSockPath: c.controlSockPath,
-	}, nil
+	return c, nil
+}
+
+// DialContext establishes a connection to the target address through an SSH tunnel using -W flag.
+func (c *SSHCLIConnector) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	if network != "tcp" {
+		return nil, fmt.Errorf("unsupported network type: %s", network)
+	}
+
+	c.fwdCheckOnce.Do(func() {
+		c.fwdCheckErr = c.CheckTCPForwarding(ctx)
+		if c.fwdCheckErr != nil {
+			// Close the cached ControlMaster so the next call picks up the new sshd policy once the
+			// user enables forwarding. Fresh context so close runs even if the parent already timed out.
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer closeCancel()
+			c.CloseControlMaster(closeCtx)
+		}
+	})
+	if c.fwdCheckErr != nil {
+		return nil, c.fwdCheckErr
+	}
+
+	args := append(c.buildSSHArgs(true), "-W", address)
+	conn, err := commandconn.New(ctx, "ssh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("SSH connection to '%s' for dialing '%s': %w", c.config.Destination(), address, err)
+	}
+
+	return conn, nil
+}
+
+// CheckTCPForwarding returns an actionable error when the remote SSH server doesn't allow TCP forwarding.
+func (c *SSHCLIConnector) CheckTCPForwarding(ctx context.Context) error {
+	// Do not use ControlMaster because disabled forwarding and a refused port both surface as
+	// "Session open refused by peer" over it and can't be told apart.
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// Request forwarding to a port that is almost never in use (:1) so sshd rejects the channel if forwarding
+	// is disabled or fails to connect otherwise.
+	args := append(c.buildSSHArgs(false), "-W", "127.0.0.1:1")
+	output, _ := exec.CommandContext(probeCtx, "ssh", args...).CombinedOutput()
+	if strings.Contains(string(output), "administratively prohibited") {
+		return fmt.Errorf("SSH TCP forwarding appears to be disabled on '%s': ensure 'AllowTcpForwarding yes' "+
+			"is set in /etc/ssh/sshd_config on the remote machine and restart sshd (sudo systemctl restart ssh), "+
+			"then retry",
+			c.config.Destination())
+	}
+
+	return nil
+}
+
+// CloseControlMaster terminates the SSH ControlMaster process for this destination so the next connection starts
+// a fresh SSH session. No-op if no master is running or the control socket is not configured. Errors are ignored.
+func (c *SSHCLIConnector) CloseControlMaster(ctx context.Context) {
+	if c.controlSockPath == "" {
+		return
+	}
+	args := append(c.buildSSHArgs(true), "-O", "exit")
+	_ = exec.CommandContext(ctx, "ssh", args...).Run()
 }
 
 func (c *SSHCLIConnector) Close() error {
 	// Individual connections are managed by gRPC and closed when the gRPC connection closes.
 	// The SSH control socket may persist for connection reuse across CLI invocations.
 	return nil
-}
-
-// sshCLIDialer implements proxy.ContextDialer by spawning SSH processes with -W flag.
-type sshCLIDialer struct {
-	config SSHConnectorConfig
-	// Shared control socket path from SSHCLIConnector for connection reuse.
-	controlSockPath string
-}
-
-// buildDialArgs constructs SSH command arguments for -W flag dialing.
-func (d *sshCLIDialer) buildDialArgs(address string) []string {
-	var args []string
-
-	if d.controlSockPath != "" {
-		// Try to reuse the existing control connection without initiating a new one.
-		// Falls back to direct connection if the control socket is not available.
-		args = append(args, "-o", "ControlMaster=no")
-		args = append(args, "-o", "ControlPath="+d.controlSockPath)
-	}
-
-	// Add connection timeout to fail fast when node is down.
-	args = append(args, "-o", "ConnectTimeout=5")
-	// Disable pseudo-terminal allocation to prevent SSH from executing as a login shell.
-	args = append(args, "-T")
-
-	// Add port if specified.
-	if d.config.Port != 0 {
-		args = append(args, "-p", strconv.Itoa(d.config.Port))
-	}
-
-	// Add identity file if specified.
-	if d.config.KeyPath != "" {
-		args = append(args, "-i", d.config.KeyPath)
-	}
-
-	// Add -W flag for stdin/stdout forwarding to target address.
-	args = append(args, "-W", address)
-
-	// Add [user@]host destination.
-	args = append(args, d.config.Destination())
-
-	return args
-}
-
-// DialContext establishes a connection to the target address through an SSH tunnel using -W flag.
-func (d *sshCLIDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	// Only support TCP connections.
-	if network != "tcp" {
-		return nil, fmt.Errorf("unsupported network type: %s", network)
-	}
-
-	// Build SSH command arguments.
-	args := d.buildDialArgs(address)
-
-	// Create connection using docker's commandconn.
-	conn, err := commandconn.New(ctx, "ssh", args...)
-	if err != nil {
-		return nil, fmt.Errorf("SSH connection to %s for dialing %s: %w", d.config.Destination(), address, err)
-	}
-
-	return conn, nil
 }
