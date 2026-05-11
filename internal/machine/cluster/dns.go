@@ -112,6 +112,35 @@ func (c *Cluster) ReleaseDomain(ctx context.Context, _ *emptypb.Empty) (*pb.Doma
 	return &pb.Domain{Name: domain.Name}, nil
 }
 
+func (c *Cluster) SetDomain(ctx context.Context, req *pb.SetDomainRequest) (*pb.Domain, error) {
+	if err := c.checkReady(); err != nil {
+		return nil, err
+	}
+
+	if _, err := c.storedDomain(ctx); err == nil {
+		return nil, status.Errorf(codes.AlreadyExists, "domain already reserved")
+	} else {
+		if s := status.Convert(err); s.Code() != codes.NotFound {
+			return nil, err
+		}
+	}
+
+	domain := uncloudDNSDomain{
+		Endpoint: "",
+		Name:     req.Name,
+		Token:    "",
+	}
+	domainJSON, err := json.Marshal(domain)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal set domain for store: %v", err)
+	}
+	if err = c.store.Put(ctx, uncloudDNSKey, domainJSON); err != nil {
+		return nil, status.Errorf(codes.Internal, "store set domain: %v", err)
+	}
+
+	return &pb.Domain{Name: req.Name}, nil
+}
+
 func (c *Cluster) CreateDomainRecords(
 	ctx context.Context, req *pb.CreateDomainRecordsRequest,
 ) (*pb.CreateDomainRecordsResponse, error) {
