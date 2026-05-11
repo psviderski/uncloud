@@ -198,10 +198,7 @@ func (cli *Client) MachineLogs(
 func (cli *Client) systemdServiceLogs(
 	ctx context.Context, machineID, unit string, opts api.ServiceLogsOptions,
 ) (<-chan api.LogEntry, error) {
-	proxyCtx, _, err := cli.ProxyMachinesContext(ctx, []string{machineID})
-	if err != nil {
-		return nil, fmt.Errorf("create request context to proxy to machine '%s': %w", machineID, err)
-	}
+	proxyCtx := cli.ProxyMachineContext(ctx, machineID)
 
 	req := &pb.LogsRequest{
 		Id:     unit,
