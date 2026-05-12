@@ -147,7 +147,6 @@ func ParsePortSpec(port string) (PortSpec, error) {
 
 	mode := parts[len(parts)-1]
 	if i := strings.Index(mode, "@"); i > -1 {
-
 		spec.Mode = PortModeHost
 
 		if mode[i:] != "@"+PortModeHost {
@@ -165,9 +164,7 @@ func ParsePortSpec(port string) (PortSpec, error) {
 
 			mode = mode[:i] // drop /udp or /tcp, leaving the port only
 		}
-
 	} else {
-
 		spec.Mode = PortModeIngress
 
 		if i := strings.Index(mode, "/"); i > -1 {
