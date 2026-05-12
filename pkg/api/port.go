@@ -23,7 +23,7 @@ type PortSpec struct {
 	Hostname string
 	// HostIP is the host IP to bind the PublishedPort to. Only valid in host mode.
 	HostIP netip.Addr
-	// HostPrefix is the host prefix IP to bind the PublishedPort to. Only valid in host mode. Either HostIP
+	// HostPrefix is the host prefix to bind the PublishedPort to. Only valid in host mode. Either HostIP
 	// is set or HostPrefix
 	HostPrefix netip.Prefix
 	// PublishedPort is the port number exposed outside the container.
