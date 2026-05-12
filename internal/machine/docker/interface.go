@@ -6,7 +6,7 @@ import (
 	"net/netip"
 )
 
-// addrOfPrefix checks the interface and returns the address of each interface that container the prefix.
+// addrOfPrefix checks the interface and returns the address of each interface that contains the prefix.
 func addrOfPrefix(prefix netip.Prefix) ([]string, error) {
 	ifis, err := net.Interfaces()
 	if err != nil {
