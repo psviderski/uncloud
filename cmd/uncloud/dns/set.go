@@ -6,11 +6,8 @@ import (
 	"fmt"
 
 	"github.com/miekg/dns"
-	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
-	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -54,15 +51,7 @@ func set(ctx context.Context, uncli *cli.CLI, name string) error {
 
 	fmt.Printf("Set cluster domain: %s\n", domain.Name)
 
-	// Update cluster domain records in Uncloud DNS to point to machines running caddy service if it has been deployed.
-	if _, err = clusterClient.InspectService(ctx, client.CaddyServiceName); err != nil {
-		if errors.Is(err, api.ErrNotFound) {
-			fmt.Println("Deploy the Caddy reverse proxy service ('uc caddy deploy') to enable internet access " +
-				"to your services via the reserved or your custom domain.")
-			return nil
-		}
-		return fmt.Errorf("inspect caddy service: %w", err)
-	}
-
-	return caddy.UpdateDomainRecords(ctx, clusterClient, uncli.ProgressOut())
+	// No need to update anything as the domain records pointing to this cluster should be wildcard, so all
+	// names already exist.
+	return nil
 }
