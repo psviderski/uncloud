@@ -58,6 +58,9 @@ func (p *PortSpec) Validate() error {
 		if p.HostIP.IsValid() {
 			return fmt.Errorf("host IP cannot be specified in %s mode", PortModeIngress)
 		}
+		if p.HostPrefix.IsValid() {
+			return fmt.Errorf("host prefix cannot be specified in %s mode", PortModeIngress)
+		}
 		if p.Hostname != "" {
 			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
 				return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
@@ -67,6 +70,9 @@ func (p *PortSpec) Validate() error {
 			}
 		}
 	case PortModeHost:
+		if p.HostIP.IsValid() && p.HostPrefix.IsValid() {
+			return fmt.Errorf("host IP and prefix cannot both be specified in %s mode", PortModeHost)
+		}
 		if p.PublishedPort == 0 {
 			return fmt.Errorf("published port is required in %s mode", PortModeHost)
 		}
@@ -129,65 +135,72 @@ func (p *PortSpec) String() (string, error) {
 
 func ParsePortSpec(port string) (PortSpec, error) {
 	spec := PortSpec{
-		Protocol: ProtocolTCP,     // Default protocol.
-		Mode:     PortModeIngress, // Default mode.
+		Protocol: ProtocolTCP, // Default protocol.
 	}
 
-	// Split off mode first.
-	parts := strings.Split(port, "@")
-	if len(parts) > 2 {
+	if strings.Count(port, "@") > 1 {
 		return spec, fmt.Errorf("too many '@' symbols")
 	}
-	if len(parts) == 2 {
-		if parts[1] != PortModeHost {
-			return spec, fmt.Errorf("invalid mode: '%s', only 'host' mode is supported", parts[1])
-		}
+
+	parts := splitPortParts(port)
+	specifiedProtocol := "" // Save the set protocol for PortModeIngress to set the correct default later.
+
+	mode := parts[len(parts)-1]
+	if i := strings.Index(mode, "@"); i > -1 {
+
 		spec.Mode = PortModeHost
-	}
-	port = parts[0]
-	protocol := ""
 
-	// Parse protocol.
-	parts = strings.Split(port, "/")
-	if len(parts) > 3 {
-		return spec, fmt.Errorf("too many '/' symbols")
-	}
-	specifiedProtocol := ""
-	switch len(parts) {
-	case 2:
-		// 53:5353/udp@host
-		port = parts[0]
-		protocol = parts[1]
-	case 3:
-		// 127.0.0.0/24:53:5353/udp@host
-		protocol = parts[2]
-		port = parts[0] + "/" + parts[1]
+		if mode[i:] != "@"+PortModeHost {
+			return spec, fmt.Errorf("invalid mode: '%s'", mode[i+1:])
+		}
+		mode = mode[:i] // drop @host, leave PORT/udp PORT/tcp or PORT
+		if i := strings.Index(mode, "/"); i > -1 {
+			switch mode[i+1:] {
+			case ProtocolTCP:
+			case ProtocolUDP:
+				spec.Protocol = ProtocolUDP
+			default:
+				return spec, fmt.Errorf("unsupported protocol '%s' in host mode, only 'tcp' and 'udp' are supported", mode[i+1:])
+			}
+
+			mode = mode[:i] // drop /udp or /tcp, leaving the port only
+		}
+
+	} else {
+
+		spec.Mode = PortModeIngress
+
+		if i := strings.Index(mode, "/"); i > -1 {
+			switch mode[i+1:] {
+			case ProtocolTCP:
+				spec.Protocol = ProtocolTCP
+			case ProtocolUDP:
+				spec.Protocol = ProtocolUDP
+			case ProtocolHTTP:
+				spec.Protocol = ProtocolHTTP
+			case ProtocolHTTPS:
+				spec.Protocol = ProtocolHTTPS
+			default:
+				return spec, fmt.Errorf("unsupported protocol: '%s'", mode[i+1:])
+			}
+			specifiedProtocol = mode[i+1:]
+
+			mode = mode[:i] // drop /xxx, leaving the port only
+		}
 	}
 
-	switch protocol {
-	case "":
-	case ProtocolHTTP, ProtocolHTTPS, ProtocolTCP, ProtocolUDP:
-		spec.Protocol = protocol
-		specifiedProtocol = protocol
-	default:
-		return spec, fmt.Errorf("unsupported protocol: '%s'", protocol)
+	var err error
+	if spec.ContainerPort, err = parsePort(mode); err != nil {
+		return spec, fmt.Errorf("invalid container port '%s': %w", mode, err)
 	}
 
 	// Parse hostname/host IP and ports.
-	parts = splitPortParts(port)
-	var err error
-
 	switch len(parts) {
-	case 1: // Just container port.
-		if spec.ContainerPort, err = parsePort(parts[0]); err != nil {
-			return spec, fmt.Errorf("invalid container port '%s': %w", parts[0], err)
-		}
+	case 1:
+		// Container port already done.
 
 	case 2: // hostname:container_port or [load_balancer_port|host_port]:container_port
-		if spec.ContainerPort, err = parsePort(parts[1]); err != nil {
-			return spec, fmt.Errorf("invalid container port '%s': %w", parts[1], err)
-		}
-
+		// Container port (parts[1]) already done
 		if parts[0] == "" {
 			return spec, fmt.Errorf("hostname or published port must be specified, format: " +
 				"hostname:container_port or published_port:container_port")
@@ -201,12 +214,13 @@ func ParsePortSpec(port string) (PortSpec, error) {
 				return spec, fmt.Errorf("hostname cannot be specified in host mode")
 			}
 			spec.Hostname = parts[0]
+			if specifiedProtocol == "" {
+				spec.Protocol = ProtocolHTTPS
+			}
 		}
 
 	case 3: // hostname:load_balancer_port:container_port or host_ip:host_port:container_port
-		if spec.ContainerPort, err = parsePort(parts[2]); err != nil {
-			return spec, fmt.Errorf("invalid container port '%s': %w", parts[2], err)
-		}
+		// Container port (parts[2]) already done
 		if spec.PublishedPort, err = parsePort(parts[1]); err != nil {
 			return spec, fmt.Errorf("invalid published port '%s': %w", parts[1], err)
 		}
@@ -226,16 +240,21 @@ func ParsePortSpec(port string) (PortSpec, error) {
 				ip = ip[1 : len(ip)-1]
 			}
 
-			if spec.HostIP, err = netip.ParseAddr(ip); err != nil {
-				spec.HostPrefix, err = netip.ParsePrefix(ip)
-				if err != nil {
-					// error with the original error
+			if strings.Contains(ip, "/") {
+				if spec.HostPrefix, err = netip.ParsePrefix(ip); err != nil {
+					return spec, fmt.Errorf("invalid host prefix '%s': %w", parts[0], err)
+				}
+			} else {
+				if spec.HostIP, err = netip.ParseAddr(ip); err != nil {
 					return spec, fmt.Errorf("invalid host IP '%s': %w", parts[0], err)
 				}
 			}
 		} else {
 			// Hostname may be empty.
 			spec.Hostname = parts[0]
+			if specifiedProtocol == "" {
+				spec.Protocol = ProtocolHTTPS
+			}
 		}
 
 	default:
@@ -243,11 +262,11 @@ func ParsePortSpec(port string) (PortSpec, error) {
 	}
 
 	if spec.Hostname != "" {
-		if specifiedProtocol == "" {
+		if spec.Protocol == "" {
 			spec.Protocol = ProtocolHTTPS
-		} else if specifiedProtocol != ProtocolHTTP && specifiedProtocol != ProtocolHTTPS {
+		} else if spec.Protocol != ProtocolHTTP && spec.Protocol != ProtocolHTTPS {
 			return spec, fmt.Errorf("hostname is only valid with '%s' or '%s' protocols, specified: '%s'",
-				ProtocolHTTP, ProtocolHTTPS, specifiedProtocol)
+				ProtocolHTTP, ProtocolHTTPS, spec.Protocol)
 		}
 	}
 
