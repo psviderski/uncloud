@@ -214,9 +214,6 @@ func ParsePortSpec(port string) (PortSpec, error) {
 				return spec, fmt.Errorf("hostname cannot be specified in host mode")
 			}
 			spec.Hostname = parts[0]
-			if specifiedProtocol == "" {
-				spec.Protocol = ProtocolHTTPS
-			}
 		}
 
 	case 3: // hostname:load_balancer_port:container_port or host_ip:host_port:container_port
@@ -252,9 +249,6 @@ func ParsePortSpec(port string) (PortSpec, error) {
 		} else {
 			// Hostname may be empty.
 			spec.Hostname = parts[0]
-			if specifiedProtocol == "" {
-				spec.Protocol = ProtocolHTTPS
-			}
 		}
 
 	default:
@@ -262,11 +256,11 @@ func ParsePortSpec(port string) (PortSpec, error) {
 	}
 
 	if spec.Hostname != "" {
-		if spec.Protocol == "" {
+		if specifiedProtocol == "" {
 			spec.Protocol = ProtocolHTTPS
-		} else if spec.Protocol != ProtocolHTTP && spec.Protocol != ProtocolHTTPS {
+		} else if specifiedProtocol != ProtocolHTTP && specifiedProtocol != ProtocolHTTPS {
 			return spec, fmt.Errorf("hostname is only valid with '%s' or '%s' protocols, specified: '%s'",
-				ProtocolHTTP, ProtocolHTTPS, spec.Protocol)
+				ProtocolHTTP, ProtocolHTTPS, specifiedProtocol)
 		}
 	}
 
