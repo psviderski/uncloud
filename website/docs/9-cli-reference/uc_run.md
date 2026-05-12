@@ -30,7 +30,8 @@ uc run IMAGE [COMMAND...] [flags]
                               -p 8080/https                       Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname
                               -p app.example.com:8080/https       Publish port 8080 as HTTPS via reverse proxy with custom hostname
                               -p 53:5353/udp@host                 Bind UDP port 5353 to host port 53
-                              -p 192.168.76.0/24:53:5353/udp@host Bind UDP port 5353 to host port 53 on all interfaces that contain the prefix 192.168.76.0/24
+                              -p 192.168.76.0/24:53:5353/udp@host Bind UDP port 5353 to host port 53 on all interfaces that have addresses
+                                                                  that are contained in the prefix 192.168.76.0/24
       --pull string         Pull image from the registry before running service containers ('always', 'missing', 'never'). (default "missing")
       --replicas uint       Number of containers to run for the service. Only valid for a replicated service. (default 1)
       --shm-size bytes      Maximum amount of shared memory (mounted at /dev/shm) a service container can use. Value is a positive integer
