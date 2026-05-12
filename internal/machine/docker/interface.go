@@ -27,7 +27,7 @@ func addrOfPrefix(prefix netip.Prefix) ([]string, error) {
 		}
 	}
 	if len(addrs) == 0 {
-		return nil, fmt.Errorf("no addresses are contained in prefix '%s'", prefix)
+		return nil, fmt.Errorf("no host addresses are contained in prefix '%s'", prefix)
 	}
 
 	return addrs, nil
