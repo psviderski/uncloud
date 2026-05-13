@@ -616,9 +616,29 @@ func TestParsePortSpec(t *testing.T) {
 			wantErr: "invalid container port",
 		},
 		{
+			name:    "slash",
+			port:    "/",
+			wantErr: "unsupported protocol",
+		},
+		{
+			name:    "at",
+			port:    "@",
+			wantErr: "invalid mode",
+		},
+		{
 			name:    "invalid container port",
 			port:    "invalid",
 			wantErr: "invalid container port",
+		},
+		{
+			name:    "no protocol",
+			port:    "53/",
+			wantErr: "unsupported protocol",
+		},
+		{
+			name:    "no host modifier",
+			port:    "53@",
+			wantErr: "invalid mode",
 		},
 		{
 			name:    "container port zero",
