@@ -19,7 +19,7 @@ const (
 )
 
 // ConfigureIptablesChains sets up custom iptables chains and initial firewall rules for Uncloud networking.
-func ConfigureIptablesChains(machineIP netip.Addr) error {
+func ConfigureIptablesChains(machineIP netip.Addr, wgPort int) error {
 	if err := createIptablesChains(); err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func ConfigureIptablesChains(machineIP netip.Addr) error {
 	// Allow WireGuard traffic to the machine.
 	acceptWireGuardRule := []string{
 		"-p", "udp",
-		"--dport", strconv.Itoa(network.WireGuardPort),
+		"--dport", strconv.Itoa(wgPort),
 		"-j", "ACCEPT",
 	}
 	// Allow cluster machines to access the unregistry (embedded image registry) on the machine to push/pull images.

@@ -716,6 +716,12 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		}
 	}
 
+	// Resolve the WireGuard listen port from the request, falling back to the default.
+	wgPort := uint16(req.WireguardPort)
+	if wgPort == 0 {
+		wgPort = network.WireGuardPort
+	}
+
 	// Use explicitly provided WireGuard endpoints, or use the routable IPs on the machine and its public IP
 	// if not provided. The IPs are auto-detected.
 	var endpoints []*pb.IPPort
@@ -735,7 +741,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 
 		endpoints = make([]*pb.IPPort, len(ips))
 		for i, addr := range ips {
-			addrPort := netip.AddrPortFrom(addr, network.WireGuardPort)
+			addrPort := netip.AddrPortFrom(addr, wgPort)
 			endpoints[i] = pb.NewIPPort(addrPort)
 		}
 	}
@@ -774,6 +780,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	m.state.Network = &network.Config{
 		Subnet:       subnet,
 		ManagementIP: manageIP,
+		ListenPort:   int(wgPort),
 		PrivateKey:   m.state.Network.PrivateKey,
 		PublicKey:    m.state.Network.PublicKey,
 	}
@@ -817,11 +824,19 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 	// Update the machine state with the provided cluster configuration.
 	subnet, _ := req.Machine.Network.Subnet.ToPrefix()
 	manageIP, _ := req.Machine.Network.ManagementIp.ToAddr()
+
+	// Resolve the WireGuard listen port from the request, falling back to the default.
+	wgPort := int(req.WireguardPort)
+	if wgPort == 0 {
+		wgPort = network.WireGuardPort
+	}
+
 	m.state.ID = req.Machine.Id
 	m.state.Name = req.Machine.Name
 	m.state.Network = &network.Config{
 		Subnet:       subnet,
 		ManagementIP: manageIP,
+		ListenPort:   wgPort,
 		PrivateKey:   m.state.Network.PrivateKey,
 		PublicKey:    m.state.Network.PublicKey,
 	}
@@ -886,7 +901,7 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 	}
 	endpoints := make([]netip.AddrPort, len(ips))
 	for i, ip := range ips {
-		endpoints[i] = netip.AddrPortFrom(ip, network.WireGuardPort)
+		endpoints[i] = netip.AddrPortFrom(ip, uint16(m.state.Network.EffectiveListenPort()))
 	}
 
 	token := NewToken(m.state.Network.PublicKey, publicIP, endpoints)

@@ -29,6 +29,7 @@ type addOptions struct {
 	sshKey      string
 	version     string
 	wgEndpoints []string
+	wgPort      int
 	yes         bool
 }
 
@@ -103,6 +104,10 @@ Connection methods:
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.\n"+
 			"Defaults to the auto-detected public and routable machine IPs.",
 	)
+	cmd.Flags().IntVar(
+		&opts.wgPort, "wg-port", network.WireGuardPort,
+		"UDP port WireGuard listens on for incoming connections from other machines.",
+	)
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
 			"Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
@@ -131,6 +136,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
+		WireguardPort: opts.wgPort,
 		AutoConfirm:   opts.yes,
 	}
 	if len(opts.wgEndpoints) > 0 {

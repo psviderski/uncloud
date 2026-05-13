@@ -11,6 +11,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -174,6 +175,7 @@ type InitClusterOptions struct {
 	Version            string
 	AutoConfirm        bool
 	WireguardEndpoints []*pb.IPPort
+	WireguardPort      int
 }
 
 // InitCluster initialises a new cluster on a remote machine and returns a client to interact with the cluster.
@@ -234,6 +236,7 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		MachineName:        opts.MachineName,
 		Network:            pb.NewIPPrefix(opts.Network),
 		WireguardEndpoints: opts.WireguardEndpoints,
+		WireguardPort:      int32(opts.WireguardPort),
 	}
 	if opts.PublicIP != nil {
 		if opts.PublicIP.IsValid() {
@@ -317,6 +320,7 @@ type AddMachineOptions struct {
 	Version            string
 	AutoConfirm        bool
 	WireguardEndpoints []*pb.IPPort
+	WireguardPort      int
 }
 
 // AddMachine provisions a remote machine and adds it to the cluster. It returns a cluster client and a machine client.
@@ -401,6 +405,11 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 	} else {
 		endpoints = make([]*pb.IPPort, len(token.Endpoints))
 		for i, addrPort := range token.Endpoints {
+			// If a custom WireGuard port is specified, override the port from the token endpoints
+			// since the token was generated before the machine knows its configured port.
+			if opts.WireguardPort != 0 && opts.WireguardPort != network.WireGuardPort {
+				addrPort = netip.AddrPortFrom(addrPort.Addr(), uint16(opts.WireguardPort))
+			}
 			endpoints[i] = pb.NewIPPort(addrPort)
 		}
 	}
@@ -454,6 +463,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		Machine:           addResp.Machine,
 		OtherMachines:     otherMachines,
 		MinStoreDbVersion: storeDBVersion,
+		WireguardPort:     int32(opts.WireguardPort),
 	}
 	if _, err = machineClient.JoinCluster(ctx, joinReq); err != nil {
 		return nil, nil, fmt.Errorf("join cluster: %w", err)
