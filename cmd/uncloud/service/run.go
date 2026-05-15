@@ -22,7 +22,7 @@ type runOptions struct {
 	caddyfile         string
 	command           []string
 	cpu               dockeropts.NanoCPUs
-	entrypoint        string
+	entrypoint        []string
 	entrypointChanged bool
 	env               []string
 	image             string
@@ -67,8 +67,9 @@ func NewRunCommand(groupID string) *cobra.Command {
 	cmd.Flags().VarP(&opts.cpu, "cpu", "",
 		"Maximum number of CPU cores a service container can use. Fractional values are allowed: "+
 			"0.5 for half a core or 2.25 for two and a quarter cores.")
-	cmd.Flags().StringVar(&opts.entrypoint, "entrypoint", "",
-		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it.")
+	cmd.Flags().StringSliceVar(&opts.entrypoint, "entrypoint", nil,
+		"Overwrite the default ENTRYPOINT of the image. Pass an empty string \"\" to reset it. Can be specified "+
+			"multiple times or as a comma-separated list of command and arguments.")
 	cmd.Flags().StringSliceVarP(&opts.env, "env", "e", nil,
 		"Set an environment variable for service containers. Can be specified multiple times.\n"+
 			"Format: VAR=value or just VAR to use the value from the local environment.")
@@ -255,8 +256,8 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 	}
 
 	// Overwrite the default ENTRYPOINT of the image or reset it if an empty string is passed.
-	if opts.entrypoint != "" {
-		spec.Container.Entrypoint = []string{opts.entrypoint}
+	if opts.entrypoint != nil {
+		spec.Container.Entrypoint = cli.ExpandCommaSeparatedValues(opts.entrypoint)
 	} else if opts.entrypointChanged {
 		spec.Container.Entrypoint = []string{""}
 	}
