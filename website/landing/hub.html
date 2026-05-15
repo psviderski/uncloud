@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Uncloud Hub | Hosted dashboard and observability for Uncloud</title>
+    <meta name="description"
+          content="Uncloud Hub is the UI and hosted Grafana stack for your Uncloud clusters. Get metrics, logs, and alerts out of the box to catch issues early and fix faster.">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="./style.css" rel="stylesheet">
+    <link rel="apple-touch-icon" href="./images/apple-touch-icon.png" sizes="180x180"/>
+    <link rel="icon" type="image/svg+xml" href="./images/logo.svg"/>
+    <link rel="alternate icon" type="image/png" href="./images/favicon.png" sizes="96x96"/>
+
+    <!-- OpenGraph tags for social media -->
+    <meta property="og:title"
+          content="Uncloud Hub | Hosted dashboard and observability for Uncloud"/>
+    <meta property="og:description"
+          content="Uncloud Hub is the UI and hosted Grafana stack for your Uncloud clusters. Get metrics, logs, and alerts out of the box to catch issues early and fix faster."/>
+    <meta property="og:image" content="https://uncloud.run/images/logo-wide.png"/>
+    <meta property="og:image:alt" content="Uncloud Hub - Observability for self-hosted apps"/>
+    <meta property="og:url" content="https://uncloud.run/hub"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="Uncloud"/>
+    <!-- Twitter card tags -->
+    <meta property="twitter:domain" content="uncloud.run">
+    <meta property="twitter:url" content="https://uncloud.run/hub">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title"
+          content="Uncloud Hub | Hosted dashboard and observability for Uncloud">
+    <meta name="twitter:description"
+          content="Uncloud Hub is the UI and hosted Grafana stack for your Uncloud clusters. Get metrics, logs, and alerts out of the box to catch issues early and fix faster.">
+    <meta name="twitter:image" content="https://uncloud.run/images/logo-wide.png">
+    <meta name="twitter:image:alt" content="Uncloud Hub - Observability for self-hosted apps">
+    <style>
+        /* Prevent all inline SVGs from appearing full screen. */
+        svg {
+            max-width: 24px;
+            max-height: 24px;
+        }
+    </style>
+</head>
+
+<body class="font-inter antialiased bg-white text-zinc-900 tracking-tight">
+
+<!-- Page wrapper -->
+<div class="flex flex-col min-h-screen overflow-hidden supports-[overflow:clip]:overflow-clip">
+
+    <!-- Site header -->
+    <header class="absolute top-2 md:top-6 w-full z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+            <div class="flex items-center justify-between h-14">
+                <!-- Site branding -->
+                <div class="shrink-0 mr-4">
+                    <a class="flex items-center" href="/">
+                        <img class="w-8 h-8 rounded-lg shadow-sm shadow-zinc-950/20" src="./images/logo.svg" alt="Logo"
+                             width="32" height="32">
+                        <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
+                    </a>
+                </div>
+
+                <!-- Navigation links -->
+                <nav class="flex grow">
+                    <!-- Left side navigation -->
+                    <ul class="flex items-center">
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition inline-flex items-center"
+                               href="/hub">
+                                Hub
+                                <span class="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                    New
+                                </span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="/docs">Docs</a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="/blog">Blog</a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="https://psviderski.substack.com/" target="_blank">Newsletter</a>
+                        </li>
+                    </ul>
+                    <!-- Right side navigation -->
+                    <ul class="flex grow justify-end items-center shrink-0">
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 flex items-center transition"
+                               href="https://discord.gg/eR35KQJhPu">
+                                <svg class="w-4 h-4 sm:mr-1 fill-current" xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                                <span class="ml-1 hidden sm:inline">Discord</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-1 sm:px-5 py-2 flex items-center transition"
+                               href="https://github.com/psviderski/uncloud">
+                                <svg class="w-4 h-4 sm:mr-1 fill-current" xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                                </svg>
+                                <span class="ml-1 hidden sm:inline">GitHub</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page content -->
+    <main class="grow">
+
+        <!-- Hero -->
+        <section
+                class="relative before:absolute before:inset-0 before:h-80 before:pointer-events-none before:bg-gradient-to-b before:from-zinc-100 before:-z-10">
+            <div class="pt-32 pb-12 md:pt-40 md:pb-20">
+                <!-- Section content -->
+                <div class="px-4 sm:px-6">
+                    <div class="max-w-3xl mx-auto">
+                        <div class="text-center pb-12 md:pb-16">
+                            <!-- Eyebrow -->
+                            <div class="inline-flex items-center text-sm font-medium text-zinc-500 px-4 py-0.5 mb-6 border border-transparent [background:linear-gradient(theme(colors.white),theme(colors.white))_padding-box,linear-gradient(120deg,theme(colors.zinc.300),theme(colors.zinc.100),theme(colors.zinc.300))_border-box] rounded-full">
+                                <span class="relative flex w-1.5 h-1.5 mr-2">
+                                    <span class="absolute inline-flex w-full h-full rounded-full bg-violet-500 opacity-75 animate-ping"></span>
+                                    <span class="relative inline-flex w-1.5 h-1.5 rounded-full bg-violet-500"></span>
+                                </span>
+                                Coming soon
+                            </div>
+                            <h1 class="font-inter-tight text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-zinc-500 via-zinc-900 to-zinc-900 pb-4">
+                                See what's happening<br>
+                                <!-- TODO: highlight anything? e.g. "in production" -->
+                                in production
+                            </h1>
+                            <p class="text-lg text-zinc-500 mb-8">
+                                <b>Uncloud Hub</b> is the UI and Grafana stack for your Uncloud clusters.<br>
+                                Get real-time metrics, logs, and alerts out of the box to catch issues early and fix
+                                faster.
+                            </p>
+                            <div class="max-w-xs mx-auto sm:max-w-none sm:inline-flex sm:justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                                <div>
+                                    <a class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 w-full shadow"
+                                       href="#feedback">
+                                        Help shape Hub
+                                    </a>
+                                </div>
+                                <div>
+                                    <a class="btn text-zinc-600 bg-white hover:text-zinc-900 w-full shadow flex items-center justify-center"
+                                       href="#how-it-works">
+                                        How it works
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hero image -->
+                <div class="max-w-6xl mx-auto px-4 sm:px-6 flex justify-center pb-12 md:pb-20 relative before:absolute before:-top-12 before:w-96 before:h-96 before:bg-zinc-900 before:opacity-[.15] before:rounded-full before:blur-3xl before:-z-10">
+                    <img class="rounded-lg shadow-2xl" src="./images/hub-hero.webp" width="2560" height="1520"
+                         alt="Uncloud Hub services dashboard, design preview">
+                </div>
+
+                <!-- Trust / stats -->
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <p class="text-center text-base text-zinc-500 mb-8">
+                        Hub is built for Uncloud, the open-source orchestrator that runs your apps across machines.
+                    </p>
+                    <div class="max-w-sm mx-auto grid gap-12 sm:grid-cols-2 md:grid-cols-4 md:-mx-5 md:gap-0 items-start md:max-w-none">
+
+                        <!-- GitHub stars -->
+                        <a href="https://github.com/psviderski/uncloud" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(5.2)" x-text="counterValue">0</span>K+</h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">GitHub stars</p>
+                        </a>
+
+                        <!-- Downloads -->
+                        <a href="https://github.com/psviderski/uncloud/releases" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(19)" x-text="counterValue">0</span>K+</h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">Downloads</p>
+                        </a>
+
+                        <!-- Hacker News front-page -->
+                        <a href="https://news.ycombinator.com/item?id=46144275" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(2)" x-text="counterValue">0</span>x</h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">Hacker News front page</p>
+                        </a>
+
+                        <!-- Discord members. -->
+                        <a href="https://uncloud.run/discord" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                        <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(368)" x-text="counterValue">0</span></h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">Fans on Discord</p>
+                        </a>
+
+                    </div>
+
+                    <!-- Animate counter functionality: https://github.com/alpinejs/alpine -->
+                    <script>
+                        document.addEventListener('alpine:init', () => {
+                            Alpine.data('counter', (target = 0, duration = 3000) => ({
+                                startTimestamp: null,
+                                step: null,
+                                rawValue: 0,
+                                counterValue: 0,
+                                target: target,
+                                precision: (target % 1 === 0) ? 0 : (target.toString().split('.')[1] || []).length,
+                                animationRequestId: null,
+                                animationCompleted: false,
+                                observer: null,
+                                init() {
+                                    // Intersection observer to watch visibility.
+                                    this.observer = new IntersectionObserver(entries => {
+                                        entries.forEach(entry => {
+                                            // Check if element is in view.
+                                            if (entry.isIntersecting && !this.animationCompleted) {
+                                                this.startAnimation()
+                                            }
+                                        })
+                                    })
+                                    this.observer.observe(this.$el)
+                                },
+                                startAnimation() {
+                                    this.step = (timestamp) => {
+                                        if (!this.startTimestamp) this.startTimestamp = timestamp
+                                        const progress = Math.min((timestamp - this.startTimestamp) / duration, 1)
+                                        const easedProgress = this.easeOut(progress)
+                                        this.rawValue = parseFloat((easedProgress * this.target).toFixed(this.precision))
+                                        this.counterValue = this.rawValue.toFixed(this.precision)
+                                        if (progress < 1) {
+                                            this.animationRequestId = window.requestAnimationFrame(this.step)
+                                        } else {
+                                            this.animationCompleted = true
+                                        }
+                                    }
+                                    this.animationRequestId = window.requestAnimationFrame(this.step);
+                                },
+                                easeOut(t) {
+                                    return 1 - Math.pow(1 - t, 5)
+                                },
+                                destroy() {
+                                    // Detach the handler to avoid memory and side-effect leakage.
+                                    this.animationRequestId && window.cancelAnimationFrame(this.step)
+                                    this.observer && this.observer.disconnect()
+                                },
+                            }))
+                        })
+                    </script>
+                </div>
+            </div>
+        </section>
+
+        <!-- Day 2 problem: the long part of running an app. -->
+        <section class="relative bg-zinc-50">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+
+                    <!-- Section heading -->
+                    <div class="max-w-3xl mx-auto text-center pb-12 md:pb-16">
+                        <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                            Frustrated by the complexity of setting up observability?
+                        </h2>
+                        <p class="text-lg text-zinc-500">
+                            Observability is what killing the joy of shipping.
+                        </p>
+                    </div>
+
+                    <!-- Vertical timeline: a single line carries Build, Ship, Run, the questions, and the stack. -->
+                    <div class="max-w-xl mx-auto">
+                        <div class="relative pl-10 sm:pl-12 pb-10">
+                            <!-- The continuous line, spanning from the first marker to just above the arrow. -->
+                            <span class="absolute left-3 sm:left-4 top-1.5 bottom-0 w-px bg-zinc-200" aria-hidden="true"></span>
+
+                            <!-- Build. -->
+                            <div class="relative mb-10">
+                                <span class="absolute -left-[33px] sm:-left-[37px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-zinc-50" aria-hidden="true"></span>
+                                <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Build</div>
+                                <div class="text-sm text-zinc-500 mt-1">The fun part.</div>
+                            </div>
+
+                            <!-- Ship. -->
+                            <div class="relative mb-10">
+                                <span class="absolute -left-[33px] sm:-left-[37px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-zinc-50" aria-hidden="true"></span>
+                                <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ship</div>
+                                <div class="text-sm text-zinc-500 mt-1"><code class="font-mono text-zinc-700">uc deploy</code> and you're done.</div>
+                            </div>
+
+                            <!-- Run, emphasized: filled dark marker, bolder copy. -->
+                            <div class="relative mb-10">
+                                <span class="absolute -left-[35px] sm:-left-[39px] top-0.5 w-3.5 h-3.5 rounded-full bg-zinc-900 ring-4 ring-zinc-50 shadow-sm" aria-hidden="true"></span>
+                                <div class="text-xs font-semibold uppercase tracking-wider text-zinc-900">Run / Monitor and observe</div>
+                                <p class="text-base text-zinc-900 mt-1 font-medium">This is what matters.</p>
+                            </div>
+
+                            <!-- Bridge into the observability beat. New H2 + subhead carry the emotional load. -->
+                            <div class="mt-2 mb-6">
+                                <h3 class="font-inter-tight text-xl sm:text-2xl font-bold text-zinc-900 mb-2">
+                                    Observability for developers who'd rather be shipping.
+                                </h3>
+                                <p class="text-sm text-zinc-600">
+                                    It's not optional.
+                                </p>
+                            </div>
+
+                            <!-- The questions: standalone list, ? as bullets. Mix of why and how to catch both ICPs. -->
+                            <ul class="space-y-3 mb-6 text-sm text-zinc-700">
+                                <li class="flex gap-3">
+                                    <span class="font-inter-tight font-semibold text-base leading-snug text-zinc-400 shrink-0 select-none" aria-hidden="true">?</span>
+                                    <span>Are you finding out about outages from your users?</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="font-inter-tight font-semibold text-base leading-snug text-zinc-400 shrink-0 select-none" aria-hidden="true">?</span>
+                                    <span>When something breaks, where do you start looking?</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="font-inter-tight font-semibold text-base leading-snug text-zinc-400 shrink-0 select-none" aria-hidden="true">?</span>
+                                    <span>Prometheus or VictoriaMetrics? Loki or VictoriaLogs?</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="font-inter-tight font-semibold text-base leading-snug text-zinc-400 shrink-0 select-none" aria-hidden="true">?</span>
+                                    <span>Vector, Grafana Alloy, or Fluent Bit?</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="font-inter-tight font-semibold text-base leading-snug text-zinc-400 shrink-0 select-none" aria-hidden="true">?</span>
+                                    <span>Which alerts wake you for real problems, not 3 AM noise?</span>
+                                </li>
+                            </ul>
+
+                            <!-- Connector line into the tangle. -->
+                            <p class="text-sm text-zinc-600 mb-6">
+                                And that's before you've drawn a single graph.
+                            </p>
+
+                            <!-- Tangle: first-pass SVG. Overlapping bezier curves with tool name labels around a big "?". To be iterated separately. -->
+                            <div class="my-6">
+                                <svg viewBox="0 0 480 300" class="block w-full h-auto" style="max-width:100%;max-height:none;" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                                    <g fill="none" stroke="rgb(212 212 216)" stroke-width="1.5" stroke-linecap="round">
+                                        <path d="M 60 30 C 180 80, 100 180, 240 150 S 360 200, 420 110"/>
+                                        <path d="M 100 260 C 200 220, 180 100, 320 130 S 420 220, 380 270"/>
+                                        <path d="M 80 120 C 200 60, 320 200, 440 140"/>
+                                        <path d="M 240 30 C 280 100, 160 200, 240 280"/>
+                                        <path d="M 40 200 C 160 240, 240 80, 360 200"/>
+                                    </g>
+                                    <text x="240" y="195" text-anchor="middle" font-family="Inter Tight, Inter, sans-serif" font-size="140" font-weight="700" fill="rgb(228 228 231)">?</text>
+                                    <g font-family="ui-monospace, Menlo, Monaco, monospace" font-size="11" fill="rgb(82 82 91)">
+                                        <text x="60" y="44">prometheus</text>
+                                        <text x="360" y="92">VictoriaMetrics</text>
+                                        <text x="30" y="170">loki</text>
+                                        <text x="380" y="170">grafana</text>
+                                        <text x="90" y="250">vector</text>
+                                        <text x="300" y="270">alertmanager</text>
+                                        <text x="230" y="60">cadvisor</text>
+                                        <text x="380" y="40">alloy</text>
+                                    </g>
+                                </svg>
+                            </div>
+
+                            <!-- Arrow capping the line, pointing into the next section. -->
+                            <span class="absolute left-3 sm:left-4 -bottom-1 -translate-x-1/2 translate-y-full" aria-hidden="true">
+                                <svg width="10" height="10" viewBox="0 0 10 10" class="block fill-zinc-300">
+                                    <path d="M5 10 0 0 H10 Z"/>
+                                </svg>
+                            </span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <section class="relative bg-white text-zinc-800">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="max-w-3xl mx-auto text-center pb-12 md:pb-16">
+                        <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                            Untangle the observability mess and start monitoring instantly
+                        </h2>
+                        <p class="text-lg text-zinc-500">
+                            A hosted Grafana stack that knows about your Uncloud apps.
+                        </p>
+                    </div>
+
+                    ...
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Site footer -->
+    <footer>
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+            <!-- Top area: Blocks -->
+            <div class="grid sm:grid-cols-12 gap-8 py-8 md:py-12 border-t border-zinc-200">
+                <!-- 1st block - Brand -->
+                <div class="sm:col-span-6 md:col-span-6 lg:col-span-8 max-md:order-1 flex flex-col">
+                    <div class="mb-4">
+                        <!-- Logo -->
+                        <a class="flex items-center" href="index.html">
+                            <img class="w-8 h-8 rounded shadow-sm shadow-zinc-950/20" src="./images/logo.svg"
+                                 alt="Logo">
+                            <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
+                        </a>
+                    </div>
+                    <div class="grow text-sm text-zinc-500">
+                        Made with ❤️ by
+                        <a class="underline hover:text-zinc-900" href="https://github.com/unlabs-dev">unLabs</a>
+                        in Australia
+                    </div>
+
+                    <!-- Social links -->
+                    <ul class="flex space-x-4 mt-4 mb-1">
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu" aria-label="Discord">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://x.com/psviderski" aria-label="X/Twitter">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="m7.063 3 3.495 4.475L14.601 3h2.454l-5.359 5.931L18 17h-4.938l-3.866-4.893L4.771 17H2.316l5.735-6.342L2 3h5.063Zm-.74 1.347H4.866l8.875 11.232h1.36L6.323 4.347Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://t.me/spyyy" aria-label="Telegram">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="M17.968 3.276a.338.338 0 0 0-.232-.253 1.192 1.192 0 0 0-.63.045S3.087 8.106 2.286 8.664c-.172.121-.23.19-.259.272-.138.4.293.573.293.573l3.613 1.177a.388.388 0 0 0 .183-.011c.822-.519 8.27-5.222 8.7-5.38.068-.02.118 0 .1.049-.172.6-6.606 6.319-6.64 6.354a.138.138 0 0 0-.05.118l-.337 3.528s-.142 1.1.956 0a30.66 30.66 0 0 1 1.9-1.738c1.242.858 2.58 1.806 3.156 2.3a1 1 0 0 0 .732.283.825.825 0 0 0 .7-.622S17.894 5.292 17.98 3.909c.008-.135.021-.217.021-.317a1.177 1.177 0 0 0-.032-.316Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud" aria-label="GitHub">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                                </svg>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 2nd block - Documentation -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Documentation</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/docs/#use-cases">Use cases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/docs/getting-started/deploy-demo-app">Quick start</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/blog">Blog</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 3rd block - Resources -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Resources</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud">GitHub project</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/releases">Releases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/blob/main/LICENSE">License</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu">Community</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</div>
+
+<script src="./js/vendors/alpinejs.min.js" defer></script>
+
+</body>
+
+</html>

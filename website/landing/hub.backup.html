@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Uncloud Hub | Hosted dashboard and observability for Uncloud</title>
+    <meta name="description"
+          content="Uncloud Hub is the UI and hosted Grafana stack for your Uncloud clusters. Get metrics, logs, and alerts out of the box to catch issues early and fix faster.">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="./style.css" rel="stylesheet">
+    <link rel="apple-touch-icon" href="./images/apple-touch-icon.png" sizes="180x180"/>
+    <link rel="icon" type="image/svg+xml" href="./images/logo.svg"/>
+    <link rel="alternate icon" type="image/png" href="./images/favicon.png" sizes="96x96"/>
+
+    <!-- OpenGraph tags for social media -->
+    <meta property="og:title"
+          content="Uncloud Hub | Hosted dashboard and observability for Uncloud"/>
+    <meta property="og:description"
+          content="Uncloud Hub is the UI and hosted Grafana stack for your Uncloud clusters. Get metrics, logs, and alerts out of the box to catch issues early and fix faster."/>
+    <meta property="og:image" content="https://uncloud.run/images/logo-wide.png"/>
+    <meta property="og:image:alt" content="Uncloud Hub - Observability for self-hosted apps"/>
+    <meta property="og:url" content="https://uncloud.run/hub"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="Uncloud"/>
+    <!-- Twitter card tags -->
+    <meta property="twitter:domain" content="uncloud.run">
+    <meta property="twitter:url" content="https://uncloud.run/hub">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title"
+          content="Uncloud Hub | Hosted dashboard and observability for Uncloud">
+    <meta name="twitter:description"
+          content="Uncloud Hub is the UI and hosted Grafana stack for your Uncloud clusters. Get metrics, logs, and alerts out of the box to catch issues early and fix faster.">
+    <meta name="twitter:image" content="https://uncloud.run/images/logo-wide.png">
+    <meta name="twitter:image:alt" content="Uncloud Hub - Observability for self-hosted apps">
+    <style>
+        /* Prevent all inline SVGs from appearing full screen. */
+        svg {
+            max-width: 24px;
+            max-height: 24px;
+        }
+    </style>
+</head>
+
+<body class="font-inter antialiased bg-white text-zinc-900 tracking-tight">
+
+<!-- Page wrapper -->
+<div class="flex flex-col min-h-screen overflow-hidden supports-[overflow:clip]:overflow-clip">
+
+    <!-- Site header -->
+    <header class="absolute top-2 md:top-6 w-full z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+            <div class="flex items-center justify-between h-14">
+                <!-- Site branding -->
+                <div class="shrink-0 mr-4">
+                    <a class="flex items-center" href="/">
+                        <img class="w-8 h-8 rounded-lg shadow-sm shadow-zinc-950/20" src="./images/logo.svg" alt="Logo"
+                             width="32" height="32">
+                        <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
+                    </a>
+                </div>
+
+                <!-- Navigation links -->
+                <nav class="flex grow">
+                    <!-- Left side navigation -->
+                    <ul class="flex items-center">
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition inline-flex items-center"
+                               href="/hub">
+                                Hub
+                                <span class="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                    New
+                                </span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="/docs">Docs</a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="/blog">Blog</a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 transition"
+                               href="https://psviderski.substack.com/" target="_blank">Newsletter</a>
+                        </li>
+                    </ul>
+                    <!-- Right side navigation -->
+                    <ul class="flex grow justify-end items-center shrink-0">
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-2 sm:px-5 py-2 flex items-center transition"
+                               href="https://discord.gg/eR35KQJhPu">
+                                <svg class="w-4 h-4 sm:mr-1 fill-current" xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                                <span class="ml-1 hidden sm:inline">Discord</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="text-sm font-medium text-zinc-500 hover:text-zinc-900 px-1 sm:px-5 py-2 flex items-center transition"
+                               href="https://github.com/psviderski/uncloud">
+                                <svg class="w-4 h-4 sm:mr-1 fill-current" xmlns="http://www.w3.org/2000/svg"
+                                     viewBox="0 0 24 24">
+                                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                                </svg>
+                                <span class="ml-1 hidden sm:inline">GitHub</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page content -->
+    <main class="grow">
+
+        <!-- Hero -->
+        <section
+                class="relative before:absolute before:inset-0 before:h-80 before:pointer-events-none before:bg-gradient-to-b before:from-zinc-100 before:-z-10">
+            <div class="pt-32 pb-12 md:pt-40 md:pb-20">
+                <!-- Section content -->
+                <div class="px-4 sm:px-6">
+                    <div class="max-w-3xl mx-auto">
+                        <div class="text-center pb-12 md:pb-16">
+                            <!-- Eyebrow -->
+                            <div class="inline-flex items-center text-sm font-medium text-zinc-500 px-4 py-0.5 mb-6 border border-transparent [background:linear-gradient(theme(colors.white),theme(colors.white))_padding-box,linear-gradient(120deg,theme(colors.zinc.300),theme(colors.zinc.100),theme(colors.zinc.300))_border-box] rounded-full">
+                                <span class="relative flex w-1.5 h-1.5 mr-2">
+                                    <span class="absolute inline-flex w-full h-full rounded-full bg-violet-500 opacity-75 animate-ping"></span>
+                                    <span class="relative inline-flex w-1.5 h-1.5 rounded-full bg-violet-500"></span>
+                                </span>
+                                Coming soon
+                            </div>
+                            <h1 class="font-inter-tight text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-zinc-500 via-zinc-900 to-zinc-900 pb-4">
+                                See what's happening<br>
+                                <!-- TODO: highlight anything? e.g. "in production" -->
+                                in production
+                            </h1>
+                            <p class="text-lg text-zinc-500 mb-8">
+                                <b>Uncloud Hub</b> is the UI and Grafana stack for your Uncloud clusters.<br>
+                                Get real-time metrics, logs, and alerts out of the box to catch issues early and fix
+                                faster.
+                            </p>
+                            <div class="max-w-xs mx-auto sm:max-w-none sm:inline-flex sm:justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                                <div>
+                                    <a class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 w-full shadow"
+                                       href="#feedback">
+                                        Help shape Hub
+                                    </a>
+                                </div>
+                                <div>
+                                    <a class="btn text-zinc-600 bg-white hover:text-zinc-900 w-full shadow flex items-center justify-center"
+                                       href="#how-it-works">
+                                        How it works
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hero image -->
+                <div class="max-w-6xl mx-auto px-4 sm:px-6 flex justify-center pb-12 md:pb-20 relative before:absolute before:-top-12 before:w-96 before:h-96 before:bg-zinc-900 before:opacity-[.15] before:rounded-full before:blur-3xl before:-z-10">
+                    <img class="rounded-lg shadow-2xl" src="./images/hub-hero.webp" width="2560" height="1520"
+                         alt="Uncloud Hub services dashboard, design preview">
+                </div>
+
+                <!-- Trust / stats -->
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <p class="text-center text-base text-zinc-500 mb-8">
+                        Hub is built for Uncloud, the open-source orchestrator that runs your apps across machines.
+                    </p>
+                    <div class="max-w-sm mx-auto grid gap-12 sm:grid-cols-2 md:grid-cols-4 md:-mx-5 md:gap-0 items-start md:max-w-none">
+
+                        <!-- GitHub stars -->
+                        <a href="https://github.com/psviderski/uncloud" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(5.2)" x-text="counterValue">0</span>K+</h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">GitHub stars</p>
+                        </a>
+
+                        <!-- Downloads -->
+                        <a href="https://github.com/psviderski/uncloud/releases" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(19)" x-text="counterValue">0</span>K+</h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">Downloads</p>
+                        </a>
+
+                        <!-- Hacker News front-page -->
+                        <a href="https://news.ycombinator.com/item?id=46144275" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(2)" x-text="counterValue">0</span>x</h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">Hacker News front page</p>
+                        </a>
+
+                        <!-- Discord members. -->
+                        <a href="https://uncloud.run/discord" target="_blank" rel="noopener"
+                           class="group block relative text-center md:px-5 after:hidden md:after:block after:absolute after:right-0 after:top-1/2 after:-translate-y-1/2 after:w-px after:h-8 after:border-l after:border-zinc-300 after:border-dashed last:after:hidden">
+                            <h4 class="font-inter-tight text-2xl md:text-3xl font-bold tabular-nums mb-2"><span x-data="counter(366)" x-text="counterValue">0</span></h4>
+                            <p class="text-sm text-zinc-500 transition-colors group-hover:text-zinc-800">Fans on Discord</p>
+                        </a>
+
+                    </div>
+
+                    <!-- Animate counter functionality: https://github.com/alpinejs/alpine -->
+                    <script>
+                        document.addEventListener('alpine:init', () => {
+                            Alpine.data('counter', (target = 0, duration = 3000) => ({
+                                startTimestamp: null,
+                                step: null,
+                                rawValue: 0,
+                                counterValue: 0,
+                                target: target,
+                                precision: (target % 1 === 0) ? 0 : (target.toString().split('.')[1] || []).length,
+                                animationRequestId: null,
+                                animationCompleted: false,
+                                observer: null,
+                                init() {
+                                    // Intersection observer to watch visibility.
+                                    this.observer = new IntersectionObserver(entries => {
+                                        entries.forEach(entry => {
+                                            // Check if element is in view.
+                                            if (entry.isIntersecting && !this.animationCompleted) {
+                                                this.startAnimation()
+                                            }
+                                        })
+                                    })
+                                    this.observer.observe(this.$el)
+                                },
+                                startAnimation() {
+                                    this.step = (timestamp) => {
+                                        if (!this.startTimestamp) this.startTimestamp = timestamp
+                                        const progress = Math.min((timestamp - this.startTimestamp) / duration, 1)
+                                        const easedProgress = this.easeOut(progress)
+                                        this.rawValue = parseFloat((easedProgress * this.target).toFixed(this.precision))
+                                        this.counterValue = this.rawValue.toFixed(this.precision)
+                                        if (progress < 1) {
+                                            this.animationRequestId = window.requestAnimationFrame(this.step)
+                                        } else {
+                                            this.animationCompleted = true
+                                        }
+                                    }
+                                    this.animationRequestId = window.requestAnimationFrame(this.step);
+                                },
+                                easeOut(t) {
+                                    return 1 - Math.pow(1 - t, 5)
+                                },
+                                destroy() {
+                                    // Detach the handler to avoid memory and side-effect leakage.
+                                    this.animationRequestId && window.cancelAnimationFrame(this.step)
+                                    this.observer && this.observer.disconnect()
+                                },
+                            }))
+                        })
+                    </script>
+                </div>
+            </div>
+        </section>
+
+        <!-- Feature blocks -->
+        <section class="relative bg-zinc-50">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="max-w-3xl mx-auto text-center pb-12 md:pb-16">
+                        <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                            What you actually see
+                        </h2>
+                        <p class="text-lg text-zinc-500">
+                            Pre-built dashboards and alerts for the failure modes you care about.
+                        </p>
+                    </div>
+
+                    <div class="grid sm:grid-cols-2 gap-6 lg:gap-8">
+                        <!-- HTTP edge metrics -->
+                        <article
+                                class="flex flex-col border border-transparent [background:linear-gradient(theme(colors.white),theme(colors.zinc.50))_padding-box,linear-gradient(120deg,theme(colors.zinc.300),theme(colors.zinc.100),theme(colors.zinc.300))_border-box] rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-3">
+                                <svg class="stroke-zinc-400 shrink-0" xmlns="http://www.w3.org/2000/svg" width="20"
+                                     height="20" fill="none" stroke-width="2" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                                </svg>
+                                <h3 class="font-inter-tight text-lg font-semibold text-zinc-900">
+                                    HTTP edge metrics from Caddy
+                                </h3>
+                            </div>
+                            <p class="text-sm text-zinc-500 leading-relaxed">
+                                Per-service latency, error rate, status codes. From the proxy your apps already pass
+                                through. No agent in your app. No code changes.
+                            </p>
+                        </article>
+
+                        <!-- Logs in context -->
+                        <article
+                                class="flex flex-col border border-transparent [background:linear-gradient(theme(colors.white),theme(colors.zinc.50))_padding-box,linear-gradient(120deg,theme(colors.zinc.300),theme(colors.zinc.100),theme(colors.zinc.300))_border-box] rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-3">
+                                <svg class="stroke-zinc-400 shrink-0" xmlns="http://www.w3.org/2000/svg" width="20"
+                                     height="20" fill="none" stroke-width="2" viewBox="0 0 24 24">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <path d="M14 2v6h6M9 13h6M9 17h6"/>
+                                </svg>
+                                <h3 class="font-inter-tight text-lg font-semibold text-zinc-900">
+                                    Logs next to the spike
+                                </h3>
+                            </div>
+                            <p class="text-sm text-zinc-500 leading-relaxed">
+                                When something goes red, the relevant application logs are right there. No hunting for
+                                log files across machines. No new query language to learn.
+                            </p>
+                        </article>
+
+                        <!-- Slow Postgres queries -->
+                        <article
+                                class="flex flex-col border border-transparent [background:linear-gradient(theme(colors.white),theme(colors.zinc.50))_padding-box,linear-gradient(120deg,theme(colors.zinc.300),theme(colors.zinc.100),theme(colors.zinc.300))_border-box] rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-3">
+                                <svg class="stroke-zinc-400 shrink-0" xmlns="http://www.w3.org/2000/svg" width="20"
+                                     height="20" fill="none" stroke-width="2" viewBox="0 0 24 24">
+                                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                                    <path d="M3 5v14a9 3 0 0 0 18 0V5M3 12a9 3 0 0 0 18 0"/>
+                                </svg>
+                                <h3 class="font-inter-tight text-lg font-semibold text-zinc-900">
+                                    Slow Postgres queries
+                                </h3>
+                            </div>
+                            <p class="text-sm text-zinc-500 leading-relaxed">
+                                Hub watches every Uncloud-managed Postgres for queries eating your latency budget.
+                                Find them before your users do.
+                            </p>
+                        </article>
+
+                        <!-- Alerts that mean something -->
+                        <article
+                                class="flex flex-col border border-transparent [background:linear-gradient(theme(colors.white),theme(colors.zinc.50))_padding-box,linear-gradient(120deg,theme(colors.zinc.300),theme(colors.zinc.100),theme(colors.zinc.300))_border-box] rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-3">
+                                <svg class="stroke-zinc-400 shrink-0" xmlns="http://www.w3.org/2000/svg" width="20"
+                                     height="20" fill="none" stroke-width="2" viewBox="0 0 24 24">
+                                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0"/>
+                                </svg>
+                                <h3 class="font-inter-tight text-lg font-semibold text-zinc-900">
+                                    Alerts that mean something
+                                </h3>
+                            </div>
+                            <p class="text-sm text-zinc-500 leading-relaxed">
+                                Pre-built rules for the failures you actually care about. Service unavailable. Edge
+                                errors climbing. Disk filling. Postgres replication lag.
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How it works -->
+        <section id="how-it-works"
+                 class="relative bg-zinc-800 text-zinc-400">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="max-w-3xl mx-auto text-center pb-12 md:pb-16">
+                        <div class="inline-flex text-sm font-medium text-zinc-400 px-4 py-0.5 border border-transparent [background:linear-gradient(theme(colors.zinc.800),theme(colors.zinc.800))_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box] rounded-full mb-4">
+                            How it works
+                        </div>
+                        <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-100 mb-4">
+                            Connect, collect, see
+                        </h2>
+                        <p class="text-lg">
+                            Three steps. The same stack you'd build by hand, set up for you.
+                        </p>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-6 lg:gap-8">
+                        <!-- Step 1 -->
+                        <div class="border border-transparent [background:linear-gradient(theme(colors.zinc.800),theme(colors.zinc.800))_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box] rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-7 h-7 rounded-full bg-zinc-700 text-zinc-200 flex items-center justify-center font-semibold text-sm">
+                                    1
+                                </div>
+                                <h3 class="font-inter-tight text-lg font-semibold text-zinc-100">Connect</h3>
+                            </div>
+                            <p class="text-sm leading-relaxed mb-4">
+                                Got an Uncloud cluster running? Connect it in one command. New to Uncloud? Hub walks
+                                you through setting one up from your own machines.
+                            </p>
+                            <pre class="text-xs bg-zinc-900/60 border border-zinc-700/50 rounded p-3 text-zinc-300 overflow-x-auto"><span
+                                    class="text-emerald-500 select-none">$ </span>uc hub connect</pre>
+                        </div>
+
+                        <!-- Step 2 -->
+                        <div class="border border-transparent [background:linear-gradient(theme(colors.zinc.800),theme(colors.zinc.800))_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box] rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-7 h-7 rounded-full bg-zinc-700 text-zinc-200 flex items-center justify-center font-semibold text-sm">
+                                    2
+                                </div>
+                                <h3 class="font-inter-tight text-lg font-semibold text-zinc-100">Install the agent</h3>
+                            </div>
+                            <p class="text-sm leading-relaxed mb-4">
+                                Hub detects what's running. Caddy as your ingress, Postgres on machine 2, your worker,
+                                your web app. It configures the right collectors for each. No exporters to install by
+                                hand.
+                            </p>
+                            <div class="text-xs bg-zinc-900/60 border border-zinc-700/50 rounded p-3 text-zinc-400 space-y-1">
+                                <div><span class="text-emerald-500">✓</span> Detected Caddy ingress</div>
+                                <div><span class="text-emerald-500">✓</span> Detected Postgres 16</div>
+                                <div><span class="text-emerald-500">✓</span> Configuring exporters</div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3 -->
+                        <div class="border border-transparent [background:linear-gradient(theme(colors.zinc.800),theme(colors.zinc.800))_padding-box,linear-gradient(120deg,theme(colors.zinc.700),theme(colors.zinc.700/0),theme(colors.zinc.700))_border-box] rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-7 h-7 rounded-full bg-zinc-700 text-zinc-200 flex items-center justify-center font-semibold text-sm">
+                                    3
+                                </div>
+                                <h3 class="font-inter-tight text-lg font-semibold text-zinc-100">See</h3>
+                            </div>
+                            <p class="text-sm leading-relaxed mb-4">
+                                Within minutes, dashboards are live. Failed HTTP requests, slow queries, application
+                                logs, system health. Plus alerts that page when users are affected.
+                            </p>
+                            <div class="text-xs bg-zinc-900/60 border border-zinc-700/50 rounded p-3 text-zinc-400 space-y-1">
+                                <div>4 dashboards live</div>
+                                <div>12 alert rules active</div>
+                                <div>logs streaming</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- See inside the box -->
+        <section class="relative bg-zinc-50">
+            <div class="py-12 md:py-20">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="lg:flex lg:items-start lg:gap-12">
+                        <div class="lg:flex-1 mb-8 lg:mb-0">
+                            <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                                Same Grafana stack you'd have built. Full access.
+                            </h2>
+                            <p class="text-lg text-zinc-500 leading-relaxed">
+                                Hub does the setup and the ongoing maintenance for you. It ships with opinions about
+                                what's worth watching. Underneath, it's still your data and your tools.
+                            </p>
+                        </div>
+                        <div class="lg:flex-1">
+                            <ul class="space-y-4">
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-5 h-5 text-emerald-500 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <div>
+                                        <div class="font-medium text-zinc-900">Click any chart, see the query</div>
+                                        <div class="text-sm text-zinc-500">No black boxes. The PromQL is right there,
+                                            ready to copy or edit.
+                                        </div>
+                                    </div>
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-5 h-5 text-emerald-500 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <div>
+                                        <div class="font-medium text-zinc-900">Customise our dashboards or add
+                                            your own
+                                        </div>
+                                        <div class="text-sm text-zinc-500">Full Grafana editor. Your panels live
+                                            alongside the pre-built ones.
+                                        </div>
+                                    </div>
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-5 h-5 text-emerald-500 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <div>
+                                        <div class="font-medium text-zinc-900">Hand the data to an AI agent</div>
+                                        <div class="text-sm text-zinc-500">Read-only data API. Ask plain-English
+                                            questions about your fleet. It's your data.
+                                        </div>
+                                    </div>
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <svg class="w-5 h-5 text-emerald-500 shrink-0 mt-1" fill="none"
+                                         stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <div>
+                                        <div class="font-medium text-zinc-900">Out of the critical path</div>
+                                        <div class="text-sm text-zinc-500">If Hub goes down, your apps keep running.
+                                            Hub watches. It does not run things.
+                                        </div>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trust block -->
+        <section class="relative bg-white">
+            <div class="py-12 md:py-16">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="max-w-3xl mx-auto text-center pb-10">
+                        <p class="text-sm font-medium text-zinc-500 uppercase tracking-wide">
+                            Built on the back of Uncloud
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+                        <div class="text-center">
+                            <div class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900">5K+</div>
+                            <div class="text-sm text-zinc-500 mt-1">GitHub stars</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900">19K+</div>
+                            <div class="text-sm text-zinc-500 mt-1">Downloads</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900">2x</div>
+                            <div class="text-sm text-zinc-500 mt-1">Hacker News front page</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900">In&nbsp;use</div>
+                            <div class="text-sm text-zinc-500 mt-1">Radboud University</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Note from us -->
+        <section class="relative bg-zinc-50">
+            <div class="py-12 md:py-20">
+                <div class="max-w-3xl mx-auto px-4 sm:px-6">
+                    <div class="text-center mb-8">
+                        <h2 class="font-inter-tight text-2xl md:text-3xl font-bold text-zinc-900 mb-2">
+                            A note from us
+                        </h2>
+                    </div>
+                    <div class="space-y-4 text-lg text-zinc-600 leading-relaxed">
+                        <p>
+                            I'm Pasha. I've spent a decade building commercial software and keeping production
+                            infrastructure healthy. Uncloud started because I wanted a simpler way to run my own apps
+                            across cloud VMs and machines at home, without a Kubernetes degree.
+                        </p>
+                        <p>
+                            Hub is the dashboard we needed for that, productised. If the problem above sounds like your
+                            weekend, We'd like to hear about your setup. The design partner round is small. The
+                            feedback we get now is what shapes what ships.
+                        </p>
+                    </div>
+                    <div class="text-center mt-8">
+                        <a class="text-sm font-medium text-zinc-900 hover:underline" href="#feedback">
+                            Tell us about your setup →
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Where Hub is going -->
+        <section class="relative bg-white">
+            <div class="py-12 md:py-20">
+                <div class="max-w-3xl mx-auto px-4 sm:px-6">
+                    <h2 class="font-inter-tight text-2xl md:text-3xl font-bold text-zinc-900 mb-6 text-center">
+                        Where Hub is going
+                    </h2>
+                    <div class="space-y-4 text-lg text-zinc-600 leading-relaxed">
+                        <p>
+                            Hub starts with observability because that's what we keep hearing from people running things
+                            on their own servers. After that, the direction is broader. Shared cluster access without
+                            juggling SSH keys. Connectivity for machines behind NAT. A clean way to reach your cluster
+                            from your laptop as if you were already inside it.
+                        </p>
+                        <p>
+                            None of this is on the page yet because none of it is shipping yet. Observability lands
+                            first. The rest follows once the wedge is real.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ -->
+        <section class="relative bg-zinc-50">
+            <div class="py-12 md:py-20">
+                <div class="max-w-3xl mx-auto px-4 sm:px-6">
+                    <div class="text-center pb-10">
+                        <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-2">
+                            Frequently asked questions
+                        </h2>
+                    </div>
+
+                    <div class="space-y-3">
+                        <details
+                                class="group bg-white border border-zinc-200 rounded-lg p-5 [&[open]>summary>svg]:rotate-180">
+                            <summary
+                                    class="flex items-center justify-between cursor-pointer font-medium text-zinc-900 list-none">
+                                What's open source and what's paid?
+                                <svg class="w-4 h-4 text-zinc-400 transition-transform" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </summary>
+                            <p class="text-sm text-zinc-600 leading-relaxed mt-3">
+                                Uncloud itself stays open source under Apache-2.0. The on-cluster agent that connects
+                                to Hub will be open source too, with a configurable endpoint. The Hub backend is closed
+                                source and paid.
+                            </p>
+                        </details>
+
+                        <details
+                                class="group bg-white border border-zinc-200 rounded-lg p-5 [&[open]>summary>svg]:rotate-180">
+                            <summary
+                                    class="flex items-center justify-between cursor-pointer font-medium text-zinc-900 list-none">
+                                Does it work without Uncloud?
+                                <svg class="w-4 h-4 text-zinc-400 transition-transform" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </summary>
+                            <p class="text-sm text-zinc-600 leading-relaxed mt-3">
+                                No, by design. Hub knows what's running because Uncloud manages it. That auto-discovery
+                                is the difference between Hub and a generic Grafana you set up yourself.
+                            </p>
+                        </details>
+
+                        <details
+                                class="group bg-white border border-zinc-200 rounded-lg p-5 [&[open]>summary>svg]:rotate-180">
+                            <summary
+                                    class="flex items-center justify-between cursor-pointer font-medium text-zinc-900 list-none">
+                                Can my team log in too?
+                                <svg class="w-4 h-4 text-zinc-400 transition-transform" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </summary>
+                            <p class="text-sm text-zinc-600 leading-relaxed mt-3">
+                                Single user for now. Multi-user and team access are planned. If single user is a
+                                blocker for you, please tell us on the form below. That's a strong signal for
+                                prioritising it sooner.
+                            </p>
+                        </details>
+
+                        <details
+                                class="group bg-white border border-zinc-200 rounded-lg p-5 [&[open]>summary>svg]:rotate-180">
+                            <summary
+                                    class="flex items-center justify-between cursor-pointer font-medium text-zinc-900 list-none">
+                                Can I self-host Hub itself?
+                                <svg class="w-4 h-4 text-zinc-400 transition-transform" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </summary>
+                            <p class="text-sm text-zinc-600 leading-relaxed mt-3">
+                                Planned for orgs that need to keep everything on their own infrastructure. Not in the
+                                first release.
+                            </p>
+                        </details>
+
+                        <details
+                                class="group bg-white border border-zinc-200 rounded-lg p-5 [&[open]>summary>svg]:rotate-180">
+                            <summary
+                                    class="flex items-center justify-between cursor-pointer font-medium text-zinc-900 list-none">
+                                I already run Grafana. What now?
+                                <svg class="w-4 h-4 text-zinc-400 transition-transform" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </summary>
+                            <p class="text-sm text-zinc-600 leading-relaxed mt-3">
+                                Keep it if it's working. Hub can sit alongside as a separate dashboard for the
+                                Uncloud-aware views. If you'd rather stop maintaining your own Grafana, Hub replaces it
+                                entirely. Same Grafana underneath either way.
+                            </p>
+                        </details>
+
+                        <details
+                                class="group bg-white border border-zinc-200 rounded-lg p-5 [&[open]>summary>svg]:rotate-180">
+                            <summary
+                                    class="flex items-center justify-between cursor-pointer font-medium text-zinc-900 list-none">
+                                When does it ship and how much does it cost?
+                                <svg class="w-4 h-4 text-zinc-400 transition-transform" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </summary>
+                            <p class="text-sm text-zinc-600 leading-relaxed mt-3">
+                                First version is in design now. Pricing is per cluster, designed to land below the cost
+                                of the machines you're watching. The form below is the way into the design partner
+                                round.
+                            </p>
+                        </details>
+
+                        <details
+                                class="group bg-white border border-zinc-200 rounded-lg p-5 [&[open]>summary>svg]:rotate-180">
+                            <summary
+                                    class="flex items-center justify-between cursor-pointer font-medium text-zinc-900 list-none">
+                                What if Hub is down?
+                                <svg class="w-4 h-4 text-zinc-400 transition-transform" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </summary>
+                            <p class="text-sm text-zinc-600 leading-relaxed mt-3">
+                                Your apps keep running. Hub watches your cluster from outside it and is not in the
+                                critical path of your traffic, your data, or your deploys. If hub.uncloud.run becomes
+                                unavailable, you lose dashboards and alerts for that period. You do not lose your
+                                applications.
+                            </p>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final CTA -->
+        <section id="feedback">
+            <div class="py-12 md:py-20 border-t border-zinc-200">
+                <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div class="relative max-w-3xl mx-auto text-center">
+                        <h2 class="font-inter-tight text-3xl md:text-4xl font-bold text-zinc-900 mb-4">
+                            Help shape
+                            <em class="relative not-italic inline-flex justify-center items-end">
+                                Hub
+                                <svg class="absolute fill-zinc-300 w-[calc(100%+1rem)] -z-10"
+                                     style="max-width: none;"
+                                     xmlns="http://www.w3.org/2000/svg" width="120" height="10" viewBox="0 0 120 10"
+                                     aria-hidden="true" preserveAspectRatio="none">
+                                    <path d="M118.273 6.09C79.243 4.558 40.297 5.459 1.305 9.034c-1.507.13-1.742-1.521-.199-1.81C39.81-.228 79.647-1.568 118.443 4.2c1.63.233 1.377 1.943-.17 1.89Z"/>
+                                </svg>
+                            </em>
+                        </h2>
+                        <p class="text-lg text-zinc-500 mb-8">
+                            We're picking 5 to 10 design partners for the first version. If you run things on a few
+                            servers and the Day 2 part is what's grinding you down, We'd like to hear about your setup.
+                        </p>
+
+                        <!-- Feedback form. Replace href with the real form URL when ready. -->
+                        <div class="flex justify-center mb-6">
+                            <a class="btn text-zinc-100 bg-zinc-900 hover:bg-zinc-800 shadow"
+                               href="#"
+                               data-todo="link-to-real-feedback-form">
+                                Tell us about your setup
+                            </a>
+                        </div>
+
+                        <div class="text-sm text-zinc-500">
+                            <p>
+                                Or drop your email below and we'll send updates as Hub takes shape.
+                            </p>
+                        </div>
+
+                        <!-- Email capture fallback. Reuses the Substack embed from the main site. -->
+                        <div class="flex justify-center mt-4">
+                            <iframe src="https://psviderski.substack.com/embed" width="480" height="150"
+                                    style="border:1px solid #EEE; background:white;" frameborder="0"
+                                    scrolling="no"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Site footer -->
+    <footer>
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+            <!-- Top area: Blocks -->
+            <div class="grid sm:grid-cols-12 gap-8 py-8 md:py-12 border-t border-zinc-200">
+                <!-- 1st block - Brand -->
+                <div class="sm:col-span-6 md:col-span-6 lg:col-span-8 max-md:order-1 flex flex-col">
+                    <div class="mb-4">
+                        <!-- Logo -->
+                        <a class="flex items-center" href="index.html">
+                            <img class="w-8 h-8 rounded shadow-sm shadow-zinc-950/20" src="./images/logo.svg"
+                                 alt="Logo">
+                            <span class="ml-2 font-semibold text-lg text-zinc-900">uncloud</span>
+                        </a>
+                    </div>
+                    <div class="grow text-sm text-zinc-500">
+                        Made with ❤️ by
+                        <a class="underline hover:text-zinc-900" href="https://github.com/unlabs-dev">unLabs</a>
+                        in Australia
+                    </div>
+
+                    <!-- Social links -->
+                    <ul class="flex space-x-4 mt-4 mb-1">
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu" aria-label="Discord">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://x.com/psviderski" aria-label="X/Twitter">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="m7.063 3 3.495 4.475L14.601 3h2.454l-5.359 5.931L18 17h-4.938l-3.866-4.893L4.771 17H2.316l5.735-6.342L2 3h5.063Zm-.74 1.347H4.866l8.875 11.232h1.36L6.323 4.347Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://t.me/spyyy" aria-label="Telegram">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                                    <path d="M17.968 3.276a.338.338 0 0 0-.232-.253 1.192 1.192 0 0 0-.63.045S3.087 8.106 2.286 8.664c-.172.121-.23.19-.259.272-.138.4.293.573.293.573l3.613 1.177a.388.388 0 0 0 .183-.011c.822-.519 8.27-5.222 8.7-5.38.068-.02.118 0 .1.049-.172.6-6.606 6.319-6.64 6.354a.138.138 0 0 0-.05.118l-.337 3.528s-.142 1.1.956 0a30.66 30.66 0 0 1 1.9-1.738c1.242.858 2.58 1.806 3.156 2.3a1 1 0 0 0 .732.283.825.825 0 0 0 .7-.622S17.894 5.292 17.98 3.909c.008-.135.021-.217.021-.317a1.177 1.177 0 0 0-.032-.316Z"/>
+                                </svg>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="flex justify-center items-center text-zinc-700 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud" aria-label="GitHub">
+                                <svg class="fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                     width="20"
+                                     height="20">
+                                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                                </svg>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 2nd block - Documentation -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Documentation</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/docs/#use-cases">Use cases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/docs/getting-started/deploy-demo-app">Quick start</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="/blog">Blog</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 3rd block - Resources -->
+                <div class="sm:col-span-6 md:col-span-3 lg:col-span-2">
+                    <h6 class="text-sm text-zinc-800 font-medium mb-2">Resources</h6>
+                    <ul class="text-sm space-y-2">
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud">GitHub project</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/releases">Releases</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://github.com/psviderski/uncloud/blob/main/LICENSE">License</a>
+                        </li>
+                        <li>
+                            <a class="text-zinc-500 hover:text-zinc-900 transition"
+                               href="https://discord.gg/eR35KQJhPu">Community</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</div>
+
+<script src="./js/vendors/alpinejs.min.js" defer></script>
+
+</body>
+
+</html>
