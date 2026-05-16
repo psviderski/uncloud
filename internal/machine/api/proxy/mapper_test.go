@@ -42,13 +42,12 @@ func TestCorrosionMapper_MapMachines(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		store     *mockStore
-		input     []string
-		want      []MachineTarget
-		wantErr   bool
-		errMsg    string
-		errNotNil assert.ErrorAssertionFunc
+		name    string
+		store   *mockStore
+		input   []string
+		want    []MachineTarget
+		wantErr bool
+		errMsg  string
 	}{
 		{
 			name:  "wildcard returns all machines",

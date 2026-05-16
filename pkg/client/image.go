@@ -89,7 +89,9 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 
 		if msg.Metadata.Error != "" {
 			// TODO: any reason to not return these and let the caller decide what to do?
-			tui.PrintWarning(fmt.Sprintf("failed to list images on machine %s: %s", msg.Metadata.MachineName, msg.Metadata.Error))
+			tui.PrintWarning(fmt.Sprintf(
+				"failed to list images on machine %s: %s", msg.Metadata.MachineName, msg.Metadata.Error,
+			))
 			continue
 		}
 
