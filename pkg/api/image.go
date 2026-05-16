@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/pkg/jsonmessage"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 )
@@ -45,4 +46,23 @@ type RemoteImage struct {
 	Reference     reference.Canonical
 	IndexManifest *v1.Index
 	ImageManifest *v1.Manifest
+}
+
+// MachineRemoveImageResponse represents the response from removing an image on a particular machine.
+type MachineRemoveImageResponse struct {
+	Metadata *pb.Metadata
+	Response []image.DeleteResponse
+}
+
+// MachinePullImageMessage represents a progress message from pulling an image on a particular machine.
+type MachinePullImageMessage struct {
+	Metadata *pb.Metadata
+	Message  jsonmessage.JSONMessage
+	Err      error
+}
+
+// MachinePruneImagesResponse represents the response from pruning images on a particular machine.
+type MachinePruneImagesResponse struct {
+	Metadata *pb.Metadata
+	Report   image.PruneReport
 }
