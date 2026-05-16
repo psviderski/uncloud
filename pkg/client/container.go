@@ -275,14 +275,9 @@ func (cli *Client) resolveContainerOperation(
 		return containerOperationContext{}, err
 	}
 
-	machine, err := cli.InspectMachine(ctx, ctr.MachineID)
-	if err != nil {
-		return containerOperationContext{}, fmt.Errorf("inspect machine '%s': %w", ctr.MachineID, err)
-	}
-
-	eventID := cliprogress.ContainerEventID(ctx, ctr.Container.ServiceSpec.Name, ctr.Container.ID, machine.Machine.Name)
+	eventID := cliprogress.ContainerEventID(ctx, ctr.Container.ServiceSpec.Name, ctr.Container.ID, ctr.MachineName)
 	return containerOperationContext{
-		ctx:         cli.ProxyMachineContext(ctx, machine.Machine.Id),
+		ctx:         cli.ProxyMachineContext(ctx, ctr.MachineID),
 		containerID: ctr.Container.ID,
 		eventID:     eventID,
 	}, nil
