@@ -420,6 +420,21 @@ func (c *Client) RemoveVolume(ctx context.Context, id string, force bool) error 
 	return err
 }
 
+// RemoveImage removes an image with the given ID.
+func (c *Client) RemoveImage(ctx context.Context, id string, force bool) error {
+	_, err := c.GRPCClient.RemoveImage(ctx, &pb.RemoveImageRequest{
+		Id:    id,
+		Force: force,
+	})
+	if err != nil {
+		if status.Convert(err).Code() == codes.NotFound {
+			return errdefs.NotFound(err)
+		}
+	}
+
+	return err
+}
+
 // InspectServiceContainer returns the container information and service specification that was used to create the
 // container with the given ID.
 func (c *Client) InspectServiceContainer(ctx context.Context, id string) (api.ServiceContainer, error) {

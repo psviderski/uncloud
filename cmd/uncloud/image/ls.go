@@ -129,12 +129,8 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		// Process each image for this machine.
 		for _, img := range machineImages.Images {
 			// Show the first 12 chars without 'sha256:' as the image ID like Docker does.
-			id := strings.TrimPrefix(img.ID, "sha256:")[:12]
-
-			name := "<none>"
-			if len(img.RepoTags) > 0 && img.RepoTags[0] != "<none>:<none>" {
-				name = img.RepoTags[0]
-			}
+			id := normalizeID(img.ID)
+			name := normalizeName(img)
 
 			imgPlatforms, _ := imagePlatforms(img)
 			formattedPlatforms := formatPlatforms(imgPlatforms)
@@ -302,4 +298,15 @@ func formatImageTable(rows []imageRow) string {
 	}
 
 	return t.String()
+}
+
+func normalizeID(id string) string {
+	return strings.TrimPrefix(id, "sha256:")[:12]
+}
+
+func normalizeName(img image.Summary) string {
+	if len(img.RepoTags) > 0 && img.RepoTags[0] != "<none>:<none>" {
+		return img.RepoTags[0]
+	}
+	return "<none>"
 }

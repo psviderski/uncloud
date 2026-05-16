@@ -431,6 +431,22 @@ func (s *Server) ListImages(ctx context.Context, req *pb.ListImagesRequest) (*pb
 	}, nil
 }
 
+func (s *Server) RemoveImage(ctx context.Context, req *pb.RemoveImageRequest) (*emptypb.Empty, error) {
+	opts := image.RemoveOptions{
+		Force:         req.Force,
+		PruneChildren: true, // TODO(miek): make option?
+	}
+
+	if _, err := s.client.ImageRemove(ctx, req.Id, opts); err != nil {
+		if errdefs.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // CreateVolume creates a new volume with the given options.
 func (s *Server) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
 	var opts volume.CreateOptions

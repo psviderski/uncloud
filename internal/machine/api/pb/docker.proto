@@ -24,6 +24,7 @@ service Docker {
   // Docker auth credentials if necessary.
   rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
   rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
+  rpc RemoveImage(RemoveImageRequest) returns (google.protobuf.Empty);
 
   rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
   rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
@@ -190,6 +191,11 @@ message MachineImages {
   bytes images = 2;
   // True if Docker uses the containerd image store, false if it uses its internal image store.
   bool containerd_store = 3;
+}
+
+message RemoveImageRequest {
+  string id = 1;
+  bool force = 2;
 }
 
 message CreateVolumeRequest {

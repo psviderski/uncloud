@@ -25,6 +25,7 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/constants"
@@ -400,6 +401,29 @@ func (cli *Client) pushImageToMachine(
 		}
 	}
 	pw.Event(progress.NewEvent(pushEventID, progress.Done, "Pushed"))
+
+	return nil
+}
+
+func (cli *Client) RemoveImage(ctx context.Context, machineNameOrID, imageID string, force bool) error {
+	machine, err := cli.InspectMachine(ctx, machineNameOrID)
+	if err != nil {
+		return fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
+	}
+	// Proxy Docker gRPC requests to the selected machine.
+	ctx = proxyToMachine(ctx, machine.Machine)
+
+	pw := progress.ContextWriter(ctx)
+	eventID := cliprogress.ImageEventID(imageID, machine.Machine.Name)
+	pw.Event(progress.RemovingEvent(eventID))
+
+	if err = cli.Docker.RemoveImage(ctx, imageID, force); err != nil {
+		if errdefs.IsNotFound(err) {
+			return api.ErrNotFound
+		}
+		return err
+	}
+	pw.Event(progress.RemovedEvent(eventID))
 
 	return nil
 }
