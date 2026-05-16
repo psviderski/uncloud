@@ -507,6 +507,7 @@ func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
 		//  See TODO in waitStoreSync.
 		if len(machines) > 0 {
 			slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
+			cc.syncLocalMachineState(machines)
 			if err = cc.configurePeers(machines); err != nil {
 				slog.Error("Failed to configure peers.", "err", err)
 			}
@@ -531,6 +532,7 @@ func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
 					slog.Debug("Skipping peer reconfiguration: machines list in store is empty.")
 					continue
 				}
+				cc.syncLocalMachineState(machines)
 				if err = cc.configurePeers(machines); err != nil {
 					slog.Error("Failed to configure peers.", "err", err)
 				}
@@ -538,6 +540,29 @@ func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
 				return nil
 			}
 		}
+	}
+}
+
+// syncLocalMachineState checks if the local machine's info in the cluster store has changed and updates
+// the local machine state to match. This ensures machine.json stays in sync with the distributed store.
+func (cc *clusterController) syncLocalMachineState(machines []*pb.MachineInfo) {
+	for _, m := range machines {
+		if m.Id != cc.state.ID {
+			continue
+		}
+		if m.Name == cc.state.Name {
+			return
+		}
+
+		cc.state.mu.Lock()
+		cc.state.Name = m.Name
+		if err := cc.state.Save(); err != nil {
+			slog.Error("Failed to save local machine state after name change.", "err", err)
+		} else {
+			slog.Info("Synced local machine name from cluster store.", "name", cc.state.Name)
+		}
+		cc.state.mu.Unlock()
+		return
 	}
 }
 
