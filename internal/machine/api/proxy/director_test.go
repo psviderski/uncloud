@@ -56,7 +56,7 @@ func TestDirector_Director(t *testing.T) {
 	})
 
 	t.Run("machine singular local", func(t *testing.T) {
-		d.localAddress = localTarget.Addr
+		d.localAddress.Store(localTarget.Addr)
 		d.mapper = &mockMapper{targets: []MachineTarget{localTarget}}
 
 		md := metadata.New(map[string]string{"machine": localTarget.Name})
@@ -71,7 +71,7 @@ func TestDirector_Director(t *testing.T) {
 	})
 
 	t.Run("machine singular remote", func(t *testing.T) {
-		d.localAddress = localTarget.Addr
+		d.localAddress.Store(localTarget.Addr)
 		d.mapper = &mockMapper{targets: []MachineTarget{remoteTarget}}
 
 		md := metadata.New(map[string]string{"machine": remoteTarget.Name})
@@ -101,7 +101,7 @@ func TestDirector_Director(t *testing.T) {
 	})
 
 	t.Run("machines plural single local", func(t *testing.T) {
-		d.localAddress = localTarget.Addr
+		d.localAddress.Store(localTarget.Addr)
 		d.mapper = &mockMapper{targets: []MachineTarget{localTarget}}
 
 		md := metadata.Pairs("machines", localTarget.Name)
@@ -121,7 +121,7 @@ func TestDirector_Director(t *testing.T) {
 	})
 
 	t.Run("machines plural multiple", func(t *testing.T) {
-		d.localAddress = localTarget.Addr
+		d.localAddress.Store(localTarget.Addr)
 		d.mapper = &mockMapper{targets: []MachineTarget{localTarget, remoteTarget}}
 
 		md := metadata.Pairs("machines", localTarget.Name, "machines", remoteTarget.Name)

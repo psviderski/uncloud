@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc/codes"
@@ -17,7 +18,7 @@ type Director struct {
 	localBackend   *LocalBackend
 	remotePort     uint16
 	remoteBackends sync.Map
-	localAddress   string
+	localAddress   atomic.Value
 	mapper         MachineMapper
 }
 
@@ -30,9 +31,9 @@ func NewDirector(localSockPath string, remotePort uint16, mapper MachineMapper) 
 }
 
 // UpdateLocalAddress updates the local machine address used to identify which requests should be proxied
-// to the local gRPC server.
+// to the local gRPC server. It is called once during machine startup before the proxy server accepts requests.
 func (d *Director) UpdateLocalAddress(addr string) {
-	d.localAddress = addr
+	d.localAddress.Store(addr)
 }
 
 // Director implements proxy.StreamDirector for grpc-proxy, routing requests to local or remote backends based
@@ -117,7 +118,7 @@ func mapErrorToStatus(err error) error {
 
 // getBackend returns a backend for the given address, utilizing local backend if matching local address.
 func (d *Director) getBackend(addr string) (proxy.Backend, error) {
-	if addr == d.localAddress {
+	if localAddr, _ := d.localAddress.Load().(string); localAddr != "" && addr == localAddr {
 		return d.localBackend, nil
 	}
 	return d.remoteBackend(addr)
