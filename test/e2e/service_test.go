@@ -1317,7 +1317,7 @@ myapp.example.com {
 				}
 			}
 			assert.True(t, hasImage, "Machine %s with container should have image %s",
-				mi.Metadata.MachineAddr, uniqueImage)
+				mi.Metadata.MachineId, uniqueImage)
 		}
 	})
 
