@@ -1,11 +1,13 @@
 package dns
 
 import (
+	"net/netip"
 	"reflect"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
@@ -73,5 +75,32 @@ func newRecord(serviceID, serviceName, ip, machineID string) store.ContainerReco
 			},
 		},
 		MachineID: machineID,
+	}
+}
+
+func TestClusterResolver_UpdateMachineIPs(t *testing.T) {
+	t.Parallel()
+
+	machines := []*pb.MachineInfo{
+		newMachineRecord("x0y0z0", "mach-1", "10.210.0.0/24"),
+		newMachineRecord("x1y1z1", "mach-2", "10.210.1.0/24"),
+		newMachineRecord("x2y2z2", "mach-3", "10.210.2.0/24"),
+	}
+
+	r := NewClusterResolver(nil)
+	r.updateMachineIPs(machines)
+
+	assert.NotEmpty(t, r.Resolve("mach-1.m"))
+	assert.NotEmpty(t, r.Resolve("mach-3.m"))
+	assert.NotEmpty(t, r.Resolve("x0y0z0.m"))
+}
+
+func newMachineRecord(machineID, machineName, prefix string) *pb.MachineInfo {
+	return &pb.MachineInfo{
+		Id:   machineID,
+		Name: machineName,
+		Network: &pb.NetworkConfig{
+			Subnet: pb.NewIPPrefix(netip.MustParsePrefix(prefix)),
+		},
 	}
 }

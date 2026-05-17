@@ -290,13 +290,13 @@ func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
 // handleAQuery processes an A query for the internal domain and returns A records for the requested name.
 // The internal domain suffix is already stripped from the name. An empty list is returned if no records are found.
 func (s *Server) handleAQuery(name string) []dns.RR {
-	serviceName, mode := extractModeFromDomain(trimInternalDomain(name))
-	ips := s.resolver.Resolve(serviceName)
+	unname, mode := extractModeFromDomain(trimInternalDomain(name))
+	ips := s.resolver.Resolve(unname)
 	if len(ips) == 0 {
-		s.log.Debug("Failed to resolve service name.", "service", serviceName)
+		s.log.Debug("Failed to resolve internal name.", "name", name)
 		return nil
 	}
-	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
+	s.log.Debug("Resolved service internal name.", "name", name, "ips", ips)
 
 	if len(ips) > 1 {
 		// Shuffle the IPs to approximate round-robin.
