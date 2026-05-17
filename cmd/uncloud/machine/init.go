@@ -139,12 +139,12 @@ Connection methods:
 		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
 			"WireGuard connections\n"+
 			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
-			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.WireGuardPort)+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.DefaultWireGuardPort)+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.\n"+
 			"Defaults to the auto-detected public and routable machine IPs.",
 	)
 	cmd.Flags().IntVar(
-		&opts.wgPort, "wg-port", network.WireGuardPort,
+		&opts.wgPort, "wg-port", network.DefaultWireGuardPort,
 		"UDP port WireGuard listens on for incoming connections from other machines.",
 	)
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,

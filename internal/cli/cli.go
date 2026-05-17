@@ -407,7 +407,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		for i, addrPort := range token.Endpoints {
 			// If a custom WireGuard port is specified, override the port from the token endpoints
 			// since the token was generated before the machine knows its configured port.
-			if opts.WireguardPort != 0 && opts.WireguardPort != network.WireGuardPort {
+			if opts.WireguardPort != 0 && opts.WireguardPort != network.DefaultWireGuardPort {
 				addrPort = netip.AddrPortFrom(addrPort.Addr(), uint16(opts.WireguardPort))
 			}
 			endpoints[i] = pb.NewIPPort(addrPort)

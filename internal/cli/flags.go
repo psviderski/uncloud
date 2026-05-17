@@ -51,7 +51,7 @@ func ParseWireGuardEndpoints(values []string) ([]*pb.IPPort, error) {
 			if addrErr != nil {
 				return nil, fmt.Errorf("invalid endpoint '%s': must be IP, IPv6, IP:PORT, or [IPv6]:PORT", v)
 			}
-			ap = netip.AddrPortFrom(addr, network.WireGuardPort)
+			ap = netip.AddrPortFrom(addr, network.DefaultWireGuardPort)
 		}
 		endpoints = append(endpoints, pb.NewIPPort(ap))
 	}
