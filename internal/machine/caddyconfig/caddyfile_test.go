@@ -209,7 +209,7 @@ http://app.example.com {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Validator is not expected to be called in these tests.
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil, nil)
 
 			config, err := generator.Generate(ctx, tt.containers, true)
 
@@ -853,7 +853,7 @@ valid.example.com {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, validator, nil)
 
 			config, err := generator.Generate(ctx, tt.containers, true)
 
@@ -995,7 +995,7 @@ http://api.example.com {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Validator is not expected to be called in these tests.
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil, nil)
 
 			config, err := generator.Generate(ctx, tt.containers, false)
 			require.NoError(t, err)
