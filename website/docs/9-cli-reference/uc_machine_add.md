@@ -26,9 +26,10 @@ uc machine add [USER@]HOST[:PORT] [flags]
       --version string        Version of the Uncloud daemon to install on the machine. (default "latest")
       --wg-endpoint strings   WireGuard endpoint address that other machines in the cluster should use to establish WireGuard connections
                               to this machine. This doesn't change the address/port WireGuard listens on the machine.
-                              Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is 51820 if omitted.
+                              Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is the value of --wg-port if omitted.
                               Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
                               Defaults to the auto-detected public and routable machine IPs.
+      --wg-port int           UDP port WireGuard listens on for incoming connections from other machines. (default 51820)
   -y, --yes                   Auto-confirm prompts (e.g., resetting an already initialised machine).
                               Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]
 ```
