@@ -136,10 +136,10 @@ Connection methods:
 	)
 	cmd.Flags().StringSliceVar(
 		&opts.wgEndpoints, "wg-endpoint", nil,
-		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
+		"WireGuard endpoint address that other machines in the cluster should use to establish "+
 			"WireGuard connections\n"+
 			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
-			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.DefaultWireGuardPort)+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is the value of --wg-port if omitted.\n"+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.\n"+
 			"Defaults to the auto-detected public and routable machine IPs.",
 	)
@@ -183,6 +183,9 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		}
 		publicIP = &ip
 	}
+	if opts.wgPort < 1 || opts.wgPort > 65535 {
+		return fmt.Errorf("invalid WireGuard port %d: must be between 1 and 65535", opts.wgPort)
+	}
 	initOpts := cli.InitClusterOptions{
 		Context:       opts.context,
 		MachineName:   opts.name,
@@ -196,7 +199,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	}
 	if len(opts.wgEndpoints) > 0 {
 		expanded := cli.ExpandCommaSeparatedValues(opts.wgEndpoints)
-		endpoints, err := cli.ParseWireGuardEndpoints(expanded)
+		endpoints, err := cli.ParseWireGuardEndpoints(expanded, uint16(opts.wgPort))
 		if err != nil {
 			return fmt.Errorf("parse WireGuard endpoint (--wg-endpoint): %w", err)
 		}

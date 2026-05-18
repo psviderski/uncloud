@@ -121,7 +121,7 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 	// Parse and set endpoints if the flag was explicitly provided.
 	if cmd.Flags().Changed("wg-endpoint") {
 		expanded := cli.ExpandCommaSeparatedValues(opts.wgEndpoints)
-		endpoints, err := cli.ParseWireGuardEndpoints(expanded)
+		endpoints, err := cli.ParseWireGuardEndpoints(expanded, network.DefaultWireGuardPort)
 		if err != nil {
 			return err
 		}
