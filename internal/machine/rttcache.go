@@ -122,9 +122,14 @@ func (c *RTTCache) ByMachineID(machineID string) (time.Duration, bool) {
 	return stats.Median, true
 }
 
-// All returns a copy of all RTT statistics keyed by machine ID.
-// The local machine is excluded from the result.
-func (c *RTTCache) All() map[string]RTTStats {
+// LivePeerRTTs returns a fresh snapshot of RTT statistics for all peer machines
+// (excluding the local machine). It performs a live refresh from Corrosion before
+// returning, so the data is never stale.
+func (c *RTTCache) LivePeerRTTs(ctx context.Context) (map[string]RTTStats, error) {
+	if err := c.refresh(ctx); err != nil {
+		return nil, err
+	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -135,5 +140,5 @@ func (c *RTTCache) All() map[string]RTTStats {
 		}
 		result[mid] = stats
 	}
-	return result
+	return result, nil
 }

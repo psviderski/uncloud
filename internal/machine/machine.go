@@ -1001,7 +1001,7 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 
 	var rtts map[string]*pb.RTTStats
 	if m.Initialised() {
-		rtts, err = m.getMachineRTTs()
+		rtts, err = m.getMachineRTTs(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -1027,16 +1027,20 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 	}, nil
 }
 
-// getMachineRTTs retrieves round-trip times to other machines in the cluster.
-// getMachineRTTs retrieves round-trip times to other machines in the cluster from the RTT cache.
-func (m *Machine) getMachineRTTs() (map[string]*pb.RTTStats, error) {
+// getMachineRTTs retrieves round-trip times to other machines in the cluster
+// by performing a live refresh from Corrosion.
+func (m *Machine) getMachineRTTs(ctx context.Context) (map[string]*pb.RTTStats, error) {
 	if m.rttCache == nil {
 		return nil, nil
 	}
 
-	all := m.rttCache.All()
-	pbRTTs := make(map[string]*pb.RTTStats, len(all))
-	for mid, stats := range all {
+	peers, err := m.rttCache.LivePeerRTTs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get peer RTTs: %w", err)
+	}
+
+	pbRTTs := make(map[string]*pb.RTTStats, len(peers))
+	for mid, stats := range peers {
 		pbRTTs[mid] = &pb.RTTStats{
 			Median: durationpb.New(stats.Median),
 			StdDev: durationpb.New(stats.StdDev),
