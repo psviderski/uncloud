@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/internal/machine/store"
@@ -26,12 +27,13 @@ const (
 // proxy. The generated configuration allows Caddy to route external traffic to service containers across the internal
 // network.
 type Controller struct {
-	machineID     string
-	caddyfilePath string
-	generator     *CaddyfileGenerator
-	client        *CaddyAdminClient
-	store         *store.Store
-	log           *slog.Logger
+	machineID      string
+	caddyfilePath  string
+	generator      *CaddyfileGenerator
+	client         *CaddyAdminClient
+	store          *store.Store
+	rttByMachineID func(string) (time.Duration, bool)
+	log            *slog.Logger
 	// lastFingerprint caches the fingerprint of the containers used to generate the latest successfully loaded
 	// Caddyfile. nil means it hasn't been loaded yet or the last load failed.
 	lastFingerprint []containerFingerprint
@@ -56,7 +58,7 @@ func (f containerFingerprint) Equal(other containerFingerprint) bool {
 		f.CaddyConfig == other.CaddyConfig
 }
 
-func NewController(machineID, configDir, adminSock string, store *store.Store) (*Controller, error) {
+func NewController(machineID, configDir, adminSock string, store *store.Store, rttByMachineID func(string) (time.Duration, bool)) (*Controller, error) {
 	if err := os.MkdirAll(configDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create directory for Caddy configuration '%s': %w", configDir, err)
 	}
@@ -69,11 +71,12 @@ func NewController(machineID, configDir, adminSock string, store *store.Store) (
 
 	// generator is initialised by Run() once the machine name is resolved from the store.
 	return &Controller{
-		machineID:     machineID,
-		caddyfilePath: filepath.Join(configDir, "Caddyfile"),
-		client:        client,
-		store:         store,
-		log:           log,
+		machineID:      machineID,
+		caddyfilePath:  filepath.Join(configDir, "Caddyfile"),
+		client:         client,
+		store:          store,
+		rttByMachineID: rttByMachineID,
+		log:            log,
 	}, nil
 }
 
@@ -87,7 +90,7 @@ func (c *Controller) Run(ctx context.Context) error {
 	} else {
 		machineName = m.Name
 	}
-	c.generator = NewCaddyfileGenerator(c.machineID, machineName, c.client, c.log)
+	c.generator = NewCaddyfileGenerator(c.machineID, machineName, c.rttByMachineID, c.client, c.log)
 
 	containers, changes, err := c.store.SubscribeContainers(ctx)
 	if err != nil {

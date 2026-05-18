@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"net"
 	"slices"
 	"strconv"
@@ -70,8 +71,11 @@ type CaddyfileGenerator struct {
 	machineID string
 	// machineName is the human-friendly name of the machine.
 	machineName string
-	validator   CaddyfileValidator
-	log         *slog.Logger
+	// rttByMachineID returns the median RTT to a given machine. Returns nil for no RTT data.
+	// If nil, all remote machines are treated as having unknown RTT (sorted last).
+	rttByMachineID func(string) (time.Duration, bool)
+	validator      CaddyfileValidator
+	log            *slog.Logger
 }
 
 // CaddyfileValidator is an interface for validating Caddyfile configurations.
@@ -80,16 +84,18 @@ type CaddyfileValidator interface {
 }
 
 func NewCaddyfileGenerator(
-	machineID, machineName string, validator CaddyfileValidator, log *slog.Logger,
+	machineID, machineName string, rttByMachineID func(string) (time.Duration, bool),
+	validator CaddyfileValidator, log *slog.Logger,
 ) *CaddyfileGenerator {
 	if log == nil {
 		log = slog.Default()
 	}
 	return &CaddyfileGenerator{
-		machineID:   machineID,
-		machineName: machineName,
-		validator:   validator,
-		log:         log,
+		machineID:      machineID,
+		machineName:    machineName,
+		rttByMachineID: rttByMachineID,
+		validator:      validator,
+		log:            log,
 	}
 }
 
@@ -119,7 +125,7 @@ func (g *CaddyfileGenerator) Generate(
 	// The service name and creation time tiebreakers keep the generated Caddyfile stable across regenerations.
 	slices.SortStableFunc(records, func(a, b store.ContainerRecord) int {
 		return cmp.Or(
-			g.localMachineRank(a.MachineID)-g.localMachineRank(b.MachineID),
+			cmp.Compare(g.rttForMachine(a.MachineID), g.rttForMachine(b.MachineID)),
 			strings.Compare(a.Container.ServiceName(), b.Container.ServiceName()),
 			a.Container.CreatedTime().Compare(b.Container.CreatedTime()),
 		)
@@ -249,13 +255,19 @@ func (g *CaddyfileGenerator) Generate(
 	return caddyfileHeader + "\n" + caddyfile, nil
 }
 
-// localMachineRank returns 0 if the given machineID matches the local machine and 1 otherwise.
-// Useful for sorting containers running locally first.
-func (g *CaddyfileGenerator) localMachineRank(machineID string) int {
+// rttForMachine returns the RTT to a given machine. Returns 0 for the local machine
+// (same machine as the generator), the median RTT for known remote machines, and
+// math.MaxInt64 for unknown machines (sorted last).
+func (g *CaddyfileGenerator) rttForMachine(machineID string) time.Duration {
 	if g.machineID == machineID {
 		return 0
 	}
-	return 1
+	if g.rttByMachineID != nil {
+		if rtt, ok := g.rttByMachineID(machineID); ok {
+			return rtt
+		}
+	}
+	return time.Duration(math.MaxInt64)
 }
 
 func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceContainer) (string, error) {

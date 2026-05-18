@@ -1,10 +1,12 @@
 package dns
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/rand/v2"
 	"net"
 	"net/netip"
@@ -30,11 +32,17 @@ const (
 	forwardingTimeout = 3 * time.Second
 )
 
-// Resolver is an interface for resolving service names to IP addresses.
+// ResolvedIP pairs an IP address with the machine ID where the container is running.
+type ResolvedIP struct {
+	Addr      netip.Addr
+	MachineID string
+}
+
+// Resolver is an interface for resolving service names to IP addresses with machine metadata.
 type Resolver interface {
-	// Resolve returns a list of IP addresses of the service containers.
+	// Resolve returns a list of resolved IPs for the service containers.
 	// An empty list is returned if no service is found.
-	Resolve(serviceName string) []netip.Addr
+	Resolve(serviceName string) []ResolvedIP
 }
 
 // Server is an embedded internal DNS server for service discovery and forwarding external queries
@@ -43,6 +51,7 @@ type Server struct {
 	listenAddr      netip.Addr
 	localSubnet     netip.Prefix
 	resolver        Resolver
+	rttByMachineID  func(string) (time.Duration, bool)
 	upstreamServers []netip.AddrPort
 
 	udpServer        *dns.Server
@@ -55,7 +64,7 @@ type Server struct {
 // NewServer creates a new DNS server with the given configuration.
 // If upstreams is nil, nameservers from /etc/resolv.conf will be used. An empty upstreams list means to only resolve
 // internal DNS queries and not forward any external queries.
-func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort) (*Server, error) {
+func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort, rttByMachineID func(string) (time.Duration, bool)) (*Server, error) {
 	if !listenAddr.IsValid() {
 		return nil, fmt.Errorf("invalid listen address: %s", listenAddr)
 	}
@@ -91,6 +100,7 @@ func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolve
 		listenAddr:       listenAddr,
 		localSubnet:      localSubnet,
 		resolver:         resolver,
+		rttByMachineID:   rttByMachineID,
 		upstreamServers:  upstreams,
 		forwardSemaphore: make(chan struct{}, maxConcurrentForwards),
 		log:              slog.With("component", "dns-server"),
@@ -291,36 +301,35 @@ func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
 // The internal domain suffix is already stripped from the name. An empty list is returned if no records are found.
 func (s *Server) handleAQuery(name string) []dns.RR {
 	serviceName, mode := extractModeFromDomain(trimInternalDomain(name))
-	ips := s.resolver.Resolve(serviceName)
-	if len(ips) == 0 {
+	resolved := s.resolver.Resolve(serviceName)
+	if len(resolved) == 0 {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
 		return nil
 	}
-	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
+	s.log.Debug("Resolved service name.", "service", serviceName, "resolved", resolved)
 
-	if len(ips) > 1 {
-		// Shuffle the IPs to approximate round-robin.
+	if len(resolved) > 1 {
+		// Shuffle the resolved IPs to approximate round-robin.
 		// We want to do this as a baseline for "nearest" mode, as well.
-		rand.Shuffle(len(ips), func(i, j int) {
-			ips[i], ips[j] = ips[j], ips[i]
+		rand.Shuffle(len(resolved), func(i, j int) {
+			resolved[i], resolved[j] = resolved[j], resolved[i]
 		})
 
 		// Default (mode == "") currently behaves the same as round-robin,
 		// and nothing additional to do for round-robin (mode == "rr").
 
 		if mode == "nearest" {
-			// Sort IPs on local subnet to the top.
-			slices.SortFunc(ips, func(a, b netip.Addr) int {
-				aIsLocal := s.localSubnet.Contains(a)
-				bIsLocal := s.localSubnet.Contains(b)
-				if aIsLocal && !bIsLocal {
-					return -1
-				} else if bIsLocal && !aIsLocal {
-					return 1
-				}
-				return 0
+			// Sort by RTT using proximity data. Local machine containers get RTT 0.
+			slices.SortStableFunc(resolved, func(a, b ResolvedIP) int {
+				return cmp.Compare(s.rttForResolved(a), s.rttForResolved(b))
 			})
 		}
+	}
+
+	// Extract IPs from resolved IPs for DNS response.
+	ips := make([]netip.Addr, len(resolved))
+	for i, r := range resolved {
+		ips[i] = r.Addr
 	}
 
 	// Create A records for each IP.
@@ -339,6 +348,21 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		})
 	}
 	return records
+}
+
+// rttForResolved returns the RTT for a resolved IP. Returns 0 if the IP is on the
+// local subnet (same machine), looks up RTT via rttByMachineID for remote machines,
+// and returns math.MaxInt64 for unknown machines (sorted last).
+func (s *Server) rttForResolved(r ResolvedIP) time.Duration {
+	if s.localSubnet.Contains(r.Addr) {
+		return 0
+	}
+	if s.rttByMachineID != nil {
+		if rtt, ok := s.rttByMachineID(r.MachineID); ok {
+			return rtt
+		}
+	}
+	return time.Duration(math.MaxInt64)
 }
 
 // parseNameserversFromResolvConf parses the nameservers from /etc/resolv.conf.
