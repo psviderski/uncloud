@@ -16,9 +16,11 @@ type Config struct {
 	// ManagementIP is the IPv6 address assigned to the machine within the WireGuard network. This address is used
 	// for cluster management traffic, such as gRPC communication with the machine API server and Corrosion gossip.
 	ManagementIP netip.Addr
-	PrivateKey   secret.Secret
-	PublicKey    secret.Secret
-	Peers        []PeerConfig `json:",omitempty"`
+	// WireGuardPort is the UDP port WireGuard listens on. Zero means the default port (51820).
+	WireGuardPort int `json:",omitempty"`
+	PrivateKey    secret.Secret
+	PublicKey     secret.Secret
+	Peers         []PeerConfig `json:",omitempty"`
 }
 
 type PeerConfig struct {
@@ -37,6 +39,15 @@ func (c Config) IsConfigured() bool {
 		c.PrivateKey != nil && c.PublicKey != nil
 }
 
+// EffectiveWireGuardPort returns the WireGuard listen port for this config. If WireGuardPort is not set (zero),
+// it returns the default WireGuard port.
+func (c Config) EffectiveWireGuardPort() int {
+	if c.WireGuardPort != 0 {
+		return c.WireGuardPort
+	}
+	return DefaultWireGuardPort
+}
+
 // toDeviceConfig converts the configuration to a WireGuard device configuration. It updates the existing peers
 // without replacing them to not disrupt existing connections and to not lose track of the last handshake time.
 func (c Config) toDeviceConfig(currentPeers []wgtypes.Peer) (wgtypes.Config, error) {
@@ -44,7 +55,7 @@ func (c Config) toDeviceConfig(currentPeers []wgtypes.Peer) (wgtypes.Config, err
 	if err != nil {
 		return wgtypes.Config{}, fmt.Errorf("parse private key: %w", err)
 	}
-	listenPort := WireGuardPort
+	listenPort := c.EffectiveWireGuardPort()
 
 	persistentKeepalive := WireGuardKeepaliveInterval
 	wgPeerConfigs := make([]wgtypes.PeerConfig, len(c.Peers))

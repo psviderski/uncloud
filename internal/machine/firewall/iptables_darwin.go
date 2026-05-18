@@ -6,7 +6,7 @@ import (
 )
 
 // ConfigureIptablesChains is a stub for Darwin.
-func ConfigureIptablesChains(machineIP netip.Addr) error {
+func ConfigureIptablesChains(machineIP netip.Addr, wgPort int) error {
 	return fmt.Errorf("not supported on Darwin")
 }
 

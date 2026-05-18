@@ -81,7 +81,7 @@ func TestDiscovery() error {
 		}
 		endpoints[i] = &pb.Endpoint{
 			Ip:   ip,
-			Port: network.WireGuardPort,
+			Port: network.DefaultWireGuardPort,
 		}
 	}
 	if err = client.SetLocalData(
