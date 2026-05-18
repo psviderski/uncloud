@@ -9,7 +9,6 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -28,7 +27,7 @@ func (cli *Client) CreateVolume(
 		return resp, fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
 	}
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = proxyToMachine(ctx, machine.Machine)
+	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := cliprogress.VolumeEventID(opts.Name, machine.Machine.Name)
@@ -57,11 +56,7 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 		proxyMachines = filter.Machines
 	}
 
-	listCtx, machines, err := cli.ProxyMachinesContext(ctx, proxyMachines)
-	if err != nil {
-		return nil, fmt.Errorf("create request context to broadcast to all machines: %w", err)
-	}
-
+	listCtx := cli.ProxyMachinesContext(ctx, proxyMachines)
 	machineVolumes, err := cli.Docker.ListVolumes(listCtx, volume.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -70,28 +65,21 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 	var volumes []api.MachineVolume
 	// Process responses from all machines.
 	for _, mv := range machineVolumes {
-		if mv.Metadata != nil && mv.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			tui.PrintWarning(fmt.Sprintf("failed to list volumes on machine '%s': %s",
-				mv.Metadata.Machine, mv.Metadata.Error))
+		if mv.Metadata == nil {
+			tui.PrintWarning("metadata is missing in response from unknown server")
 			continue
 		}
 
-		var m *pb.MachineMember
-		if mv.Metadata == nil {
-			// ListVolumes was proxied to only one machine.
-			m = machines[0]
-		} else {
-			m = machines.FindByManagementIP(mv.Metadata.Machine)
-			if m == nil {
-				return nil, fmt.Errorf("machine not found by management IP: %s", mv.Metadata.Machine)
-			}
+		if mv.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
+			tui.PrintWarning(fmt.Sprintf("failed to list volumes on machine %s: %s", mv.Metadata.MachineName, mv.Metadata.Error))
+			continue
 		}
 
 		for _, vol := range mv.Response.Volumes {
 			volumes = append(volumes, api.MachineVolume{
-				MachineID:   m.Machine.Id,
-				MachineName: m.Machine.Name,
+				MachineID:   mv.Metadata.MachineId,
+				MachineName: mv.Metadata.MachineName,
 				Volume:      *vol,
 			})
 		}
@@ -118,7 +106,7 @@ func (cli *Client) RemoveVolume(ctx context.Context, machineNameOrID, volumeName
 		return fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
 	}
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = proxyToMachine(ctx, machine.Machine)
+	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := cliprogress.VolumeEventID(volumeName, machine.Machine.Name)

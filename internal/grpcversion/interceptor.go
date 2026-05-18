@@ -31,8 +31,8 @@ const (
 	//
 	// The two minimums are independent: a client might require a newer daemon for new
 	// features, while that same daemon could still handle requests from older clients.
-	MinClientVersion = "0.0.0"
-	MinServerVersion = "0.0.0"
+	MinClientVersion = "0.20.0"
+	MinServerVersion = "0.20.0"
 
 	ReleaseURL = "https://github.com/psviderski/uncloud/releases/latest"
 )

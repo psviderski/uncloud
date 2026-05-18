@@ -74,8 +74,6 @@ If no services are specified, streams logs from all services defined in the Comp
 	cmd.Flags().AddFlagSet(logs.Flags(&options))
 	completion.MachinesFlag(cmd)
 
-	completion.MachinesFlag(cmd)
-
 	return cmd
 }
 
