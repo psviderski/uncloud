@@ -97,11 +97,13 @@ func NewRunCommand(groupID string) *cobra.Command {
 			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified\n"+
 			"and a cluster domain is reserved, service-name.cluster-domain will be used as the hostname.\n"+
 			"Examples:\n"+
-			"  -p 8080/https                  Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname\n"+
-			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via reverse proxy with custom hostname\n"+
+			"  -p 8080/https                       Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname\n"+
+			"  -p app.example.com:8080/https       Publish port 8080 as HTTPS via reverse proxy with custom hostname\n"+
 			// TODO: add support for publishing L4 tcp/udp ports.
 			//"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via reverse proxy\n"+
-			"  -p 53:5353/udp@host            Bind UDP port 5353 to host port 53")
+			"  -p 53:5353/udp@host                 Bind UDP port 5353 to host port 53\n"+
+			"  -p 192.168.76.0/24:53:5353/udp@host Bind UDP port 5353 to host port 53 on all interfaces that have addresses\n"+
+			"                                      that are contained in the prefix 192.168.76.0/24")
 	cmd.Flags().StringVar(&opts.pull, "pull", api.PullPolicyMissing,
 		fmt.Sprintf("Pull image from the registry before running service containers ('%s', '%s', '%s').",
 			api.PullPolicyAlways, api.PullPolicyMissing, api.PullPolicyNever))

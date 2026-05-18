@@ -192,6 +192,16 @@ func TestPortSpec_Validate(t *testing.T) {
 			wantErr: "host IP cannot be specified in ingress mode",
 		},
 		{
+			name: "host prefix in ingress mode",
+			spec: PortSpec{
+				HostPrefix:    netip.MustParsePrefix("127.0.0.1/8"),
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+				Mode:          PortModeIngress,
+			},
+			wantErr: "host prefix cannot be specified in ingress mode",
+		},
+		{
 			name: "zero published port in host mode",
 			spec: PortSpec{
 				ContainerPort: 8080,
@@ -230,6 +240,18 @@ func TestPortSpec_Validate(t *testing.T) {
 				Mode:          PortModeHost,
 			},
 			wantErr: "unsupported protocol 'https' in host mode",
+		},
+		{
+			name: "both host ip and prefix",
+			spec: PortSpec{
+				HostIP:        netip.MustParseAddr("127.0.0.1"),
+				HostPrefix:    netip.MustParsePrefix("127.0.0.0/8"),
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+				Mode:          PortModeHost,
+			},
+			wantErr: "host IP and prefix cannot both be specified in host mode",
 		},
 	}
 
@@ -368,6 +390,17 @@ func TestPortSpec_String(t *testing.T) {
 				Mode:          PortModeHost,
 			},
 			expected: "127.0.0.1:80:8080/udp@host",
+		},
+		{
+			name: "host mode with IPv4 prefix",
+			spec: PortSpec{
+				HostPrefix:    netip.MustParsePrefix("127.0.0.1/8"),
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolUDP,
+				Mode:          PortModeHost,
+			},
+			expected: "127.0.0.1/8:80:8080/udp@host",
 		},
 		{
 			name: "host mode with IPv6",
@@ -553,6 +586,28 @@ func TestParsePortSpec(t *testing.T) {
 				Mode:          PortModeHost,
 			},
 		},
+		{
+			name: "host mode with prefix and protocol",
+			port: "192.168.76.0/24:80:8080/udp@host",
+			expected: PortSpec{
+				HostPrefix:    netip.MustParsePrefix("192.168.76.0/24"),
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolUDP,
+				Mode:          PortModeHost,
+			},
+		},
+		{
+			name: "host mode with prefix without protocol",
+			port: "192.168.76.0/24:80:8080@host",
+			expected: PortSpec{
+				HostPrefix:    netip.MustParsePrefix("192.168.76.0/24"),
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+				Mode:          PortModeHost,
+			},
+		},
 
 		// Error cases.
 		{
@@ -561,9 +616,29 @@ func TestParsePortSpec(t *testing.T) {
 			wantErr: "invalid container port",
 		},
 		{
+			name:    "slash",
+			port:    "/",
+			wantErr: "unsupported protocol",
+		},
+		{
+			name:    "at",
+			port:    "@",
+			wantErr: "invalid mode",
+		},
+		{
 			name:    "invalid container port",
 			port:    "invalid",
 			wantErr: "invalid container port",
+		},
+		{
+			name:    "no protocol",
+			port:    "53/",
+			wantErr: "unsupported protocol",
+		},
+		{
+			name:    "no host modifier",
+			port:    "53@",
+			wantErr: "invalid mode",
 		},
 		{
 			name:    "container port zero",
@@ -598,7 +673,7 @@ func TestParsePortSpec(t *testing.T) {
 		{
 			name:    "multiple protocols",
 			port:    "8080/tcp/udp",
-			wantErr: "too many '/' symbols",
+			wantErr: "unsupported protocol: 'tcp/udp'",
 		},
 		{
 			name:    "invalid protocol",
@@ -670,6 +745,26 @@ func TestParsePortSpec(t *testing.T) {
 			name:    "hostname with invalid published port",
 			port:    "app.example.com:invalid:8080@host",
 			wantErr: "invalid published port",
+		},
+		{
+			name:    "invalid prefix",
+			port:    "192.168.76.0/45:53:5353/udp@host",
+			wantErr: "invalid host prefix",
+		},
+		{
+			name:    "valid prefix invalid protocol",
+			port:    "192.168.76.0/24:53:5353/http@host",
+			wantErr: "unsupported protocol 'http' in host mode, only 'tcp' and 'udp' are supported",
+		},
+		{
+			name:    "valid prefix invalid protocol",
+			port:    "192.168.76.0/24:53:5353/invalid@host",
+			wantErr: "unsupported protocol 'invalid' in host mode, only 'tcp' and 'udp' are supported",
+		},
+		{
+			name:    "valid prefix no protocol",
+			port:    "192.168.76.0/24:53:5353/@host",
+			wantErr: "unsupported protocol '' in host mode, only 'tcp' and 'udp' are supported",
 		},
 	}
 

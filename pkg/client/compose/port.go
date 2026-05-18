@@ -112,10 +112,14 @@ func convertServicePortConfigToPortSpec(port types.ServicePortConfig) (api.PortS
 	// Set host IP if specified
 	if port.HostIP != "" {
 		hostIP, err := netip.ParseAddr(port.HostIP)
-		if err != nil {
-			return spec, fmt.Errorf("invalid host IP %q: %w", port.HostIP, err)
+		if err == nil {
+			spec.HostIP = hostIP
+		} else {
+			spec.HostPrefix, err = netip.ParsePrefix(port.HostIP)
+			if err != nil {
+				return spec, fmt.Errorf("invalid host IP or prefix '%s': %w", port.HostIP, err)
+			}
 		}
-		spec.HostIP = hostIP
 	}
 
 	// Validate the resulting spec

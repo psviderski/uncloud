@@ -315,7 +315,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 					return strings.Compare(a.Name, b.Name)
 				})
 
-				cmpOpts := cmp.Options{cmpopts.EquateEmpty(), cmpopts.EquateComparable(netip.Addr{})}
+				cmpOpts := cmp.Options{cmpopts.EquateEmpty(), cmpopts.EquateComparable(netip.Addr{}, netip.Prefix{})}
 				assert.True(t, cmp.Equal(spec, expectedSpec, cmpOpts...), cmp.Diff(spec, expectedSpec, cmpOpts...))
 			}
 		})

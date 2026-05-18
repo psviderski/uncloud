@@ -58,6 +58,15 @@ func TestConvertStandardPortsToPortSpecs(t *testing.T) {
 				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "host", HostIP: mustParseAddr("::1")},
 			},
 		},
+		{
+			name: "host prefix",
+			ports: []types.ServicePortConfig{
+				{Target: 8080, Published: "80", Protocol: "tcp", HostIP: "192.168.76.0/24", Mode: "host"},
+			},
+			expected: []api.PortSpec{
+				{ContainerPort: 8080, PublishedPort: 80, Protocol: "tcp", Mode: "host", HostPrefix: netip.MustParsePrefix("192.168.76.0/24")},
+			},
+		},
 	}
 
 	for _, tt := range tests {
