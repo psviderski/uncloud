@@ -107,7 +107,7 @@ func promptResetMachine() error {
 
 	fmt.Println(tui.Red.Render("The remote machine is already initialised as a cluster member. Resetting it will:\n" +
 		"- Remove all service containers from the machine\n" +
-		"- Reset the machine to the uninitialised state"))
+		"- Reset the Uncloud daemon on the machine to the uninitialised state"))
 
 	var confirm bool
 	form := huh.NewForm(
