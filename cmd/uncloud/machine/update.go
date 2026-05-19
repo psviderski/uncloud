@@ -70,7 +70,7 @@ At least one flag must be specified to perform an update.`,
 		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
 			"WireGuard connections\n"+
 			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
-			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.WireGuardPort)+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.DefaultWireGuardPort)+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.",
 	)
 
@@ -121,7 +121,7 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 	// Parse and set endpoints if the flag was explicitly provided.
 	if cmd.Flags().Changed("wg-endpoint") {
 		expanded := cli.ExpandCommaSeparatedValues(opts.wgEndpoints)
-		endpoints, err := cli.ParseWireGuardEndpoints(expanded)
+		endpoints, err := cli.ParseWireGuardEndpoints(expanded, network.DefaultWireGuardPort)
 		if err != nil {
 			return err
 		}

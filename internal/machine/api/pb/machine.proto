@@ -61,6 +61,9 @@ message InitClusterRequest {
 
   // Optional WireGuard endpoints other machines will use to connect to this machine instead of auto-discovered ones.
   repeated IPPort wireguard_endpoints = 5;
+
+  // WireGuard listen port for this machine. Uses the default port (51820) if 0 or not set.
+  int32 wireguard_port = 6;
 }
 
 message InitClusterResponse {
@@ -72,6 +75,8 @@ message JoinClusterRequest {
   repeated MachineInfo other_machines = 3;
   // Minimum store database version the new machine should sync to before starting cluster operations.
   int64 min_store_db_version = 4;
+  // WireGuard listen port for this machine. Uses the default port (51820) if 0 or not set.
+  int32 wireguard_port = 5;
 }
 
 message InspectMachineResponse {

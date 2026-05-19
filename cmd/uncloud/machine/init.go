@@ -33,6 +33,7 @@ type initOptions struct {
 	sshKey      string
 	version     string
 	wgEndpoints []string
+	wgPort      int
 	yes         bool
 }
 
@@ -135,12 +136,16 @@ Connection methods:
 	)
 	cmd.Flags().StringSliceVar(
 		&opts.wgEndpoints, "wg-endpoint", nil,
-		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
+		"WireGuard endpoint address that other machines in the cluster should use to establish "+
 			"WireGuard connections\n"+
 			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
-			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.WireGuardPort)+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is the value of --wg-port if omitted.\n"+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.\n"+
 			"Defaults to the auto-detected public and routable machine IPs.",
+	)
+	cmd.Flags().IntVar(
+		&opts.wgPort, "wg-port", network.DefaultWireGuardPort,
+		"UDP port WireGuard listens on for incoming connections from other machines.",
 	)
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
 		"Auto-confirm prompts (e.g., resetting an already initialised machine).\n"+
@@ -178,6 +183,9 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		}
 		publicIP = &ip
 	}
+	if opts.wgPort < 1 || opts.wgPort > 65535 {
+		return fmt.Errorf("invalid WireGuard port %d: must be between 1 and 65535", opts.wgPort)
+	}
 	initOpts := cli.InitClusterOptions{
 		Context:       opts.context,
 		MachineName:   opts.name,
@@ -186,11 +194,12 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
+		WireguardPort: opts.wgPort,
 		AutoConfirm:   opts.yes,
 	}
 	if len(opts.wgEndpoints) > 0 {
 		expanded := cli.ExpandCommaSeparatedValues(opts.wgEndpoints)
-		endpoints, err := cli.ParseWireGuardEndpoints(expanded)
+		endpoints, err := cli.ParseWireGuardEndpoints(expanded, uint16(opts.wgPort))
 		if err != nil {
 			return fmt.Errorf("parse WireGuard endpoint (--wg-endpoint): %w", err)
 		}

@@ -11,7 +11,7 @@ import (
 
 const (
 	WireGuardInterfaceName = "uncloud"
-	WireGuardPort          = 51820
+	DefaultWireGuardPort   = 51820
 	// WireGuardKeepaliveInterval is sensible interval that works with a wide variety of firewalls.
 	WireGuardKeepaliveInterval = 25 * time.Second
 )
