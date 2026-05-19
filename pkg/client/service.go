@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
@@ -96,16 +96,14 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	}
 
 	// Broadcast the container list request to all available machines.
-	machineIDByManagementIP := make(map[string]string)
 	md := metadata.New(nil)
 	for _, m := range machines {
 		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
-			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
-			md.Append("machines", machineIP.String())
-
-			machineIDByManagementIP[machineIP.String()] = m.Machine.Id
+			md.Append("machines", m.Machine.Id)
+		} else {
+			tui.PrintWarning(fmt.Sprintf("failed to list service containers on machine '%s' (state is %s). "+
+				"The results may be incomplete.", m.Machine.Name, m.State.String()))
 		}
-		// TODO: warning about machines that are DOWN.
 	}
 	listCtx := metadata.NewOutgoingContext(ctx, md)
 
@@ -120,37 +118,25 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	foundByID := false
 	var containers []api.MachineServiceContainer
 	for _, mc := range machineContainers {
-		// Metadata can be nil if the request was broadcasted to only one machine.
-		if mc.Metadata == nil && len(machineContainers) > 1 {
-			return svc, errors.New("something went wrong with gRPC proxy: metadata is missing for a machine response")
-		}
-		if mc.Metadata != nil && mc.Metadata.Error != "" {
-			// TODO: return failed machines in the response.
-			fmt.Printf("WARNING: failed to list containers on machine '%s': %s\n",
-				mc.Metadata.Machine, mc.Metadata.Error)
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
+		if mc.Metadata == nil {
+			tui.PrintWarning("metadata is missing in response from unknown server")
 			continue
 		}
 
-		machineID := ""
-		if mc.Metadata == nil {
-			// ListServiceContainers was proxied to only one machine.
-			for _, v := range machineIDByManagementIP {
-				machineID = v
-				break
-			}
-		} else {
-			var ok bool
-			machineID, ok = machineIDByManagementIP[mc.Metadata.Machine]
-			if !ok {
-				return svc, fmt.Errorf("machine name not found for management IP: %s", mc.Metadata.Machine)
-			}
+		if mc.Metadata.Error != "" {
+			// TODO: return failed machines in the response.
+			tui.PrintWarning(fmt.Sprintf("failed to list containers on machine '%s': %s",
+				mc.Metadata.MachineName, mc.Metadata.Error))
+			continue
 		}
 
 		// Collect both regular and hook containers for the service.
 		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
 			containers = append(containers, api.MachineServiceContainer{
-				MachineID: machineID,
-				Container: ctr,
+				MachineID:   mc.Metadata.MachineId,
+				MachineName: mc.Metadata.MachineName,
+				Container:   ctr,
 			})
 
 			if ctr.ServiceID() == nameOrID {
@@ -230,16 +216,6 @@ func (cli *Client) RemoveService(ctx context.Context, id string) error {
 	svc, err := cli.InspectService(ctx, id)
 	if err != nil {
 		return err
-	}
-
-	machines, err := cli.ListMachines(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("list machines: %w", err)
-	}
-	machineManagementIPByID := make(map[string]string)
-	for _, m := range machines {
-		machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
-		machineManagementIPByID[m.Machine.Id] = machineIP.String()
 	}
 
 	wg := sync.WaitGroup{}
@@ -353,10 +329,11 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	md := metadata.New(nil)
 	for _, m := range machines {
 		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
-			machineIP, _ := m.Machine.Network.ManagementIp.ToAddr()
-			md.Append("machines", machineIP.String())
+			md.Append("machines", m.Machine.Id)
+		} else {
+			tui.PrintWarning(fmt.Sprintf("failed to list service containers on machine '%s' (state is %s). "+
+				"The results may be incomplete.", m.Machine.Name, m.State.String()))
 		}
-		// TODO: warning about machines that are DOWN.
 	}
 	listCtx := metadata.NewOutgoingContext(ctx, md)
 
@@ -371,10 +348,16 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	//  Most of the code can be reused in both InspectService and ListServices.
 	servicesByID := make(map[string]api.Service)
 	for _, mc := range machineContainers {
-		if mc.Metadata != nil && mc.Metadata.Error != "" {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
+		if mc.Metadata == nil {
+			tui.PrintWarning("metadata is missing in response from unknown server")
+			continue
+		}
+
+		if mc.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
-			fmt.Fprintf(os.Stderr, "WARNING: failed to list containers on machine '%s': %s\n",
-				mc.Metadata.Machine, mc.Metadata.Error)
+			tui.PrintWarning(fmt.Sprintf("failed to list containers on machine '%s': %s",
+				mc.Metadata.MachineName, mc.Metadata.Error))
 			continue
 		}
 

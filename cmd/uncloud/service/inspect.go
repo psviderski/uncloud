@@ -54,15 +54,6 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 		return fmt.Errorf("inspect service: %w", err)
 	}
 
-	machines, err := client.ListMachines(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("list machines: %w", err)
-	}
-	machinesNamesByID := make(map[string]string)
-	for _, m := range machines {
-		machinesNamesByID[m.Machine.Id] = m.Machine.Name
-	}
-
 	fmt.Printf("Service ID: %s\n", svc.ID)
 	fmt.Printf("Name:       %s\n", svc.Name)
 	fmt.Printf("Mode:       %s\n", svc.Mode)
@@ -97,7 +88,7 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	for _, ctr := range allContainers {
 		created := units.HumanDuration(now.Sub(createdTimes[ctr.Container.ID])) + " ago"
 
-		machine := machinesNamesByID[ctr.MachineID]
+		machine := ctr.MachineName
 		if machine == "" {
 			machine = ctr.MachineID
 		}

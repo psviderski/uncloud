@@ -14,13 +14,11 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// RemoteBackend is a proxy.One2ManyResponder implementation that proxies to a remote gRPC server, injecting machine metadata
-// into the response.
+// RemoteBackend is a proxy.Backend implementation that proxies to a remote gRPC server.
 //
 // Based on the Talos apid implementation:
 // https://github.com/siderolabs/talos/blob/59a78da42cdea8fbccc35d0851f9b0eef928261b/internal/app/apid/pkg/backend/apid.go
 type RemoteBackend struct {
-	One2ManyResponder
 	target string
 
 	mu   sync.RWMutex
@@ -37,15 +35,12 @@ func NewRemoteBackend(addr string, port uint16) (*RemoteBackend, error) {
 	}
 
 	return &RemoteBackend{
-		One2ManyResponder: One2ManyResponder{
-			machine: addr,
-		},
 		target: netip.AddrPortFrom(ip, port).String(),
 	}, nil
 }
 
 func (b *RemoteBackend) String() string {
-	return b.machine
+	return b.target
 }
 
 // GetConnection returns a gRPC connection to the remote server.
@@ -58,6 +53,7 @@ func (b *RemoteBackend) GetConnection(ctx context.Context, _ string) (context.Co
 	}
 	delete(md, ":authority")
 	delete(md, "machines")
+	delete(md, "machine")
 
 	outCtx := metadata.NewOutgoingContext(ctx, md)
 
@@ -98,6 +94,16 @@ func (b *RemoteBackend) GetConnection(ctx context.Context, _ string) (context.Co
 	)
 
 	return outCtx, b.conn, err
+}
+
+// AppendInfo is a no-op for RemoteBackend as it does not inject metadata.
+func (b *RemoteBackend) AppendInfo(streaming bool, resp []byte) ([]byte, error) {
+	return resp, nil
+}
+
+// BuildError is a no-op for RemoteBackend.
+func (b *RemoteBackend) BuildError(streaming bool, err error) ([]byte, error) {
+	return nil, err
 }
 
 // Close closes the upstream gRPC connection.

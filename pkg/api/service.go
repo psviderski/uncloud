@@ -515,8 +515,9 @@ type Service struct {
 }
 
 type MachineServiceContainer struct {
-	MachineID string
-	Container ServiceContainer
+	MachineID   string
+	MachineName string
+	Container   ServiceContainer
 }
 
 // FindContainer returns the service container by exact name, ID, or unique ID prefix.

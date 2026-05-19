@@ -38,10 +38,7 @@ func rtt(ctx context.Context, uncli *cli.CLI) error {
 	defer client.Close()
 
 	// Setup context to proxy request to all machines.
-	ctx, _, err = client.ProxyMachinesContext(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("setup proxy context: %w", err)
-	}
+	ctx = client.ProxyMachinesContext(ctx, nil)
 
 	resp, err := client.MachineClient.InspectMachine(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -51,6 +48,15 @@ func rtt(ctx context.Context, uncli *cli.CLI) error {
 	// Map machine IDs to names for display from the response.
 	machineNames := make(map[string]string)
 	for _, m := range resp.Machines {
+		// NOTE: Metadata should never be nil in practice. This is legacy fallback that will be removed.
+		if m.Metadata == nil {
+			tui.PrintWarning("metadata is missing in response from unknown server")
+			continue
+		}
+		if m.Metadata.Error != "" {
+			tui.PrintWarning(fmt.Sprintf("failed to inspect machine '%s': %s", m.Metadata.MachineName, m.Metadata.Error))
+			continue
+		}
 		if m.Machine == nil {
 			continue
 		}
