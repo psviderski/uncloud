@@ -84,10 +84,10 @@ func (cli *Client) ProxyMachinesContext(ctx context.Context, namesOrIDs []string
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-// ProxyMachineContext returns a new context that proxies gRPC requests to a single specified machine.
+// ProxySingleMachineContext returns a new context that proxies gRPC requests to a single specified machine.
 // This triggers One2One proxying, which does NOT inject metadata into the response.
 // Use this for requests that expect a single response message without metadata wrapper.
-func (cli *Client) ProxyMachineContext(ctx context.Context, nameOrID string) context.Context {
+func (cli *Client) ProxySingleMachineContext(ctx context.Context, nameOrID string) context.Context {
 	md := metadata.Pairs("machine", nameOrID)
 	return metadata.NewOutgoingContext(ctx, md)
 }

@@ -74,7 +74,7 @@ func (cli *Client) createServiceContainerWithPull(
 	resp.Name = containerName
 
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
+	ctx = cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := cliprogress.NewContainerEventID(ctx, containerName, machine.Machine.Name)
@@ -277,7 +277,7 @@ func (cli *Client) resolveContainerOperation(
 
 	eventID := cliprogress.ContainerEventID(ctx, ctr.Container.ServiceSpec.Name, ctr.Container.ID, ctr.MachineName)
 	return containerOperationContext{
-		ctx:         cli.ProxyMachineContext(ctx, ctr.MachineID),
+		ctx:         cli.ProxySingleMachineContext(ctx, ctr.MachineID),
 		containerID: ctr.Container.ID,
 		eventID:     eventID,
 	}, nil
@@ -375,7 +375,7 @@ func (cli *Client) ExecContainer(
 	}
 
 	// Proxy Docker gRPC requests to the machine hosting the container
-	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
+	ctx = cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
 
 	// Execute the command in the container
 	exitCode, err := cli.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
@@ -452,7 +452,7 @@ func (cli *Client) WaitContainerHealthy(
 	}
 
 	// For containers with a health check, wait until Docker reports healthy or unhealthy.
-	mctx := cli.ProxyMachineContext(ctx, machine.Machine.Id)
+	mctx := cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
 	mctx, cancel := context.WithTimeout(mctx, healthcheckTimeout(mc.Container.Config.Healthcheck))
 	defer cancel()
 	ticker := time.NewTicker(1 * time.Second)

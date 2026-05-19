@@ -102,7 +102,7 @@ func (cli *Client) ServiceLogs(
 func (cli *Client) ContainerLogs(
 	ctx context.Context, machineNameOrID string, containerID string, opts api.ServiceLogsOptions,
 ) (<-chan api.LogEntry, error) {
-	proxyCtx := cli.ProxyMachineContext(ctx, machineNameOrID)
+	proxyCtx := cli.ProxySingleMachineContext(ctx, machineNameOrID)
 
 	req := &pb.LogsRequest{
 		Id:     containerID,
@@ -198,7 +198,7 @@ func (cli *Client) MachineLogs(
 func (cli *Client) systemdServiceLogs(
 	ctx context.Context, machineID, unit string, opts api.ServiceLogsOptions,
 ) (<-chan api.LogEntry, error) {
-	proxyCtx := cli.ProxyMachineContext(ctx, machineID)
+	proxyCtx := cli.ProxySingleMachineContext(ctx, machineID)
 
 	req := &pb.LogsRequest{
 		Id:     unit,

@@ -63,16 +63,16 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 	}
 	defer client.Close()
 
-	// Verify the machine exists
+	// Verify the machine exists in the cluster.
 	member, err := client.InspectMachine(ctx, nameOrID)
 	if err != nil {
-		return fmt.Errorf("machine '%s' not found in the cluster", nameOrID)
+		return fmt.Errorf("inspect machine '%s': %w", nameOrID, err)
 	}
 	m := member.Machine
 
 	// Create a proxy context for the machine being removed.
 	// This is used for calls that need to run directly on that machine.
-	rmCtx := client.ProxyMachineContext(ctx, m.Id)
+	rmCtx := client.ProxySingleMachineContext(ctx, m.Id)
 
 	// Verify if the machine being removed is the proxy machine we're connected to.
 	proxyMachine, err := client.MachineClient.Inspect(ctx, nil)

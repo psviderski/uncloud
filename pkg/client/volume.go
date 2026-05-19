@@ -27,7 +27,7 @@ func (cli *Client) CreateVolume(
 		return resp, fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
 	}
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
+	ctx = cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := cliprogress.VolumeEventID(opts.Name, machine.Machine.Name)
@@ -72,7 +72,8 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 
 		if mv.Metadata.Error != "" {
 			// TODO: return failed machines in the response.
-			tui.PrintWarning(fmt.Sprintf("failed to list volumes on machine %s: %s", mv.Metadata.MachineName, mv.Metadata.Error))
+			tui.PrintWarning(fmt.Sprintf("failed to list volumes on machine '%s': %s", mv.Metadata.MachineName,
+				mv.Metadata.Error))
 			continue
 		}
 
@@ -106,7 +107,7 @@ func (cli *Client) RemoveVolume(ctx context.Context, machineNameOrID, volumeName
 		return fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
 	}
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = cli.ProxyMachineContext(ctx, machine.Machine.Id)
+	ctx = cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := cliprogress.VolumeEventID(volumeName, machine.Machine.Name)

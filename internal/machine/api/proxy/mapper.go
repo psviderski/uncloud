@@ -61,7 +61,7 @@ func (m *CorrosionMapper) MapMachines(ctx context.Context, namesOrIDs []string) 
 	for _, machine := range machines {
 		ip, err := machine.Network.ManagementIp.ToAddr()
 		if err != nil {
-			return nil, fmt.Errorf("invalid management IP for machine %s: %w", machine.Name, err)
+			return nil, fmt.Errorf("invalid management IP for machine '%s' in store: %w", machine.Name, err)
 		}
 		allTargets = append(allTargets, MachineTarget{
 			ID:   machine.Id,
@@ -87,13 +87,13 @@ func (m *CorrosionMapper) MapMachines(ctx context.Context, namesOrIDs []string) 
 	// Resolve each requested machine.
 	targets := make([]MachineTarget, 0, len(namesOrIDs))
 	var notFound []string
-	seenTarget := make(map[string]bool, len(namesOrIDs))
+	seenTarget := make(map[string]struct{}, len(namesOrIDs))
 
 	for _, nameOrID := range namesOrIDs {
 		if t, ok := targetByLookup[nameOrID]; ok {
-			if !seenTarget[t.ID] {
+			if _, seen := seenTarget[t.ID]; !seen {
 				targets = append(targets, t)
-				seenTarget[t.ID] = true
+				seenTarget[t.ID] = struct{}{}
 			}
 		} else {
 			notFound = append(notFound, nameOrID)

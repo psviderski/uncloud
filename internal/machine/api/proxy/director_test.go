@@ -44,7 +44,7 @@ func TestDirector_Director(t *testing.T) {
 	})
 
 	t.Run("proxy-authority routes to local", func(t *testing.T) {
-		md := metadata.New(map[string]string{"proxy-authority": "test"})
+		md := metadata.Pairs("proxy-authority", "test", "machines", remoteTarget.Name)
 		ctx := metadata.NewIncomingContext(context.Background(), md)
 
 		mode, backends, err := d.Director(ctx, "/Test/Method")
@@ -83,6 +83,7 @@ func TestDirector_Director(t *testing.T) {
 		assert.Equal(t, proxy.One2One, mode)
 		assert.Len(t, backends, 1)
 		assert.IsType(t, (*RemoteBackend)(nil), backends[0])
+		assert.Equal(t, "[fd00::2]:8080", backends[0].(*RemoteBackend).target)
 	})
 
 	t.Run("machine not found", func(t *testing.T) {
@@ -142,6 +143,7 @@ func TestDirector_Director(t *testing.T) {
 		mb1 := backends[1].(*MetadataBackend)
 		assert.Equal(t, remoteTarget.ID, mb1.MachineID)
 		assert.IsType(t, (*RemoteBackend)(nil), mb1.Backend)
+		assert.Equal(t, "[fd00::2]:8080", mb1.Backend.(*RemoteBackend).target)
 	})
 
 	t.Run("machines empty string", func(t *testing.T) {
@@ -169,7 +171,7 @@ func TestDirector_Director(t *testing.T) {
 		st, ok := status.FromError(err)
 		require.True(t, ok)
 		assert.Equal(t, codes.InvalidArgument, st.Code())
-		assert.Contains(t, st.Message(), "no machines specified")
+		assert.Contains(t, st.Message(), "proxy metadata 'machine' must have exactly one value")
 	})
 
 	t.Run("machines empty slice", func(t *testing.T) {
@@ -182,7 +184,7 @@ func TestDirector_Director(t *testing.T) {
 		st, ok := status.FromError(err)
 		require.True(t, ok)
 		assert.Equal(t, codes.InvalidArgument, st.Code())
-		assert.Contains(t, st.Message(), "no machines specified")
+		assert.Contains(t, st.Message(), "proxy metadata 'machines' is empty")
 	})
 
 	t.Run("both machine and machines set", func(t *testing.T) {

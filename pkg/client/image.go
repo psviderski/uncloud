@@ -88,7 +88,8 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 		}
 
 		if msg.Metadata.Error != "" {
-			// TODO: any reason to not return these and let the caller decide what to do?
+			// Continue processing other messages even if some machines return an error to avoid a partial failure
+			// of the entire command.
 			tui.PrintWarning(fmt.Sprintf(
 				"failed to list images on machine %s: %s", msg.Metadata.MachineName, msg.Metadata.Error,
 			))
@@ -351,7 +352,8 @@ func (cli *Client) pushImageToMachine(
 			pw.Event(progress.NewEvent(proxyEventID, progress.Error, err.Error()))
 			return fmt.Errorf("run socat container with unix socket to proxy unregistry: %w", err)
 		}
-		slog.Debug("Started unix socket socat proxy container.", "id", proxyCtrID, "hostPort", proxyPort, "socket", socketPath)
+		slog.Debug("Started unix socket socat proxy container.",
+			"id", proxyCtrID, "hostPort", proxyPort, "socket", socketPath)
 	}
 
 	pw.Event(progress.Event{

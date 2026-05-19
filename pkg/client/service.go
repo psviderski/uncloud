@@ -100,8 +100,10 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 	for _, m := range machines {
 		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
 			md.Append("machines", m.Machine.Id)
+		} else {
+			tui.PrintWarning(fmt.Sprintf("failed to list service containers on machine '%s' (state is %s). "+
+				"The results may be incomplete.", m.Machine.Name, m.State.String()))
 		}
-		// TODO: warning about machines that are DOWN.
 	}
 	listCtx := metadata.NewOutgoingContext(ctx, md)
 
@@ -129,12 +131,10 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 			continue
 		}
 
-		machineID := mc.Metadata.MachineId
-
 		// Collect both regular and hook containers for the service.
 		for _, ctr := range append(mc.Containers, mc.HookContainers...) {
 			containers = append(containers, api.MachineServiceContainer{
-				MachineID:   machineID,
+				MachineID:   mc.Metadata.MachineId,
 				MachineName: mc.Metadata.MachineName,
 				Container:   ctr,
 			})
@@ -330,8 +330,10 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	for _, m := range machines {
 		if m.State == pb.MachineMember_UP || m.State == pb.MachineMember_SUSPECT {
 			md.Append("machines", m.Machine.Id)
+		} else {
+			tui.PrintWarning(fmt.Sprintf("failed to list service containers on machine '%s' (state is %s). "+
+				"The results may be incomplete.", m.Machine.Name, m.State.String()))
 		}
-		// TODO: warning about machines that are DOWN.
 	}
 	listCtx := metadata.NewOutgoingContext(ctx, md)
 

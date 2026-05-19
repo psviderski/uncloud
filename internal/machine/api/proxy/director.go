@@ -56,8 +56,12 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 	}
 
 	// Handle singular "machine" case (One2One, no metadata injection)
-	if hasMachine && len(machine) > 0 {
-		if hasMachines && len(machines) > 0 {
+	if hasMachine {
+		if len(machine) != 1 {
+			return proxy.One2One, nil, status.Error(codes.InvalidArgument,
+				"proxy metadata 'machine' must have exactly one value")
+		}
+		if hasMachines {
 			return proxy.One2One, nil, status.Error(codes.InvalidArgument,
 				"both 'machine' and 'machines' proxy metadata are set")
 		}
@@ -77,7 +81,7 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 
 	// Handle plural "machines" case (One2Many, always metadata injection)
 	if len(machines) == 0 {
-		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "no machines specified")
+		return proxy.One2One, nil, status.Error(codes.InvalidArgument, "proxy metadata 'machines' is empty")
 	}
 
 	targets, err := d.mapper.MapMachines(ctx, machines)
@@ -100,6 +104,11 @@ func (d *Director) Director(ctx context.Context, fullMethodName string) (proxy.M
 			MachineAddr: t.Addr,
 		}
 	}
+
+	// TODO: should we periodically close and delete outdated remote backends (the ones left after removing machines)?
+	//  IIRC the proxy will try to reconnect to them indefinitely. This can be stopped by restarting the daemon.
+	//  But we can clean them up, e.g. when a client requests 'machines: *' so we know all the current targets
+	//  or run a background goroutine that periodically lists them and closes old remoteBackends.
 
 	return proxy.One2Many, backends, nil
 }

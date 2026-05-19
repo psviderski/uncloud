@@ -139,7 +139,7 @@ func TestCorrosionMapper_MapMachines(t *testing.T) {
 			store:   &mockStore{machines: []*pb.MachineInfo{{Id: "bad", Name: "bad-ip", Network: &pb.NetworkConfig{ManagementIp: &pb.IP{}}}}},
 			input:   []string{"*"},
 			wantErr: true,
-			errMsg:  "invalid management IP for machine bad-ip",
+			errMsg:  "invalid management IP for machine 'bad-ip' in store",
 		},
 		{
 			name:    "empty input returns error",
