@@ -29,8 +29,7 @@ func (cli *Client) ServiceLogs(
 	return cli.ServiceLogsWithSnapshot(ctx, snapshot, serviceNameOrID, opts)
 }
 
-// ServiceLogsWithSnapshot is the snapshot-aware variant of ServiceLogs for callers that already
-// hold a cluster snapshot (e.g. when streaming logs from many services in one command).
+// ServiceLogsWithSnapshot streams service logs using an existing cluster snapshot.
 func (cli *Client) ServiceLogsWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, serviceNameOrID string, opts api.ServiceLogsOptions,
 ) (api.Service, <-chan api.ServiceLogEntry, error) {
@@ -199,8 +198,7 @@ func (cli *Client) MachineLogs(
 	return cli.MachineLogsWithSnapshot(ctx, snapshot, unit, opts)
 }
 
-// MachineLogsWithSnapshot is the snapshot-aware variant of MachineLogs for callers that already
-// hold a cluster snapshot. It avoids a second ListMachines round-trip per call.
+// MachineLogsWithSnapshot streams machine logs using an existing cluster snapshot.
 func (cli *Client) MachineLogsWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, unit string, opts api.ServiceLogsOptions,
 ) (<-chan api.ServiceLogEntry, error) {

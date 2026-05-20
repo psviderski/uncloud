@@ -293,16 +293,16 @@ func NewDeploymentWithClusterState(
 	return d
 }
 
-// WithCurrentService injects an already-resolved current service to skip the InspectService call
-// in Validate. Used by batch planners that share a single ListServices result across many deployments.
+// WithCurrentService sets the current service for the deployment.
+//
+// Passing nil marks the service as already checked and not found.
 func (d *Deployment) WithCurrentService(svc *api.Service) *Deployment {
 	d.Service = svc
 	d.serviceKnown = true
 	return d
 }
 
-// WithSpecResolver injects a shared resolver to skip the per-deployment GetDomain call in Plan.
-// Used by batch planners that resolve the cluster domain once.
+// WithSpecResolver sets the resolver used to resolve the deployment spec.
 func (d *Deployment) WithSpecResolver(resolver *ServiceSpecResolver) *Deployment {
 	d.specResolver = resolver
 	return d

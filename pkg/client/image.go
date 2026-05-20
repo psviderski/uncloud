@@ -64,8 +64,7 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	return cli.listImages(ctx, listCtx, filter)
 }
 
-// ListImagesWithSnapshot is the snapshot-aware variant of ListImages for callers that already
-// hold a cluster snapshot. It avoids a second ListMachines round-trip per call.
+// ListImagesWithSnapshot lists images using an existing cluster snapshot.
 func (cli *Client) ListImagesWithSnapshot(
 	ctx context.Context, snapshot *ClusterSnapshot, filter api.ImageFilter,
 ) ([]api.MachineImages, error) {

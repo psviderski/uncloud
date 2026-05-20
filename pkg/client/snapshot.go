@@ -125,13 +125,15 @@ func (s *ClusterSnapshot) FindMachineByNameOrID(nameOrID string) *pb.MachineMemb
 }
 
 // FindServiceByID returns the service matching the ID.
+// The boolean return value is false if no service matches.
 func (s *ClusterSnapshot) FindServiceByID(id string) (api.Service, bool) {
 	byID, _ := s.indexServices()
 	svc, ok := byID[id]
 	return svc, ok
 }
 
-// FindServiceByName returns the service matching the name, or an error if the name is ambiguous.
+// FindServiceByName returns the service matching the name.
+// The boolean return value is false if no service matches. An error is returned if the name is ambiguous.
 func (s *ClusterSnapshot) FindServiceByName(name string) (api.Service, bool, error) {
 	_, byName := s.indexServices()
 	matches := byName[name]
