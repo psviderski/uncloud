@@ -34,7 +34,12 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X github.com/psviderski/uncloud/internal/version.version={{ .Version }}
+      - -s -w
+        -X github.com/psviderski/uncloud/internal/version.version={{.Version}}
+        -X github.com/psviderski/uncloud/internal/version.commit={{.Commit}}
+        -X github.com/psviderski/uncloud/internal/version.dirty={{.IsGitDirty}}
+        -X github.com/psviderski/uncloud/internal/version.date={{.CommitDate}}
+        -X github.com/psviderski/uncloud/internal/version.builtBy=goreleaser
 
   - id: uncloudd
     main: ./cmd/uncloudd
@@ -47,7 +52,12 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X github.com/psviderski/uncloud/internal/version.version={{ .Version }}
+      - -s -w
+        -X github.com/psviderski/uncloud/internal/version.version={{.Version}}
+        -X github.com/psviderski/uncloud/internal/version.commit={{.Commit}}
+        -X github.com/psviderski/uncloud/internal/version.dirty={{.IsGitDirty}}
+        -X github.com/psviderski/uncloud/internal/version.date={{.CommitDate}}
+        -X github.com/psviderski/uncloud/internal/version.builtBy=goreleaser
 
 archives:
   - id: uncloud

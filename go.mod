@@ -11,6 +11,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/alecthomas/chroma/v2 v2.20.0
+	github.com/caarlos0/go-version v0.2.2
 	github.com/caddyserver/caddy/v2 v2.8.4
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/charmbracelet/colorprofile v0.4.2
