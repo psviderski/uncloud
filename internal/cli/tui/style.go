@@ -19,6 +19,7 @@ var (
 	BoldYellow = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Yellow)
 
 	NameStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("152"))
+	URLStyle  = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.BrightBlue)
 )
 
 // FormatImage renders an image reference with the given style, using a faint colon separator for tagged images.

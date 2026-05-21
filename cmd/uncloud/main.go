@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
 	cmdcontext "github.com/psviderski/uncloud/cmd/uncloud/context"
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
@@ -19,6 +18,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/wg"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/internal/log"
 	"github.com/psviderski/uncloud/internal/machine"
@@ -39,7 +39,6 @@ func main() {
 	cmd := &cobra.Command{
 		Use:           "uc",
 		Short:         "A CLI tool for managing Uncloud resources such as machines, services, and volumes.",
-		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -113,15 +112,11 @@ func main() {
 		defaultHelpFunc(c, args)
 		// Only show links for the root 'uc' command.
 		if c.Name() == "uc" {
-			urlStyle := lipgloss.NewStyle().
-				Underline(true).
-				Foreground(lipgloss.Color("12")) // light blue
-
 			fmt.Fprintln(c.OutOrStdout())
 			fmt.Fprintf(c.OutOrStdout(), "Learn more about Uncloud:       %s\n",
-				urlStyle.Render("https://uncloud.run/docs"))
+				tui.URLStyle.Render(version.DocsURL))
 			fmt.Fprintf(c.OutOrStdout(), "Join our Discord community:     %s\n",
-				urlStyle.Render("https://uncloud.run/discord"))
+				tui.URLStyle.Render(version.DiscordURL))
 		}
 	})
 
@@ -151,6 +146,7 @@ func main() {
 		service.NewScaleCommand("service"),
 		service.NewStartCommand("service"),
 		service.NewStopCommand("service"),
+		NewVersionCommand(),
 		volume.NewRootCommand(),
 		wg.NewRootCommand(),
 	)

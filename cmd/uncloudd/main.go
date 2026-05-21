@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/daemon"
 	"github.com/psviderski/uncloud/internal/log"
 	"github.com/psviderski/uncloud/internal/machine"
@@ -24,7 +25,7 @@ func main() {
 	cmd := &cobra.Command{
 		Use:           "uncloudd",
 		Short:         "Uncloud machine daemon.",
-		Version:       version.String(),
+		Long:          "Uncloud machine daemon.\n" + tui.URLStyle.Render(version.WebsiteURL),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,11 +40,11 @@ func main() {
 		},
 	}
 	cmd.PersistentFlags().StringVarP(&dataDir, "data-dir", "d", machine.DefaultDataDir,
-		"Directory for storing persistent machine state")
+		"Directory for storing persistent machine state.")
 	_ = cmd.MarkFlagDirname("data-dir")
 
-	// Add dial-stdio subcommand.
 	cmd.AddCommand(newDialStdioCommand())
+	cmd.AddCommand(newVersionCommand())
 
 	// ctx is canceled when the daemon command is interrupted.
 	ctx, cancel := context.WithCancel(context.Background())

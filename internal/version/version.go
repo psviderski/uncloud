@@ -9,12 +9,11 @@ import (
 	goversion "github.com/caarlos0/go-version"
 )
 
-func String() string {
-	if version == "" {
-		return "999.0.0-dev"
-	}
-	return version
-}
+const (
+	WebsiteURL = "https://uncloud.run"
+	DocsURL    = "https://uncloud.run/docs"
+	DiscordURL = "https://uncloud.run/discord"
+)
 
 // Build-time metadata injected via -ldflags by GoReleaser (see .goreleaser.yaml).
 // These are package-level so the same paths can be referenced from any binary's ldflags.
@@ -25,6 +24,13 @@ var (
 	date    string
 	builtBy string
 )
+
+func String() string {
+	if version == "" {
+		return "999.0.0-dev"
+	}
+	return version
+}
 
 // Info holds version and build metadata for an Uncloud binary.
 type Info struct {
