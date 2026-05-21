@@ -33,6 +33,7 @@ A CLI tool for managing Uncloud resources such as machines, services, and volume
 * [uc service](uc_service.md)	 - Manage services in the cluster.
 * [uc start](uc_start.md)	 - Start one or more services.
 * [uc stop](uc_stop.md)	 - Stop one or more services.
+* [uc version](uc_version.md)	 - Show version and build information.
 * [uc volume](uc_volume.md)	 - Manage volumes in the cluster.
 * [uc wg](uc_wg.md)	 - Inspect WireGuard network
 
