@@ -146,13 +146,72 @@ install_uncloud_binaries() {
     esac
 
     local uncloudd_install_path="${INSTALL_BIN_DIR}/uncloudd"
+    local installed_version=""
     if [ -f "${uncloudd_install_path}" ]; then
-        # TODO: Check the version of the installed uncloudd binary and update if there is a newer stable version.
-        log "✓ uncloudd binary is already installed."
-        return
+        installed_version=$("${uncloudd_install_path}" version -o '{{.Version}}' 2>/dev/null || true)
     fi
 
-    log "⏳ Installing Uncloud binaries..."
+    # Decide whether to (re)install based on UNCLOUD_VERSION and the already installed binary, and pick the
+    # download URL for the same channel/tag.
+    local uncloudd_url uninstall_ref
+    local uncloudd_archive_name="uncloudd_linux_${file_arch}.tar.gz"
+
+    case "${UNCLOUD_VERSION}" in
+        nightly)
+            log "⏳ Installing uncloudd from the nightly channel (installed: ${installed_version:-none})..."
+            uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/nightly/${uncloudd_archive_name}"
+            # The 'nightly' tag is deleted and recreated on every nightly build, so pin uninstall.sh to main
+            # to avoid racing.
+            uninstall_ref="refs/heads/main"
+            ;;
+        latest)
+            # Resolve the redirect of releases/latest to discover the concrete latest version.
+            local latest_url latest_version
+            latest_url=$(curl -sLI -o /dev/null -w '%{url_effective}' \
+                "${UNCLOUD_GITHUB_URL}/releases/latest" 2>/dev/null || true)
+            latest_version="${latest_url##*/}"
+            latest_version="${latest_version#v}"
+
+            uninstall_ref="refs/tags/v${latest_version}"
+
+            if [ -z "${latest_version}" ] || [ "${latest_version}" = "latest" ]; then
+                warning "Could not resolve the version of the latest release on GitHub."
+                # Fall back to the redirecting URL so curl follows whatever GitHub considers latest.
+                uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/${uncloudd_archive_name}"
+                uninstall_ref="refs/heads/main"
+            elif [ -z "${installed_version}" ]; then
+                log "⏳ Installing uncloudd ${latest_version} (latest stable)..."
+                uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/v${latest_version}/${uncloudd_archive_name}"
+            elif [ "${installed_version}" = "${latest_version}" ]; then
+                log "✓ uncloudd ${installed_version} is already the latest stable version."
+                return 0
+            else
+                # Substitute '-' with '~' so sort -V treats pre-release versions per SemVer (Debian-style rules):
+                # 0.20.0~nightly-abc < 0.20.0 < 0.21.0~nightly-def.
+                # latest_version is always a clean stable tag from releases/latest, so the substitution is one-sided.
+                local newest
+                newest=$(printf '%s\n%s\n' "${installed_version//-/~}" "${latest_version}" | sort -V | tail -n1)
+                if [ "${newest}" = "${latest_version}" ]; then
+                    log "⏳ Upgrading uncloudd ${installed_version} → ${latest_version}..."
+                    uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/v${latest_version}/${uncloudd_archive_name}"
+                else
+                    log "✓ uncloudd ${installed_version} is newer than the latest stable ${latest_version}, keeping it."
+                    return 0
+                fi
+            fi
+            ;;
+        *)
+            # Explicit version. Install if it differs from the installed one (covers upgrade and downgrade).
+            if [ "${installed_version}" = "${UNCLOUD_VERSION}" ]; then
+                log "✓ uncloudd ${installed_version} matches the requested version, keeping it."
+                return 0
+            fi
+            log "⏳ Installing uncloudd ${UNCLOUD_VERSION} (replacing ${installed_version:-none})..."
+            uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/v${UNCLOUD_VERSION}/${uncloudd_archive_name}"
+            uninstall_ref="refs/tags/v${UNCLOUD_VERSION}"
+            ;;
+    esac
+    local uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/${uninstall_ref}/scripts/uninstall.sh"
 
     # Create a temporary directory for downloads.
     local tmp_dir
@@ -161,18 +220,6 @@ install_uncloud_binaries() {
     # shellcheck disable=SC2064
     trap "rm -rf '$tmp_dir'" EXIT
 
-    local uncloudd_url
-    local uninstall_url
-    if [ "${UNCLOUD_VERSION}" == "latest" ]; then
-        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/latest/download/uncloudd_linux_${file_arch}.tar.gz"
-        uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh"
-    elif [ "${UNCLOUD_VERSION}" == "nightly" ]; then
-        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/nightly/uncloudd_linux_${file_arch}.tar.gz"
-        uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh"
-    else
-        uncloudd_url="${UNCLOUD_GITHUB_URL}/releases/download/v${UNCLOUD_VERSION}/uncloudd_linux_${file_arch}.tar.gz"
-        uninstall_url="https://raw.githubusercontent.com/psviderski/uncloud/refs/tags/v${UNCLOUD_VERSION}/scripts/uninstall.sh"
-    fi
     local uncloudd_download_path="${tmp_dir}/uncloudd.tar.gz"
     local uninstall_download_path="${tmp_dir}/uninstall.sh"
 
