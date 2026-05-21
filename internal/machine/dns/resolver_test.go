@@ -93,6 +93,8 @@ func TestClusterResolver_UpdateMachineIPs(t *testing.T) {
 	assert.NotEmpty(t, r.Resolve("mach-1.m"))
 	assert.NotEmpty(t, r.Resolve("mach-3.m"))
 	assert.NotEmpty(t, r.Resolve("x0y0z0.m"))
+
+	assert.Equal(t, 3, len(r.Resolve("m")))
 }
 
 func newMachineRecord(machineID, machineName, prefix string) *pb.MachineInfo {

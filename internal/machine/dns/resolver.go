@@ -180,5 +180,14 @@ func (r *ClusterResolver) Resolve(name string) []netip.Addr {
 		return slices.Clone([]netip.Addr{ip})
 	}
 
+	if name == "m" { // all machines subdomain
+		// collect all unique IP address
+		uniq := map[string]netip.Addr{}
+		for _, addr := range r.machineIPs {
+			uniq[addr.String()] = addr
+		}
+		return slices.Clone(slices.Collect(maps.Values(uniq)))
+	}
+
 	return nil
 }
