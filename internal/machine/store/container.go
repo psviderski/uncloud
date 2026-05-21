@@ -46,7 +46,10 @@ type ServiceIDOrNameOptions struct {
 }
 
 type DeleteOptions struct {
+	// IDs filters containers by their container IDs.
 	IDs []string
+	// MachineIDs filters containers by the machine IDs they are running on.
+	MachineIDs []string
 }
 
 // CreateOrUpdateContainer creates a new container record or updates an existing one in the store database.
@@ -100,21 +103,24 @@ func normaliseContainerForStore(ctr *api.ServiceContainer) {
 }
 
 // ListContainers returns a list of container records from the store database that match the given options.
+// The result excludes orphan containers whose machine is no longer in the cluster.
 func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]ContainerRecord, error) {
-	q := sq.Select("id", "container", "machine_id", "sync_status", "updated_at").From("containers").
-		Where(sq.Eq{"sync_status": SyncStatusSynced})
+	q := sq.Select("c.id", "c.container", "c.machine_id", "c.sync_status", "c.updated_at").
+		From("containers c").
+		Join("machines m ON m.id = c.machine_id").
+		Where(sq.Eq{"c.sync_status": SyncStatusSynced})
 
 	if len(opts.MachineIDs) > 0 {
-		q = q.Where(sq.Eq{"machine_id": opts.MachineIDs})
+		q = q.Where(sq.Eq{"c.machine_id": opts.MachineIDs})
 	}
 
 	if opts.ServiceIDOrName.ID != "" || opts.ServiceIDOrName.Name != "" {
 		var conditions []sq.Sqlizer
 		if opts.ServiceIDOrName.ID != "" {
-			conditions = append(conditions, sq.Eq{"service_id": opts.ServiceIDOrName.ID})
+			conditions = append(conditions, sq.Eq{"c.service_id": opts.ServiceIDOrName.ID})
 		}
 		if opts.ServiceIDOrName.Name != "" {
-			conditions = append(conditions, sq.Eq{"service_name": opts.ServiceIDOrName.Name})
+			conditions = append(conditions, sq.Eq{"c.service_name": opts.ServiceIDOrName.Name})
 		}
 		q = q.Where(sq.Or(conditions))
 	}
@@ -172,16 +178,19 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]Contain
 }
 
 // DeleteContainers deletes container records from the store database that match the given options.
+// If no filter is set, all container records are deleted. Filters are combined with AND.
 func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error {
-	query := "DELETE FROM containers"
-	var args []any
-
+	q := sq.Delete("containers")
 	if len(opts.IDs) > 0 {
-		query += " WHERE id IN (?" + strings.Repeat(", ?", len(opts.IDs)-1) + ")"
-		args = make([]any, len(opts.IDs))
-		for i, id := range opts.IDs {
-			args[i] = id
-		}
+		q = q.Where(sq.Eq{"id": opts.IDs})
+	}
+	if len(opts.MachineIDs) > 0 {
+		q = q.Where(sq.Eq{"machine_id": opts.MachineIDs})
+	}
+
+	query, args, err := q.ToSql()
+	if err != nil {
+		return fmt.Errorf("build query: %w", err)
 	}
 
 	res, err := s.corro.ExecContext(ctx, query, args...)
@@ -189,7 +198,8 @@ func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error 
 		return fmt.Errorf("delete query: %w", err)
 	}
 	if res.RowsAffected > 0 {
-		slog.Debug("Container records deleted from store DB.", "ids", opts.IDs, "count", res.RowsAffected)
+		slog.Debug("Container records deleted from store DB.",
+			"ids", opts.IDs, "machine_ids", opts.MachineIDs, "count", res.RowsAffected)
 	}
 
 	return nil
@@ -197,10 +207,13 @@ func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error 
 
 // SubscribeContainers returns a list of containers and a channel that signals changes to the list. The channel doesn't
 // receive any values, it just signals when a container(s) has been added, updated, or deleted in the database.
+// The result excludes orphan containers whose machine is no longer in the cluster.
 func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-chan struct{}, error) {
 	// TODO: figure out whether we need sync_status at all (not used at the moment).
-	q := sq.Select("id", "container", "machine_id", "sync_status", "updated_at").From("containers").
-		Where(sq.Eq{"sync_status": SyncStatusSynced})
+	q := sq.Select("c.id", "c.container", "c.machine_id", "c.sync_status", "c.updated_at").
+		From("containers c").
+		Join("machines m ON m.id = c.machine_id").
+		Where(sq.Eq{"c.sync_status": SyncStatusSynced})
 	query, args, err := q.ToSql()
 	if err != nil {
 		return nil, nil, fmt.Errorf("build query: %w", err)

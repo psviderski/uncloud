@@ -334,6 +334,13 @@ func (c *Cluster) RemoveMachine(ctx context.Context, req *pb.RemoveMachineReques
 		return nil, status.Error(codes.InvalidArgument, "machine ID not set")
 	}
 
+	// Cleanup machine containers from the store that could be left if the machine is unavailable
+	// removed with --no-reset, or didn't have time to finish propagating changes before resetting.
+	if err := c.store.DeleteContainers(ctx, store.DeleteOptions{MachineIDs: []string{req.Id}}); err != nil {
+		slog.Error("Failed to delete container records from the cluster store for the machine being removed.",
+			"id", req.Id, "err", err)
+	}
+
 	if err := c.store.DeleteMachine(ctx, req.Id); err != nil {
 		if errors.Is(err, store.ErrMachineNotFound) {
 			return nil, status.Errorf(codes.NotFound, "machine not found: %s", req.Id)

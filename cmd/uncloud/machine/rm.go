@@ -151,19 +151,21 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 		fmt.Println()
 	}
 
-	if _, err = client.RemoveMachine(ctx, &pb.RemoveMachineRequest{Id: m.Id}); err != nil {
-		return fmt.Errorf("remove machine from cluster: %w", err)
-	}
-	fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
-
+	// Initiate reset before removing the machine from the cluster to stop it from updating the cluster store.
+	// This is still optimistic as Reset only triggers the reset process that runs asynchronously.
 	if reset && reachable {
 		_, err = client.MachineClient.Reset(rmCtx, &pb.ResetRequest{})
 		if err != nil {
-			fmt.Printf("WARNING: Failed to reset machine: %v\n", err)
+			tui.PrintWarning(fmt.Sprintf("Failed to reset machine: %v\n", err))
 		} else {
 			fmt.Println("Machine reset initiated and will complete in the background.")
 		}
 	}
+
+	if _, err = client.RemoveMachine(ctx, &pb.RemoveMachineRequest{Id: m.Id}); err != nil {
+		return fmt.Errorf("remove machine from cluster: %w", err)
+	}
+	fmt.Printf("Machine '%s' removed from the cluster.\n", m.Name)
 
 	// Remove the connection to the machine from the uncloud config if it exists.
 	if uncli.Config != nil {

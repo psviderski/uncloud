@@ -3,7 +3,9 @@ package e2e
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/ucind"
@@ -433,5 +435,69 @@ func TestMachineOperations(t *testing.T) {
 			assert.Equal(t, targetMachine.Machine.PublicIp.Ip, updatedMachine.PublicIp.Ip)
 		}
 		assert.Equal(t, len(targetMachine.Machine.Network.Endpoints), len(updatedMachine.Network.Endpoints))
+	})
+
+	t.Run("remove machine clears container records from cluster store", func(t *testing.T) {
+		// Deploy a global service with an HTTP ingress port so the auto-generated Caddyfile lists
+		// each container's IP as an upstream.
+		serviceName := "test-machine-rm-cleanup"
+		spec := api.ServiceSpec{
+			Name: serviceName,
+			Mode: api.ServiceModeGlobal,
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+			},
+			Ports: []api.PortSpec{
+				{
+					Hostname:      "test-machine-rm-cleanup.example.com",
+					ContainerPort: 8000,
+					Protocol:      api.ProtocolHTTP,
+					Mode:          api.PortModeIngress,
+				},
+			},
+		}
+
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, serviceName)
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+		})
+		_, err = cli.NewDeployment(spec, nil).Run(ctx)
+		require.NoError(t, err)
+
+		svc, err := cli.InspectService(ctx, serviceName)
+		require.NoError(t, err)
+
+		containers := serviceContainersByMachine(svc)
+
+		removedMachine := c.Machines[2]
+		removedIP := containers[removedMachine.ID][0].Container.UncloudNetworkIP().String()
+		keptIP := containers[c.Machines[0].ID][0].Container.UncloudNetworkIP().String()
+
+		// The Caddyfile contains both upstream IPs before the machine removal.
+		require.Eventually(t, func() bool {
+			cfg, err := cli.Caddy.GetConfig(ctx, nil)
+			if err != nil {
+				return false
+			}
+			return strings.Contains(cfg.Caddyfile, removedIP) && strings.Contains(cfg.Caddyfile, keptIP)
+		}, 15*time.Second, 100*time.Millisecond,
+			"expected Caddyfile to include both the to-be-removed and kept container IPs")
+
+		_, err = cli.RemoveMachine(ctx, &pb.RemoveMachineRequest{Id: removedMachine.ID})
+		require.NoError(t, err)
+
+		// After removal, the removed machine's container record should be gone from the cluster store,
+		// so the Caddy controller regenerates a Caddyfile without that upstream while keeping the
+		// upstreams for the still-running containers.
+		require.Eventually(t, func() bool {
+			cfg, err := cli.Caddy.GetConfig(ctx, nil)
+			if err != nil {
+				return false
+			}
+			return !strings.Contains(cfg.Caddyfile, removedIP) && strings.Contains(cfg.Caddyfile, keptIP)
+		}, 15*time.Second, 100*time.Millisecond,
+			"expected Caddyfile to drop the removed machine's container IP and keep the rest")
 	})
 }
