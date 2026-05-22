@@ -16,9 +16,8 @@ import (
 	"github.com/docker/docker/client"
 )
 
-const (
-	LatestImage = "ghcr.io/psviderski/corrosion:latest"
-)
+// Image is the Corrosion image pinned to the uncloudd release.
+const Image = "ghcr.io/unlabs-dev/corrosion:2026.5.14"
 
 type DockerService struct {
 	Client  *client.Client

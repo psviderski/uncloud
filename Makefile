@@ -1,6 +1,7 @@
 # TODO: Makefile is deprecated, add new targets as mise tasks in mise.toml instead.
 
-CORROSION_IMAGE ?= ghcr.io/psviderski/corrosion:latest
+CORROSION_VERSION ?= 2026.5.14
+CORROSION_IMAGE = ghcr.io/unlabs-dev/corrosion:$(CORROSION_VERSION)
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
 
 .PHONY: ucind-cluster
@@ -9,11 +10,12 @@ ucind-cluster:
 
 .PHONY: corrosion-image
 corrosion-image:
-	docker build -t "$(CORROSION_IMAGE)" --target corrosion .
+	docker build --build-arg CORROSION_VERSION=$(CORROSION_VERSION) -t "$(CORROSION_IMAGE)" --target corrosion .
 
 .PHONY: corrosion-multiarch-image-push
 corrosion-multiarch-image-push:
-	docker buildx build --push --platform linux/amd64,linux/arm64 -t "$(CORROSION_IMAGE)" --target corrosion .
+	docker buildx build --build-arg CORROSION_VERSION=$(CORROSION_VERSION) --push --platform linux/amd64,linux/arm64 \
+		-t "$(CORROSION_IMAGE)" --target corrosion .
 
 .PHONY: ucind-multiarch-image-push
 ucind-multiarch-image-push:

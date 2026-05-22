@@ -131,7 +131,7 @@ func (c *Config) SetDefaults() (*Config, error) {
 
 			cfg.CorrosionService = &corroservice.DockerService{
 				Client:  cfg.DockerClient,
-				Image:   corroservice.LatestImage,
+				Image:   corroservice.Image,
 				Name:    "uncloud-corrosion",
 				DataDir: cfg.CorrosionDir,
 				User:    fmt.Sprintf("%d:%d", uid, gid),

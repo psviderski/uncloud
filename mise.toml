@@ -12,6 +12,7 @@ protoc-gen-go = "1.34.2"
 protoc-gen-go-grpc = "1.5.1"
 
 [vars]
+corrosion_version = "2026.5.14"
 ucind_image = "ghcr.io/psviderski/ucind:latest"
 
 [env]
@@ -56,7 +57,7 @@ run = "go run ./cmd/ucind"
 
 [tasks."ucind:image"]
 description = "Build the ucind Docker image"
-run = "docker build -t {{vars.ucind_image}} --target ucind ."
+run = "docker build --build-arg CORROSION_VERSION={{vars.corrosion_version}} -t {{vars.ucind_image}} --target ucind ."
 
 [tasks."ucind:cleanup"]
 description = "Remove ucind managed containers and networks"
