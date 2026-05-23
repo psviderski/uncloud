@@ -17,6 +17,21 @@ func TestNewClusterSnapshotDomainNotFound(t *testing.T) {
 	assert.Empty(t, snapshot.Domain)
 }
 
+func TestNewClusterSnapshotLoadsOnlyRequestedState(t *testing.T) {
+	fake := &fakeSnapshotClient{
+		services: []api.Service{{ID: "svc-1", Name: "web"}},
+		domain:   "example.uncld.dev",
+	}
+
+	snapshot, err := newClusterSnapshot(context.Background(), fake, ClusterSnapshotOptions{Services: true})
+	require.NoError(t, err)
+
+	assert.Equal(t, fake.services, snapshot.Services)
+	assert.Empty(t, snapshot.Domain)
+	assert.Equal(t, 1, fake.listServicesCalls)
+	assert.Equal(t, 0, fake.getDomainCalls)
+}
+
 func TestClusterSnapshotFindServiceByNameDuplicate(t *testing.T) {
 	snapshot := &ClusterSnapshot{
 		Services: []api.Service{
@@ -32,17 +47,20 @@ func TestClusterSnapshotFindServiceByNameDuplicate(t *testing.T) {
 }
 
 type fakeSnapshotClient struct {
+	services     []api.Service
+	domain       string
 	getDomainErr error
-}
 
-func (f *fakeSnapshotClient) ListMachines(context.Context, *api.MachineFilter) (api.MachineMembersList, error) {
-	return nil, nil
+	listServicesCalls int
+	getDomainCalls    int
 }
 
 func (f *fakeSnapshotClient) ListServices(context.Context) ([]api.Service, error) {
-	return nil, nil
+	f.listServicesCalls++
+	return f.services, nil
 }
 
 func (f *fakeSnapshotClient) GetDomain(context.Context) (string, error) {
-	return "", f.getDomainErr
+	f.getDomainCalls++
+	return f.domain, f.getDomainErr
 }
