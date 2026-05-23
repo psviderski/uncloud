@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"testing"
 
 	dockercontainer "github.com/docker/docker/api/types/container"
@@ -12,9 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServicesFromMachineContainers(t *testing.T) {
-	var warnings bytes.Buffer
-	servicesByID := servicesFromMachineContainers(
+func TestServiceInventoryFromMachineContainers(t *testing.T) {
+	inventory := serviceInventoryFromMachineContainers(
 		[]machinedocker.MachineServiceContainers{
 			{
 				Metadata: &pb.Metadata{MachineId: "machine-1", MachineName: "machine-one"},
@@ -37,8 +35,8 @@ func TestServicesFromMachineContainers(t *testing.T) {
 				Metadata: &pb.Metadata{MachineId: "machine-3", MachineName: "machine-three", Error: "unavailable"},
 			},
 		},
-		&warnings,
 	)
+	servicesByID := inventory.servicesByID
 
 	require.Len(t, servicesByID, 3)
 
@@ -63,12 +61,19 @@ func TestServicesFromMachineContainers(t *testing.T) {
 	assert.Equal(t, "web", duplicateName.Name)
 	require.Len(t, duplicateName.Containers, 1)
 
-	assert.Contains(t, warnings.String(), "WARNING: failed to list containers on machine 'machine-three': unavailable")
+	webByID, err := inventory.find("svc-web")
+	require.NoError(t, err)
+	require.Len(t, webByID.Containers, 2)
+
+	_, err = inventory.find("web")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multiple services found with name 'web'")
+
+	assert.Contains(t, inventory.warnings, "failed to list containers on machine 'machine-three': unavailable")
 }
 
-func TestServicesFromMachineContainersNilMetadataWarnsAndSkips(t *testing.T) {
-	var warnings bytes.Buffer
-	servicesByID := servicesFromMachineContainers(
+func TestServiceInventoryFromMachineContainersNilMetadataWarnsAndSkips(t *testing.T) {
+	inventory := serviceInventoryFromMachineContainers(
 		[]machinedocker.MachineServiceContainers{
 			{Metadata: nil},
 			{
@@ -78,10 +83,9 @@ func TestServicesFromMachineContainersNilMetadataWarnsAndSkips(t *testing.T) {
 				},
 			},
 		},
-		&warnings,
 	)
-	require.Contains(t, servicesByID, "svc-web")
-	assert.Contains(t, warnings.String(), "WARNING: metadata is missing in response from unknown server")
+	require.Contains(t, inventory.servicesByID, "svc-web")
+	assert.Contains(t, inventory.warnings, "metadata is missing in response from unknown server")
 }
 
 func testServiceContainer(id, serviceID, serviceName, mode string, hook bool) api.ServiceContainer {
