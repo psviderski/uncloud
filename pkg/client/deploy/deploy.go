@@ -28,17 +28,14 @@ type Client interface {
 // Deployment manages the process of creating or updating a service to match a desired state.
 // It coordinates the validation, planning, and execution of deployment operations.
 type Deployment struct {
-	Service  *api.Service
-	Spec     api.ServiceSpec
-	Strategy Strategy
-	cli      Client
-	plan     *ServicePlan
-	// serviceKnown is true when Service has already been resolved for this request, including
-	// the "not found" case. Without it, Validate cannot distinguish "lookup not yet attempted"
-	// from "looked up and confirmed missing" since both have Service == nil.
-	serviceKnown bool
-	specResolver *ServiceSpecResolver
-	state        *scheduler.ClusterState
+	Service               *api.Service
+	Spec                  api.ServiceSpec
+	Strategy              Strategy
+	cli                   Client
+	plan                  *ServicePlan
+	currentServiceChecked bool
+	specResolver          *ServiceSpecResolver
+	state                 *scheduler.ClusterState
 }
 
 type ServicePlan struct {
@@ -293,12 +290,17 @@ func NewDeploymentWithClusterState(
 	return d
 }
 
-// WithCurrentService sets the current service for the deployment.
-//
-// Passing nil marks the service as already checked and not found.
-func (d *Deployment) WithCurrentService(svc *api.Service) *Deployment {
-	d.Service = svc
-	d.serviceKnown = true
+// WithExistingService sets the already resolved current service for the deployment.
+func (d *Deployment) WithExistingService(svc api.Service) *Deployment {
+	d.Service = &svc
+	d.currentServiceChecked = true
+	return d
+}
+
+// WithMissingService marks the current service as already checked and not found.
+func (d *Deployment) WithMissingService() *Deployment {
+	d.Service = nil
+	d.currentServiceChecked = true
 	return d
 }
 
@@ -359,7 +361,7 @@ func (d *Deployment) Validate(ctx context.Context) error {
 		return fmt.Errorf("invalid service spec: %w", err)
 	}
 
-	if !d.serviceKnown && d.Service == nil && d.Spec.Name != "" {
+	if !d.currentServiceChecked && d.Service == nil && d.Spec.Name != "" {
 		svc, err := d.cli.InspectService(ctx, d.Spec.Name)
 		if err == nil {
 			d.Service = &svc

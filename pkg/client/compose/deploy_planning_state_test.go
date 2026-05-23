@@ -9,19 +9,18 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
-	clusterclient "github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeploymentPlanUsesSnapshotForCurrentServices(t *testing.T) {
+func TestDeploymentPlanUsesPlanningStateForCurrentServices(t *testing.T) {
 	project, err := LoadProjectFromContent(context.Background(), composeYAML(20))
 	require.NoError(t, err)
 
 	strategy := &recordingStrategy{}
-	fake := &composeSnapshotClient{
+	fake := &composePlanningClient{
 		services: []api.Service{
 			{ID: "svc-01", Name: "svc01", Mode: api.ServiceModeReplicated},
 			{ID: "svc-10", Name: "svc10", Mode: api.ServiceModeReplicated},
@@ -34,8 +33,8 @@ func TestDeploymentPlanUsesSnapshotForCurrentServices(t *testing.T) {
 	_, err = deployment.Plan(context.Background())
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, fake.snapshotCalls)
-	assert.Equal(t, 0, fake.getDomainCalls)
+	assert.Equal(t, 1, fake.listServicesCalls)
+	assert.Equal(t, 1, fake.getDomainCalls)
 	assert.Equal(t, 0, fake.inspectServiceCalls)
 	require.Len(t, strategy.calls, 20)
 
@@ -50,11 +49,11 @@ func TestDeploymentPlanUsesSnapshotForCurrentServices(t *testing.T) {
 	assert.Nil(t, seen["svc02"])
 }
 
-func TestDeploymentPlanErrorsOnDuplicateSnapshotServiceNames(t *testing.T) {
+func TestDeploymentPlanErrorsOnDuplicateCurrentServiceNames(t *testing.T) {
 	project, err := LoadProjectFromContent(context.Background(), composeYAML(1))
 	require.NoError(t, err)
 
-	fake := &composeSnapshotClient{
+	fake := &composePlanningClient{
 		services: []api.Service{
 			{ID: "svc-a", Name: "svc01"},
 			{ID: "svc-b", Name: "svc01"},
@@ -109,32 +108,23 @@ func (s *recordingStrategy) Plan(
 	}, nil
 }
 
-type composeSnapshotClient struct {
+type composePlanningClient struct {
 	api.Client
 
 	services []api.Service
 	domain   string
 
-	snapshotCalls       int
+	listServicesCalls   int
 	getDomainCalls      int
 	inspectServiceCalls int
 }
 
-func (c *composeSnapshotClient) NewClusterSnapshot(
-	_ context.Context, opts clusterclient.ClusterSnapshotOptions,
-) (*clusterclient.ClusterSnapshot, error) {
-	c.snapshotCalls++
-	snapshot := &clusterclient.ClusterSnapshot{}
-	if opts.Services {
-		snapshot.Services = c.services
-	}
-	if opts.Domain {
-		snapshot.Domain = c.domain
-	}
-	return snapshot, nil
+func (c *composePlanningClient) ListServices(context.Context) ([]api.Service, error) {
+	c.listServicesCalls++
+	return c.services, nil
 }
 
-func (c *composeSnapshotClient) ListMachines(context.Context, *api.MachineFilter) (api.MachineMembersList, error) {
+func (c *composePlanningClient) ListMachines(context.Context, *api.MachineFilter) (api.MachineMembersList, error) {
 	return api.MachineMembersList{
 		{
 			Machine: &pb.MachineInfo{
@@ -146,30 +136,30 @@ func (c *composeSnapshotClient) ListMachines(context.Context, *api.MachineFilter
 	}, nil
 }
 
-func (c *composeSnapshotClient) ListVolumes(context.Context, *api.VolumeFilter) ([]api.MachineVolume, error) {
+func (c *composePlanningClient) ListVolumes(context.Context, *api.VolumeFilter) ([]api.MachineVolume, error) {
 	return nil, nil
 }
 
-func (c *composeSnapshotClient) GetDomain(context.Context) (string, error) {
+func (c *composePlanningClient) GetDomain(context.Context) (string, error) {
 	c.getDomainCalls++
 	return c.domain, nil
 }
 
-func (c *composeSnapshotClient) InspectService(context.Context, string) (api.Service, error) {
+func (c *composePlanningClient) InspectService(context.Context, string) (api.Service, error) {
 	c.inspectServiceCalls++
 	return api.Service{}, api.ErrNotFound
 }
 
-func (c *composeSnapshotClient) CreateVolume(
+func (c *composePlanningClient) CreateVolume(
 	context.Context, string, volume.CreateOptions,
 ) (api.MachineVolume, error) {
 	return api.MachineVolume{}, nil
 }
 
-func (c *composeSnapshotClient) RemoveVolume(context.Context, string, string, bool) error {
+func (c *composePlanningClient) RemoveVolume(context.Context, string, string, bool) error {
 	return nil
 }
 
-func (c *composeSnapshotClient) StopService(context.Context, string, container.StopOptions) error {
+func (c *composePlanningClient) StopService(context.Context, string, container.StopOptions) error {
 	return nil
 }

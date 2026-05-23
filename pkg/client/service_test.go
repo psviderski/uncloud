@@ -14,7 +14,7 @@ import (
 
 func TestServicesFromMachineContainers(t *testing.T) {
 	var warnings bytes.Buffer
-	servicesByID, err := servicesFromMachineContainers(
+	servicesByID := servicesFromMachineContainers(
 		[]machinedocker.MachineServiceContainers{
 			{
 				Metadata: &pb.Metadata{MachineId: "machine-1", MachineName: "machine-one"},
@@ -39,7 +39,6 @@ func TestServicesFromMachineContainers(t *testing.T) {
 		},
 		&warnings,
 	)
-	require.NoError(t, err)
 
 	require.Len(t, servicesByID, 3)
 
@@ -69,7 +68,7 @@ func TestServicesFromMachineContainers(t *testing.T) {
 
 func TestServicesFromMachineContainersNilMetadataWarnsAndSkips(t *testing.T) {
 	var warnings bytes.Buffer
-	servicesByID, err := servicesFromMachineContainers(
+	servicesByID := servicesFromMachineContainers(
 		[]machinedocker.MachineServiceContainers{
 			{Metadata: nil},
 			{
@@ -81,7 +80,6 @@ func TestServicesFromMachineContainersNilMetadataWarnsAndSkips(t *testing.T) {
 		},
 		&warnings,
 	)
-	require.NoError(t, err)
 	require.Contains(t, servicesByID, "svc-web")
 	assert.Contains(t, warnings.String(), "WARNING: metadata is missing in response from unknown server")
 }

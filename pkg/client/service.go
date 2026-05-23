@@ -116,10 +116,7 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 		return svc, fmt.Errorf("list containers: %w", err)
 	}
 
-	servicesByID, err := servicesFromMachineContainers(machineContainers, os.Stderr)
-	if err != nil {
-		return svc, err
-	}
+	servicesByID := servicesFromMachineContainers(machineContainers, os.Stderr)
 	if len(servicesByID) == 0 {
 		return svc, api.ErrNotFound
 	}
@@ -304,10 +301,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 
-	servicesByID, err := servicesFromMachineContainers(machineContainers, os.Stderr)
-	if err != nil {
-		return nil, err
-	}
+	servicesByID := servicesFromMachineContainers(machineContainers, os.Stderr)
 
 	services := make([]api.Service, 0, len(servicesByID))
 	for _, svc := range servicesByID {
@@ -319,7 +313,7 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 func servicesFromMachineContainers(
 	machineContainers []machinedocker.MachineServiceContainers,
 	warn io.Writer,
-) (map[string]api.Service, error) {
+) map[string]api.Service {
 	servicesByID := make(map[string]api.Service)
 
 	for _, mc := range machineContainers {
@@ -348,7 +342,7 @@ func servicesFromMachineContainers(
 		}
 	}
 
-	return servicesByID, nil
+	return servicesByID
 }
 
 func addServiceContainer(

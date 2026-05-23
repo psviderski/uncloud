@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -11,15 +12,15 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
-	clusterclient "github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
+	"golang.org/x/sync/errgroup"
 )
 
 type Client interface {
 	deploy.Client
-	NewClusterSnapshot(ctx context.Context, opts clusterclient.ClusterSnapshotOptions) (*clusterclient.ClusterSnapshot, error)
+	ListServices(ctx context.Context) ([]api.Service, error)
 }
 
 type Deployment struct {
@@ -28,7 +29,7 @@ type Deployment struct {
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
 	state        *scheduler.ClusterState
-	snapshot     *clusterclient.ClusterSnapshot
+	planning     *planningState
 	plan         *Plan
 }
 
@@ -42,16 +43,13 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		return nil, fmt.Errorf("inspect cluster state: %w", err)
 	}
 
-	snapshot, err := cli.NewClusterSnapshot(ctx, clusterclient.ClusterSnapshotOptions{
-		Services: true,
-		Domain:   true,
-	})
+	planning, err := loadPlanningState(ctx, cli)
 	if err != nil {
-		return nil, fmt.Errorf("load cluster snapshot: %w", err)
+		return nil, fmt.Errorf("load planning state: %w", err)
 	}
 	resolver := &deploy.ServiceSpecResolver{
 		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: snapshot.Domain,
+		ClusterDomain: planning.domain,
 	}
 
 	return &Deployment{
@@ -60,8 +58,57 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		SpecResolver: resolver,
 		Strategy:     strategy,
 		state:        state,
-		snapshot:     snapshot,
+		planning:     planning,
 	}, nil
+}
+
+type planningState struct {
+	domain         string
+	servicesByName map[string][]api.Service
+}
+
+func loadPlanningState(ctx context.Context, cli Client) (*planningState, error) {
+	state := &planningState{}
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		services, err := cli.ListServices(gctx)
+		if err != nil {
+			return fmt.Errorf("list services: %w", err)
+		}
+
+		state.servicesByName = make(map[string][]api.Service, len(services))
+		for _, svc := range services {
+			state.servicesByName[svc.Name] = append(state.servicesByName[svc.Name], svc)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		domain, err := cli.GetDomain(gctx)
+		if err != nil && !errors.Is(err, api.ErrNotFound) {
+			return fmt.Errorf("get domain: %w", err)
+		}
+		state.domain = domain
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+func (s *planningState) findServiceByName(name string) (api.Service, bool, error) {
+	matches := s.servicesByName[name]
+	switch len(matches) {
+	case 0:
+		return api.Service{}, false, nil
+	case 1:
+		return matches[0], true, nil
+	default:
+		return api.Service{}, false, fmt.Errorf("multiple services found with name '%s', use the service ID instead", name)
+	}
 }
 
 func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
@@ -102,15 +149,15 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 		// Pass the updated cluster state with the scheduled volumes to the deployment.
 		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
 		deployment.WithSpecResolver(d.SpecResolver)
-		currentService, ok, err := d.snapshot.FindServiceByName(spec.Name)
+		currentService, ok, err := d.planning.findServiceByName(spec.Name)
 		if err != nil {
 			return plan, fmt.Errorf("find current service '%s': %w", spec.Name, err)
 		}
-		var current *api.Service
 		if ok {
-			current = &currentService
+			deployment.WithExistingService(currentService)
+		} else {
+			deployment.WithMissingService()
 		}
-		deployment.WithCurrentService(current)
 
 		servicePlan, err := deployment.Plan(ctx)
 		if err != nil {
