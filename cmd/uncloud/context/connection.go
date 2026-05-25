@@ -14,6 +14,7 @@ func NewConnectionCommand() *cobra.Command {
 		Use:     "connection",
 		Aliases: []string{"conn"},
 		Short:   "Choose a new default connection for the current context.",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return selectConnection(uncli)
