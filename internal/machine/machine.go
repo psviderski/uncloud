@@ -841,7 +841,7 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		PrivateKey:    m.state.Network.PrivateKey,
 		PublicKey:     m.state.Network.PublicKey,
 	}
-	m.state.MinStoreDBVersion = req.MinStoreDbVersion
+	m.state.MinStoreVersion = req.MinStoreVersion
 
 	// Build a peers config from other cluster machines.
 	m.state.Network.Peers = make([]network.PeerConfig, 0, len(req.OtherMachines))
@@ -928,9 +928,9 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 }
 
 func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.InspectMachineResponse, error) {
-	dbVersion, err := m.store.DBVersion(ctx)
+	storeVersion, err := m.store.Version(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get database version of the cluster store: %v", err)
+		return nil, status.Errorf(codes.Internal, "get cluster store version: %v", err)
 	}
 
 	var rtts map[string]*pb.RTTStats
@@ -954,8 +954,8 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 						PublicKey:    m.state.Network.PublicKey,
 					},
 				},
-				StoreDbVersion: dbVersion,
-				Rtts:           rtts,
+				StoreVersion: storeVersion,
+				Rtts:         rtts,
 			},
 		},
 	}, nil

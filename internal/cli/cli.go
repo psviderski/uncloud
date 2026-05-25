@@ -434,8 +434,8 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		return nil, nil, fmt.Errorf("add machine to cluster (context '%s'): %w", contextName, err)
 	}
 
-	// Get the current store DB version from the cluster to pass to the join request.
-	var storeDBVersion int64
+	// Snapshot the cluster store version so the new machine can catch up before participating.
+	var storeVersion map[string]int64
 	inspectResp, err := c.MachineClient.InspectMachine(ctx, &emptypb.Empty{})
 	if err != nil {
 		// TODO(lhf): remove Unimplemented check when v0.17.0 is released.
@@ -443,7 +443,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 			return nil, nil, fmt.Errorf("inspect current cluster machine: %w", err)
 		}
 	} else {
-		storeDBVersion = inspectResp.Machines[0].StoreDbVersion
+		storeVersion = inspectResp.Machines[0].StoreVersion
 	}
 
 	// Get the most up-to-date list of other machines in the cluster to include them in the join request.
@@ -460,10 +460,10 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 
 	// Configure the remote machine to join the cluster.
 	joinReq := &pb.JoinClusterRequest{
-		Machine:           addResp.Machine,
-		OtherMachines:     otherMachines,
-		MinStoreDbVersion: storeDBVersion,
-		WireguardPort:     int32(opts.WireguardPort),
+		Machine:         addResp.Machine,
+		OtherMachines:   otherMachines,
+		MinStoreVersion: storeVersion,
+		WireguardPort:   int32(opts.WireguardPort),
 	}
 	if _, err = machineClient.JoinCluster(ctx, joinReq); err != nil {
 		return nil, nil, fmt.Errorf("join cluster: %w", err)

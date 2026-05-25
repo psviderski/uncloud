@@ -192,9 +192,9 @@ func (p *Provisioner) initCluster(ctx context.Context, machines []Machine) error
 
 		// Configure the machine to join the cluster.
 		joinReq := &pb.JoinClusterRequest{
-			Machine:           addResp.Machine,
-			OtherMachines:     []*pb.MachineInfo{initResp.Machine},
-			MinStoreDbVersion: inspectResp.Machines[0].StoreDbVersion,
+			Machine:         addResp.Machine,
+			OtherMachines:   []*pb.MachineInfo{initResp.Machine},
+			MinStoreVersion: inspectResp.Machines[0].StoreVersion,
 		}
 		if _, err = cli.JoinCluster(ctx, joinReq); err != nil {
 			return fmt.Errorf("join cluster: %w", err)

@@ -73,10 +73,11 @@ message InitClusterResponse {
 message JoinClusterRequest {
   MachineInfo machine = 1;
   repeated MachineInfo other_machines = 3;
-  // Minimum store database version the new machine should sync to before starting cluster operations.
-  int64 min_store_db_version = 4;
   // WireGuard listen port for this machine. Uses the default port (51820) if 0 or not set.
   int32 wireguard_port = 5;
+  // Cluster store version this machine must reach before participating.
+  // Per-actor vector (Corrosion actor UUID → max applied db_version).
+  map<string, int64> min_store_version = 6;
 }
 
 message InspectMachineResponse {
@@ -87,10 +88,11 @@ message InspectMachineResponse {
 message MachineDetails {
   Metadata metadata = 1;
   MachineInfo machine = 2;
-  // Current Corrosion cr-sqlite database version (Lamport timestamp) of the cluster store.
-  int64 store_db_version = 3;
   // Round-trip times to other machines in the cluster, keyed by peer machine ID.
   map<string, RTTStats> rtts = 4;
+  // Current cluster store version observed on this machine.
+  // Per-actor vector (Corrosion actor UUID → max applied db_version) read from Corrosion crsql_db_versions.
+  map<string, int64> store_version = 5;
 }
 
 message TokenResponse {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -57,23 +58,31 @@ func (s *Store) Delete(ctx context.Context, key string) error {
 	return err
 }
 
-// DBVersion returns the current cr-sqlite database version (Lamport timestamp).
-func (s *Store) DBVersion(ctx context.Context) (int64, error) {
-	rows, err := s.corro.QueryContext(ctx, "SELECT crsql_db_version()")
+// Version returns the cluster store's per-actor version vector:
+// Corrosion actor ID (UUID string) → max received db_version for that actor.
+func (s *Store) Version(ctx context.Context) (map[string]int64, error) {
+	rows, err := s.corro.QueryContext(ctx, "SELECT site_id, db_version FROM crsql_db_versions")
 	if err != nil {
-		return 0, fmt.Errorf("query crsql_db_version(): %w", err)
+		return nil, fmt.Errorf("query crsql_db_versions: %w", err)
 	}
 	defer rows.Close()
 
-	if !rows.Next() {
-		return 0, fmt.Errorf("no result from crsql_db_version()")
+	versions := make(map[string]int64)
+	for rows.Next() {
+		var (
+			siteID  []byte
+			version int64
+		)
+		if err = rows.Scan(&siteID, &version); err != nil {
+			return nil, fmt.Errorf("scan actor version: %w", err)
+		}
+		actor, err := uuid.FromBytes(siteID)
+		if err != nil {
+			return nil, fmt.Errorf("parse site_id as UUID: %w", err)
+		}
+		versions[actor.String()] = version
 	}
-
-	var version int64
-	if err = rows.Scan(&version); err != nil {
-		return 0, fmt.Errorf("scan db version: %w", err)
-	}
-	return version, nil
+	return versions, nil
 }
 
 type MissingChange struct {

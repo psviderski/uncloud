@@ -24,9 +24,10 @@ type State struct {
 	Name string
 	// Network specifies the network configuration for this machine.
 	Network *network.Config
-	// MinStoreDBVersion is the latest database version of one of the existing cluster machines at the time this machine
-	// joined the cluster. The machine should sync to at least this version before starting any cluster operations.
-	MinStoreDBVersion int64 `json:",omitempty"`
+	// MinStoreVersion is the cluster store version this machine must reach before participating.
+	// Per-actor vector (Corrosion actor UUID → max applied db_version) captured from an existing
+	// member at join time. Cleared once reached.
+	MinStoreVersion map[string]int64 `json:",omitempty"`
 
 	// path is the file path config is read from and saved to.
 	path string
