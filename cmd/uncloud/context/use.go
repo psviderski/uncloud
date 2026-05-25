@@ -17,6 +17,7 @@ func NewUseCommand() *cobra.Command {
 		Short: "Switch to a different cluster context.",
 		Long: "Switch to a different cluster context. If no context is provided, " +
 			"a list of available contexts will be displayed for selection.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 

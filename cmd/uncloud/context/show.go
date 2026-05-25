@@ -11,6 +11,7 @@ func NewShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "Show current cluster context.",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return show(uncli)

@@ -10,6 +10,7 @@ func NewRootCommand() *cobra.Command {
 		Use:     "ctx",
 		Aliases: []string{"context"},
 		Short:   "Switch between different cluster contexts. Contains subcommands to manage contexts.",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return selectContext(uncli)
