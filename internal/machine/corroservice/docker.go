@@ -21,11 +21,14 @@ import (
 const Image = "ghcr.io/unlabs-dev/corrosion:2026.5.14"
 
 type DockerService struct {
-	Client  *client.Client
-	Image   string
-	Name    string
+	Client *client.Client
+	Image  string
+	Name   string
+	// DataDir holds the corrosion config, schema, and db files.
 	DataDir string
-	User    string
+	// RunDir holds ephemeral runtime state like the admin socket.
+	RunDir string
+	User   string
 }
 
 func (s *DockerService) Start(ctx context.Context) error {
@@ -89,6 +92,23 @@ func (s *DockerService) Restart(ctx context.Context) error {
 	return nil
 }
 
+// Cleanup gracefully stops and removes the Corrosion container.
+func (s *DockerService) Cleanup(ctx context.Context) error {
+	if err := s.Client.ContainerStop(ctx, s.Name, container.StopOptions{}); err != nil {
+		if errdefs.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("stop container '%s': %w", s.Name, err)
+	}
+	if err := s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{
+		RemoveVolumes: true,
+	}); err != nil {
+		return fmt.Errorf("remove container '%s': %w", s.Name, err)
+	}
+	slog.Debug("Corrosion container removed.", "name", s.Name)
+	return nil
+}
+
 func (s *DockerService) Running() bool {
 	c, err := s.Client.ContainerInspect(context.Background(), s.Name)
 	if err != nil {
@@ -115,12 +135,21 @@ func (s *DockerService) hostConfig() *container.HostConfig {
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyUnlessStopped,
 		},
+		LogConfig: container.LogConfig{
+			Type: "local",
+		},
 		Mounts: []mount.Mount{
-			// Bind mount the data directory at the same path inside the container to simplify path handling.
+			// Bind mount the data and runtime directories at the same paths inside the container
+			// to simplify path handling.
 			{
 				Type:   mount.TypeBind,
 				Source: s.DataDir,
 				Target: s.DataDir,
+			},
+			{
+				Type:   mount.TypeBind,
+				Source: s.RunDir,
+				Target: s.RunDir,
 			},
 		},
 	}

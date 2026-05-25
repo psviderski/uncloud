@@ -16,6 +16,8 @@ type Service interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Restart(ctx context.Context) error
+	// Cleanup tears down the underlying service resources.
+	Cleanup(ctx context.Context) error
 	Running() bool
 }
 

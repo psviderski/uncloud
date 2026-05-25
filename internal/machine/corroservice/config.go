@@ -60,11 +60,12 @@ func (c *Config) Write(path, owner string) error {
 	return nil
 }
 
-func MkDataDir(dir, owner string) error {
+// MkDir creates a data or runtime directory for the Corrosion service with 0700 permissions and the specified owner.
+func MkDir(dir, owner string) error {
 	parent, _ := filepath.Split(dir)
-	// Use 0711 for parent directories to allow `owner` to access its nested data directory.
+	// Use 0711 for parent directories to allow `owner` to access its nested directory.
 	if err := os.MkdirAll(parent, 0o711); err != nil {
-		return fmt.Errorf("create directory %q: %w", parent, err)
+		return fmt.Errorf("create directory '%s': %w", parent, err)
 	}
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		if !os.IsExist(err) {

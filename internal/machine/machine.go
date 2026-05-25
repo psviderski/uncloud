@@ -55,6 +55,8 @@ const (
 	// DefaultCaddyAdminSockPath is the default path to the Caddy admin socket for validating the generated Caddy
 	// reverse proxy configuration.
 	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
+	// DefaultCorrosionRunDir is the default runtime directory for the Corrosion service.
+	DefaultCorrosionRunDir = "/run/uncloud/corrosion"
 )
 
 type Config struct {
@@ -63,7 +65,9 @@ type Config struct {
 	MachineSockPath string
 	UncloudSockPath string
 
-	CorrosionDir           string
+	CorrosionDataDir string
+	// CorrosionRunDir is the runtime directory for the corrosion service.
+	CorrosionRunDir        string
 	CorrosionAPIListenAddr netip.AddrPort
 	CorrosionAPIAddr       netip.AddrPort
 	CorrosionAdminSockPath string
@@ -105,8 +109,11 @@ func (c *Config) SetDefaults() (*Config, error) {
 		}
 		cfg.DockerClient = cli
 	}
-	if cfg.CorrosionDir == "" {
-		cfg.CorrosionDir = filepath.Join(cfg.DataDir, "corrosion")
+	if cfg.CorrosionDataDir == "" {
+		cfg.CorrosionDataDir = filepath.Join(cfg.DataDir, "corrosion")
+	}
+	if cfg.CorrosionRunDir == "" {
+		cfg.CorrosionRunDir = DefaultCorrosionRunDir
 	}
 	if !cfg.CorrosionAPIListenAddr.IsValid() {
 		cfg.CorrosionAPIListenAddr = netip.AddrPortFrom(
@@ -117,7 +124,7 @@ func (c *Config) SetDefaults() (*Config, error) {
 			netip.AddrFrom4([4]byte{127, 0, 0, 1}), corroservice.DefaultAPIPort)
 	}
 	if cfg.CorrosionAdminSockPath == "" {
-		cfg.CorrosionAdminSockPath = filepath.Join(cfg.CorrosionDir, "admin.sock")
+		cfg.CorrosionAdminSockPath = filepath.Join(cfg.CorrosionRunDir, "admin.sock")
 	}
 	if cfg.CorrosionUser == "" {
 		cfg.CorrosionUser = corroservice.DefaultUser
@@ -131,7 +138,8 @@ func (c *Config) SetDefaults() (*Config, error) {
 			Client:  cfg.DockerClient,
 			Image:   corroservice.Image,
 			Name:    "uncloud-corrosion",
-			DataDir: cfg.CorrosionDir,
+			DataDir: cfg.CorrosionDataDir,
+			RunDir:  cfg.CorrosionRunDir,
 			User:    fmt.Sprintf("%d:%d", uid, gid),
 		}
 	}
@@ -359,7 +367,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		if err := m.configureCorrosion(); err != nil {
 			return fmt.Errorf("configure corrosion service: %w", err)
 		}
-		slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
+		slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDataDir)
 
 		if err := m.config.CorrosionService.Start(ctx); err != nil {
 			return fmt.Errorf("start corrosion service: %w", err)
@@ -369,7 +377,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		// Migrate the on-disk Corrosion store to 2026.5.14 (v1.0.0 upstream) if a v0.x store.db is detected,
 		// before any Corrosion start attempt. The legacy systemd unit (if installed) is stopped here too
 		// so we own the data dir exclusively.
-		if err := corromigrate.MigrateIfNeeded(ctx, m.config.CorrosionDir, m.config.CorrosionUser); err != nil {
+		if err := corromigrate.MigrateIfNeeded(ctx, m.config.CorrosionDataDir, m.config.CorrosionUser); err != nil {
 			return fmt.Errorf("migrate corrosion store: %w", err)
 		}
 	}
@@ -422,7 +430,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			if err := m.configureCorrosion(); err != nil {
 				return fmt.Errorf("configure corrosion service: %w", err)
 			}
-			slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDir)
+			slog.Info("Configured corrosion service.", "dir", m.config.CorrosionDataDir)
 
 			slog.Info("Starting cluster controller.")
 			// Update the proxy director's local address to the machine's management IP address, allowing
@@ -493,7 +501,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.store,
 				proxyServer,
 				m.config.CorrosionService,
-				m.config.CorrosionDir,
+				m.config.CorrosionDataDir,
 				m.dockerService,
 				m.networkReady,
 				m.clusterReady,
@@ -595,11 +603,14 @@ func listenUnixSocket(path string) (net.Listener, error) {
 }
 
 func (m *Machine) configureCorrosion() error {
-	if err := corroservice.MkDataDir(m.config.CorrosionDir, m.config.CorrosionUser); err != nil {
+	if err := corroservice.MkDir(m.config.CorrosionDataDir, m.config.CorrosionUser); err != nil {
 		return fmt.Errorf("create corrosion data directory: %w", err)
 	}
-	configPath := filepath.Join(m.config.CorrosionDir, "config.toml")
-	schemaPath := filepath.Join(m.config.CorrosionDir, "schema.sql")
+	if err := corroservice.MkDir(m.config.CorrosionRunDir, m.config.CorrosionUser); err != nil {
+		return fmt.Errorf("create corrosion runtime directory: %w", err)
+	}
+	configPath := filepath.Join(m.config.CorrosionDataDir, "config.toml")
+	schemaPath := filepath.Join(m.config.CorrosionDataDir, "schema.sql")
 
 	// Use a loopback address as the gossip address (required) unless the machine has joined a cluster
 	// and has a management IP.
@@ -618,7 +629,7 @@ func (m *Machine) configureCorrosion() error {
 	}
 	cfg := corroservice.Config{
 		DB: corroservice.DBConfig{
-			Path:        filepath.Join(m.config.CorrosionDir, "store.db"),
+			Path:        filepath.Join(m.config.CorrosionDataDir, "store.db"),
 			SchemaPaths: []string{schemaPath},
 		},
 		Gossip: corroservice.GossipConfig{
@@ -630,7 +641,7 @@ func (m *Machine) configureCorrosion() error {
 			Addr: m.config.CorrosionAPIAddr,
 		},
 		Admin: corroservice.AdminConfig{
-			Path: filepath.Join(m.config.CorrosionDir, "admin.sock"),
+			Path: m.config.CorrosionAdminSockPath,
 		},
 	}
 	// TODO: change file permissions to 0640 root:uncloud to emphasize the owner is the machine, not corrosion.
@@ -657,6 +668,13 @@ func (m *Machine) cleanup() error {
 			errs = append(errs, fmt.Errorf("cleanup cluster resources: %w", err))
 		}
 	}
+
+	// Remove the corrosion service container.
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := m.config.CorrosionService.Cleanup(cleanupCtx); err != nil {
+		errs = append(errs, fmt.Errorf("cleanup corrosion service: %w", err))
+	}
+	cancel()
 
 	if err := os.RemoveAll(m.config.DataDir); err != nil {
 		errs = append(errs,
