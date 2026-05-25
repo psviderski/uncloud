@@ -18,9 +18,6 @@ UNCLOUD_USER="uncloud"
 UNCLOUD_GROUP_ADD_USER=${UNCLOUD_GROUP_ADD_USER:-}
 UNCLOUD_DATA_DIR=${UNCLOUD_DATA_DIR:-/var/lib/uncloud}
 
-CORROSION_GITHUB_URL="https://github.com/psviderski/corrosion"
-CORROSION_VERSION=${CORROSION_VERSION:-v0.2.2}
-
 DOCKER_ALREADY_INSTALLED=false
 CONTAINERD_IMAGE_STORE_ENABLED=false
 DOCKER_DAEMON_CONFIG_FILE=${DOCKER_DAEMON_CONFIG_FILE:-/etc/docker/daemon.json}
@@ -284,76 +281,6 @@ EOF
     systemctl enable uncloud.service
 }
 
-install_corrosion() {
-    local arch
-    arch=$(uname -m)
-
-    local corrosion_install_path="${INSTALL_BIN_DIR}/uncloud-corrosion"
-    if [ -f "${corrosion_install_path}" ]; then
-        # TODO: Check the version of the installed corrosion binary and update if there is a newer stable version.
-        log "✓ uncloud-corrosion binary is already installed."
-        return
-    fi
-
-    # Create a temporary directory for downloads.
-    local tmp_dir
-    tmp_dir=$(mktemp -d)
-    # Ensure the temporary directory is deleted on script exit.
-    # shellcheck disable=SC2064
-    trap "rm -rf '$tmp_dir'" EXIT
-
-    local corrosion_url
-    if [ "${CORROSION_VERSION}" == "latest" ]; then
-        corrosion_url="${CORROSION_GITHUB_URL}/releases/latest/download/corrosion-${arch}-unknown-linux-gnu.tar.gz"
-    else
-        corrosion_url="${CORROSION_GITHUB_URL}/releases/download/${CORROSION_VERSION}/corrosion-${arch}-unknown-linux-gnu.tar.gz"
-    fi
-    local corrosion_download_path="${tmp_dir}/corrosion.tar.gz"
-
-    log "⏳ Downloading uncloud-corrosion binary: ${corrosion_url}"
-    if ! curl -fsSL -o "${corrosion_download_path}" "${corrosion_url}"; then
-        error "Failed to download uncloud-corrosion binary."
-    fi
-    tar -xf "${corrosion_download_path}" -C "${tmp_dir}"
-    if ! install "${tmp_dir}/corrosion" "${corrosion_install_path}"; then
-        error "Failed to install uncloud-corrosion binary to ${corrosion_install_path}"
-    fi
-    log "✓ uncloud-corrosion binary installed: ${corrosion_install_path}"
-}
-
-install_corrosion_systemd() {
-    local corrosion_service_path="${INSTALL_SYSTEMD_DIR}/uncloud-corrosion.service"
-    cat > "${corrosion_service_path}" << EOF
-[Unit]
-Description=Uncloud gossip-based distributed store
-PartOf=uncloud.service
-
-[Service]
-Type=simple
-ExecStart=${INSTALL_BIN_DIR}/uncloud-corrosion agent -c ${UNCLOUD_DATA_DIR}/corrosion/config.toml
-ExecReload=${INSTALL_BIN_DIR}/uncloud-corrosion reload -c ${UNCLOUD_DATA_DIR}/corrosion/config.toml
-Restart=always
-RestartSec=2
-User=${UNCLOUD_USER}
-Group=${UNCLOUD_USER}
-
-# Hardening options.
-ProtectSystem=full
-PrivateTmp=true
-NoNewPrivileges=true
-ProtectHome=true
-ProtectControlGroups=true
-ProtectKernelTunables=true
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-EOF
-    log "✓ Systemd unit file created: ${corrosion_service_path}"
-
-    if [[ "${INSTALL_ONLY}" != "true" ]]; then
-        # Reload systemd to recognize the new unit file
-        systemctl daemon-reload
-    fi
-}
-
 start_uncloud() {
     if [[ "${INSTALL_ONLY}" == "true" ]]; then
         return
@@ -375,8 +302,6 @@ install_docker
 create_uncloud_user_and_group
 install_uncloud_binaries
 install_uncloud_systemd
-install_corrosion
-install_corrosion_systemd
 start_uncloud
 
 # Show warning if Docker was already installed without containerd image store enabled.

@@ -29,6 +29,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/psviderski/uncloud/internal/machine/constants"
+	"github.com/psviderski/uncloud/internal/machine/corromigrate"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
@@ -122,22 +123,16 @@ func (c *Config) SetDefaults() (*Config, error) {
 		cfg.CorrosionUser = corroservice.DefaultUser
 	}
 	if cfg.CorrosionService == nil {
-		if isRunningInDocker() {
-			// Run corrosion in a nested Docker container if the machine is running in a container.
-			uid, gid, err := fs.LookupUIDGID(cfg.CorrosionUser)
-			if err != nil {
-				return nil, fmt.Errorf("lookup corrosion user %q: %w", cfg.CorrosionUser, err)
-			}
-
-			cfg.CorrosionService = &corroservice.DockerService{
-				Client:  cfg.DockerClient,
-				Image:   corroservice.Image,
-				Name:    "uncloud-corrosion",
-				DataDir: cfg.CorrosionDir,
-				User:    fmt.Sprintf("%d:%d", uid, gid),
-			}
-		} else {
-			cfg.CorrosionService = corroservice.DefaultSystemdService(cfg.CorrosionDir)
+		uid, gid, err := fs.LookupUIDGID(cfg.CorrosionUser)
+		if err != nil {
+			return nil, fmt.Errorf("lookup corrosion user %q: %w", cfg.CorrosionUser, err)
+		}
+		cfg.CorrosionService = &corroservice.DockerService{
+			Client:  cfg.DockerClient,
+			Image:   corroservice.Image,
+			Name:    "uncloud-corrosion",
+			DataDir: cfg.CorrosionDir,
+			User:    fmt.Sprintf("%d:%d", uid, gid),
 		}
 	}
 
@@ -146,12 +141,6 @@ func (c *Config) SetDefaults() (*Config, error) {
 	}
 
 	return &cfg, nil
-}
-
-// isRunningInDocker returns true if the current process is running in a Docker container.
-func isRunningInDocker() bool {
-	_, err := os.Stat("/.dockerenv")
-	return err == nil
 }
 
 type Machine struct {
@@ -376,6 +365,13 @@ func (m *Machine) Run(ctx context.Context) error {
 			return fmt.Errorf("start corrosion service: %w", err)
 		}
 		slog.Info("Corrosion service started.")
+	} else {
+		// Migrate the on-disk Corrosion store to 2026.5.14 (v1.0.0 upstream) if a v0.x store.db is detected,
+		// before any Corrosion start attempt. The legacy systemd unit (if installed) is stopped here too
+		// so we own the data dir exclusively.
+		if err := corromigrate.MigrateIfNeeded(ctx, m.config.CorrosionDir, m.config.CorrosionUser); err != nil {
+			return fmt.Errorf("migrate corrosion store: %w", err)
+		}
 	}
 
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple machine components.
@@ -497,6 +493,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.store,
 				proxyServer,
 				m.config.CorrosionService,
+				m.config.CorrosionDir,
 				m.dockerService,
 				m.networkReady,
 				m.clusterReady,
@@ -538,6 +535,15 @@ func (m *Machine) Run(ctx context.Context) error {
 		// Close the proxy director to close all backend connections.
 		m.proxyDirector.Close()
 		slog.Info("Local API proxy server stopped.")
+
+		// Stop the corrosion container so this node stops gossiping its membership as "Up" while the
+		// gRPC API is gone. Use a fresh context because ctx is already cancelled here.
+		slog.Info("Stopping corrosion service.")
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if stopErr := m.config.CorrosionService.Stop(stopCtx); stopErr != nil {
+			slog.Error("Failed to stop corrosion service.", "err", stopErr)
+		}
+		cancel()
 
 		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
 		if m.resetting {

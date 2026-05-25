@@ -19,6 +19,10 @@ const (
 	// in internal/machine/docker/manager.go.
 	DockerNetworkName = "uncloud"
 
+	// LabelDaemonManaged marks system containers as managed by the Uncloud daemon.
+	LabelDaemonManaged = "uncloudd.managed"
+
+	// LabelManaged marks a service container as managed by Uncloud.
 	LabelManaged      = "uncloud.managed"
 	LabelServiceID    = "uncloud.service.id"
 	LabelServiceName  = "uncloud.service.name"

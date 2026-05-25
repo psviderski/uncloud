@@ -15,6 +15,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/internal/machine/constants"
+	"github.com/psviderski/uncloud/internal/machine/corromigrate"
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/docker"
@@ -38,6 +39,9 @@ type clusterController struct {
 
 	server       *grpc.Server
 	corroService corroservice.Service
+	// corrosionDir is the disk path that holds the Corrosion config and data.
+	// TODO: remove in 0.22 assuming all pre 0.20 clusters upgraded their pre-v1 Corrosion.
+	corrosionDir string
 	dockerCtrl   *docker.Controller
 	// dockerReady is signalled when Docker is configured and ready for containers.
 	dockerReady chan<- struct{}
@@ -60,6 +64,7 @@ func newClusterController(
 	store *store.Store,
 	server *grpc.Server,
 	corroService corroservice.Service,
+	corrosionDir string,
 	dockerService *docker.Service,
 	dockerReady chan<- struct{},
 	clusterReady chan<- struct{},
@@ -82,6 +87,7 @@ func newClusterController(
 		endpointChanges: endpointChanges,
 		server:          server,
 		corroService:    corroService,
+		corrosionDir:    corrosionDir,
 		dockerCtrl:      docker.NewController(state.ID, dockerService, store),
 		dockerReady:     dockerReady,
 		clusterReady:    clusterReady,
@@ -124,6 +130,11 @@ func (cc *clusterController) Run(ctx context.Context) error {
 			return fmt.Errorf("start corrosion service: %w", err)
 		}
 		slog.Info("Corrosion service started.")
+	}
+
+	// Apply the seed to finish Corrosion migrations from 0.x to 2026.5.14 (upstream v1.0.0) if applicable.
+	if err := corromigrate.ApplySeedIfPresent(ctx, cc.corrosionDir, cc.store); err != nil {
+		return fmt.Errorf("apply corrosion migration seed: %w", err)
 	}
 
 	errGroup, ctx := errgroup.WithContext(ctx)

@@ -14,9 +14,10 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
-// Image is the Corrosion image pinned to the uncloudd release.
+// Image is the Corrosion image pinned to the uncloudd version.
 const Image = "ghcr.io/unlabs-dev/corrosion:2026.5.14"
 
 type DockerService struct {
@@ -28,22 +29,35 @@ type DockerService struct {
 }
 
 func (s *DockerService) Start(ctx context.Context) error {
-	_, err := s.Client.ContainerInspect(ctx, s.Name)
-	if err != nil {
-		if !errdefs.IsNotFound(err) {
-			return fmt.Errorf("inspect container %q: %w", s.Name, err)
-		}
-		if err = s.startNewContainer(ctx); err != nil {
+	c, err := s.Client.ContainerInspect(ctx, s.Name)
+	switch {
+	case errdefs.IsNotFound(err):
+		if err = s.createAndStart(ctx); err != nil {
 			return err
 		}
-	} else {
-		// Container already exists.
-		// TODO: recreate only if the container configuration has to be changed.
-		if err = s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{Force: true}); err != nil {
-			return fmt.Errorf("remove container %q: %w", s.Name, err)
+	case err != nil:
+		return fmt.Errorf("inspect container '%s': %w", s.Name, err)
+	case c.Config.Image != s.Image:
+		slog.Info("Corrosion container image needs update, recreating container.",
+			"name", s.Name, "current_image", c.Config.Image, "new_image", s.Image)
+
+		// Gracefully stop the container before removing it.
+		if err = s.Client.ContainerStop(ctx, s.Name, container.StopOptions{}); err != nil && !errdefs.IsNotFound(err) {
+			return fmt.Errorf("stop container '%s': %w", s.Name, err)
 		}
-		if err = s.startNewContainer(ctx); err != nil {
+		if err = s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{
+			// Remove anonymous volumes created by the container.
+			RemoveVolumes: true,
+		}); err != nil && !errdefs.IsNotFound(err) {
+			return fmt.Errorf("remove container '%s': %w", s.Name, err)
+		}
+		if err = s.createAndStart(ctx); err != nil {
 			return err
+		}
+	case !c.State.Running:
+		slog.Debug("Starting existing Corrosion container.", "name", s.Name)
+		if err = s.Client.ContainerStart(ctx, s.Name, container.StartOptions{}); err != nil {
+			return fmt.Errorf("start container '%s': %w", s.Name, err)
 		}
 	}
 
@@ -52,27 +66,25 @@ func (s *DockerService) Start(ctx context.Context) error {
 		return err
 	}
 	slog.Debug("Corrosion service is ready.")
-
 	return nil
 }
 
+// Stop stops the Corrosion container without removing it. The container is kept so that
+// the next Start can start it instead of pulling and recreating.
 func (s *DockerService) Stop(ctx context.Context) error {
 	if err := s.Client.ContainerStop(ctx, s.Name, container.StopOptions{}); err != nil {
-		return fmt.Errorf("stop container %q: %w", s.Name, err)
+		if errdefs.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("stop container '%s': %w", s.Name, err)
 	}
-	slog.Debug("Corrosion Docker container stopped.", "name", s.Name)
-
-	if err := s.Client.ContainerRemove(ctx, s.Name, container.RemoveOptions{}); err != nil {
-		return fmt.Errorf("remove container %q: %w", s.Name, err)
-	}
-	slog.Debug("Corrosion Docker container removed.", "name", s.Name)
-
+	slog.Debug("Corrosion container stopped.", "name", s.Name)
 	return nil
 }
 
 func (s *DockerService) Restart(ctx context.Context) error {
 	if err := s.Client.ContainerRestart(ctx, s.Name, container.StopOptions{}); err != nil {
-		return fmt.Errorf("restart container %q: %w", s.Name, err)
+		return fmt.Errorf("restart container '%s': %w", s.Name, err)
 	}
 	return nil
 }
@@ -82,7 +94,6 @@ func (s *DockerService) Running() bool {
 	if err != nil {
 		return false
 	}
-
 	return c.State.Running
 }
 
@@ -91,14 +102,18 @@ func (s *DockerService) containerConfig() *container.Config {
 		Image: s.Image,
 		Cmd:   []string{"corrosion", "agent", "-c", filepath.Join(s.DataDir, "config.toml")},
 		User:  s.User,
+		Labels: map[string]string{
+			api.LabelDaemonManaged: "",
+		},
 	}
 }
 
 func (s *DockerService) hostConfig() *container.HostConfig {
 	return &container.HostConfig{
 		NetworkMode: network.NetworkHost,
+		// Use unless-stopped so uncloudd-initiated stops are honoured.
 		RestartPolicy: container.RestartPolicy{
-			Name: container.RestartPolicyAlways,
+			Name: container.RestartPolicyUnlessStopped,
 		},
 		Mounts: []mount.Mount{
 			// Bind mount the data directory at the same path inside the container to simplify path handling.
@@ -111,7 +126,7 @@ func (s *DockerService) hostConfig() *container.HostConfig {
 	}
 }
 
-func (s *DockerService) startNewContainer(ctx context.Context) error {
+func (s *DockerService) createAndStart(ctx context.Context) error {
 	_, err := s.Client.ContainerCreate(ctx, s.containerConfig(), s.hostConfig(), nil, nil, s.Name)
 	if err != nil {
 		if !errdefs.IsNotFound(err) {
@@ -131,7 +146,6 @@ func (s *DockerService) startNewContainer(ctx context.Context) error {
 		if _, err := io.Copy(io.Discard, respBody); err != nil {
 			return fmt.Errorf("read pull response: %w", err)
 		}
-
 		slog.Info("Docker image pulled.", "image", s.Image, "duration", time.Since(start).String())
 
 		// Create container again after image pull.
@@ -143,6 +157,5 @@ func (s *DockerService) startNewContainer(ctx context.Context) error {
 	if err = s.Client.ContainerStart(ctx, s.Name, container.StartOptions{}); err != nil {
 		return fmt.Errorf("start container: %w", err)
 	}
-
 	return nil
 }
