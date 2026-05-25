@@ -49,7 +49,9 @@ func (s *Store) Get(ctx context.Context, key string, value any) error {
 }
 
 func (s *Store) Put(ctx context.Context, key string, value any) error {
-	_, err := s.corro.ExecContext(ctx, "INSERT OR REPLACE INTO cluster (key, value) VALUES (?, ?)", key, value)
+	_, err := s.corro.ExecContext(ctx,
+		"INSERT OR REPLACE INTO cluster (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+		key, value)
 	return err
 }
 
@@ -119,7 +121,9 @@ func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {
 	if err != nil {
 		return fmt.Errorf("marshal machine info: %w", err)
 	}
-	_, err = s.corro.ExecContext(ctx, "INSERT INTO machines (id, info) VALUES (?, ?)", m.Id, string(mJSON))
+	_, err = s.corro.ExecContext(ctx,
+		"INSERT INTO machines (id, info, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+		m.Id, string(mJSON))
 	if err != nil {
 		return fmt.Errorf("insert query: %w", err)
 	}
@@ -231,7 +235,9 @@ func (s *Store) UpdateMachine(ctx context.Context, m *pb.MachineInfo) error {
 		return fmt.Errorf("marshal machine info: %w", err)
 	}
 
-	result, err := s.corro.ExecContext(ctx, "UPDATE machines SET info = ? WHERE id = ?", string(mJSON), m.Id)
+	result, err := s.corro.ExecContext(ctx,
+		"UPDATE machines SET info = ?, updated_at = datetime('now') WHERE id = ?",
+		string(mJSON), m.Id)
 	if err != nil {
 		return fmt.Errorf("update machine: %w", err)
 	}
