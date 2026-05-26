@@ -24,6 +24,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/version"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type globalOptions struct {
@@ -43,6 +44,8 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Cobra initializers run before completion and may hit an init error
+			// before PersistentPreRunE gets a chance to run.
 			if initErr != nil {
 				return initErr
 			}
@@ -124,6 +127,9 @@ func initCLI(cmd *cobra.Command, opts globalOptions) error {
 	cli.BindEnvToFlag(cmd, "connect", "UNCLOUD_CONNECT")
 	cli.BindEnvToFlag(cmd, "context", "UNCLOUD_CONTEXT")
 	cli.BindEnvToFlag(cmd, "uncloud-config", "UNCLOUD_CONFIG")
+	if opts.connect == "" {
+		opts.connect = connectFlagFromCompletionArgs(os.Args[1:])
+	}
 
 	var conn *config.MachineConnection
 	if opts.connect != "" {
@@ -175,8 +181,23 @@ func initCLI(cmd *cobra.Command, opts globalOptions) error {
 	return nil
 }
 
+func connectFlagFromCompletionArgs(args []string) string {
+	var connect string
+	flags := pflag.NewFlagSet("completion", pflag.ContinueOnError)
+	flags.ParseErrorsAllowlist.UnknownFlags = true
+	flags.StringVar(&connect, "connect", "", "")
+	_ = flags.Parse(args)
+	return connect
+}
+
 func setCLIContext(cmd *cobra.Command, uncli *cli.CLI) {
-	cmd.SetContext(context.WithValue(cmd.Context(), "cli", uncli))
+	// Completion callbacks read from the leaf command context, not always from
+	// the root command where initCLI runs.
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd.SetContext(context.WithValue(ctx, "cli", uncli))
 	for _, child := range cmd.Commands() {
 		setCLIContext(child, uncli)
 	}
