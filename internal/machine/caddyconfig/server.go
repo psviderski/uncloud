@@ -37,3 +37,41 @@ func (s *Server) GetConfig(ctx context.Context, _ *emptypb.Empty) (*pb.GetCaddyC
 		ModifiedAt: timestamppb.New(modifiedAt),
 	}, nil
 }
+
+// GetUpstreams retrieves the status of Caddy upstreams.
+func (s *Server) GetUpstreams(ctx context.Context, _ *emptypb.Empty) (*pb.GetCaddyUpstreamsResponse, error) {
+	hostUpstreams, err := s.service.GetUpstreams(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	var pbHosts []*pb.HostUpstreams
+	for host, upstreams := range hostUpstreams {
+		var pbUpstreams []*pb.Upstream
+		for _, u := range upstreams {
+			// TODO: This logic assumes the default Caddy health check configuration where max_fails is 1.
+			// If a custom configuration increases max_fails, an upstream with fails > 0 might still be healthy.
+			// For accurate status in all cases, we should query the Caddy /metrics endpoint and check
+			// the 'caddy_reverse_proxy_upstreams_healthy' gauge.
+			statusStr := "healthy"
+			if u.Fails > 0 {
+				statusStr = "unhealthy"
+			}
+
+			pbUpstreams = append(pbUpstreams, &pb.Upstream{
+				Address:     u.Address,
+				Status:      statusStr,
+				Fails:       u.Fails,
+				NumRequests: u.NumRequests,
+			})
+		}
+		pbHosts = append(pbHosts, &pb.HostUpstreams{
+			Host:      host,
+			Upstreams: pbUpstreams,
+		})
+	}
+
+	return &pb.GetCaddyUpstreamsResponse{
+		Hosts: pbHosts,
+	}, nil
+}
