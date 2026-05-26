@@ -35,6 +35,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
@@ -224,7 +225,21 @@ func NewMachine(config *Config) (*Machine, error) {
 		}
 	}
 
-	corro, err := corrosion.NewAPIClient(config.CorrosionAPIAddr)
+	// Generate and persist a token for Corrosion API if not already present in the state.
+	if len(state.CorrosionAPIToken) == 0 {
+		token, tErr := secret.New(16)
+		if tErr != nil {
+			return nil, fmt.Errorf("generate corrosion API token: %w", tErr)
+		}
+
+		state.CorrosionAPIToken = token
+		if err = state.Save(); err != nil {
+			return nil, fmt.Errorf("save machine state with corrosion API token: %w", err)
+		}
+		slog.Info("Generated Corrosion API bearer token.")
+	}
+
+	corro, err := corrosion.NewAPIClient(config.CorrosionAPIAddr, state.CorrosionAPIToken.String())
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion API client: %w", err)
 	}
@@ -603,6 +618,9 @@ func listenUnixSocket(path string) (net.Listener, error) {
 }
 
 func (m *Machine) configureCorrosion() error {
+	if len(m.state.CorrosionAPIToken) == 0 {
+		return fmt.Errorf("corrosion API token not set in machine state")
+	}
 	if err := corroservice.MkDir(m.config.CorrosionDataDir, m.config.CorrosionUser); err != nil {
 		return fmt.Errorf("create corrosion data directory: %w", err)
 	}
@@ -639,6 +657,9 @@ func (m *Machine) configureCorrosion() error {
 		},
 		API: corroservice.APIConfig{
 			Addr: m.config.CorrosionAPIAddr,
+			Authz: corroservice.APIAuthzConfig{
+				BearerToken: m.state.CorrosionAPIToken.String(),
+			},
 		},
 		Admin: corroservice.AdminConfig{
 			Path: m.config.CorrosionAdminSockPath,

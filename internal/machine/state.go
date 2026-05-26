@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/secret"
 )
 
 const (
@@ -28,6 +29,8 @@ type State struct {
 	// Per-actor vector (Corrosion actor UUID → max applied db_version) captured from an existing
 	// member at join time. Cleared once reached.
 	MinStoreVersion map[string]int64 `json:",omitempty"`
+	// CorrosionAPIToken authenticates requests to the local Corrosion API.
+	CorrosionAPIToken secret.Secret `json:",omitempty"`
 
 	// path is the file path config is read from and saved to.
 	path string

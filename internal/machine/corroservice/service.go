@@ -35,7 +35,7 @@ func WaitReady(ctx context.Context, dataDir string) error {
 		return fmt.Errorf("unmarshal config: %w", err)
 	}
 
-	corro, err := corrosion.NewAPIClient(config.API.Addr)
+	corro, err := corrosion.NewAPIClient(config.API.Addr, config.API.Authz.BearerToken)
 	if err != nil {
 		return fmt.Errorf("create corrosion API client: %w", err)
 	}

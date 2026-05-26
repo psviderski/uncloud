@@ -37,7 +37,12 @@ type GossipConfig struct {
 }
 
 type APIConfig struct {
-	Addr netip.AddrPort `toml:"addr"`
+	Addr  netip.AddrPort `toml:"addr"`
+	Authz APIAuthzConfig `toml:"authz"`
+}
+
+type APIAuthzConfig struct {
+	BearerToken string `toml:"bearer-token"`
 }
 
 type AdminConfig struct {

@@ -33,39 +33,44 @@ type APIClient struct {
 	newResubBackoff func() backoff.BackOff
 }
 
-// NewAPIClient creates a new Corrosion API client. The client retries on network errors using an exponential backoff
-// policy with a maximum interval of 1 second and a maximum elapsed time of 10 seconds.
+// NewAPIClient creates a new Corrosion API client. The bearerToken is sent in the Authorization header of every
+// request to authenticate against Corrosion API.
+// The client retries on network errors using an exponential backoff policy with a maximum interval of 1 second and
+// a maximum elapsed time of 10 seconds.
 // It automatically resubscribes to active subscriptions if an error occurs using an exponential backoff policy with a
 // maximum interval of 1 second and a maximum elapsed time of 60 seconds.
 // Use the WithHTTP2Client option to provide a custom HTTP client and the WithResubscribeBackoff option to change the
 // backoff policy for resubscribing to a query.
-func NewAPIClient(addr netip.AddrPort, opts ...APIClientOption) (*APIClient, error) {
+func NewAPIClient(addr netip.AddrPort, bearerToken string, opts ...APIClientOption) (*APIClient, error) {
 	baseURL, err := url.Parse(fmt.Sprintf("http://%s", addr))
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
-	c := &APIClient{
-		baseURL: baseURL,
-		client: &http.Client{
-			Transport: &RetryRoundTripper{
-				Base: &http2.Transport{
-					AllowHTTP: true,
-					DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-						dialer := &net.Dialer{
-							Timeout: http2ConnectTimeout,
-						}
-						return dialer.DialContext(ctx, network, addr)
-					},
-				},
-				NewBackoff: func() backoff.BackOff {
-					return backoff.NewExponentialBackOff(
-						backoff.WithInitialInterval(100*time.Millisecond),
-						backoff.WithMaxInterval(1*time.Second),
-						backoff.WithMaxElapsedTime(http2MaxRetryTime),
-					)
+
+	transport := &AuthRoundTripper{
+		Base: &RetryRoundTripper{
+			Base: &http2.Transport{
+				AllowHTTP: true,
+				DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+					dialer := &net.Dialer{
+						Timeout: http2ConnectTimeout,
+					}
+					return dialer.DialContext(ctx, network, addr)
 				},
 			},
+			NewBackoff: func() backoff.BackOff {
+				return backoff.NewExponentialBackOff(
+					backoff.WithInitialInterval(100*time.Millisecond),
+					backoff.WithMaxInterval(1*time.Second),
+					backoff.WithMaxElapsedTime(http2MaxRetryTime),
+				)
+			},
 		},
+		Token: bearerToken,
+	}
+	c := &APIClient{
+		baseURL: baseURL,
+		client:  &http.Client{Transport: transport},
 		newResubBackoff: func() backoff.BackOff {
 			return backoff.NewExponentialBackOff(
 				backoff.WithInitialInterval(100*time.Millisecond),
@@ -83,6 +88,8 @@ func NewAPIClient(addr netip.AddrPort, opts ...APIClientOption) (*APIClient, err
 
 type APIClientOption func(*APIClient)
 
+// WithHTTP2Client replaces the client's HTTP transport. The provided client bypasses the built-in bearer-token
+// injection, so the caller is responsible for setting the Authorization header.
 func WithHTTP2Client(client *http.Client) APIClientOption {
 	return func(c *APIClient) {
 		c.client = client
@@ -97,6 +104,22 @@ func WithResubscribeBackoff(newBackoff func() backoff.BackOff) APIClientOption {
 	}
 }
 
+// AuthRoundTripper sets the Authorization header on every outgoing request. An empty Token leaves the header untouched.
+type AuthRoundTripper struct {
+	Base  http.RoundTripper
+	Token string
+}
+
+func (rt *AuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.Token == "" {
+		return rt.Base.RoundTrip(req)
+	}
+	// RoundTripper contract: must not mutate the caller's request.
+	req = req.Clone(req.Context())
+	req.Header.Set("Authorization", "Bearer "+rt.Token)
+	return rt.Base.RoundTrip(req)
+}
+
 type RetryRoundTripper struct {
 	Base http.RoundTripper
 	// NewBackoff creates a new backoff policy for each request.
@@ -107,8 +130,7 @@ func (rt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	roundTrip := func() (*http.Response, error) {
 		resp, err := rt.Base.RoundTrip(req)
 		if err != nil {
-			var opErr *net.OpError
-			if errors.As(err, &opErr) {
+			if _, ok := errors.AsType[*net.OpError](err); ok {
 				// Not certain, but I expect operational errors should generally be retryable.
 				slog.Debug("Retrying corrosion API request due to network error.", "error", err)
 				return nil, err
