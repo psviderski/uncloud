@@ -182,6 +182,8 @@ type Machine struct {
 	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
 	localMachineServer *grpc.Server
 
+	prometheusServer *prometheus.Server
+
 	// proxyDirector manages routing of gRPC requests between local and remote machine API servers.
 	proxyDirector *apiproxy.Director
 	// localProxyServer is the gRPC proxy server for the machine API listening on the local Unix socket.
