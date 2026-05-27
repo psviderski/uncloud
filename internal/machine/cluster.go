@@ -20,6 +20,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/firewall"
+	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/unregistry"
@@ -55,6 +56,8 @@ type clusterController struct {
 	// unregistry is the embedded container registry that uses the local Docker (containerd) image store as its backend.
 	unregistry *unregistry.Registry
 
+	metricsServer *metrics.Server
+
 	// stopped is a channel that is closed when the controller is stopped.
 	stopped chan struct{}
 }
@@ -72,6 +75,7 @@ func newClusterController(
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
 	unregistry *unregistry.Registry,
+	metricsServer *metrics.Server,
 ) (*clusterController, error) {
 	slog.Info("Starting WireGuard network.")
 	wgnet, err := network.NewWireGuardNetwork()
@@ -95,6 +99,7 @@ func newClusterController(
 		dnsServer:       dnsServer,
 		dnsResolver:     dnsResolver,
 		unregistry:      unregistry,
+		metricsServer:   metricsServer,
 		stopped:         make(chan struct{}),
 	}, nil
 }
@@ -187,6 +192,14 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	}
 
 	errGroup.Go(func() error {
+		slog.Info("Starting metrics server.")
+		if err := cc.metricsServer.Run(ctx); err != nil {
+			return fmt.Errorf("metrics server failed: %w", err)
+		}
+		return nil
+	})
+
+	errGroup.Go(func() error {
 		slog.Info("Starting embedded DNS resolver.")
 		if err := cc.dnsResolver.Run(ctx); err != nil {
 			return fmt.Errorf("embedded DNS resolver failed: %w", err)
@@ -243,6 +256,11 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	<-ctx.Done()
 
 	cc.stopAPIServer()
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	slog.Info("Stopping metrics server.")
+	cc.metricsServer.Shutdown(stopCtx)
+	cancel()
 
 	// Stop the unregistry server with a timeout if it was started.
 	if cc.unregistry != nil {

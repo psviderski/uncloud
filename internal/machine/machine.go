@@ -182,8 +182,6 @@ type Machine struct {
 	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
 	localMachineServer *grpc.Server
 
-	metricsServer *metrics.Server
-
 	// proxyDirector manages routing of gRPC requests between local and remote machine API servers.
 	proxyDirector *apiproxy.Director
 	// localProxyServer is the gRPC proxy server for the machine API listening on the local Unix socket.
@@ -429,15 +427,6 @@ func (m *Machine) Run(ctx context.Context) error {
 		return nil
 	})
 
-	m.metricsServer = metrics.New(m.IP())
-	errGroup.Go(func() error {
-		slog.Info("Starting metrics server.")
-		if err := m.metricsServer.Run(ctx); err != nil {
-			return fmt.Errorf("metrics server failed: %w", err)
-		}
-		return nil
-	})
-
 	// Signal that the machine is ready.
 	close(m.started)
 
@@ -496,6 +485,8 @@ func (m *Machine) Run(ctx context.Context) error {
 				return fmt.Errorf("create embedded DNS server: %w", err)
 			}
 
+			metricsServer := metrics.New(m.IP())
+
 			var unreg *unregistry.Registry
 			if containerdSock := m.ContainerdSock(); containerdSock != "" {
 				isContainerdStore, err := m.dockerService.IsContainerdImageStoreEnabled(ctx)
@@ -537,6 +528,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				dnsServer,
 				dnsResolver,
 				unreg,
+				metricsServer,
 			)
 			m.mu.Unlock()
 			if err != nil {
@@ -579,11 +571,6 @@ func (m *Machine) Run(ctx context.Context) error {
 		if stopErr := m.config.CorrosionService.Stop(stopCtx); stopErr != nil {
 			slog.Error("Failed to stop corrosion service.", "err", stopErr)
 		}
-		cancel()
-
-		stopCtx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		m.metricsServer.Shutdown(stopCtx)
-		slog.Info("Metrics server stopped.")
 		cancel()
 
 		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
