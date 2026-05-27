@@ -26,5 +26,4 @@ This calls "uc logs caddy", see "uc logs" for the documention.
 	}
 	cmd.Flags().AddFlagSet(logs.Flags(&options))
 	return cmd
-
 }

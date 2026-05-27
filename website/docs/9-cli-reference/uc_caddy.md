@@ -22,4 +22,5 @@ Manage Caddy reverse proxy service.
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc caddy config](uc_caddy_config.md)	 - Show the current Caddy configuration (Caddyfile).
 * [uc caddy deploy](uc_caddy_deploy.md)	 - Deploy or upgrade Caddy reverse proxy across all machines in the cluster.
+* [uc caddy logs](uc_caddy_logs.md)	 - View caddy logs.
 
