@@ -432,7 +432,6 @@ func (m *Machine) Run(ctx context.Context) error {
 	m.metricsServer = metrics.New(m.IP())
 	errGroup.Go(func() error {
 		slog.Info("Starting metrics server.")
-		// bla
 		if err := m.metricsServer.Run(ctx); err != nil {
 			return fmt.Errorf("metrics server failed: %w", err)
 		}
