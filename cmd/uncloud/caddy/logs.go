@@ -16,7 +16,7 @@ func NewLogsCommand() *cobra.Command {
 		Short:   "View caddy logs.",
 		Long: `View caddy logs.
 
-This call "uc logs caddy", see "uc logs" for the documention.
+This calls "uc logs caddy", see "uc logs" for the documention.
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			args = append([]string{"caddy"}, args...)
