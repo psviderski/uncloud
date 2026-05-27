@@ -2239,51 +2239,51 @@ func TestMetrics(t *testing.T) {
 	cli, cErr := c.Machines[0].Connect(ctx)
 	require.NoError(t, cErr)
 
-	t.Run("internal prometheus", func(t *testing.T) {
+	t.Run("internal metrics", func(t *testing.T) {
 		t.Parallel()
-		// Deploy a test service to run curl from.
-		curlServiceName := "test-metrics-service"
+		// Deploy a test service to run wget from.
+		wgetServiceName := "test-metrics-service"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, curlServiceName)
+			err := cli.RemoveService(ctx, wgetServiceName)
 			if err != nil && !errors.Is(err, api.ErrNotFound) {
 				require.NoError(t, err)
 			}
 		})
-		curlSvcSpec := api.ServiceSpec{
-			Name:     curlServiceName,
+		wgetSvcSpec := api.ServiceSpec{
+			Name:     wgetServiceName,
 			Mode:     api.ServiceModeReplicated,
 			Replicas: 1,
 			Placement: api.Placement{
 				Machines: []string{c.Machines[0].Name},
 			},
 			Container: api.ContainerSpec{
-				Image:   "curlimages/curl",
+				Image:   "busybox:1.37.0-musl",
 				Command: []string{"sleep", "infinity"},
 			},
 		}
-		_, err := cli.RunService(ctx, curlSvcSpec)
+		_, err := cli.RunService(ctx, wgetSvcSpec)
 		require.NoError(t, err)
 
-		curlSvc, err := cli.InspectService(ctx, curlServiceName)
+		wgetSvc, err := cli.InspectService(ctx, wgetServiceName)
 		require.NoError(t, err)
-		curlContainer := curlSvc.Containers[0]
+		wgetContainer := wgetSvc.Containers[0]
 
-		runCurl := func(t *testing.T, url string) string {
-			curlOutput, err := execInContainerAndReadOutput(
-				t, ctx, cli, curlServiceName, curlContainer.Container.ID,
-				[]string{"curl", "-s", url},
+		runWget := func(t *testing.T, url string) string {
+			metricsOutput, err := execInContainerAndReadOutput(
+				t, ctx, cli, wgetServiceName, wgetContainer.Container.ID,
+				[]string{"wget", "-q", "-O", "-", url},
 			)
 			require.NoError(t, err)
-			return curlOutput
+			return metricsOutput
 		}
 
 		t.Run("version metric is available", func(t *testing.T) {
-			promIP := network.MachineIP(netip.PrefixFrom(curlContainer.Container.UncloudNetworkIP(), 24)).String()
+			promIP := network.MachineIP(netip.PrefixFrom(wgetContainer.Container.UncloudNetworkIP(), 24)).String()
 			endpoint := net.JoinHostPort(promIP, strconv.Itoa(metrics.Port))
-			curlOutput := runCurl(t, "http://"+endpoint+"/metrics")
-			t.Logf("cURL metrics output from %s:\n%s", endpoint, curlOutput)
+			metricsOutput := runWget(t, "http://"+endpoint+"/metrics")
+			t.Logf("metrics output from %s:\n%s", endpoint, metricsOutput)
 
-			assert.Contains(t, curlOutput, "uncloud_uncloudd_build_info")
+			assert.Contains(t, metricsOutput, "uncloud_uncloudd_build_info")
 		})
 	})
 }
