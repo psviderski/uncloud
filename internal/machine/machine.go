@@ -429,7 +429,6 @@ func (m *Machine) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// bla
 	m.metricsServer = metrics.New(m.IP())
 	errGroup.Go(func() error {
 		slog.Info("Starting metrics server.")
