@@ -135,10 +135,8 @@ func TestClusterLifecycle(t *testing.T) {
 		// Deploy a test service to run wget from.
 		wgetServiceName := "test-metrics-service"
 		t.Cleanup(func() {
-			err := cli.RemoveService(ctx, wgetServiceName)
-			if err != nil && !errors.Is(err, api.ErrNotFound) {
-				require.NoError(t, err)
-			}
+			// this races with the cluster cleanup, ignore error
+			cli.RemoveService(ctx, wgetServiceName)
 		})
 		wgetSvcSpec := api.ServiceSpec{
 			Name:     wgetServiceName,
