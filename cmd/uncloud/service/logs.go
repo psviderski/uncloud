@@ -59,7 +59,7 @@ If no services are specified, streams logs from all services defined in the Comp
   uc logs -m machine1,machine2 web api`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return runLogs(cmd.Context(), uncli, args, options)
+			return RunLogs(cmd.Context(), uncli, args, options)
 		},
 		GroupID: groupID,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
@@ -77,7 +77,7 @@ If no services are specified, streams logs from all services defined in the Comp
 	return cmd
 }
 
-func runLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Options) error {
+func RunLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Options) error {
 	serviceArgs, err := logs.ParseServiceArgs(args)
 	if err != nil {
 		return err

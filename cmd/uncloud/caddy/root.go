@@ -12,6 +12,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(
 		NewConfigCommand(),
 		NewDeployCommand(),
+		NewLogsCommand(),
 	)
 	return cmd
 }
