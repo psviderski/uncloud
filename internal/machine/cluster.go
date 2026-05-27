@@ -20,8 +20,8 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/firewall"
+	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
-	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/unregistry"
 	"golang.org/x/sync/errgroup"
@@ -56,7 +56,7 @@ type clusterController struct {
 	// unregistry is the embedded container registry that uses the local Docker (containerd) image store as its backend.
 	unregistry *unregistry.Registry
 
-	prometheusServer *prometheus.Server
+	metricsServer *metrics.Server
 
 	// stopped is a channel that is closed when the controller is stopped.
 	stopped chan struct{}
@@ -75,7 +75,7 @@ func newClusterController(
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
 	unregistry *unregistry.Registry,
-	promServer *prometheus.Server,
+	metricsServer *metrics.Server,
 ) (*clusterController, error) {
 	slog.Info("Starting WireGuard network.")
 	wgnet, err := network.NewWireGuardNetwork()
@@ -85,22 +85,22 @@ func newClusterController(
 	endpointChanges := wgnet.WatchEndpoints()
 
 	return &clusterController{
-		state:            state,
-		store:            store,
-		wgnet:            wgnet,
-		endpointChanges:  endpointChanges,
-		server:           server,
-		corroService:     corroService,
-		corrosionDir:     corrosionDir,
-		dockerCtrl:       docker.NewController(state.ID, dockerService, store),
-		dockerReady:      dockerReady,
-		clusterReady:     clusterReady,
-		caddyconfigCtrl:  caddyfileCtrl,
-		dnsServer:        dnsServer,
-		dnsResolver:      dnsResolver,
-		unregistry:       unregistry,
-		prometheusServer: promServer,
-		stopped:          make(chan struct{}),
+		state:           state,
+		store:           store,
+		wgnet:           wgnet,
+		endpointChanges: endpointChanges,
+		server:          server,
+		corroService:    corroService,
+		corrosionDir:    corrosionDir,
+		dockerCtrl:      docker.NewController(state.ID, dockerService, store),
+		dockerReady:     dockerReady,
+		clusterReady:    clusterReady,
+		caddyconfigCtrl: caddyfileCtrl,
+		dnsServer:       dnsServer,
+		dnsResolver:     dnsResolver,
+		unregistry:      unregistry,
+		metricsServer:   metricsServer,
+		stopped:         make(chan struct{}),
 	}, nil
 }
 
@@ -200,9 +200,9 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	})
 
 	errGroup.Go(func() error {
-		slog.Info("Starting prometheus server.")
-		if err := cc.prometheusServer.Run(ctx); err != nil {
-			return fmt.Errorf("prometheus server failed: %w", err)
+		slog.Info("Starting metrics server.")
+		if err := cc.metricsServer.Run(ctx); err != nil {
+			return fmt.Errorf("metrics server failed: %w", err)
 		}
 		return nil
 	})

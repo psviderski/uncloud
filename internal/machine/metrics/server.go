@@ -1,4 +1,4 @@
-package prometheus
+package metrics
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const Port = 51004
+const Port = 51090
 
 type Server struct {
 	*http.Server

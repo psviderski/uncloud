@@ -18,8 +18,8 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
-	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -2229,7 +2229,7 @@ func TestServiceLifecycle(t *testing.T) {
 	})
 }
 
-func TestPrometheus(t *testing.T) {
+func TestMetrics(t *testing.T) {
 	t.Parallel()
 
 	clusterName := "ucind-test.prometheus"
@@ -2279,7 +2279,7 @@ func TestPrometheus(t *testing.T) {
 
 		t.Run("version metric is available", func(t *testing.T) {
 			promIP := network.MachineIP(netip.PrefixFrom(curlContainer.Container.UncloudNetworkIP(), 24)).String()
-			endpoint := net.JoinHostPort(promIP, strconv.Itoa(prometheus.Port))
+			endpoint := net.JoinHostPort(promIP, strconv.Itoa(metrics.Port))
 			curlOutput := runCurl(t, "http://"+endpoint+"/metrics")
 			t.Logf("cURL metrics output from %s:\n%s", endpoint, curlOutput)
 

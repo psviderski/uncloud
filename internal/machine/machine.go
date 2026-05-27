@@ -33,8 +33,8 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
-	"github.com/psviderski/uncloud/internal/machine/prometheus"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -182,7 +182,7 @@ type Machine struct {
 	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
 	localMachineServer *grpc.Server
 
-	prometheusServer *prometheus.Server
+	metricsServer *metrics.Server
 
 	// proxyDirector manages routing of gRPC requests between local and remote machine API servers.
 	proxyDirector *apiproxy.Director
@@ -528,7 +528,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				dnsServer,
 				dnsResolver,
 				unreg,
-				prometheus.New(m.IP()),
+				metrics.New(m.IP()),
 			)
 			m.mu.Unlock()
 			if err != nil {
@@ -573,8 +573,8 @@ func (m *Machine) Run(ctx context.Context) error {
 		}
 		cancel()
 
-		m.prometheusServer.Shutdown(context.TODO())
-		slog.Info("Prometheus server stopped.")
+		m.metricsServer.Shutdown(context.TODO())
+		slog.Info("Metrics server stopped.")
 
 		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
 		if m.resetting {
