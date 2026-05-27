@@ -429,6 +429,15 @@ func (m *Machine) Run(ctx context.Context) error {
 		return nil
 	})
 
+	m.metricsServer = metrics.New(m.IP())
+	errGroup.Go(func() error {
+		slog.Info("Starting metrics server.")
+		if err := m.metricsServer.Run(ctx); err != nil {
+			return fmt.Errorf("metrics server failed: %w", err)
+		}
+		return nil
+	})
+
 	// Signal that the machine is ready.
 	close(m.started)
 
@@ -528,7 +537,6 @@ func (m *Machine) Run(ctx context.Context) error {
 				dnsServer,
 				dnsResolver,
 				unreg,
-				metrics.New(m.IP()),
 			)
 			m.mu.Unlock()
 			if err != nil {
@@ -573,8 +581,10 @@ func (m *Machine) Run(ctx context.Context) error {
 		}
 		cancel()
 
-		m.metricsServer.Shutdown(context.TODO())
+		stopCtx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		m.metricsServer.Shutdown(stopCtx)
 		slog.Info("Metrics server stopped.")
+		cancel()
 
 		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
 		if m.resetting {
