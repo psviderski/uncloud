@@ -426,7 +426,6 @@ func (m *Machine) Run(ctx context.Context) error {
 		}
 		return nil
 	})
-
 	// Signal that the machine is ready.
 	close(m.started)
 
