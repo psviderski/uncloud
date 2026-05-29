@@ -46,10 +46,13 @@ func (s *Server) Run(ctx context.Context) error {
 
 	select {
 	case err := <-errCh:
-		s.Shutdown(ctx)
+		// The server failed on its own so there are no connections to drain.
 		return err
 	case <-ctx.Done():
 		s.log.Info("Stopping metrics server.")
-		return s.Shutdown(ctx)
+		// ctx is already cancelled so a graceful drain needs a new one with a reasonable timeout.
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return s.Shutdown(stopCtx)
 	}
 }

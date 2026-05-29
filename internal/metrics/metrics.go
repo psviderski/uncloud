@@ -24,7 +24,7 @@ const (
 	Ok  = "ok"
 )
 
-// Status returns "ok" is err is nil, otherwise "err".
+// Status returns "ok" if err is nil, otherwise "err".
 func Status(err error) string {
 	if err != nil {
 		return Err

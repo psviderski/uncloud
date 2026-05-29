@@ -257,11 +257,6 @@ func (cc *clusterController) Run(ctx context.Context) error {
 
 	cc.stopAPIServer()
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	slog.Info("Stopping metrics server.")
-	cc.metricsServer.Shutdown(stopCtx)
-	cancel()
-
 	// Stop the unregistry server with a timeout if it was started.
 	if cc.unregistry != nil {
 		unregTimeout := 30 * time.Second
