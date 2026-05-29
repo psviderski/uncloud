@@ -241,7 +241,7 @@ func (cli *Client) pushImageToMachine(
 	machineIP := network.MachineIP(machineSubnet)
 	unregistryAddr := net.JoinHostPort(machineIP.String(), strconv.Itoa(constants.UnregistryPort))
 
-	dialer, err := cli.connector.Dialer()
+	dialer, err := cli.Connector.Dialer()
 	if err != nil {
 		return fmt.Errorf("get proxy dialer: %w", err)
 	}

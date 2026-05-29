@@ -17,7 +17,7 @@ import (
 
 // Client is a client for the machine API.
 type Client struct {
-	connector Connector
+	Connector Connector
 	conn      *grpc.ClientConn
 
 	// TODO: refactor to not embed MachineClient and instead expose only required methods.
@@ -45,7 +45,7 @@ type Connector interface {
 // either locally or remotely. The client is responsible for closing the connector.
 func New(ctx context.Context, connector Connector) (*Client, error) {
 	c := &Client{
-		connector: connector,
+		Connector: connector,
 	}
 	var err error
 	c.conn, err = connector.Connect(ctx)
@@ -62,7 +62,7 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 }
 
 func (cli *Client) Close() error {
-	return errors.Join(cli.conn.Close(), cli.connector.Close())
+	return errors.Join(cli.conn.Close(), cli.Connector.Close())
 }
 
 // progressOut returns an output stream for progress writer.
