@@ -13,7 +13,7 @@ import (
 const (
 	UnitUncloud   = "uncloud"
 	UnitDocker    = "docker"
-	UnitCorrosion = "uncloud-corrosion"
+	UnitCorrosion = "uncloud-corrosion" // Not a unit anymore, but a container.
 )
 
 func ValidUnit(unit string) bool {

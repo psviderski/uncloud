@@ -104,11 +104,21 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 	// Collect one log stream per unit. MachineLogs merges across machines internally.
 	unitStreams := make([]<-chan api.ServiceLogEntry, 0, len(units))
 	for _, unit := range units {
-		ch, err := c.MachineLogs(ctx, unit, logsOpts)
-		if err != nil {
-			return fmt.Errorf("stream logs for systemd service '%s': %w", unit, err)
+		switch unit {
+		case journal.UnitCorrosion:
+			// corrosion was moved to a container, but it is still a machine service, get the logs from docker
+			_, ch, err := c.ServiceLogs(ctx, unit, logsOpts)
+			if err != nil {
+				return fmt.Errorf("stream logs for system container '%s': %w", unit, err)
+			}
+			unitStreams = append(unitStreams, ch)
+		default:
+			ch, err := c.MachineLogs(ctx, unit, logsOpts)
+			if err != nil {
+				return fmt.Errorf("stream logs for systemd service '%s': %w", unit, err)
+			}
+			unitStreams = append(unitStreams, ch)
 		}
-		unitStreams = append(unitStreams, ch)
 	}
 
 	var stream <-chan api.ServiceLogEntry
