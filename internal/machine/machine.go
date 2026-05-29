@@ -33,6 +33,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
@@ -483,6 +484,8 @@ func (m *Machine) Run(ctx context.Context) error {
 				return fmt.Errorf("create embedded DNS server: %w", err)
 			}
 
+			metricsServer := metrics.New(m.IP())
+
 			var unreg *unregistry.Registry
 			if containerdSock := m.ContainerdSock(); containerdSock != "" {
 				isContainerdStore, err := m.dockerService.IsContainerdImageStoreEnabled(ctx)
@@ -524,6 +527,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				dnsServer,
 				dnsResolver,
 				unreg,
+				metricsServer,
 			)
 			m.mu.Unlock()
 			if err != nil {

@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,8 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/metrics"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -2221,6 +2225,54 @@ func TestServiceLifecycle(t *testing.T) {
 
 				assertNoDNSErrors(t, dnsOutput)
 			}
+		})
+	})
+
+	t.Run("metrics endpoint on machine returns prometheus metrics", func(t *testing.T) {
+		t.Parallel()
+
+		// Deploy a test service to run wget from.
+		wgetServiceName := "test-metrics-service"
+		t.Cleanup(func() {
+			// this races with the cluster cleanup, ignore error
+			cli.RemoveService(ctx, wgetServiceName)
+		})
+		wgetSvcSpec := api.ServiceSpec{
+			Name:     wgetServiceName,
+			Mode:     api.ServiceModeReplicated,
+			Replicas: 1,
+			Placement: api.Placement{
+				Machines: []string{c.Machines[0].Name},
+			},
+			Container: api.ContainerSpec{
+				Image:   "busybox:1.37.0-musl",
+				Command: []string{"sleep", "infinity"},
+			},
+		}
+		_, err = cli.RunService(ctx, wgetSvcSpec)
+		require.NoError(t, err)
+
+		wgetSvc, err := cli.InspectService(ctx, wgetServiceName)
+		require.NoError(t, err)
+		wgetContainer := wgetSvc.Containers[0]
+
+		runWget := func(t *testing.T, url string) string {
+			metricsOutput, err := execInContainerAndReadOutput(
+				t, ctx, cli, wgetServiceName, wgetContainer.Container.ID,
+				[]string{"wget", "-q", "-O", "-", url},
+			)
+			require.NoError(t, err)
+			return metricsOutput
+		}
+
+		t.Run("metrics version is available", func(t *testing.T) {
+			// sub-sub-test to reuse the current deployment
+			metricsIP := network.MachineIP(netip.PrefixFrom(wgetContainer.Container.UncloudNetworkIP(), 24)).String()
+			endpoint := net.JoinHostPort(metricsIP, strconv.Itoa(metrics.Port))
+			metricsOutput := runWget(t, "http://"+endpoint+"/metrics")
+			t.Logf("metrics output from %s:\n%s", endpoint, metricsOutput)
+
+			assert.Contains(t, metricsOutput, "uncloud_uncloudd_build_info")
 		})
 	})
 }
