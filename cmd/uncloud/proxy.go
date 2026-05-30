@@ -102,13 +102,28 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 		return fmt.Errorf("get proxy dialer: %w", err)
 	}
 
+	// There is no precheck if we can connect, as this always succeeds, only the proxy connects with the
+	// endpoint and shuffles the data, *it* will actually experience errors.
+	remoteAddr := net.JoinHostPort(ip.String(), strconv.Itoa(opts.remotePort))
+	fmt.Printf("Connecting to %s\n", remoteAddr)
+
+	ctx, cancel := context.WithCancel(ctx)
 	p := &proxy.Proxy{
 		Listener:    listener,
-		RemoteAddr:  net.JoinHostPort(ip.String(), strconv.Itoa(opts.remotePort)),
+		RemoteAddr:  remoteAddr,
 		DialContext: dialer.DialContext,
+		OnError: func(err error) {
+			fmt.Printf("failed: %v\n", err)
+			cancel()
+		},
 	}
 
-	p.Run(ctx)
+	go p.Run(ctx)
+
+	fmt.Printf("(%s → %s:%d)\n", p.Listener.Addr().String(), opts.service, opts.remotePort)
+
+	<-ctx.Done()
+	fmt.Printf("Closed\n")
 
 	return nil
 }
