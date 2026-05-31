@@ -26,6 +26,7 @@ A CLI tool for managing Uncloud resources such as machines, services, and volume
 * [uc logs](uc_logs.md)	 - View service logs.
 * [uc ls](uc_ls.md)	 - List services.
 * [uc machine](uc_machine.md)	 - Manage machines in the cluster.
+* [uc proxy](uc_proxy.md)	 - Proxy to service.
 * [uc ps](uc_ps.md)	 - List all service containers.
 * [uc rm](uc_rm.md)	 - Remove one or more services.
 * [uc run](uc_run.md)	 - Run a service.
