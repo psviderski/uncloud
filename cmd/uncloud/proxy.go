@@ -113,8 +113,6 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 	// endpoint and shuffles the data, *it* will actually experience errors.
 	remoteAddr := net.JoinHostPort(ip.String(), strconv.Itoa(opts.remotePort))
 
-	fmt.Printf("Connecting to '%s'\n", remoteAddr)
-
 	ctx, cancel := context.WithCancel(ctx)
 	p := &proxy.Proxy{
 		Listener:    listener,
