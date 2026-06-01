@@ -128,10 +128,9 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 
 	go p.Run(ctx)
 
-	fmt.Printf("%s → %s:%d\n", p.Listener.Addr().String(), opts.service, opts.remotePort)
+	fmt.Printf("%s → %s/%s:%d\n", p.Listener.Addr().String(), remoteAddr, opts.service, opts.remotePort)
 
 	<-ctx.Done()
-	fmt.Println("Closed")
 
 	return nil
 }
