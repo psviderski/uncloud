@@ -108,6 +108,7 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 	}
 
 	ip := svc.Containers[0].Container.UncloudNetworkIP()
+	containerID := svc.Containers[0].Container.Container.ID[:8]
 
 	// There is no precheck if we can connect, as this always succeeds, only the proxy connects with the
 	// endpoint and shuffles the data, *it* will actually experience errors.
@@ -126,7 +127,7 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 
 	go p.Run(ctx)
 
-	fmt.Printf("%s → %s/%s:%d\n", p.Listener.Addr().String(), remoteAddr, opts.service, opts.remotePort)
+	fmt.Printf("%s → %s (%s/%s)\n", p.Listener.Addr().String(), remoteAddr, opts.service, containerID)
 
 	<-ctx.Done()
 
