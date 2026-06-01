@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/proxy"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -62,6 +63,13 @@ The connection stays open for as long the command runs.`,
 
 			return runProxy(cmd.Context(), uncli, opts)
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Services(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 
 	return cmd
@@ -104,6 +112,7 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 	// There is no precheck if we can connect, as this always succeeds, only the proxy connects with the
 	// endpoint and shuffles the data, *it* will actually experience errors.
 	remoteAddr := net.JoinHostPort(ip.String(), strconv.Itoa(opts.remotePort))
+
 	fmt.Printf("Connecting to '%s'\n", remoteAddr)
 
 	ctx, cancel := context.WithCancel(ctx)
