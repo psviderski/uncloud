@@ -21,7 +21,7 @@ type proxyOptions struct {
 	service    string
 }
 
-// NewProxyCommand creates a new command to proxy local ports to a service's port int the cluste.
+// NewProxyCommand creates a new command to proxy local ports to a service's port int the cluster.
 func NewProxyCommand() *cobra.Command {
 	opts := proxyOptions{}
 	cmd := &cobra.Command{
