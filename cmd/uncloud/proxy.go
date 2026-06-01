@@ -24,10 +24,10 @@ type proxyOptions struct {
 func NewProxyCommand() *cobra.Command {
 	opts := proxyOptions{}
 	cmd := &cobra.Command{
-		Use:   "proxy [LOCAL_PORT:]CONTAINER:REMMOTE_PORT",
-		Args:  cobra.ExactArgs(1),
+		Use:   "proxy SERVICE [LOCAL_PORT:]REMOTE_PORT",
+		Args:  cobra.ExactArgs(2),
 		Short: "Proxy to service.",
-		Long: `Proxy to a container on the remote port.
+		Long: `Proxy to a service on the remote port.
 
 If no local port is provided a random port will be chosen.
 
@@ -35,30 +35,29 @@ The connection stays open for as long the command runs.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
-			parts := strings.Split(args[0], ":")
+			opts.service = args[0]
+
+			parts := strings.Split(args[1], ":")
 			switch len(parts) {
-			case 2:
-				remoteport, err := strconv.Atoi(parts[1])
+			case 1:
+				remoteport, err := strconv.Atoi(parts[0])
 				if err != nil {
-					return fmt.Errorf("invalid remote port: '%s': %w", parts[1], err)
+					return fmt.Errorf("invalid remote port: '%s': %w", parts[0], err)
 				}
-				opts.service = parts[0]
 				opts.remotePort = remoteport
-			case 3:
+			case 2:
 				localport, err := strconv.Atoi(parts[0])
 				if err != nil {
 					return fmt.Errorf("invalid local port: '%s': %w", parts[0], err)
 				}
-				remoteport, err := strconv.Atoi(parts[2])
+				remoteport, err := strconv.Atoi(parts[1])
 				if err != nil {
-					return fmt.Errorf("invalid remove port: '%s': %w", parts[2], err)
+					return fmt.Errorf("invalid remote port: '%s': %w", parts[1], err)
 				}
-				opts.service = parts[1]
 				opts.localPort = localport
 				opts.remotePort = remoteport
 			default:
-				return fmt.Errorf("invalid container or port")
-
+				return fmt.Errorf("invalid port")
 			}
 
 			return runProxy(cmd.Context(), uncli, opts)
@@ -90,22 +89,22 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 		return fmt.Errorf("inspect service '%s': %w", opts.service, err)
 	}
 
-	ip := svc.Containers[0].Container.UncloudNetworkIP()
+	dialer, err := clusterClient.Connector.Dialer()
+	if err != nil {
+		return fmt.Errorf("get proxy dialer: %w", err)
+	}
 
 	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(opts.localPort)))
 	if err != nil {
 		return fmt.Errorf("listen on port on 127.0.0.1: %w", err)
 	}
 
-	dialer, err := clusterClient.Connector.Dialer()
-	if err != nil {
-		return fmt.Errorf("get proxy dialer: %w", err)
-	}
+	ip := svc.Containers[0].Container.UncloudNetworkIP()
 
 	// There is no precheck if we can connect, as this always succeeds, only the proxy connects with the
 	// endpoint and shuffles the data, *it* will actually experience errors.
 	remoteAddr := net.JoinHostPort(ip.String(), strconv.Itoa(opts.remotePort))
-	fmt.Printf("Connecting to %s\n", remoteAddr)
+	fmt.Printf("Connecting to '%s'\n", remoteAddr)
 
 	ctx, cancel := context.WithCancel(ctx)
 	p := &proxy.Proxy{
@@ -113,17 +112,17 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 		RemoteAddr:  remoteAddr,
 		DialContext: dialer.DialContext,
 		OnError: func(err error) {
-			fmt.Printf("failed: %v\n", err)
+			fmt.Printf("Failed to proxy to '%s': %v\n", remoteAddr, err)
 			cancel()
 		},
 	}
 
 	go p.Run(ctx)
 
-	fmt.Printf("(%s → %s:%d)\n", p.Listener.Addr().String(), opts.service, opts.remotePort)
+	fmt.Printf("%s → %s:%d\n", p.Listener.Addr().String(), opts.service, opts.remotePort)
 
 	<-ctx.Done()
-	fmt.Printf("Closed\n")
+	fmt.Println("Closed")
 
 	return nil
 }
