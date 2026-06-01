@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"math/rand/v2"
 	"net"
 	"net/netip"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/metrics"
 )
 
@@ -365,7 +365,7 @@ func (s *Server) rttForResolved(r ResolvedIP) time.Duration {
 			return rtt
 		}
 	}
-	return time.Duration(math.MaxInt64)
+	return constants.UnknownRTT
 }
 
 // parseNameserversFromResolvConf parses the nameservers from /etc/resolv.conf.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -108,7 +109,7 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 		slices.SortFunc(ips, func(a, b ResolvedIP) int { return a.Addr.Compare(b.Addr) })
 	}
 	// Skip the swap when the services or their container IPs haven't changed.
-	if resolvedIPsEqual(r.serviceIPs, newServiceIPs) {
+	if maps.EqualFunc(r.serviceIPs, newServiceIPs, slices.Equal[[]ResolvedIP]) {
 		return
 	}
 
@@ -118,25 +119,6 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 	r.mu.Unlock()
 
 	r.log.Info("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
-}
-
-// resolvedIPsEqual returns true if two maps of resolved IP slices are equal.
-func resolvedIPsEqual(a, b map[string][]ResolvedIP) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		bv, ok := b[k]
-		if !ok || len(v) != len(bv) {
-			return false
-		}
-		for i := range v {
-			if v[i] != bv[i] {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 // Resolve returns resolved IPs of the service containers.

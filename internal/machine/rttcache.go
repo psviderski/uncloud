@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/psviderski/uncloud/internal/machine/cluster"
-	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/corrosion"
+	pb "github.com/psviderski/uncloud/internal/machine/api/pb"
 )
 
 const rttCacheRefreshInterval = 60 * time.Second
@@ -20,19 +20,29 @@ type RTTStats struct {
 	StdDev time.Duration
 }
 
+// rttProvider returns RTT statistics to cluster members.
+type rttProvider interface {
+	MemberRTTs() ([]corrosion.MemberRTTStats, error)
+}
+
+// machineLister lists machines in the cluster.
+type machineLister interface {
+	ListMachines(ctx context.Context) ([]*pb.MachineInfo, error)
+}
+
 // RTTCache caches round-trip time statistics to other machines in the cluster.
 // It periodically refreshes from the Corrosion gossip system and maps management
 // IPs to machine IDs for convenient lookup.
 type RTTCache struct {
 	machineID string
-	cluster   *cluster.Cluster
-	store     *store.Store
+	cluster   rttProvider
+	store     machineLister
 
 	mu      sync.RWMutex
 	rttByID map[string]RTTStats
 }
 
-func newRTTCache(machineID string, cluster *cluster.Cluster, store *store.Store) *RTTCache {
+func newRTTCache(machineID string, cluster rttProvider, store machineLister) *RTTCache {
 	return &RTTCache{
 		machineID: machineID,
 		cluster:   cluster,
@@ -124,7 +134,7 @@ func (c *RTTCache) ByMachineID(machineID string) (time.Duration, bool) {
 
 // LivePeerRTTs returns a fresh snapshot of RTT statistics for all peer machines
 // (excluding the local machine). It performs a live refresh from Corrosion before
-// returning, so the data is never stale.
+// returning, so the data is recent.
 func (c *RTTCache) LivePeerRTTs(ctx context.Context) (map[string]RTTStats, error) {
 	if err := c.refresh(ctx); err != nil {
 		return nil, err

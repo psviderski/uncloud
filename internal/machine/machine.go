@@ -1036,7 +1036,7 @@ func (m *Machine) getMachineRTTs(ctx context.Context) (map[string]*pb.RTTStats, 
 
 	peers, err := m.rttCache.LivePeerRTTs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get peer RTTs: %w", err)
+		return nil, status.Errorf(codes.Internal, "get peer RTTs: %v", err)
 	}
 
 	pbRTTs := make(map[string]*pb.RTTStats, len(peers))

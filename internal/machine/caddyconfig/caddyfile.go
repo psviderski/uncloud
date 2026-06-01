@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"math"
 	"net"
 	"slices"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -267,7 +267,7 @@ func (g *CaddyfileGenerator) rttForMachine(machineID string) time.Duration {
 			return rtt
 		}
 	}
-	return time.Duration(math.MaxInt64)
+	return constants.UnknownRTT
 }
 
 func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceContainer) (string, error) {
