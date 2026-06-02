@@ -64,7 +64,7 @@ func (c *ConfigMount) GetNumericUid() (*uint64, error) {
 		return nil, fmt.Errorf("invalid Uid '%s': %w", c.Uid, err)
 	}
 	if int(uid) < 0 {
-		return nil, fmt.Errorf("invalid Uid '%s': value too high", c.Uid)
+		return nil, fmt.Errorf("invalid Uid '%s': value too low", c.Uid)
 	}
 	return &uid, nil
 }
@@ -78,7 +78,7 @@ func (c *ConfigMount) GetNumericGid() (*uint64, error) {
 		return nil, fmt.Errorf("invalid Gid '%s': %w", c.Gid, err)
 	}
 	if int(gid) < 0 {
-		return nil, fmt.Errorf("invalid Gid '%s': value too high", c.Gid)
+		return nil, fmt.Errorf("invalid Gid '%s': value too low", c.Gid)
 	}
 	return &gid, nil
 }
@@ -166,6 +166,13 @@ func (c *ConfigMount) Clone() ConfigMount {
 func sortConfigMounts(mounts []ConfigMount) {
 	sort.Slice(mounts, func(i, j int) bool {
 		return mounts[i].Compare(&mounts[j]) < 0
+	})
+}
+
+// sortSecretMounts sorts a slice of SecretMount instances.
+func sortSecretMounts(mounts []SecretMount) {
+	sort.Slice(mounts, func(i, j int) bool {
+		return mounts[i].Compare(&mounts[j].ConfigMount) < 0
 	})
 }
 
