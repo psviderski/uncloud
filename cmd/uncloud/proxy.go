@@ -127,7 +127,9 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 
 	go p.Run(ctx)
 
-	fmt.Printf("%s → %s (%s/%s)\n", p.Listener.Addr().String(), remoteAddr, opts.service, containerID)
+	// The internal URL should not be doing TLS, as caddy would terminate that, so prefix with http:// with
+	// the assumption that it is running a webservice as this allow control-click on most terminals.
+	fmt.Printf("http://%s → %s (%s/%s)\n", p.Listener.Addr().String(), remoteAddr, opts.service, containerID)
 
 	<-ctx.Done()
 
