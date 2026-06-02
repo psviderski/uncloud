@@ -41,7 +41,7 @@ type ResolvedIP struct {
 
 // Resolver is an interface for resolving service names to IP addresses with machine metadata.
 type Resolver interface {
-	// Resolve returns a list of resolved IPs for the service containers.
+	// Resolve returns a list of resolved IPs of the service containers.
 	// An empty list is returned if no service is found.
 	Resolve(serviceName string) []ResolvedIP
 }
@@ -304,18 +304,18 @@ func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
 // The internal domain suffix is already stripped from the name. An empty list is returned if no records are found.
 func (s *Server) handleAQuery(name string) []dns.RR {
 	serviceName, mode := extractModeFromDomain(trimInternalDomain(name))
-	resolved := s.resolver.Resolve(serviceName)
-	if len(resolved) == 0 {
+	ips := s.resolver.Resolve(serviceName)
+	if len(ips) == 0 {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
 		return nil
 	}
-	s.log.Debug("Resolved service name.", "service", serviceName, "resolved", resolved)
+	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
 
-	if len(resolved) > 1 {
-		// Shuffle the resolved IPs to approximate round-robin.
+	if len(ips) > 1 {
+		// Shuffle the IPs to approximate round-robin.
 		// We want to do this as a baseline for "nearest" mode, as well.
-		rand.Shuffle(len(resolved), func(i, j int) {
-			resolved[i], resolved[j] = resolved[j], resolved[i]
+		rand.Shuffle(len(ips), func(i, j int) {
+			ips[i], ips[j] = ips[j], ips[i]
 		})
 
 		// Default (mode == "") currently behaves the same as round-robin,
@@ -323,21 +323,21 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 
 		if mode == "nearest" {
 			// Sort by RTT using proximity data. Local machine containers get RTT 0.
-			slices.SortStableFunc(resolved, func(a, b ResolvedIP) int {
+			slices.SortStableFunc(ips, func(a, b ResolvedIP) int {
 				return cmp.Compare(s.rttForResolved(a), s.rttForResolved(b))
 			})
 		}
 	}
 
-	// Extract IPs from resolved IPs for DNS response.
-	ips := make([]netip.Addr, len(resolved))
-	for i, r := range resolved {
-		ips[i] = r.Addr
+	// Extract addresses from resolved IPs for DNS response.
+	addrs := make([]netip.Addr, len(ips))
+	for i, r := range ips {
+		addrs[i] = r.Addr
 	}
 
 	// Create A records for each IP.
-	records := make([]dns.RR, 0, len(ips))
-	for _, ip := range ips {
+	records := make([]dns.RR, 0, len(addrs))
+	for _, ip := range addrs {
 		records = append(records, &dns.A{
 			Hdr: dns.RR_Header{
 				Name:   name,

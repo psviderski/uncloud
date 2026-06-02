@@ -126,14 +126,14 @@ func (r *ClusterResolver) Resolve(serviceName string) []ResolvedIP {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	resolved, ok := r.serviceIPs[serviceName]
-	if !ok || len(resolved) == 0 {
+	ips, ok := r.serviceIPs[serviceName]
+	if !ok || len(ips) == 0 {
 		return nil
 	}
 
-	// Return a copy of the slice to prevent modification of the original.
-	resolvedCopy := make([]ResolvedIP, len(resolved))
-	copy(resolvedCopy, resolved)
+	// Return a copy of the IPs slice to prevent modification of the original.
+	ipsCopy := make([]ResolvedIP, len(ips))
+	copy(ipsCopy, ips)
 
-	return resolvedCopy
+	return ipsCopy
 }
