@@ -10,6 +10,7 @@ import (
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/proxy"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -21,18 +22,19 @@ type proxyOptions struct {
 	service    string
 }
 
-// NewProxyCommand creates a new command to proxy local ports to a service's port int the cluster.
+// NewProxyCommand creates a new command to proxy a local port to a service's port in the cluster.
 func NewProxyCommand() *cobra.Command {
 	opts := proxyOptions{}
 	cmd := &cobra.Command{
 		Use:   "proxy SERVICE [LOCAL_PORT:]REMOTE_PORT",
 		Args:  cobra.ExactArgs(2),
-		Short: "Proxy to service.",
-		Long: `Proxy to a service on the remote port.
+		Short: "Proxy a service port to a local port.",
+		Long: `Proxy a service port in the cluster to a local port on this machine.
 
-If no local port is provided a random port will be chosen.
+If the service runs multiple containers, the command connects to the first running and healthy one.
+If you don't provide a local port, the command picks a random one.
 
-The connection stays open for as long the command runs.`,
+The connection stays open for as long as the command runs.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
@@ -97,24 +99,42 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 		return fmt.Errorf("inspect service '%s': %w", opts.service, err)
 	}
 
-	dialer, err := clusterClient.Connector.Dialer()
+	// Pick the first running and healthy container to proxy to.
+	var ctr *api.MachineServiceContainer
+	for i := range svc.Containers {
+		if svc.Containers[i].Container.Healthy() {
+			ctr = &svc.Containers[i]
+			break
+		}
+	}
+	if ctr == nil {
+		return fmt.Errorf("no running healthy container found for service '%s'", opts.service)
+	}
+
+	containerID := ctr.Container.ShortID()
+	ip := ctr.Container.UncloudNetworkIP()
+	if !ip.IsValid() {
+		return fmt.Errorf("container '%s' is not connected to the uncloud Docker network (could be host network)",
+			containerID)
+	}
+
+	dialer, err := clusterClient.Dialer()
 	if err != nil {
 		return fmt.Errorf("get proxy dialer: %w", err)
 	}
 
 	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(opts.localPort)))
 	if err != nil {
-		return fmt.Errorf("listen on port on 127.0.0.1: %w", err)
+		return fmt.Errorf("listen on 127.0.0.1:%d: %w", opts.localPort, err)
 	}
-
-	ip := svc.Containers[0].Container.UncloudNetworkIP()
-	containerID := svc.Containers[0].Container.Container.ID[:8]
 
 	// There is no precheck if we can connect, as this always succeeds, only the proxy connects with the
 	// endpoint and shuffles the data, *it* will actually experience errors.
 	remoteAddr := net.JoinHostPort(ip.String(), strconv.Itoa(opts.remotePort))
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	p := &proxy.Proxy{
 		Listener:    listener,
 		RemoteAddr:  remoteAddr,
@@ -125,13 +145,32 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 		},
 	}
 
-	go p.Run(ctx)
+	// Run the proxy in the background and signal when it has fully shut down.
+	done := make(chan struct{})
+	go func() {
+		p.Run(ctx)
+		close(done)
+	}()
 
-	// The internal URL should not be doing TLS, as caddy would terminate that, so prefix with http:// with
-	// the assumption that it is running a webservice as this allow control-click on most terminals.
-	fmt.Printf("http://%s → %s (%s/%s)\n", p.Listener.Addr().String(), remoteAddr, opts.service, containerID)
+	// Prefix the local address with the scheme for common HTTP ports so it becomes control-clickable in most
+	// terminals. We assume plain HTTP since TLS is typically terminated by Caddy in front of the service.
+	fmt.Printf("%s%s → %s (%s%s%s)\n", schemeForPort(opts.remotePort), p.Listener.Addr().String(),
+		remoteAddr, opts.service, tui.Faint.Render("/"), containerID)
 
 	<-ctx.Done()
+	// Wait for the proxy to drain in-flight connections and shut down gracefully.
+	<-done
 
 	return nil
+}
+
+// schemeForPort returns the "http://" URL scheme prefix for the ports most likely to serve plain HTTP,
+// or an empty string otherwise.
+func schemeForPort(port int) string {
+	switch port {
+	case 80, 3000, 8000, 8080, 8081, 8888, 9090:
+		return "http://"
+	default:
+		return ""
+	}
 }

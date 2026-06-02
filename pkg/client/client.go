@@ -17,7 +17,7 @@ import (
 
 // Client is a client for the machine API.
 type Client struct {
-	Connector Connector
+	connector Connector
 	conn      *grpc.ClientConn
 
 	// TODO: refactor to not embed MachineClient and instead expose only required methods.
@@ -45,7 +45,7 @@ type Connector interface {
 // either locally or remotely. The client is responsible for closing the connector.
 func New(ctx context.Context, connector Connector) (*Client, error) {
 	c := &Client{
-		Connector: connector,
+		connector: connector,
 	}
 	var err error
 	c.conn, err = connector.Connect(ctx)
@@ -62,7 +62,12 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 }
 
 func (cli *Client) Close() error {
-	return errors.Join(cli.conn.Close(), cli.Connector.Close())
+	return errors.Join(cli.conn.Close(), cli.connector.Close())
+}
+
+// Dialer returns a proxy dialer for establishing connections within the cluster if supported by the connector.
+func (cli *Client) Dialer() (proxy.ContextDialer, error) {
+	return cli.connector.Dialer()
 }
 
 // progressOut returns an output stream for progress writer.
