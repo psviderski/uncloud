@@ -36,16 +36,20 @@ func TestSecretSpecsFromCompose(t *testing.T) {
 			},
 			expectedSpecs: []api.SecretSpec{
 				{
-					Name:    "app-secret",
-					Content: []byte("test secret content\n"),
+					ConfigSpec: api.ConfigSpec{
+						Name:    "app-secret",
+						Content: []byte("test secret content\n"),
+					},
 				},
 			},
 			expectedMounts: []api.SecretMount{
 				{
-					SecretName:    "app-secret",
-					ContainerPath: "/run/secrets/app-secret",
-					Uid:           "1000",
-					Gid:           "1000",
+					ConfigMount: api.ConfigMount{
+						ConfigName:    "app-secret",
+						ContainerPath: "/run/secrets/app-secret",
+						Uid:           "1000",
+						Gid:           "1000",
+					},
 				},
 			},
 		},
@@ -65,15 +69,19 @@ func TestSecretSpecsFromCompose(t *testing.T) {
 			},
 			expectedSpecs: []api.SecretSpec{
 				{
-					Name:    "db-password",
-					Content: []byte("test secret content\n"),
+					ConfigSpec: api.ConfigSpec{
+						Name:    "db-password",
+						Content: []byte("test secret content\n"),
+					},
 				},
 			},
 			expectedMounts: []api.SecretMount{
 				{
-					SecretName:    "db-password",
-					ContainerPath: "/run/secrets/db-password",
-					Mode:          func() *os.FileMode { m := os.FileMode(0o400); return &m }(),
+					ConfigMount: api.ConfigMount{
+						ConfigName:    "db-password",
+						ContainerPath: "/run/secrets/db-password",
+						Mode:          func() *os.FileMode { m := os.FileMode(0o400); return &m }(),
+					},
 				},
 			},
 		},
@@ -96,19 +104,10 @@ func TestSecretSpecsFromCompose(t *testing.T) {
 }
 
 func TestSecretSpecEquals(t *testing.T) {
-	secret1 := api.SecretSpec{
-		Name: "test-secret",
-	}
+	secret1 := api.SecretSpec{ConfigSpec: api.ConfigSpec{Name: "test-secret"}}
+	secret2 := api.SecretSpec{ConfigSpec: api.ConfigSpec{Name: "test-secret"}}
+	secret3 := api.SecretSpec{ConfigSpec: api.ConfigSpec{Name: "test-secret", Content: []byte("some content")}}
 
-	secret2 := api.SecretSpec{
-		Name: "test-secret",
-	}
-
-	secret3 := api.SecretSpec{
-		Name:    "test-secret",
-		Content: []byte("some content"),
-	}
-
-	assert.True(t, secret1.Equals(secret2))
-	assert.False(t, secret1.Equals(secret3))
+	assert.True(t, secret1.Equals(secret2.ConfigSpec))
+	assert.False(t, secret1.Equals(secret3.ConfigSpec))
 }
