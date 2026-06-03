@@ -32,10 +32,8 @@ func secretSpecsFromCompose(secrets types.Secrets, serviceSecrets []types.Servic
 			},
 		}
 
-		// If File is specified, read the file contents
 		if projectSecret.File != "" {
 			secretPath := projectSecret.File
-			// TODO: handle this in a separate function?
 			if !filepath.IsAbs(secretPath) {
 				secretPath = filepath.Join(workingDir, secretPath)
 			}
@@ -49,16 +47,10 @@ func secretSpecsFromCompose(secrets types.Secrets, serviceSecrets []types.Servic
 
 		secretSpecs = append(secretSpecs, spec)
 
-		// Create secret mount
-		target := serviceSecret.Target
-		if target == "" {
-			target = "/run/secrets/" + serviceSecret.Source // Default mount path
-		}
-
 		mount := api.SecretMount{
 			ConfigMount: api.ConfigMount{
 				ConfigName:    spec.Name,
-				ContainerPath: target,
+				ContainerPath: serviceSecret.Target,
 				Uid:           serviceSecret.UID,
 				Gid:           serviceSecret.GID,
 			},
