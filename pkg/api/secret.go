@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 )
 
 // SecretSpec defines a secret object that can be mounted into containers
@@ -36,6 +37,13 @@ func (s *SecretMount) Validate() error {
 		return fmt.Errorf("secret container path must be absolute")
 	}
 	return nil
+}
+
+// sortSecretMounts sorts a slice of SecretMount instances.
+func sortSecretMounts(mounts []SecretMount) {
+	sort.Slice(mounts, func(i, j int) bool {
+		return mounts[i].Compare(&mounts[j].ConfigMount) < 0
+	})
 }
 
 // ValidateSecretsAndMounts takes secret specs and secret mounts and validates that all mounts refer to existing specs
