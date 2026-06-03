@@ -846,7 +846,7 @@ func (s *Server) injectSecrets(ctx context.Context, containerID string, secrets 
 		// stays on a tmpfs and isn't written to some storage.
 		if m.ContainerPath != "" {
 			if err := os.Symlink(targetPath, m.ContainerPath); err != nil {
-				return fmt.Errorf("symlinking secret from '%s' to '%s': %w", targetPath, m.ContainerPath, err)
+				return fmt.Errorf("symlinking secret from '%s' to '%s': %w", m.ContainerPath, targetPath, err)
 			}
 		}
 
