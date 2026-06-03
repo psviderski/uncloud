@@ -6,7 +6,7 @@ import (
 	"sort"
 )
 
-// SecretSpec defines a secret object that can be mounted into containers
+// SecretSpec defines a secret object that can be mounted into containers.
 type SecretSpec struct {
 	ConfigSpec
 }
@@ -46,7 +46,8 @@ func sortSecretMounts(mounts []SecretMount) {
 	})
 }
 
-// ValidateSecretsAndMounts takes secret specs and secret mounts and validates that all mounts refer to existing specs
+// ValidateSecretsAndMounts takes secret specs and secret mounts and validates that all mounts refer to
+// existing specs.
 func ValidateSecretsAndMounts(secrets []SecretSpec, mounts []SecretMount) error {
 	secretMap := make(map[string]struct{})
 	for _, secret := range secrets {
