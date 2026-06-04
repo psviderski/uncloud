@@ -48,20 +48,20 @@ network interface(s). This is useful for non-HTTP services that need direct port
 [host_ip|host_prefix:]host_port:container_port[/protocol]@host
 ```
 
-- `host_ip` (optional): The IP address on the host to bind to. Or an IP prefix
-  ([CIDR](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing) that binds to all IP addresses on the
-  host that are contained in the prefix. If omitted, binds to all interfaces.
+- `host_ip` / `host_prefix` (optional): The IP address on the host to bind to. Or an IP prefix in
+  [CIDR](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing) notation, which binds to every host IP address
+  that is contained in the prefix. If omitted, binds to all interfaces.
 - `host_port`: The port number on the host to bind to.
 - `container_port`: The port number within the container that's listening for traffic.
 - `protocol` (optional): `tcp` or `udp` (default: `tcp`)
 
-| Port value                           | Description                                                                                  |
-| ------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `8000/http`                          | Publish port 8000 as HTTP via Caddy using hostname `<service-name>.<cluster-domain>`         |
-| `app.example.com:8080/https`         | Publish port 8080 as HTTPS via Caddy using hostname `app.example.com`                        |
-| `127.0.0.1:5432:5432@host`           | Bind TCP port 5432 to host port 5432 on loopback interface only                              |
-| `53:5353/udp@host`                   | Bind UDP port 5353 to host port 53 on all network interfaces                                 |
-| `192.168.76.0/24:5432:5432/tcp@host` | Bind TCP port 5432 to host port 5432 on all interfaces that have 192.168.76.\* as an address |
+| Port value                           | Description                                                                          |
+|--------------------------------------|--------------------------------------------------------------------------------------|
+| `8000/http`                          | Publish port 8000 as HTTP via Caddy using hostname `<service-name>.<cluster-domain>` |
+| `app.example.com:8080/https`         | Publish port 8080 as HTTPS via Caddy using hostname `app.example.com`                |
+| `127.0.0.1:5432:5432@host`           | Bind TCP port 5432 to host port 5432 on loopback interface only                      |
+| `53:5353/udp@host`                   | Bind UDP port 5353 to host port 53 on all network interfaces                         |
+| `192.168.76.0/24:5432:5432/tcp@host` | Bind TCP port 5432 to host port 5432 on every host IP contained in 192.168.76.0/24   |
 
 :::warning
 
