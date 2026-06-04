@@ -121,7 +121,13 @@ func (p *PortSpec) String() (string, error) {
 			}
 		}
 		if p.HostPrefix.IsValid() {
-			parts = append(parts, p.HostPrefix.String())
+			if p.HostPrefix.Addr().Is6() {
+				// Enclose the IPv6 address part in square brackets to disambiguate its colons from the
+				// port separators, e.g. [2001:db8::]/64.
+				parts = append(parts, fmt.Sprintf("[%s]/%d", p.HostPrefix.Addr(), p.HostPrefix.Bits()))
+			} else {
+				parts = append(parts, p.HostPrefix.String())
+			}
 		}
 
 		parts = append(parts, fmt.Sprint(p.PublishedPort))
@@ -159,7 +165,8 @@ func ParsePortSpec(port string) (PortSpec, error) {
 			case ProtocolUDP:
 				spec.Protocol = ProtocolUDP
 			default:
-				return spec, fmt.Errorf("unsupported protocol '%s' in host mode, only 'tcp' and 'udp' are supported", mode[i+1:])
+				return spec, fmt.Errorf("unsupported protocol '%s' in host mode, only 'tcp' and 'udp' are supported",
+					mode[i+1:])
 			}
 
 			mode = mode[:i] // drop /udp or /tcp, leaving the port only
@@ -220,18 +227,16 @@ func ParsePortSpec(port string) (PortSpec, error) {
 		}
 
 		if spec.Mode == PortModeHost {
-			// In host mode, the first part must be IP.
+			// In host mode, the first part must be a host IP or prefix.
 			ip := parts[0]
-			// Strip brackets from IPv6 address if present.
+			// Strip brackets from an IPv6 address if present.
 			if strings.Contains(ip, ":") {
-				if !strings.HasPrefix(ip, "[") {
+				end := strings.Index(ip, "]")
+				if !strings.HasPrefix(ip, "[") || end < 0 {
 					return spec, fmt.Errorf(
 						"invalid host IP '%s': IPv6 address must be enclosed in square brackets", ip)
 				}
-				if !strings.HasSuffix(ip, "]") {
-					return spec, fmt.Errorf("invalid host IP '%s': missing closing bracket", ip)
-				}
-				ip = ip[1 : len(ip)-1]
+				ip = ip[1:end] + ip[end+1:]
 			}
 
 			if strings.Contains(ip, "/") {

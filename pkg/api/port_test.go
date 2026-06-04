@@ -413,6 +413,17 @@ func TestPortSpec_String(t *testing.T) {
 			},
 			expected: "[2001:db8::1234:5678]:80:8080/tcp@host",
 		},
+		{
+			name: "host mode with IPv6 prefix",
+			spec: PortSpec{
+				HostPrefix:    netip.MustParsePrefix("2001:db8::/64"),
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolUDP,
+				Mode:          PortModeHost,
+			},
+			expected: "[2001:db8::]/64:80:8080/udp@host",
+		},
 	}
 
 	for _, tt := range tests {
@@ -605,6 +616,17 @@ func TestParsePortSpec(t *testing.T) {
 				PublishedPort: 80,
 				ContainerPort: 8080,
 				Protocol:      ProtocolTCP,
+				Mode:          PortModeHost,
+			},
+		},
+		{
+			name: "host mode with IPv6 prefix and protocol",
+			port: "[2001:db8::]/64:80:8080/udp@host",
+			expected: PortSpec{
+				HostPrefix:    netip.MustParsePrefix("2001:db8::/64"),
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolUDP,
 				Mode:          PortModeHost,
 			},
 		},
