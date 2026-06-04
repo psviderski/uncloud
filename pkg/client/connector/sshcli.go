@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,6 +42,13 @@ func NewSSHCLIConnector(cfg *SSHConnectorConfig) *SSHCLIConnector {
 // controlSocketPath returns a unique control socket path for the SSH connection.
 // Returns an empty string if unable to find or create a suitable path.
 func controlSocketPath() string {
+	// Windows OpenSSH does not support connection multiplexing (ControlMaster/ControlPath): the control
+	// socket is a Unix domain socket and ssh fails with "getsockname failed: Not a socket". Return an
+	// empty path to disable multiplexing so each connection is established independently.
+	if runtime.GOOS == "windows" {
+		return ""
+	}
+
 	// %C is expanded by `ssh` to a hash of user, local and remote hostnames, port, and the contents
 	// of the ProxyJump option. This ensures that shared connections are uniquely identified.
 	sockName := fmt.Sprintf("uc_control_%%C.sock")
