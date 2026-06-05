@@ -1361,12 +1361,13 @@ func (m *Machine) ExecCommand(
 		})
 	})
 
+	outputErr := errGroup.Wait()
 	waitErr := cmd.Wait()
-	if err = errGroup.Wait(); err != nil {
+	if outputErr != nil {
 		if ctx.Err() != nil {
 			return status.Error(codes.Canceled, ctx.Err().Error())
 		}
-		return status.Errorf(codes.Internal, "stream command output: %v", err)
+		return status.Errorf(codes.Internal, "stream command output: %v", outputErr)
 	}
 
 	exitCode := 0
