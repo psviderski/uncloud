@@ -18,10 +18,12 @@ to have Prometheus scrape it.
 scrape_configs:
   - job_name: uncloud
     dns_sd_configs:
-      - names: ["caddy.internal"]
+      - names: ["m.internal"]
         type: A
         port: 51090
 ```
+
+TODO(miek): this requires PR-359 to be merged.
 
 # Caddy metrics
 
