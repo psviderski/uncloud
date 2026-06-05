@@ -1,7 +1,7 @@
 package caddy
 
 import (
-	"github.com/psviderski/uncloud/cmd/uncloud/service"
+	"github.com/psviderski/uncloud/cmd/uc/service"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/logs"
 	"github.com/spf13/cobra"

@@ -32,13 +32,13 @@ available outside the project, so they don't interfere with system packages.
 Build the CLI:
 
 ```shell
-go build -o uc ./cmd/uncloud
+go build ./cmd/uc
 ```
 
 Or build and run the CLI with a single command:
 
 ```shell
-go run ./cmd/uncloud --help
+go run ./cmd/uc --help
 ```
 
 The Uncloud daemon (`uncloudd`) only supports Linux, so you need to cross-compile it if you're developing on macOS or

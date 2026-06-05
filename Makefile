@@ -72,4 +72,4 @@ _lint:
 
 .PHONY: cli-docs
 cli-docs:
-	go run ./cmd/uncloud docs
+	go run ./cmd/uc docs
