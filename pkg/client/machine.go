@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/moby/term"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -26,6 +31,10 @@ func (cli *Client) ExecMachine(ctx context.Context, machineNameOrID string, opts
 		return -1, fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
 	}
 
+	stdin := opts.Stdin
+	if stdin == nil {
+		stdin = os.Stdin
+	}
 	stdout := opts.Stdout
 	if stdout == nil {
 		stdout = os.Stdout
@@ -35,12 +44,184 @@ func (cli *Client) ExecMachine(ctx context.Context, machineNameOrID string, opts
 		stderr = os.Stderr
 	}
 
-	proxyCtx := cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
-	stream, err := cli.MachineClient.ExecCommand(proxyCtx, &pb.ExecCommandRequest{Command: opts.Command})
+	ctx = cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
+	stream, err := cli.MachineClient.ExecCommand(ctx)
 	if err != nil {
-		return -1, fmt.Errorf("exec command on machine '%s': %w", machine.Machine.Name, err)
+		return -1, fmt.Errorf("create exec command stream to machine '%s': %w", machine.Machine.Name, err)
 	}
 
+	var sendMu sync.Mutex
+	send := func(req *pb.ExecCommandRequest) error {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		return stream.Send(req)
+	}
+
+	if err = send(&pb.ExecCommandRequest{
+		Payload: &pb.ExecCommandRequest_Config{
+			Config: &pb.ExecCommandConfig{
+				Command:     opts.Command,
+				AttachStdin: opts.AttachStdin,
+				Tty:         opts.Tty,
+			},
+		},
+	}); err != nil {
+		return -1, fmt.Errorf("send exec command config: %w", err)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if opts.AttachStdin && opts.Tty {
+		restoreTerminal, err := setupMachineExecTerminal(ctx, send)
+		if err != nil {
+			return -1, fmt.Errorf("setup terminal: %w", err)
+		}
+		defer restoreTerminal()
+	}
+
+	exitCode := 1
+	errGroup, ctx := errgroup.WithContext(ctx)
+
+	if opts.AttachStdin {
+		errGroup.Go(func() error {
+			return handleMachineExecInput(ctx, stream, send, stdin)
+		})
+	} else {
+		if err = stream.CloseSend(); err != nil {
+			return -1, fmt.Errorf("close exec command input stream: %w", err)
+		}
+	}
+
+	errGroup.Go(func() error {
+		defer cancel()
+		code, err := handleMachineExecOutput(ctx, stream, stdout, stderr)
+		if err != nil {
+			return err
+		}
+		exitCode = code
+		return nil
+	})
+
+	if err = errGroup.Wait(); err != nil {
+		return exitCode, err
+	}
+
+	return exitCode, nil
+}
+
+func setupMachineExecTerminal(ctx context.Context, send func(*pb.ExecCommandRequest) error) (func(), error) {
+	inFd, isTerminal := term.GetFdInfo(os.Stdin)
+	if !isTerminal {
+		return nil, fmt.Errorf("stdin is not a terminal")
+	}
+
+	oldState, err := term.SetRawTerminal(inFd)
+	if err != nil {
+		return nil, fmt.Errorf("set raw terminal: %w", err)
+	}
+	restore := func() {
+		_ = term.RestoreTerminal(inFd, oldState)
+	}
+
+	if err = handleMachineExecTerminalResize(ctx, inFd, send); err != nil {
+		restore()
+		return nil, err
+	}
+
+	return restore, nil
+}
+
+func handleMachineExecTerminalResize(ctx context.Context, inFd uintptr, send func(*pb.ExecCommandRequest) error) error {
+	sendResize := func() {
+		size, err := term.GetWinsize(inFd)
+		if err != nil {
+			return
+		}
+		_ = send(&pb.ExecCommandRequest{
+			Payload: &pb.ExecCommandRequest_Resize{
+				Resize: &pb.ExecCommandResizeEvent{
+					Height: uint32(size.Height),
+					Width:  uint32(size.Width),
+				},
+			},
+		})
+	}
+
+	sendResize()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, unix.SIGWINCH)
+	go func() {
+		defer signal.Stop(sigCh)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sigCh:
+				sendResize()
+			}
+		}
+	}()
+
+	return nil
+}
+
+func handleMachineExecInput(
+	ctx context.Context,
+	stream pb.Machine_ExecCommandClient,
+	send func(*pb.ExecCommandRequest) error,
+	stdin io.Reader,
+) error {
+	defer stream.CloseSend()
+
+	stdinCh := make(chan []byte)
+	stdinErrCh := make(chan error, 1)
+
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := stdin.Read(buf)
+			if n > 0 {
+				data := make([]byte, n)
+				copy(data, buf[:n])
+				select {
+				case stdinCh <- data:
+				case <-ctx.Done():
+					return
+				}
+			}
+			if err != nil {
+				stdinErrCh <- err
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case data := <-stdinCh:
+			if err := send(&pb.ExecCommandRequest{
+				Payload: &pb.ExecCommandRequest_Stdin{Stdin: data},
+			}); err != nil {
+				return fmt.Errorf("send stdin: %w", err)
+			}
+		case err := <-stdinErrCh:
+			if err != io.EOF {
+				return fmt.Errorf("read stdin: %w", err)
+			}
+			return nil
+		}
+	}
+}
+
+func handleMachineExecOutput(
+	_ context.Context,
+	stream pb.Machine_ExecCommandClient,
+	stdout, stderr io.Writer,
+) (int, error) {
 	for {
 		resp, err := stream.Recv()
 		if err == io.EOF {
@@ -52,11 +233,11 @@ func (cli *Client) ExecMachine(ctx context.Context, machineNameOrID string, opts
 
 		switch payload := resp.Payload.(type) {
 		case *pb.ExecCommandResponse_Stdout:
-			if _, err = stdout.Write(payload.Stdout); err != nil {
+			if _, err := stdout.Write(payload.Stdout); err != nil {
 				return -1, fmt.Errorf("write stdout: %w", err)
 			}
 		case *pb.ExecCommandResponse_Stderr:
-			if _, err = stderr.Write(payload.Stderr); err != nil {
+			if _, err := stderr.Write(payload.Stderr); err != nil {
 				return -1, fmt.Errorf("write stderr: %w", err)
 			}
 		case *pb.ExecCommandResponse_ExitCode:

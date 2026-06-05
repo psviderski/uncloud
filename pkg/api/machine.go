@@ -15,9 +15,14 @@ type MachineFilter struct {
 }
 
 type MachineExecOptions struct {
-	Command []string
-	Stdout  io.Writer
-	Stderr  io.Writer
+	Command     []string
+	AttachStdin bool
+	Tty         bool
+
+	// Client-side only fields.
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 type MachineMembersList []*pb.MachineMember

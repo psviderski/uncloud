@@ -73,14 +73,12 @@ func TestValidateExecArgs(t *testing.T) {
 			wantErr: "machine is required",
 		},
 		{
-			name:    "requires command",
-			args:    []string{"machine1"},
-			wantErr: "command is required",
+			name: "machine only uses default command",
+			args: []string{"machine1"},
 		},
 		{
-			name:    "separator without command",
-			args:    []string{"machine1", "--"},
-			wantErr: "command is required",
+			name: "separator without command uses default command",
+			args: []string{"machine1", "--"},
 		},
 		{
 			name: "accepts command",

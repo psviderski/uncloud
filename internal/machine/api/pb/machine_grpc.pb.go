@@ -52,7 +52,7 @@ type MachineClient interface {
 	Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
 	MachineLogs(ctx context.Context, in *LogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error)
-	ExecCommand(ctx context.Context, in *ExecCommandRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExecCommandResponse], error)
+	ExecCommand(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecCommandRequest, ExecCommandResponse], error)
 }
 
 type machineClient struct {
@@ -172,24 +172,18 @@ func (c *machineClient) MachineLogs(ctx context.Context, in *LogsRequest, opts .
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Machine_MachineLogsClient = grpc.ServerStreamingClient[LogEntry]
 
-func (c *machineClient) ExecCommand(ctx context.Context, in *ExecCommandRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExecCommandResponse], error) {
+func (c *machineClient) ExecCommand(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecCommandRequest, ExecCommandResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Machine_ServiceDesc.Streams[1], Machine_ExecCommand_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	x := &grpc.GenericClientStream[ExecCommandRequest, ExecCommandResponse]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Machine_ExecCommandClient = grpc.ServerStreamingClient[ExecCommandResponse]
+type Machine_ExecCommandClient = grpc.BidiStreamingClient[ExecCommandRequest, ExecCommandResponse]
 
 // MachineServer is the server API for Machine service.
 // All implementations must embed UnimplementedMachineServer
@@ -210,7 +204,7 @@ type MachineServer interface {
 	Reset(context.Context, *ResetRequest) (*emptypb.Empty, error)
 	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
 	MachineLogs(*LogsRequest, grpc.ServerStreamingServer[LogEntry]) error
-	ExecCommand(*ExecCommandRequest, grpc.ServerStreamingServer[ExecCommandResponse]) error
+	ExecCommand(grpc.BidiStreamingServer[ExecCommandRequest, ExecCommandResponse]) error
 	mustEmbedUnimplementedMachineServer()
 }
 
@@ -251,7 +245,7 @@ func (UnimplementedMachineServer) InspectService(context.Context, *InspectServic
 func (UnimplementedMachineServer) MachineLogs(*LogsRequest, grpc.ServerStreamingServer[LogEntry]) error {
 	return status.Errorf(codes.Unimplemented, "method MachineLogs not implemented")
 }
-func (UnimplementedMachineServer) ExecCommand(*ExecCommandRequest, grpc.ServerStreamingServer[ExecCommandResponse]) error {
+func (UnimplementedMachineServer) ExecCommand(grpc.BidiStreamingServer[ExecCommandRequest, ExecCommandResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ExecCommand not implemented")
 }
 func (UnimplementedMachineServer) mustEmbedUnimplementedMachineServer() {}
@@ -449,15 +443,11 @@ func _Machine_MachineLogs_Handler(srv interface{}, stream grpc.ServerStream) err
 type Machine_MachineLogsServer = grpc.ServerStreamingServer[LogEntry]
 
 func _Machine_ExecCommand_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ExecCommandRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MachineServer).ExecCommand(m, &grpc.GenericServerStream[ExecCommandRequest, ExecCommandResponse]{ServerStream: stream})
+	return srv.(MachineServer).ExecCommand(&grpc.GenericServerStream[ExecCommandRequest, ExecCommandResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Machine_ExecCommandServer = grpc.ServerStreamingServer[ExecCommandResponse]
+type Machine_ExecCommandServer = grpc.BidiStreamingServer[ExecCommandRequest, ExecCommandResponse]
 
 // Machine_ServiceDesc is the grpc.ServiceDesc for Machine service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -513,6 +503,7 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "ExecCommand",
 			Handler:       _Machine_ExecCommand_Handler,
 			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "internal/machine/api/pb/machine.proto",

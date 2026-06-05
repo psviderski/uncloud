@@ -27,7 +27,7 @@ service Machine {
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
 
   rpc MachineLogs(LogsRequest) returns (stream LogEntry);
-  rpc ExecCommand(ExecCommandRequest) returns (stream ExecCommandResponse);
+  rpc ExecCommand(stream ExecCommandRequest) returns (stream ExecCommandResponse);
 }
 
 message MachineInfo {
@@ -146,8 +146,23 @@ message RTTStats {
   google.protobuf.Duration std_dev = 2;
 }
 
-message ExecCommandRequest {
+message ExecCommandConfig {
   repeated string command = 1;
+  bool attach_stdin = 2;
+  bool tty = 3;
+}
+
+message ExecCommandResizeEvent {
+  uint32 height = 1;
+  uint32 width = 2;
+}
+
+message ExecCommandRequest {
+  oneof payload {
+    ExecCommandConfig config = 1;
+    bytes stdin = 2;
+    ExecCommandResizeEvent resize = 3;
+  }
 }
 
 message ExecCommandResponse {

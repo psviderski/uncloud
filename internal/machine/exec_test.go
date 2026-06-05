@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
@@ -14,6 +15,7 @@ import (
 
 type execCommandStream struct {
 	grpc.ServerStream
+	requests  []*pb.ExecCommandRequest
 	ctx       context.Context
 	responses []*pb.ExecCommandResponse
 }
@@ -27,12 +29,30 @@ func (s *execCommandStream) Send(resp *pb.ExecCommandResponse) error {
 	return nil
 }
 
-func TestExecCommand(t *testing.T) {
-	stream := &execCommandStream{ctx: context.Background()}
+func (s *execCommandStream) Recv() (*pb.ExecCommandRequest, error) {
+	if len(s.requests) == 0 {
+		return nil, io.EOF
+	}
+	req := s.requests[0]
+	s.requests = s.requests[1:]
+	return req, nil
+}
 
-	err := (&Machine{}).ExecCommand(&pb.ExecCommandRequest{
-		Command: []string{"sh", "-c", "printf stdout; printf stderr >&2; exit 7"},
-	}, stream)
+func TestExecCommand(t *testing.T) {
+	stream := &execCommandStream{
+		ctx: context.Background(),
+		requests: []*pb.ExecCommandRequest{
+			{
+				Payload: &pb.ExecCommandRequest_Config{
+					Config: &pb.ExecCommandConfig{
+						Command: []string{"sh", "-c", "printf stdout; printf stderr >&2; exit 7"},
+					},
+				},
+			},
+		},
+	}
+
+	err := (&Machine{}).ExecCommand(stream)
 	require.NoError(t, err)
 
 	var stdout, stderr []byte
@@ -53,10 +73,55 @@ func TestExecCommand(t *testing.T) {
 	assert.Equal(t, 7, exitCode)
 }
 
-func TestExecCommandRequiresCommand(t *testing.T) {
-	stream := &execCommandStream{ctx: context.Background()}
+func TestExecCommandWithStdin(t *testing.T) {
+	stream := &execCommandStream{
+		ctx: context.Background(),
+		requests: []*pb.ExecCommandRequest{
+			{
+				Payload: &pb.ExecCommandRequest_Config{
+					Config: &pb.ExecCommandConfig{
+						Command:     []string{"cat"},
+						AttachStdin: true,
+					},
+				},
+			},
+			{
+				Payload: &pb.ExecCommandRequest_Stdin{Stdin: []byte("hello")},
+			},
+		},
+	}
 
-	err := (&Machine{}).ExecCommand(&pb.ExecCommandRequest{}, stream)
+	err := (&Machine{}).ExecCommand(stream)
+	require.NoError(t, err)
+
+	var stdout []byte
+	exitCode := -1
+	for _, resp := range stream.responses {
+		switch payload := resp.Payload.(type) {
+		case *pb.ExecCommandResponse_Stdout:
+			stdout = append(stdout, payload.Stdout...)
+		case *pb.ExecCommandResponse_ExitCode:
+			exitCode = int(payload.ExitCode)
+		}
+	}
+
+	assert.Equal(t, "hello", string(stdout))
+	assert.Equal(t, 0, exitCode)
+}
+
+func TestExecCommandRequiresCommand(t *testing.T) {
+	stream := &execCommandStream{
+		ctx: context.Background(),
+		requests: []*pb.ExecCommandRequest{
+			{
+				Payload: &pb.ExecCommandRequest_Config{
+					Config: &pb.ExecCommandConfig{},
+				},
+			},
+		},
+	}
+
+	err := (&Machine{}).ExecCommand(stream)
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
