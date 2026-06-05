@@ -1,10 +1,8 @@
 # Metrics
 
 Since Uncloud version 0.20 it exports [Prometheus](https://prometheus.io) metrics. The metrics are exposed on
-port 51090.
-
-This port is exposed _in_ the cluster network, this makes it possible for a Prometheus service running inside
-the cluster to scrape it.
+port 51090. This port is exposed _in_ the cluster network, this makes it possible for a Prometheus service
+running inside the cluster to scrape it.
 
 The following metrics are exported by `uncloudd`. It is expected that future releases add more.
 
@@ -42,7 +40,7 @@ enable them in the [global `x-caddy`](../3-concepts/2-ingress/3-managing-caddy.m
 ```
 
 But this only exposes the metrics on localhost, to be able to scrape them from Prometheus you need a tiny
-extra service who's only job it is to inject a snippet into Caddy's config:
+extra service who's only job it is to inject a snippet into Caddy's config.
 
 ```yaml title="compose.yaml"
 services:
