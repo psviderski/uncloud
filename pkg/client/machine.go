@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +15,55 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+func (cli *Client) ExecMachine(ctx context.Context, machineNameOrID string, opts api.MachineExecOptions) (int, error) {
+	if len(opts.Command) == 0 {
+		return -1, fmt.Errorf("command is required")
+	}
+
+	machine, err := cli.InspectMachine(ctx, machineNameOrID)
+	if err != nil {
+		return -1, fmt.Errorf("inspect machine '%s': %w", machineNameOrID, err)
+	}
+
+	stdout := opts.Stdout
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+	stderr := opts.Stderr
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+
+	proxyCtx := cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
+	stream, err := cli.MachineClient.ExecCommand(proxyCtx, &pb.ExecCommandRequest{Command: opts.Command})
+	if err != nil {
+		return -1, fmt.Errorf("exec command on machine '%s': %w", machine.Machine.Name, err)
+	}
+
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return -1, fmt.Errorf("exec command stream closed without exit code")
+		}
+		if err != nil {
+			return -1, fmt.Errorf("receive exec command response: %w", err)
+		}
+
+		switch payload := resp.Payload.(type) {
+		case *pb.ExecCommandResponse_Stdout:
+			if _, err = stdout.Write(payload.Stdout); err != nil {
+				return -1, fmt.Errorf("write stdout: %w", err)
+			}
+		case *pb.ExecCommandResponse_Stderr:
+			if _, err = stderr.Write(payload.Stderr); err != nil {
+				return -1, fmt.Errorf("write stderr: %w", err)
+			}
+		case *pb.ExecCommandResponse_ExitCode:
+			return int(payload.ExitCode), nil
+		}
+	}
+}
 
 func (cli *Client) InspectMachine(ctx context.Context, nameOrID string) (*pb.MachineMember, error) {
 	// TODO: refactor to use MachineClient.InspectMachine.
