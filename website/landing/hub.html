@@ -561,12 +561,11 @@
                                 Get early access
                             </h2>
                             <p class="text-lg text-zinc-400">
-                                Hub isn't open yet. Leave your email and we'll reach out when it's ready.
+                                Leave your email and we'll reach out with updates.
                             </p>
                         </div>
 
-                        <!-- Replace YOUR_FORM_ID with a Formspree or similar endpoint -->
-                        <form action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+                        <form action="/fill-form" method="POST">
                             <div class="mb-4">
                                 <label for="hub-email" class="block text-sm font-medium text-zinc-300 mb-1.5">Your email</label>
                                 <input type="email" name="email" id="hub-email" required
@@ -575,7 +574,7 @@
                             </div>
                             <div class="mb-6">
                                 <label for="hub-message" class="block text-sm font-medium text-zinc-300 mb-1.5">
-                                    What would Hub need to do for you to actually use it?
+                                    What will you use Hub for? What features would you like to see?
                                     <span class="text-zinc-500 font-normal">(optional)</span>
                                 </label>
                                 <textarea name="message" id="hub-message" rows="3"
