@@ -163,19 +163,28 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	}
 
 	// Wait for the cluster to be initialised on the machine to be able to deploy the Caddy service.
-	err = spinner.New().
-		Title(" Waiting for the machine to join the cluster...").
-		Type(spinner.MiniDot).
-		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
-			return &spinner.Styles{
-				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
-				Title:   lipgloss.NewStyle(),
-			}
-		})).
-		ActionWithErr(func(ctx context.Context) error {
-			return machineClient.WaitClusterReady(ctx, 5*time.Minute)
-		}).
-		Run()
+	// The spinner opens /dev/tty, so it dies headless (CI, SSH, mise tasks). Fall
+	// back to a plain wait when stdout isn't a terminal — mirrors
+	// connectClusterWithProgress, and lets `uc machine init/add` run without a PTY
+	// wrapper (errors surface normally instead of being swallowed).
+	if tui.IsStdoutTerminal() {
+		err = spinner.New().
+			Title(" Waiting for the machine to join the cluster...").
+			Type(spinner.MiniDot).
+			WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
+				return &spinner.Styles{
+					Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
+					Title:   lipgloss.NewStyle(),
+				}
+			})).
+			ActionWithErr(func(ctx context.Context) error {
+				return machineClient.WaitClusterReady(ctx, 5*time.Minute)
+			}).
+			Run()
+	} else {
+		fmt.Println("Waiting for the machine to join the cluster...")
+		err = machineClient.WaitClusterReady(ctx, 5*time.Minute)
+	}
 	if err != nil {
 		return fmt.Errorf("wait for machine to join the cluster: %w", err)
 	}
