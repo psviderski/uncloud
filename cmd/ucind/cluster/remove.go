@@ -10,9 +10,10 @@ import (
 
 func NewRemoveCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "rm [NAME]",
-		Short: "Remove a cluster.",
-		Args:  cobra.MaximumNArgs(1),
+		Use:     "rm [NAME]",
+		Short:   "Remove a cluster.",
+		Aliases: []string{"remove", "delete"},
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := cmd.Context().Value("provisioner").(*ucind.Provisioner)
 
