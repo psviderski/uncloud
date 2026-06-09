@@ -24,8 +24,6 @@ type destroyOptions struct {
 	profiles []string
 	services []string
 	yes      bool
-	signal   string
-	timeout  int
 }
 
 // NewDestroyCommand creates a new command to tear down services from a Compose file.
