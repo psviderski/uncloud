@@ -150,6 +150,9 @@ func runDestroy(ctx context.Context, uncli *cli.CLI, opts destroyOptions) error 
 		}
 	}
 
+	if opts.yes {
+		fmt.Println() // slightly nicer in the output
+	}
 	for _, s := range composeServices {
 		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 			if err = client.RemoveService(ctx, s); err != nil {
