@@ -57,6 +57,10 @@ func NewListCommand() *cobra.Command {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return list(cmd.Context(), uncli, opts)
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			uncli := cmd.Context().Value("cli").(*cli.CLI)
+			return completion.Images(cmd.Context(), uncli, args, toComplete)
+		},
 	}
 
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
