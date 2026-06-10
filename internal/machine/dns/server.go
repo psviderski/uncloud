@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/metrics"
 )
 
@@ -31,11 +33,17 @@ const (
 	forwardingTimeout = 3 * time.Second
 )
 
-// Resolver is an interface for resolving service names to IP addresses.
+// ResolvedIP pairs an IP address with the machine ID where the container is running.
+type ResolvedIP struct {
+	Addr      netip.Addr
+	MachineID string
+}
+
+// Resolver is an interface for resolving service names to IP addresses with machine metadata.
 type Resolver interface {
-	// Resolve returns a list of IP addresses of the service containers.
+	// Resolve returns a list of resolved IPs of the service containers.
 	// An empty list is returned if no service is found.
-	Resolve(serviceName string) []netip.Addr
+	Resolve(serviceName string) []ResolvedIP
 }
 
 // Server is an embedded internal DNS server for service discovery and forwarding external queries
@@ -44,6 +52,7 @@ type Server struct {
 	listenAddr      netip.Addr
 	localSubnet     netip.Prefix
 	resolver        Resolver
+	rttByMachineID  func(string) (time.Duration, bool)
 	upstreamServers []netip.AddrPort
 
 	udpServer        *dns.Server
@@ -56,7 +65,7 @@ type Server struct {
 // NewServer creates a new DNS server with the given configuration.
 // If upstreams is nil, nameservers from /etc/resolv.conf will be used. An empty upstreams list means to only resolve
 // internal DNS queries and not forward any external queries.
-func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort) (*Server, error) {
+func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort, rttByMachineID func(string) (time.Duration, bool)) (*Server, error) {
 	if !listenAddr.IsValid() {
 		return nil, fmt.Errorf("invalid listen address: %s", listenAddr)
 	}
@@ -92,6 +101,7 @@ func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolve
 		listenAddr:       listenAddr,
 		localSubnet:      localSubnet,
 		resolver:         resolver,
+		rttByMachineID:   rttByMachineID,
 		upstreamServers:  upstreams,
 		forwardSemaphore: make(chan struct{}, maxConcurrentForwards),
 		log:              slog.With("component", "dns-server"),
@@ -312,23 +322,22 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		// and nothing additional to do for round-robin (mode == "rr").
 
 		if mode == "nearest" {
-			// Sort IPs on local subnet to the top.
-			slices.SortFunc(ips, func(a, b netip.Addr) int {
-				aIsLocal := s.localSubnet.Contains(a)
-				bIsLocal := s.localSubnet.Contains(b)
-				if aIsLocal && !bIsLocal {
-					return -1
-				} else if bIsLocal && !aIsLocal {
-					return 1
-				}
-				return 0
+			// Sort by RTT using proximity data. Local machine containers get RTT 0.
+			slices.SortStableFunc(ips, func(a, b ResolvedIP) int {
+				return cmp.Compare(s.rttForResolved(a), s.rttForResolved(b))
 			})
 		}
 	}
 
+	// Extract addresses from resolved IPs for DNS response.
+	addrs := make([]netip.Addr, len(ips))
+	for i, r := range ips {
+		addrs[i] = r.Addr
+	}
+
 	// Create A records for each IP.
-	records := make([]dns.RR, 0, len(ips))
-	for _, ip := range ips {
+	records := make([]dns.RR, 0, len(addrs))
+	for _, ip := range addrs {
 		records = append(records, &dns.A{
 			Hdr: dns.RR_Header{
 				Name:   name,
@@ -342,6 +351,21 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		})
 	}
 	return records
+}
+
+// rttForResolved returns the RTT for a resolved IP. Returns 0 if the IP is on the
+// local subnet (same machine), looks up RTT via rttByMachineID for remote machines,
+// and returns math.MaxInt64 for unknown machines (sorted last).
+func (s *Server) rttForResolved(r ResolvedIP) time.Duration {
+	if s.localSubnet.Contains(r.Addr) {
+		return 0
+	}
+	if s.rttByMachineID != nil {
+		if rtt, ok := s.rttByMachineID(r.MachineID); ok {
+			return rtt
+		}
+	}
+	return constants.UnknownRTT
 }
 
 // parseNameserversFromResolvConf parses the nameservers from /etc/resolv.conf.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"net/netip"
 	"slices"
 	"sync"
 	"time"
@@ -17,8 +16,8 @@ import (
 // to their IP addresses.
 type ClusterResolver struct {
 	store *store.Store
-	// serviceIPs maps service names to container IPs.
-	serviceIPs map[string][]netip.Addr
+	// serviceIPs maps service names to resolved container IPs with machine metadata.
+	serviceIPs map[string][]ResolvedIP
 	// mu protects the serviceIPs map.
 	mu sync.RWMutex
 	// lastUpdate tracks when records were last updated.
@@ -30,7 +29,7 @@ type ClusterResolver struct {
 func NewClusterResolver(store *store.Store) *ClusterResolver {
 	return &ClusterResolver{
 		store:      store,
-		serviceIPs: make(map[string][]netip.Addr),
+		serviceIPs: make(map[string][]ResolvedIP),
 		log:        slog.With("component", "dns-resolver"),
 	}
 }
@@ -70,7 +69,7 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 
 // updateServiceIPs processes container records and updates the serviceIPs map.
 func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
-	newServiceIPs := make(map[string][]netip.Addr, len(r.serviceIPs))
+	newServiceIPs := make(map[string][]ResolvedIP, len(r.serviceIPs))
 
 	containersCount := 0
 	for _, record := range containers {
@@ -93,23 +92,24 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 			continue
 		}
 
-		newServiceIPs[ctr.ServiceName()] = append(newServiceIPs[ctr.ServiceName()], ip)
+		resolved := ResolvedIP{Addr: ip, MachineID: record.MachineID}
+		newServiceIPs[ctr.ServiceName()] = append(newServiceIPs[ctr.ServiceName()], resolved)
 		// Also add the service ID as a valid lookup.
-		newServiceIPs[ctr.ServiceID()] = append(newServiceIPs[ctr.ServiceID()], ip)
+		newServiceIPs[ctr.ServiceID()] = append(newServiceIPs[ctr.ServiceID()], resolved)
 
 		// Add <machine-id>.m.<service-name> as a lookup
 		serviceNameWithMachineID := record.MachineID + ".m." + ctr.ServiceName()
-		newServiceIPs[serviceNameWithMachineID] = append(newServiceIPs[serviceNameWithMachineID], ip)
+		newServiceIPs[serviceNameWithMachineID] = append(newServiceIPs[serviceNameWithMachineID], resolved)
 
 		containersCount++
 	}
 
-	// Sort each service's IPs so they have a deterministic order for comparison.
+	// Sort each service's resolved IPs by address for deterministic order and comparison.
 	for _, ips := range newServiceIPs {
-		slices.SortFunc(ips, func(a, b netip.Addr) int { return a.Compare(b) })
+		slices.SortFunc(ips, func(a, b ResolvedIP) int { return a.Addr.Compare(b.Addr) })
 	}
 	// Skip the swap when the services or their container IPs haven't changed.
-	if maps.EqualFunc(r.serviceIPs, newServiceIPs, slices.Equal[[]netip.Addr]) {
+	if maps.EqualFunc(r.serviceIPs, newServiceIPs, slices.Equal[[]ResolvedIP]) {
 		return
 	}
 
@@ -121,8 +121,8 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 	r.log.Info("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
 }
 
-// Resolve returns IP addresses of the service containers.
-func (r *ClusterResolver) Resolve(serviceName string) []netip.Addr {
+// Resolve returns resolved IPs of the service containers.
+func (r *ClusterResolver) Resolve(serviceName string) []ResolvedIP {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -132,7 +132,7 @@ func (r *ClusterResolver) Resolve(serviceName string) []netip.Addr {
 	}
 
 	// Return a copy of the IPs slice to prevent modification of the original.
-	ipsCopy := make([]netip.Addr, len(ips))
+	ipsCopy := make([]ResolvedIP, len(ips))
 	copy(ipsCopy, ips)
 
 	return ipsCopy
