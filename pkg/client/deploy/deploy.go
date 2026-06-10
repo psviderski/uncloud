@@ -33,8 +33,7 @@ type Deployment struct {
 	Strategy Strategy
 	cli      Client
 	plan     *ServicePlan
-	// state is an optional current and planned cluster state used for scheduling decisions.
-	state *scheduler.ClusterState
+	state    *scheduler.ClusterState
 }
 
 type ServicePlan struct {
@@ -310,25 +309,69 @@ func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
 		ClusterDomain: clusterDomain,
 	}
 
-	resolvedSpec, err := specResolver.Resolve(d.Spec)
-	if err != nil {
-		return ServicePlan{}, fmt.Errorf("resolve service spec: %w", err)
-	}
-
-	if d.state == nil {
-		d.state, err = scheduler.InspectClusterState(ctx, d.cli)
+	state := d.state
+	if state == nil {
+		state, err = scheduler.InspectClusterState(ctx, d.cli)
 		if err != nil {
 			return ServicePlan{}, fmt.Errorf("inspect cluster state: %w", err)
 		}
+		d.state = state
 	}
 
-	plan, err := d.Strategy.Plan(d.state, d.Service, resolvedSpec)
+	plan, err := PlanService(state, d.Service, d.Spec, specResolver, d.Strategy)
 	if err != nil {
-		return ServicePlan{}, fmt.Errorf("create plan using %s strategy: %w", d.Strategy.Type(), err)
+		return ServicePlan{}, err
 	}
 	d.plan = &plan
 
 	return plan, nil
+}
+
+func PlanService(
+	state *scheduler.ClusterState,
+	currentService *api.Service,
+	spec api.ServiceSpec,
+	resolver *ServiceSpecResolver,
+	strategy Strategy,
+) (ServicePlan, error) {
+	if strategy == nil {
+		strategy = &RollingStrategy{}
+	}
+	if err := spec.Validate(); err != nil {
+		return ServicePlan{}, fmt.Errorf("invalid service spec: %w", err)
+	}
+	if err := ValidateServiceSpecForCurrent(spec, currentService); err != nil {
+		return ServicePlan{}, fmt.Errorf("invalid deployment: %w", err)
+	}
+	if resolver == nil {
+		resolver = &ServiceSpecResolver{}
+	}
+
+	resolvedSpec, err := resolver.Resolve(spec)
+	if err != nil {
+		return ServicePlan{}, fmt.Errorf("resolve service spec: %w", err)
+	}
+	plan, err := strategy.Plan(state, currentService, resolvedSpec)
+	if err != nil {
+		return ServicePlan{}, fmt.Errorf("create plan using %s strategy: %w", strategy.Type(), err)
+	}
+	return plan, nil
+}
+
+func (d *Deployment) loadCurrentService(ctx context.Context) error {
+	if d.Service != nil || d.Spec.Name == "" {
+		return nil
+	}
+
+	svc, err := d.cli.InspectService(ctx, d.Spec.Name)
+	if err == nil {
+		d.Service = &svc
+		return nil
+	}
+	if errors.Is(err, api.ErrNotFound) {
+		return nil
+	}
+	return fmt.Errorf("inspect service: %w", err)
 }
 
 // Validate checks if the deployment specification is valid.
@@ -337,30 +380,34 @@ func (d *Deployment) Validate(ctx context.Context) error {
 		return fmt.Errorf("invalid service spec: %w", err)
 	}
 
-	if d.Service == nil && d.Spec.Name != "" {
-		svc, err := d.cli.InspectService(ctx, d.Spec.Name)
-		if err == nil {
-			d.Service = &svc
-		} else if !errors.Is(err, api.ErrNotFound) {
-			return fmt.Errorf("inspect service: %w", err)
-		}
+	if err := d.loadCurrentService(ctx); err != nil {
+		return fmt.Errorf("load current service: %w", err)
 	}
+
+	return d.validateLoaded()
+}
+
+func (d *Deployment) validateLoaded() error {
+	return ValidateServiceSpecForCurrent(d.Spec, d.Service)
+}
+
+func ValidateServiceSpecForCurrent(spec api.ServiceSpec, currentService *api.Service) error {
 	// d.Service is nil if the service doesn't exist yet (first deployment).
-	if d.Service == nil {
+	if currentService == nil {
 		return nil
 	}
 
-	if d.Service.Name != d.Spec.Name {
+	if currentService.Name != spec.Name {
 		return errors.New("service name cannot be changed")
 	}
 
 	// Resolve the default mode if not specified.
-	mode := d.Spec.Mode
+	mode := spec.Mode
 	if mode == "" {
 		mode = api.ServiceModeReplicated
 	}
 
-	if mode != d.Service.Mode {
+	if mode != currentService.Mode {
 		return errors.New("service mode cannot be changed")
 	}
 

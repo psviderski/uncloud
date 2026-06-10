@@ -15,11 +15,12 @@ import (
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
+	"golang.org/x/sync/errgroup"
 )
 
 type Client interface {
-	api.DNSClient
 	deploy.Client
+	ListServices(ctx context.Context) ([]api.Service, error)
 }
 
 type Deployment struct {
@@ -27,7 +28,7 @@ type Deployment struct {
 	Project      *types.Project
 	SpecResolver *deploy.ServiceSpecResolver
 	Strategy     deploy.Strategy
-	state        *scheduler.ClusterState
+	planning     *planningState
 	plan         *Plan
 }
 
@@ -36,27 +37,80 @@ func NewDeployment(ctx context.Context, cli Client, project *types.Project) (*De
 }
 
 func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.Project, strategy deploy.Strategy) (*Deployment, error) {
-	state, err := scheduler.InspectClusterState(ctx, cli)
+	planning, err := loadPlanningState(ctx, cli)
 	if err != nil {
-		return nil, fmt.Errorf("inspect cluster state: %w", err)
-	}
-
-	domain, err := cli.GetDomain(ctx)
-	if err != nil && !errors.Is(err, api.ErrNotFound) {
-		return nil, fmt.Errorf("get cluster domain: %w", err)
-	}
-	resolver := &deploy.ServiceSpecResolver{
-		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: domain,
+		return nil, fmt.Errorf("load planning state: %w", err)
 	}
 
 	return &Deployment{
 		Client:       cli,
 		Project:      project,
-		SpecResolver: resolver,
+		SpecResolver: planning.resolver,
 		Strategy:     strategy,
-		state:        state,
+		planning:     planning,
 	}, nil
+}
+
+type planningState struct {
+	clusterState *scheduler.ClusterState
+	resolver     *deploy.ServiceSpecResolver
+	services     map[string][]api.Service
+}
+
+func loadPlanningState(ctx context.Context, cli Client) (*planningState, error) {
+	state := &planningState{}
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		clusterState, err := scheduler.InspectClusterState(gctx, cli)
+		if err != nil {
+			return fmt.Errorf("inspect cluster state: %w", err)
+		}
+		state.clusterState = clusterState
+		return nil
+	})
+
+	g.Go(func() error {
+		services, err := cli.ListServices(gctx)
+		if err != nil {
+			return fmt.Errorf("list services: %w", err)
+		}
+
+		state.services = make(map[string][]api.Service, len(services))
+		for _, svc := range services {
+			state.services[svc.Name] = append(state.services[svc.Name], svc)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		domain, err := cli.GetDomain(gctx)
+		if err != nil && !errors.Is(err, api.ErrNotFound) {
+			return fmt.Errorf("get domain: %w", err)
+		}
+		state.resolver = &deploy.ServiceSpecResolver{
+			// If the domain is not found (not reserved), an empty domain is used for the resolver.
+			ClusterDomain: domain,
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+func (s *planningState) currentService(name string) (*api.Service, error) {
+	matches := s.services[name]
+	switch len(matches) {
+	case 0:
+		return nil, nil
+	case 1:
+		return &matches[0], nil
+	default:
+		return nil, fmt.Errorf("multiple services found with name '%s', use the service ID instead", name)
+	}
 }
 
 func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
@@ -85,7 +139,7 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	}
 
 	// Check external volumes and plan the creation of missing volumes before deploying services.
-	// Updates the cluster state (d.state) with the scheduled volumes.
+	// Updates the planning cluster state with the scheduled volumes.
 	volumeOps, err := d.planVolumes(serviceSpecs)
 	if err != nil {
 		return plan, err
@@ -94,9 +148,12 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 
 	for _, spec := range serviceSpecs {
 		// TODO: properly handle depends_on conditions in the service deployment plan as the first operation.
-		// Pass the updated cluster state with the scheduled volumes to the deployment.
-		deployment := deploy.NewDeploymentWithClusterState(d.Client, spec, d.Strategy, d.state)
-		servicePlan, err := deployment.Plan(ctx)
+		currentService, err := d.planning.currentService(spec.Name)
+		if err != nil {
+			return plan, fmt.Errorf("find current service '%s': %w", spec.Name, err)
+		}
+
+		servicePlan, err := deploy.PlanService(d.planning.clusterState, currentService, spec, d.SpecResolver, d.Strategy)
 		if err != nil {
 			return plan, fmt.Errorf("create deployment plan for service '%s': %w", spec.Name, err)
 		}
@@ -134,7 +191,7 @@ func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*operation.C
 
 	// TODO: The scheduler should ideally work with the resolved service specs to correctly identify eligible machines.
 	//  Figure out where the best place to resolve the specs is.
-	volumeScheduler, err := scheduler.NewVolumeScheduler(d.state, serviceSpecs)
+	volumeScheduler, err := scheduler.NewVolumeScheduler(d.planning.clusterState, serviceSpecs)
 	if err != nil {
 		return nil, fmt.Errorf("init volume scheduler: %w", err)
 	}
@@ -148,7 +205,7 @@ func (d *Deployment) planVolumes(serviceSpecs []api.ServiceSpec) ([]*operation.C
 	for machineID, volumes := range scheduledVolumes {
 		for _, v := range volumes {
 			machineName := machineID
-			if m, ok := d.state.Machine(machineID); ok {
+			if m, ok := d.planning.clusterState.Machine(machineID); ok {
 				machineName = m.Info.Name
 			}
 
@@ -174,7 +231,7 @@ func (d *Deployment) checkExternalVolumesExist() error {
 
 	var notFound []string
 	for _, name := range externalNames {
-		if !slices.ContainsFunc(d.state.Machines, func(m *scheduler.Machine) bool {
+		if !slices.ContainsFunc(d.planning.clusterState.Machines, func(m *scheduler.Machine) bool {
 			return slices.ContainsFunc(m.Volumes, func(vol volume.Volume) bool {
 				return vol.Name == name
 			})
