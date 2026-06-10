@@ -52,7 +52,7 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 	t := tui.NewTable()
 
 	// Include the ID column if there are duplicate service names to differentiate them.
-	headers := []string{"NAME", "MODE", "REPLICAS", "IMAGE", "ENDPOINTS"}
+	headers := []string{"NAME", "MODE", "REPLICAS", "IMAGE", "ENDPOINTS", "STATUS"}
 	if haveDuplicateNames {
 		headers = append([]string{"ID"}, headers...)
 	}
@@ -75,7 +75,15 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			}
 		}
 
-		row := []string{s.Name, s.Mode, fmt.Sprintf("%d", len(s.Containers)), formattedImages, endpoints}
+		healthy := 0
+		for _, ctr := range s.Containers {
+			if ctr.Container.Healthy() {
+				healthy++
+			}
+		}
+		status := fmt.Sprintf("%d/%d healthy", healthy, len(s.Containers))
+
+		row := []string{s.Name, s.Mode, fmt.Sprintf("%d", len(s.Containers)), formattedImages, endpoints, status}
 		if haveDuplicateNames {
 			row = append([]string{s.ID}, row...)
 		}
