@@ -53,7 +53,7 @@ See "uc service remove".`,
 	}
 
 	cmd.Flags().StringSliceVarP(&opts.files, "file", "f", nil,
-		"One or more Compose files to deploy services from. (default compose.yaml)")
+		"One or more Compose files to destroy services from. (default compose.yaml)")
 	cmd.Flags().StringSliceVarP(&opts.profiles, "profile", "p", nil,
 		"One or more Compose profiles to enable.")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
@@ -63,7 +63,7 @@ See "uc service remove".`,
 	return cmd
 }
 
-// runDestroy parses the Compose file(s) and detroys the services.
+// runDestroy parses the Compose file(s) and destroys the services.
 func runDestroy(ctx context.Context, uncli *cli.CLI, opts destroyOptions) error {
 	project, err := compose.LoadProject(ctx, opts.files, composecli.WithDefaultProfiles(opts.profiles...))
 	if err != nil {
@@ -111,31 +111,30 @@ func runDestroy(ctx context.Context, uncli *cli.CLI, opts destroyOptions) error 
 
 	if !opts.yes {
 		if !tui.IsStdinTerminal() {
-			return errors.New("cannot ask to confirm undeployment in non-interactive mode, " +
+			return errors.New("cannot ask to confirm destroy in non-interactive mode, " +
 				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
 		}
 
 		directConn := uncli.DirectConnection()
 		contextName := uncli.ContextOverrideOrCurrent()
-		deployTarget := ""
+		destroyTarget := ""
 		if directConn != "" {
-			deployTarget = directConn
+			destroyTarget = directConn
 			fmt.Println(tui.Faint.Render("connection: ") + tui.NameStyle.Render(directConn))
 			fmt.Println()
 		} else if contextName != "" && len(uncli.Config.Contexts) > 1 {
-			// Only show context if there's more than one to avoid unnecessary clutter.
-			deployTarget = contextName
+			destroyTarget = contextName
 			fmt.Println(tui.Faint.Render("context: ") + tui.NameStyle.Render(contextName))
 			fmt.Println()
 		}
 
 		title := "Proceed with destroy?"
 		// Include the direct connection or context name in the confirmation prompt to avoid accidentally
-		// deploying to the wrong cluster.
-		if deployTarget != "" {
+		// destroying in the wrong cluster.
+		if destroyTarget != "" {
 			isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 			confirmStyle := tui.ThemeConfirm().Theme(isDark).Focused.Title
-			title = "Proceed with detroy to " + tui.NameStyle.Render(deployTarget) + confirmStyle.Render("?")
+			title = "Proceed with destroy to " + tui.NameStyle.Render(destroyTarget) + confirmStyle.Render("?")
 		}
 
 		fmt.Println()
