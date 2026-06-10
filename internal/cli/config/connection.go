@@ -13,20 +13,20 @@ import (
 
 type MachineConnection struct {
 	// SSH uses the system ssh CLI command to connect. This is the default SSH connection method.
-	SSH SSHDestination `yaml:"ssh,omitempty"`
+	SSH SSHDestination `yaml:"ssh,omitempty" json:"SSH,omitempty"`
 	// SSHCLI is a backward-compatible alias for SSH.
-	SSHCLI SSHDestination `yaml:"ssh_cli,omitempty"`
+	SSHCLI SSHDestination `yaml:"ssh_cli,omitempty" json:"SSHCli,omitempty"`
 	// SSHGo uses Go's built-in SSH library to connect.
-	SSHGo      SSHDestination `yaml:"ssh_go,omitempty"`
-	SSHKeyFile string         `yaml:"ssh_key_file,omitempty"`
+	SSHGo      SSHDestination `yaml:"ssh_go,omitempty" json:"SSHGo,omitempty"`
+	SSHKeyFile string         `yaml:"ssh_key_file,omitempty" json:"SSHKey,omitempty"`
 	// TCP is the address and port of the machine's API server.
 	// The pointer is used to omit the field when not set. Otherwise, yaml marshalling includes an empty object.
-	TCP *netip.AddrPort `yaml:"tcp,omitempty"`
+	TCP *netip.AddrPort `yaml:"tcp,omitempty" json:"TCP,omitempty"`
 	// Unix is the path to the machine's API unix socket.
-	Unix      string        `yaml:"unix,omitempty"`
-	Host      string        `yaml:"host,omitempty"`
-	PublicKey secret.Secret `yaml:"public_key,omitempty"`
-	MachineID string        `yaml:"machine_id,omitempty"`
+	Unix      string        `yaml:"unix,omitempty" json:"Unix,omitempty"`
+	Host      string        `yaml:"host,omitempty" json:"Host,omitempty"`
+	PublicKey secret.Secret `yaml:"public_key,omitempty" json:"PublicKey,omitempty"`
+	MachineID string        `yaml:"machine_id,omitempty" json:"MachineID,omitempty"`
 }
 
 func (c *MachineConnection) String() string {

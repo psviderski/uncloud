@@ -1,8 +1,8 @@
 package config
 
 type Context struct {
-	Name        string              `yaml:"-"`
-	Connections []MachineConnection `yaml:"connections"`
+	Name        string              `yaml:"-" json:"-"`
+	Connections []MachineConnection `yaml:"connections" json:"Connections"`
 }
 
 func (c *Context) SetDefaultConnection(index int) {

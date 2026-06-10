@@ -34,6 +34,7 @@ uc images [IMAGE] [flags]
 ```
   -h, --help              help for images
   -m, --machine strings   Filter images by machine name or ID. Can be specified multiple times or as a comma-separated list. (default is include all machines)
+  -o, --output string     Output format. Currently only 'json' is supported.
 ```
 
 ## Options inherited from parent commands
