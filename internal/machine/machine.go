@@ -5,18 +5,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/netip"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/containerd/errdefs"
+	"github.com/creack/pty"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/psviderski/uncloud/internal/corrosion"
@@ -1283,4 +1287,249 @@ func (m *Machine) MachineLogs(
 			return status.Error(codes.Canceled, ctx.Err().Error())
 		}
 	}
+}
+
+func (m *Machine) ExecCommand(stream grpc.BidiStreamingServer[pb.ExecCommandRequest, pb.ExecCommandResponse]) error {
+	req, err := stream.Recv()
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "receive exec command config: %v", err)
+	}
+	config := req.GetConfig()
+	if config == nil {
+		return status.Error(codes.InvalidArgument, "first message must contain exec command config")
+	}
+
+	command := config.GetCommand()
+	if len(command) == 0 {
+		return status.Error(codes.InvalidArgument, "command is required")
+	}
+
+	ctx := stream.Context()
+	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
+	if config.GetTty() {
+		return m.execCommandTTY(ctx, cmd, stream, config.GetAttachStdin())
+	}
+	return m.execCommand(ctx, cmd, stream, config.GetAttachStdin())
+}
+
+func (m *Machine) execCommand(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	stream grpc.BidiStreamingServer[pb.ExecCommandRequest, pb.ExecCommandResponse],
+	attachStdin bool,
+) error {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return status.Errorf(codes.Internal, "create stdout pipe: %v", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return status.Errorf(codes.Internal, "create stderr pipe: %v", err)
+	}
+	var stdin io.WriteCloser
+	if attachStdin {
+		stdin, err = cmd.StdinPipe()
+		if err != nil {
+			return status.Errorf(codes.Internal, "create stdin pipe: %v", err)
+		}
+	}
+
+	if err = cmd.Start(); err != nil {
+		var execErr *exec.Error
+		if errors.As(err, &execErr) {
+			return status.Errorf(codes.NotFound, "start command: %v", err)
+		}
+		return status.Errorf(codes.Internal, "start command: %v", err)
+	}
+
+	sendOutput := lockedExecCommandSender(stream)
+
+	if attachStdin {
+		go func() {
+			if err := handleExecCommandInput(ctx, stream, stdin, nil); err != nil {
+				slog.Warn("Error in machine exec input handler", "err", err, "command", cmd.Args)
+			}
+		}()
+	}
+
+	var errGroup errgroup.Group
+	errGroup.Go(func() error {
+		return copyExecCommandOutput(stdout, sendOutput, func(data []byte) *pb.ExecCommandResponse {
+			return &pb.ExecCommandResponse{
+				Payload: &pb.ExecCommandResponse_Stdout{Stdout: data},
+			}
+		})
+	})
+	errGroup.Go(func() error {
+		return copyExecCommandOutput(stderr, sendOutput, func(data []byte) *pb.ExecCommandResponse {
+			return &pb.ExecCommandResponse{
+				Payload: &pb.ExecCommandResponse_Stderr{Stderr: data},
+			}
+		})
+	})
+
+	outputErr := errGroup.Wait()
+	waitErr := cmd.Wait()
+	if outputErr != nil {
+		if ctx.Err() != nil {
+			return status.Error(codes.Canceled, ctx.Err().Error())
+		}
+		return status.Errorf(codes.Internal, "stream command output: %v", outputErr)
+	}
+
+	return sendExecCommandExitCode(ctx, sendOutput, waitErr)
+}
+
+func (m *Machine) execCommandTTY(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	stream grpc.BidiStreamingServer[pb.ExecCommandRequest, pb.ExecCommandResponse],
+	attachStdin bool,
+) error {
+	tty, err := pty.Start(cmd)
+	if err != nil {
+		var execErr *exec.Error
+		if errors.As(err, &execErr) {
+			return status.Errorf(codes.NotFound, "start command: %v", err)
+		}
+		return status.Errorf(codes.Internal, "start command with TTY: %v", err)
+	}
+	defer tty.Close()
+
+	sendOutput := lockedExecCommandSender(stream)
+
+	if attachStdin {
+		go func() {
+			if err := handleExecCommandInput(ctx, stream, tty, tty); err != nil {
+				slog.Warn("Error in machine exec TTY input handler", "err", err, "command", cmd.Args)
+			}
+		}()
+	}
+
+	outputErr := copyExecCommandOutput(tty, sendOutput, func(data []byte) *pb.ExecCommandResponse {
+		return &pb.ExecCommandResponse{
+			Payload: &pb.ExecCommandResponse_Stdout{Stdout: data},
+		}
+	})
+	waitErr := cmd.Wait()
+	if outputErr != nil {
+		if ctx.Err() != nil {
+			return status.Error(codes.Canceled, ctx.Err().Error())
+		}
+		return status.Errorf(codes.Internal, "stream command output: %v", outputErr)
+	}
+
+	return sendExecCommandExitCode(ctx, sendOutput, waitErr)
+}
+
+func lockedExecCommandSender(
+	stream grpc.BidiStreamingServer[pb.ExecCommandRequest, pb.ExecCommandResponse],
+) func(*pb.ExecCommandResponse) error {
+	var sendMu sync.Mutex
+	return func(resp *pb.ExecCommandResponse) error {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		if err := stream.Send(resp); err != nil {
+			return fmt.Errorf("send exec response: %w", err)
+		}
+		return nil
+	}
+}
+
+func handleExecCommandInput(
+	ctx context.Context,
+	stream grpc.BidiStreamingServer[pb.ExecCommandRequest, pb.ExecCommandResponse],
+	stdin io.WriteCloser,
+	tty *os.File,
+) error {
+	defer stdin.Close()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
+		req, err := stream.Recv()
+		switch {
+		case errors.Is(err, io.EOF):
+			return nil
+		case status.Code(err) == codes.Canceled:
+			return nil
+		case err == nil:
+		default:
+			return fmt.Errorf("receive from stream: %w", err)
+		}
+
+		switch payload := req.Payload.(type) {
+		case *pb.ExecCommandRequest_Stdin:
+			if _, err := stdin.Write(payload.Stdin); err != nil {
+				return fmt.Errorf("write to stdin: %w", err)
+			}
+		case *pb.ExecCommandRequest_Resize:
+			if tty != nil {
+				if err := pty.Setsize(tty, &pty.Winsize{
+					Rows: uint16(payload.Resize.Height),
+					Cols: uint16(payload.Resize.Width),
+				}); err != nil {
+					slog.Warn("Failed to resize machine exec TTY", "err", err)
+				}
+			}
+		}
+	}
+}
+
+func copyExecCommandOutput(
+	r io.Reader,
+	sendOutput func(*pb.ExecCommandResponse) error,
+	response func([]byte) *pb.ExecCommandResponse,
+) error {
+	buf := make([]byte, 32*1024)
+	for {
+		n, rErr := r.Read(buf)
+		if n > 0 {
+			data := make([]byte, n)
+			copy(data, buf[:n])
+			if err := sendOutput(response(data)); err != nil {
+				return err
+			}
+		}
+		if rErr != nil {
+			if errors.Is(rErr, io.EOF) || errors.Is(rErr, syscall.EIO) {
+				return nil
+			}
+			return rErr
+		}
+	}
+}
+
+func sendExecCommandExitCode(
+	ctx context.Context,
+	sendOutput func(*pb.ExecCommandResponse) error,
+	waitErr error,
+) error {
+	exitCode := 0
+	if waitErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(waitErr, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		} else {
+			if ctx.Err() != nil {
+				return status.Error(codes.Canceled, ctx.Err().Error())
+			}
+			return status.Errorf(codes.Internal, "wait for command: %v", waitErr)
+		}
+	}
+
+	if err := sendOutput(&pb.ExecCommandResponse{
+		Payload: &pb.ExecCommandResponse_ExitCode{ExitCode: int32(exitCode)},
+	}); err != nil {
+		if ctx.Err() != nil {
+			return status.Error(codes.Canceled, ctx.Err().Error())
+		}
+		return status.Errorf(codes.Internal, "send exit code: %v", err)
+	}
+
+	return nil
 }

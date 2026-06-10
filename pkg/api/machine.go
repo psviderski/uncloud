@@ -1,6 +1,10 @@
 package api
 
-import "github.com/psviderski/uncloud/internal/machine/api/pb"
+import (
+	"io"
+
+	"github.com/psviderski/uncloud/internal/machine/api/pb"
+)
 
 // MachineFilter defines criteria to filter machines in ListMachines.
 type MachineFilter struct {
@@ -8,6 +12,17 @@ type MachineFilter struct {
 	Available bool
 	// NamesOrIDs filters machines by their names or IDs.
 	NamesOrIDs []string
+}
+
+type MachineExecOptions struct {
+	Command     []string
+	AttachStdin bool
+	Tty         bool
+
+	// Client-side only fields.
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 type MachineMembersList []*pb.MachineMember
