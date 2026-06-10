@@ -17,7 +17,7 @@ uc destroy [FLAGS] [SERVICE...] [flags]
 ## Options
 
 ```
-  -f, --file strings      One or more Compose files to deploy services from. (default compose.yaml)
+  -f, --file strings      One or more Compose files to destroy services from. (default compose.yaml)
   -h, --help              help for destroy
   -p, --profile strings   One or more Compose profiles to enable.
   -y, --yes               Auto-confirm deployment plan. Should be explicitly set when running non-interactively,
