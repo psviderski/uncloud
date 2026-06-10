@@ -21,7 +21,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/fs"
 	"github.com/psviderski/uncloud/internal/log"
-	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -81,9 +81,9 @@ func main() {
 			configPath := fs.ExpandHomeDir(opts.configPath)
 
 			if opts.connect == "" {
-				if !fs.Exists(configPath) && fs.Exists(machine.DefaultUncloudSockPath) {
+				if !fs.Exists(configPath) && fs.Exists(constants.DefaultUncloudSockPath) {
 					conn = &config.MachineConnection{
-						Unix: machine.DefaultUncloudSockPath,
+						Unix: constants.DefaultUncloudSockPath,
 					}
 				}
 			}

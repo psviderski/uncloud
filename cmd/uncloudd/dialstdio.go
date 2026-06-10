@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +23,7 @@ func newDialStdioCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&socketPath, "socket", machine.DefaultUncloudSockPath,
+	cmd.Flags().StringVar(&socketPath, "socket", constants.DefaultUncloudSockPath,
 		"Path to the Uncloud API socket")
 
 	return cmd

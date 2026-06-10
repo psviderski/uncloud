@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"os/user"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/sockets"
 	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/internal/docker"
 	"github.com/psviderski/uncloud/internal/fs"
@@ -34,6 +36,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/machine/token"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
@@ -49,9 +52,6 @@ import (
 )
 
 const (
-	DefaultMachineSockPath = "/run/uncloud/machine.sock"
-	DefaultUncloudSockPath = "/run/uncloud/uncloud.sock"
-	DefaultSockGroup       = "uncloud"
 	// DefaultCaddyAdminSockPath is the default path to the Caddy admin socket for validating the generated Caddy
 	// reverse proxy configuration.
 	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
@@ -96,10 +96,10 @@ func (c *Config) SetDefaults() (*Config, error) {
 		cfg.DataDir = "/var/lib/uncloud"
 	}
 	if cfg.MachineSockPath == "" {
-		cfg.MachineSockPath = DefaultMachineSockPath
+		cfg.MachineSockPath = constants.DefaultMachineSockPath
 	}
 	if cfg.UncloudSockPath == "" {
-		cfg.UncloudSockPath = DefaultUncloudSockPath
+		cfg.UncloudSockPath = constants.DefaultUncloudSockPath
 	}
 
 	if cfg.DockerClient == nil {
@@ -585,6 +585,40 @@ func (m *Machine) Run(ctx context.Context) error {
 	return errGroup.Wait()
 }
 
+// listenUnixSocket creates a new Unix socket listener with the specified path. The socket file is created with 0660
+// access mode and uncloud group if the group is found, otherwise it falls back to the root group.
+func listenUnixSocket(path string) (net.Listener, error) {
+	gid := 0 // Fall back to the root group if the uncloud group is not found.
+	group, err := user.LookupGroup(constants.DefaultSockGroup)
+	if err != nil {
+		//goland:noinspection GoTypeAssertionOnErrors
+		if _, ok := err.(user.UnknownGroupError); ok {
+			slog.Info(
+				"Specified group not found, using root group for the API socket.",
+				"group", constants.DefaultSockGroup, "path", path,
+			)
+		} else {
+			return nil, fmt.Errorf("lookup %q group ID (GID): %w", constants.DefaultSockGroup, err)
+		}
+	} else {
+		gid, err = strconv.Atoi(group.Gid)
+		if err != nil {
+			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", constants.DefaultSockGroup, group.Gid, err)
+		}
+	}
+
+	// Ensure the parent directory exists and has the correct group permissions.
+	parent, _ := filepath.Split(path)
+	if err = os.MkdirAll(parent, 0o750); err != nil {
+		return nil, fmt.Errorf("create directory %q: %w", parent, err)
+	}
+	if err = os.Chown(parent, -1, gid); err != nil {
+		return nil, fmt.Errorf("chown directory %q: %w", parent, err)
+	}
+
+	return sockets.NewUnixSocket(path, gid)
+}
+
 func (m *Machine) configureCorrosion() error {
 	if len(m.state.CorrosionAPIToken) == 0 {
 		return fmt.Errorf("corrosion API token not set in machine state")
@@ -918,8 +952,8 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 		endpoints[i] = netip.AddrPortFrom(ip, uint16(m.state.Network.EffectiveWireGuardPort()))
 	}
 
-	token := NewToken(m.state.Network.PublicKey, publicIP, endpoints)
-	tokenStr, err := token.String()
+	tok := token.New(m.state.Network.PublicKey, publicIP, endpoints)
+	tokenStr, err := tok.String()
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
