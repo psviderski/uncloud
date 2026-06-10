@@ -153,6 +153,10 @@ func (c *Cluster) CreateDomainRecords(
 		return nil, err
 	}
 
+	if domain.Endpoint == "" { // uc dns set has set a name
+		return &pb.CreateDomainRecordsResponse{}, nil
+	}
+
 	dnsClient := dns.NewClient()
 	recordsReq := make([]dns.RecordRequest, len(req.Records))
 	for i, r := range req.Records {
