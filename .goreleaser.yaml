@@ -21,8 +21,8 @@ snapshot:
 
 builds:
   - id: uncloud
-    main: ./cmd/uncloud
-    binary: uncloud
+    main: ./cmd/uc
+    binary: uc
     env:
       # Use CGO to be able to build fsevent required by compose on macOS.
       - CGO_ENABLED={{ if eq .Os "darwin" }}1{{ else }}0{{ end }}

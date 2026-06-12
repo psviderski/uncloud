@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 
-	"github.com/psviderski/uncloud/cmd/uncloud/image"
+	"github.com/psviderski/uncloud/cmd/uc/image"
 	"github.com/spf13/cobra"
 )
 
