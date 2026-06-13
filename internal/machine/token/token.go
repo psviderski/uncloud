@@ -1,4 +1,4 @@
-package machine
+package token
 
 import (
 	"encoding/base64"
@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	TokenPrefix = "mtkn:"
+	Prefix = "mtkn:"
 )
 
 // Token represents the machine's token for joining a cluster.
@@ -21,8 +21,8 @@ type Token struct {
 	Endpoints []netip.AddrPort
 }
 
-// NewToken creates a new machine token with the given public key and endpoints.
-func NewToken(publicKey secret.Secret, publicIP netip.Addr, endpoints []netip.AddrPort) Token {
+// New creates a new machine token with the given public key and endpoints.
+func New(publicKey secret.Secret, publicIP netip.Addr, endpoints []netip.AddrPort) Token {
 	return Token{
 		PublicKey: publicKey,
 		PublicIP:  publicIP,
@@ -30,12 +30,12 @@ func NewToken(publicKey secret.Secret, publicIP netip.Addr, endpoints []netip.Ad
 	}
 }
 
-// ParseToken decodes a machine token from the given string.
-func ParseToken(s string) (Token, error) {
-	if !strings.HasPrefix(s, TokenPrefix) {
+// Parse decodes a machine token from the given string.
+func Parse(s string) (Token, error) {
+	if !strings.HasPrefix(s, Prefix) {
 		return Token{}, fmt.Errorf("invalid token prefix: %s", s)
 	}
-	decoded, err := base64.StdEncoding.DecodeString(s[len(TokenPrefix):])
+	decoded, err := base64.StdEncoding.DecodeString(s[len(Prefix):])
 	if err != nil {
 		return Token{}, fmt.Errorf("decode token: %w", err)
 	}
@@ -53,5 +53,5 @@ func (t Token) String() (string, error) {
 		return "", fmt.Errorf("marshal token: %w", err)
 	}
 	encoded := base64.StdEncoding.EncodeToString(js)
-	return TokenPrefix + encoded, nil
+	return Prefix + encoded, nil
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sys/unix"
 )
 
 // ExecConfig contains options for executing a command in a container.
@@ -71,7 +70,7 @@ func setupTerminal(ctx context.Context, stream pb.Docker_ExecContainerClient) (f
 func handleTerminalResize(ctx context.Context, inFd uintptr, stream pb.Docker_ExecContainerClient) error {
 	// Handle window resize signals
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, unix.SIGWINCH)
+	notifyResizeSignal(sigCh)
 
 	// Send initial window size
 	if size, err := term.GetWinsize(inFd); err == nil {

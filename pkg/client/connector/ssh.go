@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/psviderski/uncloud/internal/grpcversion"
-	"github.com/psviderski/uncloud/internal/machine"
+	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/proxy"
@@ -69,7 +69,7 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 
 	sockPath := c.config.SockPath
 	if sockPath == "" {
-		sockPath = machine.DefaultUncloudSockPath
+		sockPath = constants.DefaultUncloudSockPath
 	}
 	conn, err := grpc.NewClient(
 		"unix://"+sockPath,

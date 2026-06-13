@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -119,6 +120,13 @@ func TestSSHCLIConnector_buildSSHArgs(t *testing.T) {
 
 func TestControlSocketPath(t *testing.T) {
 	// Note: Cannot use t.Parallel() because a subtest uses t.Setenv().
+
+	if runtime.GOOS == "windows" {
+		// Windows OpenSSH does not support ControlMaster multiplexing, so controlSocketPath is always empty
+		// and the XDG_RUNTIME_DIR / ~/.ssh fallback logic below does not apply.
+		assert.Empty(t, controlSocketPath())
+		return
+	}
 
 	path1 := controlSocketPath()
 	path2 := controlSocketPath()

@@ -36,6 +36,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	"github.com/psviderski/uncloud/internal/machine/token"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
@@ -51,9 +52,6 @@ import (
 )
 
 const (
-	DefaultMachineSockPath = "/run/uncloud/machine.sock"
-	DefaultUncloudSockPath = "/run/uncloud/uncloud.sock"
-	DefaultSockGroup       = "uncloud"
 	// DefaultCaddyAdminSockPath is the default path to the Caddy admin socket for validating the generated Caddy
 	// reverse proxy configuration.
 	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
@@ -98,10 +96,10 @@ func (c *Config) SetDefaults() (*Config, error) {
 		cfg.DataDir = "/var/lib/uncloud"
 	}
 	if cfg.MachineSockPath == "" {
-		cfg.MachineSockPath = DefaultMachineSockPath
+		cfg.MachineSockPath = constants.DefaultMachineSockPath
 	}
 	if cfg.UncloudSockPath == "" {
-		cfg.UncloudSockPath = DefaultUncloudSockPath
+		cfg.UncloudSockPath = constants.DefaultUncloudSockPath
 	}
 
 	if cfg.DockerClient == nil {
@@ -591,21 +589,21 @@ func (m *Machine) Run(ctx context.Context) error {
 // access mode and uncloud group if the group is found, otherwise it falls back to the root group.
 func listenUnixSocket(path string) (net.Listener, error) {
 	gid := 0 // Fall back to the root group if the uncloud group is not found.
-	group, err := user.LookupGroup(DefaultSockGroup)
+	group, err := user.LookupGroup(constants.DefaultSockGroup)
 	if err != nil {
 		//goland:noinspection GoTypeAssertionOnErrors
 		if _, ok := err.(user.UnknownGroupError); ok {
 			slog.Info(
 				"Specified group not found, using root group for the API socket.",
-				"group", DefaultSockGroup, "path", path,
+				"group", constants.DefaultSockGroup, "path", path,
 			)
 		} else {
-			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultSockGroup, err)
+			return nil, fmt.Errorf("lookup %q group ID (GID): %w", constants.DefaultSockGroup, err)
 		}
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
-			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultSockGroup, group.Gid, err)
+			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", constants.DefaultSockGroup, group.Gid, err)
 		}
 	}
 
@@ -954,8 +952,8 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 		endpoints[i] = netip.AddrPortFrom(ip, uint16(m.state.Network.EffectiveWireGuardPort()))
 	}
 
-	token := NewToken(m.state.Network.PublicKey, publicIP, endpoints)
-	tokenStr, err := token.String()
+	tok := token.New(m.state.Network.PublicKey, publicIP, endpoints)
+	tokenStr, err := tok.String()
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
