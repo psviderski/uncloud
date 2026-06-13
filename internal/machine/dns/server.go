@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -14,7 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/miekg/dns"
+	"codeberg.org/miekg/dns"
+	"codeberg.org/miekg/dns/dnsconf"
+	"codeberg.org/miekg/dns/dnsutil"
+	"codeberg.org/miekg/dns/rdata"
 	"github.com/psviderski/uncloud/internal/metrics"
 )
 
@@ -48,6 +52,11 @@ type Server struct {
 
 	udpServer        *dns.Server
 	tcpServer        *dns.Server
+	udpStarted       chan struct{}
+	udpFailed        chan struct{}
+	tcpStarted       chan struct{}
+	tcpFailed        chan struct{}
+	forwardClient    *dns.Client
 	inProgressReqs   sync.WaitGroup
 	forwardSemaphore chan struct{}
 	log              *slog.Logger
@@ -89,10 +98,18 @@ func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolve
 	}
 
 	return &Server{
-		listenAddr:       listenAddr,
-		localSubnet:      localSubnet,
-		resolver:         resolver,
-		upstreamServers:  upstreams,
+		listenAddr:      listenAddr,
+		localSubnet:     localSubnet,
+		resolver:        resolver,
+		upstreamServers: upstreams,
+		// dns.Client is safe for concurrent use, so share one client across all forwarded queries.
+		forwardClient: &dns.Client{
+			Transport: &dns.Transport{
+				Dialer:       &net.Dialer{Timeout: forwardingTimeout},
+				ReadTimeout:  forwardingTimeout,
+				WriteTimeout: forwardingTimeout,
+			},
+		},
 		forwardSemaphore: make(chan struct{}, maxConcurrentForwards),
 		log:              slog.With("component", "dns-server"),
 	}, nil
@@ -107,15 +124,25 @@ func (s *Server) ListenAddr() netip.Addr {
 // an error if it fails to start. The server will run until the context is canceled or an error occurs.
 func (s *Server) Run(ctx context.Context) error {
 	addr := net.JoinHostPort(s.listenAddr.String(), strconv.Itoa(Port))
-	s.udpServer = &dns.Server{
-		Addr:    addr,
-		Net:     "udp",
-		Handler: dns.HandlerFunc(s.handleRequest),
+	s.udpStarted, s.udpFailed = make(chan struct{}), make(chan struct{})
+	s.tcpStarted, s.tcpFailed = make(chan struct{}), make(chan struct{})
+
+	s.udpServer = dns.NewServer()
+	s.udpServer.Addr = addr
+	s.udpServer.Net = "udp"
+	s.udpServer.Handler = dns.HandlerFunc(s.handleRequest)
+	udpStarted := s.udpStarted
+	s.udpServer.NotifyStartedFunc = func(context.Context) {
+		close(udpStarted)
 	}
-	s.tcpServer = &dns.Server{
-		Addr:    addr,
-		Net:     "tcp",
-		Handler: dns.HandlerFunc(s.handleRequest),
+
+	s.tcpServer = dns.NewServer()
+	s.tcpServer.Addr = addr
+	s.tcpServer.Net = "tcp"
+	s.tcpServer.Handler = dns.HandlerFunc(s.handleRequest)
+	tcpStarted := s.tcpStarted
+	s.tcpServer.NotifyStartedFunc = func(context.Context) {
+		close(tcpStarted)
 	}
 
 	errCh := make(chan error, 1) // Buffer size 1 is for UDP server error only.
@@ -123,6 +150,7 @@ func (s *Server) Run(ctx context.Context) error {
 	go func() {
 		s.log.Info("Starting DNS server on UDP port.", "addr", addr, "upstreams", s.upstreamServers)
 		if err := s.udpServer.ListenAndServe(); err != nil {
+			close(s.udpFailed)
 			errCh <- fmt.Errorf("listen and serve on %s/udp: %w", addr, err)
 		}
 	}()
@@ -130,6 +158,7 @@ func (s *Server) Run(ctx context.Context) error {
 	go func() {
 		s.log.Info("Starting DNS server on TCP port.", "addr", addr, "upstreams", s.upstreamServers)
 		if err := s.tcpServer.ListenAndServe(); err != nil {
+			close(s.tcpFailed)
 			// TCP server is not critical, so log the error and continue.
 			slog.Warn("Failed to listen and serve DNS server on TCP port. "+
 				"TCP server is not critical and will be ignored.", "addr", addr, "err", err)
@@ -143,59 +172,58 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	case <-ctx.Done():
 		s.log.Info("Stopping DNS server.")
-		return s.stop()
+		s.stop()
+		return nil
 	}
 }
 
 // stop gracefully shuts down the DNS server.
-func (s *Server) stop() error {
-	var udpErr, tcpErr error
-
-	if s.udpServer != nil {
-		udpErr = s.udpServer.Shutdown()
-	}
-	if s.tcpServer != nil {
-		tcpErr = s.tcpServer.Shutdown()
-	}
+func (s *Server) stop() {
+	shutdownServer(s.udpServer, s.udpStarted, s.udpFailed)
+	shutdownServer(s.tcpServer, s.tcpStarted, s.tcpFailed)
 
 	// Wait for all in-progress requests to finish.
 	s.inProgressReqs.Wait()
+}
 
-	if udpErr != nil {
-		return fmt.Errorf("shutdown DNS server (UDP): %w", udpErr)
+// shutdownServer shuts down srv once the outcome of its startup is known. dns.Server.Shutdown blocks forever
+// if the server never started listening, so wait until the server either reports it started or its
+// ListenAndServe call returned an error.
+func shutdownServer(srv *dns.Server, started, failed <-chan struct{}) {
+	if srv == nil {
+		return
 	}
-
-	if tcpErr != nil {
-		return fmt.Errorf("shutdown DNS server (TCP): %w", tcpErr)
+	select {
+	case <-started:
+		srv.Shutdown(context.Background())
+	case <-failed:
 	}
-
-	return nil
 }
 
 // handleRequest processes a DNS query and returns an appropriate response.
-func (s *Server) handleRequest(w dns.ResponseWriter, req *dns.Msg) {
+func (s *Server) handleRequest(ctx context.Context, w dns.ResponseWriter, req *dns.Msg) {
 	s.inProgressReqs.Add(1)
 	defer s.inProgressReqs.Done()
 
 	if len(req.Question) == 0 {
-		resp := new(dns.Msg).SetRcode(req, dns.RcodeFormatError)
+		resp := newResponse(req, dns.RcodeFormatError)
 		s.reply(w, req, resp)
 		return
 	}
 
 	// While the original DNS RFCs allow multiple questions, in practice it never works. So handle only the first one.
-	q := req.Question[0]
-	log := s.log.With("name", q.Name, "type", dns.TypeToString[q.Qtype])
+	qName, qType := dnsutil.Question(req)
+	log := s.log.With("name", qName, "type", dnsutil.TypeToString(qType))
 	log.Debug("Received DNS query.")
 
-	if !dns.IsSubDomain(InternalDomain, dns.CanonicalName(q.Name)) {
+	if !dnsutil.IsBelow(InternalDomain, dnsutil.Canonical(qName)) {
 		log.Debug("Forwarding non-internal DNS query to upstream DNS servers.")
 
 		// Use the same transport for the forwarded request as the original request.
-		resp, err := s.forwardRequest(req, w.LocalAddr().Network())
+		resp, err := s.forwardRequest(ctx, req, w.LocalAddr().Network())
 		if err != nil {
 			log.Error("Failed to forward DNS query.", "err", err)
-			resp = new(dns.Msg).SetRcode(req, dns.RcodeServerFailure)
+			resp = newResponse(req, dns.RcodeServerFailure)
 		}
 		metrics.DNSQuery.WithLabelValues("false", metrics.Status(err)).Inc()
 
@@ -204,49 +232,38 @@ func (s *Server) handleRequest(w dns.ResponseWriter, req *dns.Msg) {
 	}
 
 	// Handle the query for the internal domain.
-	resp := new(dns.Msg).SetReply(req)
+	maxSize := responseMaxSize(w, req)
+	resp := newResponse(req, dns.RcodeSuccess)
 	resp.Authoritative = true
 	resp.RecursionAvailable = true
 
-	switch q.Qtype {
+	switch qType {
 	case dns.TypeA:
-		records := s.handleAQuery(q.Name)
-		if len(records) > 0 {
+		records, found := s.handleAQuery(qName)
+		if found {
 			log.Debug("Found A records for internal DNS query.", "count", len(records))
 			resp.Answer = append(resp.Answer, records...)
 		} else {
 			log.Debug("No records found for internal DNS query.")
-			resp.SetRcode(req, dns.RcodeNameError)
+			resp.Rcode = dns.RcodeNameError
 		}
 		// TODO: Handle other query types (SRV, TXT, etc.) as needed.
 	}
 
-	// Truncate the response if it exceeds the maximum size for the transport protocol.
-	maxSize := dns.MinMsgSize
-	if w.LocalAddr().Network() == "tcp" {
-		maxSize = dns.MaxMsgSize
-	} else {
-		// Retrieve the UDP buffer size from the EDNS0 record if present.
-		if opt := req.IsEdns0(); opt != nil {
-			if udpSize := int(opt.UDPSize()); udpSize > maxSize {
-				maxSize = udpSize
-			}
-		}
-	}
-	resp.Truncate(maxSize)
+	truncateResponse(resp, maxSize)
 	metrics.DNSQuery.WithLabelValues("true", metrics.Ok).Inc() // NameError is not an error
 
 	s.reply(w, req, resp)
 }
 
 func (s *Server) reply(w dns.ResponseWriter, req *dns.Msg, resp *dns.Msg) error {
-	if err := w.WriteMsg(resp); err != nil {
+	if _, err := io.Copy(w, resp); err != nil {
 		s.log.Error("Failed to write DNS response.", "err", err, "msg", resp)
 		// It may fail due to a malformed response message, e.g. exceeding the maximum size. In that case,
 		// attempt to send a server failure response instead so the client doesn't have to wait for a timeout.
 		if resp.Rcode != dns.RcodeServerFailure {
-			resp = new(dns.Msg).SetRcode(req, dns.RcodeServerFailure)
-			if err2 := w.WriteMsg(resp); err2 != nil {
+			resp = newResponse(req, dns.RcodeServerFailure)
+			if _, err2 := io.Copy(w, resp); err2 != nil {
 				s.log.Error("Failed to write DNS error response.", "err", err2, "msg", resp)
 			}
 		}
@@ -255,8 +272,41 @@ func (s *Server) reply(w dns.ResponseWriter, req *dns.Msg, resp *dns.Msg) error 
 	return nil
 }
 
+// newResponse creates a fresh response message for req with the given response code. A new message is used
+// instead of mutating req in place so the request's pooled Data buffer never ends up in the response.
+func newResponse(req *dns.Msg, rcode uint16) *dns.Msg {
+	resp := dnsutil.SetReply(new(dns.Msg), req)
+	resp.Rcode = rcode
+	return resp
+}
+
+func responseMaxSize(w dns.ResponseWriter, req *dns.Msg) int {
+	if w.LocalAddr().Network() == "tcp" {
+		return dns.MaxMsgSize
+	}
+	if req.UDPSize > dns.MinMsgSize {
+		return int(req.UDPSize)
+	}
+	return dns.MinMsgSize
+}
+
+// truncateResponse packs resp and drops answer records until the packed message fits maxSize.
+// Pack reuses resp.Data when its capacity is sufficient, so the buffer must not be reset between iterations.
+func truncateResponse(resp *dns.Msg, maxSize int) {
+	if maxSize < dns.MinMsgSize {
+		maxSize = dns.MinMsgSize
+	}
+	for {
+		if err := resp.Pack(); err != nil || len(resp.Data) <= maxSize || len(resp.Answer) == 0 {
+			return
+		}
+		resp.Truncated = true
+		resp.Answer = resp.Answer[:len(resp.Answer)-1]
+	}
+}
+
 // forwardRequest forwards a DNS query to system DNS servers
-func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
+func (s *Server) forwardRequest(ctx context.Context, req *dns.Msg, proto string) (*dns.Msg, error) {
 	if len(s.upstreamServers) == 0 {
 		return nil, errors.New("no upstream DNS servers configured")
 	}
@@ -271,15 +321,23 @@ func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
 		return nil, fmt.Errorf("too many concurrent forwarded queries (max: %d)", maxConcurrentForwards)
 	}
 
-	// Create DNS client with timeout and same transport as original request
-	client := &dns.Client{
-		Net:     proto,
-		Timeout: forwardingTimeout,
-	}
-
 	var lastErr error
 	for _, server := range s.upstreamServers {
-		resp, _, err := client.Exchange(req, server.String())
+		// Clone the request data for every attempt: Exchange reads the response into the request's Data
+		// buffer, so a failed attempt may leave partial response bytes in it.
+		forwardReq := &dns.Msg{
+			MsgHeader: req.MsgHeader,
+			Question:  req.Question,
+			Data:      slices.Clone(req.Data),
+		}
+		// Data is already packed so UDPSize doesn't change the message on the wire: the upstream server
+		// still sees the EDNS buffer size advertised by the original client. It only makes Exchange
+		// allocate a read buffer large enough for any possible response.
+		forwardReq.UDPSize = dns.MaxMsgSize
+
+		reqCtx, cancel := context.WithTimeout(ctx, forwardingTimeout)
+		resp, _, err := s.forwardClient.Exchange(reqCtx, forwardReq, proto, server.String())
+		cancel()
 		if err == nil {
 			return resp, nil
 		}
@@ -292,12 +350,12 @@ func (s *Server) forwardRequest(req *dns.Msg, proto string) (*dns.Msg, error) {
 
 // handleAQuery processes an A query for the internal domain and returns A records for the requested name.
 // The internal domain suffix is already stripped from the name. An empty list is returned if no records are found.
-func (s *Server) handleAQuery(name string) []dns.RR {
+func (s *Server) handleAQuery(name string) ([]dns.RR, bool) {
 	serviceName, mode := extractModeFromDomain(trimInternalDomain(name))
 	ips := s.resolver.Resolve(serviceName)
 	if len(ips) == 0 {
 		s.log.Debug("Failed to resolve service name.", "service", serviceName)
-		return nil
+		return nil, false
 	}
 	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
 
@@ -329,24 +387,29 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 	// Create A records for each IP.
 	records := make([]dns.RR, 0, len(ips))
 	for _, ip := range ips {
+		// Unmap 4-in-6 mapped addresses so they are recognized and packed as IPv4. Only IPv4 addresses
+		// can be returned in A records.
+		ip = ip.Unmap()
+		if !ip.Is4() {
+			continue
+		}
 		records = append(records, &dns.A{
-			Hdr: dns.RR_Header{
-				Name:   name,
-				Rrtype: dns.TypeA,
-				Class:  dns.ClassINET,
+			Hdr: dns.Header{
+				Name:  name,
+				Class: dns.ClassINET,
 				// TODO: should we increate the TTL to some reasonably small value like 5-30 seconds to allow
 				//  at least some caching?
-				Ttl: 0,
+				TTL: 0,
 			},
-			A: net.ParseIP(ip.String()),
+			A: rdata.A{Addr: ip},
 		})
 	}
-	return records
+	return records, true
 }
 
 // parseNameserversFromResolvConf parses the nameservers from /etc/resolv.conf.
 func parseNameserversFromResolvConf() ([]netip.Addr, error) {
-	config, err := dns.ClientConfigFromFile("/etc/resolv.conf")
+	config, err := dnsconf.FromFile("/etc/resolv.conf")
 	if err != nil {
 		return nil, err
 	}
@@ -362,8 +425,8 @@ func parseNameserversFromResolvConf() ([]netip.Addr, error) {
 }
 
 func trimInternalDomain(name string) string {
-	name = dns.CanonicalName(name)
-	if !dns.IsSubDomain(InternalDomain, name) {
+	name = dnsutil.Canonical(name)
+	if !dnsutil.IsBelow(InternalDomain, name) {
 		return name
 	}
 
