@@ -275,8 +275,8 @@ secrets:
   db_password:
     file: ./secret.txt
 `,
-			warnCount:    3,
-			warnContains: []string{"dns", "links", "secrets"},
+			warnCount:    2,
+			warnContains: []string{"dns", "links"},
 		},
 		{
 			name: "supported networks",

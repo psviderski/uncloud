@@ -57,6 +57,8 @@ type ServiceSpec struct {
 	Caddy *CaddySpec `json:",omitempty"`
 	// Configs is a list of configuration objects that can be mounted into the container.
 	Configs []ConfigSpec
+	// Secrets is list of secret objects that can be mounted into the container.
+	Secrets []SecretSpec
 	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
@@ -102,6 +104,15 @@ func (s *ServiceSpec) Config(name string) (ConfigSpec, bool) {
 		}
 	}
 	return ConfigSpec{}, false
+}
+
+func (s *ServiceSpec) Secret(name string) (SecretSpec, bool) {
+	for _, secret := range s.Secrets {
+		if secret.Name == name {
+			return secret, true
+		}
+	}
+	return SecretSpec{}, false
 }
 
 // MountedDockerVolumes returns the list of volumes of VolumeTypeVolume type that are mounted into the container.
@@ -208,6 +219,11 @@ func (s *ServiceSpec) Validate() error {
 		return fmt.Errorf("validate service configs and mounts: %w", err)
 	}
 
+	// Validate secrets
+	if err := ValidateSecretsAndMounts(s.Secrets, s.Container.SecretMounts); err != nil {
+		return fmt.Errorf("validate service secrets and mounts: %w", err)
+	}
+
 	if s.PreDeploy != nil {
 		if err := s.PreDeploy.Validate(); err != nil {
 			return err
@@ -237,6 +253,11 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 		for i, v := range s.Volumes {
 			spec.Volumes[i] = v.Clone()
 		}
+	}
+
+	if s.Secrets != nil {
+		spec.Secrets = make([]SecretSpec, len(s.Secrets))
+		copy(spec.Secrets, s.Secrets)
 	}
 
 	return spec
@@ -285,6 +306,9 @@ type ContainerSpec struct {
 	// ConfigMounts specifies how configs are mounted into the container filesystem.
 	// Each mount references a config defined in ServiceSpec.Configs.
 	ConfigMounts []ConfigMount
+	// SecretMounts specifies how secrets are mounted into the container filesystem.
+	// Each mount references a secret defined in ServiceSpec.Secrets.
+	SecretMounts []SecretMount
 	// Volumes is list of data volumes to mount into the container.
 	// TODO(lhf): delete all usage, has been replaced with []VolumeMounts.
 	Volumes []string
@@ -335,6 +359,10 @@ func (s *ContainerSpec) Equals(spec ContainerSpec) bool {
 	// Config mounts
 	sortConfigMounts(orig.ConfigMounts)
 	sortConfigMounts(spec.ConfigMounts)
+
+	// Secrets
+	sortSecretMounts(orig.SecretMounts)
+	sortSecretMounts(spec.SecretMounts)
 
 	return cmp.Equal(orig, spec, cmpopts.EquateEmpty())
 }
@@ -387,6 +415,10 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		for i, cm := range s.ConfigMounts {
 			spec.ConfigMounts[i] = cm.Clone()
 		}
+	}
+	if s.SecretMounts != nil {
+		spec.SecretMounts = make([]SecretMount, len(s.SecretMounts))
+		copy(spec.SecretMounts, s.SecretMounts)
 	}
 	if s.Sysctls != nil {
 		spec.Sysctls = make(map[string]string, len(s.Sysctls))
