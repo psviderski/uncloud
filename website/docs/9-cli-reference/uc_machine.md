@@ -21,6 +21,7 @@ Manage machines in the cluster.
 
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc machine add](uc_machine_add.md)	 - Add a remote machine to a cluster.
+* [uc machine ctx](uc_machine_ctx.md)	 - Add the cluster context to Uncloud configuration file by connecting to the remote machine.
 * [uc machine init](uc_machine_init.md)	 - Initialise a new cluster with a remote machine as the first member.
 * [uc machine logs](uc_machine_logs.md)	 - View systemd service logs.
 * [uc machine ls](uc_machine_ls.md)	 - List machines in a cluster.
