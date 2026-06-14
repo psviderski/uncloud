@@ -27,5 +27,6 @@ DNS commands allow you to reserve or release a unique 'xxxxxx.uncld.dev' domain 
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc dns release](uc_dns_release.md)	 - Release the reserved cluster domain.
 * [uc dns reserve](uc_dns_reserve.md)	 - Reserve a cluster domain in Uncloud DNS.
+* [uc dns set](uc_dns_set.md)	 - Set a cluster domain directly in the cluster.
 * [uc dns show](uc_dns_show.md)	 - Print the cluster domain name.
 
