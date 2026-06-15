@@ -18,7 +18,7 @@ import (
 )
 
 // Image is the Corrosion image pinned to the uncloudd version.
-const Image = "ghcr.io/unlabs-dev/corrosion:2026.5.14"
+const Image = "ghcr.io/unlabs-dev/corrosion:2026.6.15"
 
 type DockerService struct {
 	Client *client.Client

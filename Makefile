@@ -1,6 +1,6 @@
 # TODO: Makefile is deprecated, add new targets as mise tasks in mise.toml instead.
 
-CORROSION_VERSION ?= 2026.5.14
+CORROSION_VERSION ?= 2026.6.15
 CORROSION_IMAGE = ghcr.io/unlabs-dev/corrosion:$(CORROSION_VERSION)
 UCIND_IMAGE ?= ghcr.io/psviderski/ucind:latest
 
