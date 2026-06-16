@@ -18,9 +18,11 @@ type Config struct {
 	ManagementIP netip.Addr
 	// WireGuardPort is the UDP port WireGuard listens on. Zero means the default port (51820).
 	WireGuardPort int `json:",omitempty"`
-	PrivateKey    secret.Secret
-	PublicKey     secret.Secret
-	Peers         []PeerConfig `json:",omitempty"`
+	// MTU of the WireGuard interface. Use EffectiveMTU to get the default if not set (zero).
+	MTU        int `json:",omitempty"`
+	PrivateKey secret.Secret
+	PublicKey  secret.Secret
+	Peers      []PeerConfig `json:",omitempty"`
 }
 
 type PeerConfig struct {
@@ -46,6 +48,14 @@ func (c Config) EffectiveWireGuardPort() int {
 		return c.WireGuardPort
 	}
 	return DefaultWireGuardPort
+}
+
+// EffectiveMTU returns the MTU for the WireGuard interface. Falls back to MaxWireGuardMTU if not set (zero).
+func (c Config) EffectiveMTU() int {
+	if c.MTU != 0 {
+		return c.MTU
+	}
+	return MaxWireGuardMTU
 }
 
 // toDeviceConfig converts the configuration to a WireGuard device configuration. It updates the existing peers

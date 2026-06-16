@@ -31,9 +31,12 @@ type DBConfig struct {
 }
 
 type GossipConfig struct {
-	Addr      netip.AddrPort `toml:"addr"`
-	Bootstrap []string       `toml:"bootstrap"`
-	Plaintext bool           `toml:"plaintext"`
+	Addr netip.AddrPort `toml:"addr"`
+	// MaxMTU is the upper bound for QUIC's MTU, preventing automatic MTU discovery. It is the effective MTU:
+	// the gossip network interface's MTU minus the IP and UDP header sizes. Must be >= 1200. Omitted when zero.
+	MaxMTU    uint32   `toml:"max_mtu,omitempty"`
+	Bootstrap []string `toml:"bootstrap"`
+	Plaintext bool     `toml:"plaintext"`
 }
 
 type APIConfig struct {

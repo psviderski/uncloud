@@ -657,6 +657,12 @@ func (m *Machine) configureCorrosion() error {
 		Gossip: corroservice.GossipConfig{
 			Addr:      gossipAddr,
 			Bootstrap: bootstrap,
+			// Cap QUIC's MTU conservatively based on the minimum possible WireGuard MTU (1280) rather than this
+			// machine's actual (possibly larger) MTU. Gossip is small control-plane traffic where stability matters
+			// far more than throughput: a fixed small MTU keeps datagrams well within any machine's WireGuard link
+			// and avoids black-holing across heterogeneous underlays where the local MTU can't see the path MTU
+			// to a peer. The gossip (management) address is IPv6, so subtract the IPv6 (40) and UDP (8) headers.
+			MaxMTU:    uint32(network.MinWireGuardMTU - 48),
 			Plaintext: true,
 		},
 		API: corroservice.APIConfig{
@@ -772,6 +778,11 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		wgPort = network.DefaultWireGuardPort
 	}
 
+	wgMTU := int(req.WireguardMtu)
+	if wgMTU == 0 {
+		wgMTU = network.DetectMTU()
+	}
+
 	// Use explicitly provided WireGuard endpoints, or use the routable IPs on the machine and its public IP
 	// if not provided. The IPs are auto-detected.
 	var endpoints []*pb.IPPort
@@ -831,6 +842,7 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		Subnet:        subnet,
 		ManagementIP:  manageIP,
 		WireGuardPort: int(wgPort),
+		MTU:           wgMTU,
 		PrivateKey:    m.state.Network.PrivateKey,
 		PublicKey:     m.state.Network.PublicKey,
 	}
@@ -881,12 +893,18 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		wgPort = network.DefaultWireGuardPort
 	}
 
+	wgMTU := int(req.WireguardMtu)
+	if wgMTU == 0 {
+		wgMTU = network.DetectMTU()
+	}
+
 	m.state.ID = req.Machine.Id
 	m.state.Name = req.Machine.Name
 	m.state.Network = &network.Config{
 		Subnet:        subnet,
 		ManagementIP:  manageIP,
 		WireGuardPort: wgPort,
+		MTU:           wgMTU,
 		PrivateKey:    m.state.Network.PrivateKey,
 		PublicKey:     m.state.Network.PublicKey,
 	}

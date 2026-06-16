@@ -29,6 +29,7 @@ uc machine add [USER@]HOST[:PORT] [flags]
                               Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is the value of --wg-port if omitted.
                               Multiple endpoints can be specified by repeating the flag or using a comma-separated list.
                               Defaults to the auto-detected public and routable machine IPs.
+      --wg-mtu int            MTU of the WireGuard network interface on the machine. (default auto-detects the optimal value)
       --wg-port int           UDP port WireGuard listens on for incoming connections from other machines. (default 51820)
   -y, --yes                   Auto-confirm prompts (e.g., resetting an already initialised machine).
                               Should be explicitly set when running non-interactively, e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]

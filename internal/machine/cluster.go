@@ -326,6 +326,7 @@ func (cc *clusterController) ensureDockerNetwork(ctx context.Context) error {
 	if err := cc.dockerCtrl.EnsureUncloudNetwork(
 		ctx,
 		cc.state.Network.Subnet,
+		cc.state.Network.EffectiveMTU(),
 		cc.dnsServer.ListenAddr(),
 	); err != nil {
 		return fmt.Errorf("ensure Docker network: %w", err)

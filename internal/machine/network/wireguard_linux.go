@@ -53,7 +53,6 @@ func createOrGetLink(name string) (netlink.Link, error) {
 		return nil, fmt.Errorf("find WireGuard link %q: %v", name, err)
 	}
 	link = &netlink.GenericLink{
-		// TODO: figure out how to set the most appropriate MTU.
 		LinkAttrs: netlink.LinkAttrs{Name: name},
 		LinkType:  "wireguard",
 	}
@@ -90,6 +89,14 @@ func (n *WireGuardNetwork) Configure(config Config) error {
 		return err
 	}
 	slog.Info("Updated addresses of the WireGuard interface.", "name", n.link.Attrs().Name, "addrs", addrs)
+
+	// Set the MTU on the WireGuard interface if it differs from the configured value.
+	if mtu := config.EffectiveMTU(); n.link.Attrs().MTU != mtu {
+		if err = netlink.LinkSetMTU(n.link, mtu); err != nil {
+			return fmt.Errorf("set MTU %d on WireGuard link %q: %w", mtu, n.link.Attrs().Name, err)
+		}
+		slog.Info("Set MTU on the WireGuard interface.", "name", n.link.Attrs().Name, "mtu", mtu)
+	}
 
 	// Bring the WireGuard interface up if it's not already up.
 	if n.link.Attrs().Flags&unix.IFF_UP != unix.IFF_UP {

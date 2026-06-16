@@ -61,9 +61,10 @@ message InitClusterRequest {
 
   // Optional WireGuard endpoints other machines will use to connect to this machine instead of auto-discovered ones.
   repeated IPPort wireguard_endpoints = 5;
-
   // WireGuard listen port for this machine. Uses the default port (51820) if 0 or not set.
   int32 wireguard_port = 6;
+  // MTU of the WireGuard interface on this machine. The daemon auto-detects the optimal MTU if 0 or not set.
+  int32 wireguard_mtu = 7;
 }
 
 message InitClusterResponse {
@@ -75,6 +76,8 @@ message JoinClusterRequest {
   repeated MachineInfo other_machines = 3;
   // WireGuard listen port for this machine. Uses the default port (51820) if 0 or not set.
   int32 wireguard_port = 5;
+  // MTU of the WireGuard interface on this machine. The daemon auto-detects the optimal MTU if 0 or not set.
+  int32 wireguard_mtu = 7;
   // Cluster store version this machine must reach before participating.
   // Per-actor vector (Corrosion actor UUID → max applied db_version).
   map<string, int64> min_store_version = 6;

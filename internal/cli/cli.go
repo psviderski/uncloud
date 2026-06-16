@@ -175,6 +175,7 @@ type InitClusterOptions struct {
 	Version            string
 	AutoConfirm        bool
 	WireguardEndpoints []*pb.IPPort
+	WireguardMTU       int
 	WireguardPort      int
 }
 
@@ -236,6 +237,7 @@ func (cli *CLI) initRemoteMachine(ctx context.Context, opts InitClusterOptions) 
 		MachineName:        opts.MachineName,
 		Network:            pb.NewIPPrefix(opts.Network),
 		WireguardEndpoints: opts.WireguardEndpoints,
+		WireguardMtu:       int32(opts.WireguardMTU),
 		WireguardPort:      int32(opts.WireguardPort),
 	}
 	if opts.PublicIP != nil {
@@ -320,6 +322,7 @@ type AddMachineOptions struct {
 	Version            string
 	AutoConfirm        bool
 	WireguardEndpoints []*pb.IPPort
+	WireguardMTU       int
 	WireguardPort      int
 }
 
@@ -463,6 +466,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (*client
 		Machine:         addResp.Machine,
 		OtherMachines:   otherMachines,
 		MinStoreVersion: storeVersion,
+		WireguardMtu:    int32(opts.WireguardMTU),
 		WireguardPort:   int32(opts.WireguardPort),
 	}
 	if _, err = machineClient.JoinCluster(ctx, joinReq); err != nil {

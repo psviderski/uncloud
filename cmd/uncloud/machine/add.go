@@ -30,6 +30,7 @@ type addOptions struct {
 	version     string
 	wgEndpoints []string
 	wgPort      int
+	wgMTU       int
 	yes         bool
 }
 
@@ -105,6 +106,10 @@ Connection methods:
 			"Defaults to the auto-detected public and routable machine IPs.",
 	)
 	cmd.Flags().IntVar(
+		&opts.wgMTU, "wg-mtu", 0,
+		"MTU of the WireGuard network interface on the machine. (default auto-detects the optimal value)",
+	)
+	cmd.Flags().IntVar(
 		&opts.wgPort, "wg-port", network.DefaultWireGuardPort,
 		"UDP port WireGuard listens on for incoming connections from other machines.",
 	)
@@ -133,12 +138,17 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	if opts.wgPort < 1 || opts.wgPort > 65535 {
 		return fmt.Errorf("invalid WireGuard port %d: must be between 1 and 65535", opts.wgPort)
 	}
+	if opts.wgMTU != 0 && (opts.wgMTU < network.MinWireGuardMTU || opts.wgMTU > 65535) {
+		return fmt.Errorf("invalid WireGuard MTU %d: must be 0 (auto-detect) or between %d and 65535",
+			opts.wgMTU, network.MinWireGuardMTU)
+	}
 	addOpts := cli.AddMachineOptions{
 		MachineName:   opts.name,
 		PublicIP:      publicIP,
 		RemoteMachine: remoteMachine,
 		SkipInstall:   opts.noInstall,
 		Version:       opts.version,
+		WireguardMTU:  opts.wgMTU,
 		WireguardPort: opts.wgPort,
 		AutoConfirm:   opts.yes,
 	}
