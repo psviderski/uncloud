@@ -35,6 +35,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -177,7 +178,7 @@ type Machine struct {
 	store   *store.Store
 	cluster *cluster.Cluster
 	// rttCache caches round-trip time statistics to other machines in the cluster.
-	rttCache *RTTCache
+	rttCache *rtt.Cache
 	// dockerService provides high-level operations for managing Docker containers.
 	dockerService *machinedocker.Service
 	dockerServer  *machinedocker.Server
@@ -464,7 +465,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			)
 
 			// Create the RTT cache for periodic refresh of cluster RTT data.
-			rttCache := newRTTCache(m.state.ID, m.cluster, m.store)
+			rttCache := rtt.NewCache(m.state.ID, m.cluster, m.store)
 
 			// Create a new caddyconfig controller for managing the Caddy reverse proxy configuration.
 			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
@@ -473,7 +474,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.config.CaddyConfigDir,
 				DefaultCaddyAdminSockPath,
 				m.store,
-				rttCache.ByMachineID,
+				rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create caddyconfig controller: %w", err)
@@ -482,10 +483,9 @@ func (m *Machine) Run(ctx context.Context) error {
 			dnsResolver := dns.NewClusterResolver(m.store)
 			dnsServer, err := dns.NewServer(
 				m.IP(),
-				m.state.Network.Subnet,
 				dnsResolver,
 				m.config.DNSUpstreams,
-				rttCache.ByMachineID,
+				rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create embedded DNS server: %w", err)

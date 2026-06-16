@@ -1,4 +1,4 @@
-package machine
+package rtt
 
 import (
 	"context"
@@ -41,7 +41,7 @@ func newMockMachine(id, mgmtIP string) *pb.MachineInfo {
 	}
 }
 
-func TestRTTCache_ByMachineID(t *testing.T) {
+func TestCache_ByMachineID(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -105,7 +105,7 @@ func TestRTTCache_ByMachineID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cache := newRTTCache(tt.machineID, &mockRTTProvider{rtts: tt.rtts}, &mockMachineLister{machines: tt.machines})
+			cache := NewCache(tt.machineID, &mockRTTProvider{rtts: tt.rtts}, &mockMachineLister{machines: tt.machines})
 			err := cache.refresh(context.Background())
 			require.NoError(t, err)
 
@@ -116,7 +116,50 @@ func TestRTTCache_ByMachineID(t *testing.T) {
 	}
 }
 
-func TestRTTCache_LivePeerRTTs(t *testing.T) {
+func TestCache_RTTFor(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cache   *Cache
+		queryID string
+		want    time.Duration
+	}{
+		{
+			name:    "nil cache returns UnknownRTT",
+			cache:   nil,
+			queryID: "any",
+			want:    UnknownRTT,
+		},
+		{
+			name:    "local machine returns 0",
+			cache:   NewCacheWithStats("local", map[string]Stats{"local": {Median: 0}}),
+			queryID: "local",
+			want:    0,
+		},
+		{
+			name:    "known remote returns RTT",
+			cache:   NewCacheWithStats("local", map[string]Stats{"remote": {Median: 5 * time.Millisecond}}),
+			queryID: "remote",
+			want:    5 * time.Millisecond,
+		},
+		{
+			name:    "unknown machine returns UnknownRTT",
+			cache:   NewCacheWithStats("local", map[string]Stats{"local": {Median: 0}}),
+			queryID: "unknown",
+			want:    UnknownRTT,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.cache.RTTFor(tt.queryID))
+		})
+	}
+}
+
+func TestCache_LivePeerRTTs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -124,7 +167,7 @@ func TestRTTCache_LivePeerRTTs(t *testing.T) {
 		machineID string
 		rtts      []corrosion.MemberRTTStats
 		machines  []*pb.MachineInfo
-		wantRTTs  map[string]RTTStats
+		wantRTTs  map[string]Stats
 		wantErr   bool
 	}{
 		{
@@ -139,7 +182,7 @@ func TestRTTCache_LivePeerRTTs(t *testing.T) {
 				newMockMachine("peer1", "10.0.0.2"),
 				newMockMachine("peer2", "10.0.0.3"),
 			},
-			wantRTTs: map[string]RTTStats{
+			wantRTTs: map[string]Stats{
 				"peer1": {Median: 5 * time.Millisecond, StdDev: 1 * time.Millisecond},
 				"peer2": {Median: 10 * time.Millisecond, StdDev: 2 * time.Millisecond},
 			},
@@ -149,7 +192,7 @@ func TestRTTCache_LivePeerRTTs(t *testing.T) {
 			machineID: testLocalMachineID,
 			rtts:      nil,
 			machines:  []*pb.MachineInfo{newMockMachine(testLocalMachineID, "10.0.0.1")},
-			wantRTTs:  map[string]RTTStats{},
+			wantRTTs:  map[string]Stats{},
 		},
 		{
 			name:      "RTT from unknown IP is ignored",
@@ -158,7 +201,7 @@ func TestRTTCache_LivePeerRTTs(t *testing.T) {
 				{Addr: netip.MustParseAddrPort("10.0.0.99:51000"), Median: 5 * time.Millisecond},
 			},
 			machines: []*pb.MachineInfo{newMockMachine(testLocalMachineID, "10.0.0.1")},
-			wantRTTs: map[string]RTTStats{},
+			wantRTTs: map[string]Stats{},
 		},
 	}
 
@@ -166,7 +209,7 @@ func TestRTTCache_LivePeerRTTs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cache := newRTTCache(tt.machineID, &mockRTTProvider{rtts: tt.rtts}, &mockMachineLister{machines: tt.machines})
+			cache := NewCache(tt.machineID, &mockRTTProvider{rtts: tt.rtts}, &mockMachineLister{machines: tt.machines})
 			result, err := cache.LivePeerRTTs(context.Background())
 			if tt.wantErr {
 				require.Error(t, err)
@@ -179,15 +222,15 @@ func TestRTTCache_LivePeerRTTs(t *testing.T) {
 	}
 }
 
-func TestRTTCache_RefreshError(t *testing.T) {
+func TestCache_RefreshError(t *testing.T) {
 	t.Parallel()
 
-	cache := newRTTCache(testLocalMachineID, &mockRTTProvider{err: assert.AnError}, &mockMachineLister{machines: nil})
+	cache := NewCache(testLocalMachineID, &mockRTTProvider{err: assert.AnError}, &mockMachineLister{machines: nil})
 	err := cache.refresh(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get member rtts")
 
-	cache = newRTTCache(testLocalMachineID, &mockRTTProvider{rtts: nil}, &mockMachineLister{err: assert.AnError})
+	cache = NewCache(testLocalMachineID, &mockRTTProvider{rtts: nil}, &mockMachineLister{err: assert.AnError})
 	err = cache.refresh(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list machines")

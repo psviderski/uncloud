@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/psviderski/uncloud/internal/machine/constants"
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/metrics"
 )
 
@@ -50,9 +50,8 @@ type Resolver interface {
 // to upstream DNS servers.
 type Server struct {
 	listenAddr      netip.Addr
-	localSubnet     netip.Prefix
 	resolver        Resolver
-	rttByMachineID  func(string) (time.Duration, bool)
+	rttCache        *rtt.Cache
 	upstreamServers []netip.AddrPort
 
 	udpServer        *dns.Server
@@ -65,7 +64,7 @@ type Server struct {
 // NewServer creates a new DNS server with the given configuration.
 // If upstreams is nil, nameservers from /etc/resolv.conf will be used. An empty upstreams list means to only resolve
 // internal DNS queries and not forward any external queries.
-func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolver, upstreams []netip.AddrPort, rttByMachineID func(string) (time.Duration, bool)) (*Server, error) {
+func NewServer(listenAddr netip.Addr, resolver Resolver, upstreams []netip.AddrPort, rttCache *rtt.Cache) (*Server, error) {
 	if !listenAddr.IsValid() {
 		return nil, fmt.Errorf("invalid listen address: %s", listenAddr)
 	}
@@ -99,9 +98,8 @@ func NewServer(listenAddr netip.Addr, localSubnet netip.Prefix, resolver Resolve
 
 	return &Server{
 		listenAddr:       listenAddr,
-		localSubnet:      localSubnet,
 		resolver:         resolver,
-		rttByMachineID:   rttByMachineID,
+		rttCache:         rttCache,
 		upstreamServers:  upstreams,
 		forwardSemaphore: make(chan struct{}, maxConcurrentForwards),
 		log:              slog.With("component", "dns-server"),
@@ -324,7 +322,7 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		if mode == "nearest" {
 			// Sort by RTT using proximity data. Local machine containers get RTT 0.
 			slices.SortStableFunc(ips, func(a, b ResolvedIP) int {
-				return cmp.Compare(s.rttForResolved(a), s.rttForResolved(b))
+				return cmp.Compare(s.rttCache.RTTFor(a.MachineID), s.rttCache.RTTFor(b.MachineID))
 			})
 		}
 	}
@@ -351,21 +349,6 @@ func (s *Server) handleAQuery(name string) []dns.RR {
 		})
 	}
 	return records
-}
-
-// rttForResolved returns the RTT for a resolved IP. Returns 0 if the IP is on the
-// local subnet (same machine), looks up RTT via rttByMachineID for remote machines,
-// and returns math.MaxInt64 for unknown machines (sorted last).
-func (s *Server) rttForResolved(r ResolvedIP) time.Duration {
-	if s.localSubnet.Contains(r.Addr) {
-		return 0
-	}
-	if s.rttByMachineID != nil {
-		if rtt, ok := s.rttByMachineID(r.MachineID); ok {
-			return rtt
-		}
-	}
-	return constants.UnknownRTT
 }
 
 // parseNameserversFromResolvConf parses the nameservers from /etc/resolv.conf.
