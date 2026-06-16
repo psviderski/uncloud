@@ -65,6 +65,11 @@ func (cli *Client) Close() error {
 	return errors.Join(cli.conn.Close(), cli.connector.Close())
 }
 
+// Dialer returns a proxy dialer for establishing connections within the cluster if supported by the connector.
+func (cli *Client) Dialer() (proxy.ContextDialer, error) {
+	return cli.connector.Dialer()
+}
+
 // progressOut returns an output stream for progress writer.
 func (cli *Client) progressOut() *streams.Out {
 	return streams.NewOut(os.Stdout)

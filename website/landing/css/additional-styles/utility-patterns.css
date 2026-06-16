@@ -29,6 +29,11 @@
     }
 }
 
+/* Inline code, styled like GitHub's with a visible border. */
+code {
+    @apply font-mono text-[0.85em] text-zinc-700 bg-zinc-100 border border-zinc-200 rounded-md px-[0.4em] py-[0.1em] whitespace-nowrap;
+}
+
 /* Buttons */
 .btn,
 .btn-sm {

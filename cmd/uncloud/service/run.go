@@ -93,15 +93,17 @@ func NewRunCommand(groupID string) *cobra.Command {
 		"Give extended privileges to service containers. This is a security risk and should be used with caution.")
 	cmd.Flags().StringSliceVarP(&opts.publish, "publish", "p", nil,
 		"Publish a service port to make it accessible outside the cluster. Can be specified multiple times.\n"+
-			"Format: [hostname:]container_port[/protocol] or [host_ip:]host_port:container_port[/protocol]@host\n"+
+			"Format: [hostname:]container_port[/protocol] or [host_ip|host_prefix:]host_port:container_port[/protocol]@host\n"+
 			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified\n"+
 			"and a cluster domain is reserved, service-name.cluster-domain will be used as the hostname.\n"+
 			"Examples:\n"+
-			"  -p 8080/https                  Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname\n"+
-			"  -p app.example.com:8080/https  Publish port 8080 as HTTPS via reverse proxy with custom hostname\n"+
+			"  -p 8080/https                       Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname\n"+
+			"  -p app.example.com:8080/https       Publish port 8080 as HTTPS via reverse proxy with custom hostname\n"+
 			// TODO: add support for publishing L4 tcp/udp ports.
 			//"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via reverse proxy\n"+
-			"  -p 53:5353/udp@host            Bind UDP port 5353 to host port 53")
+			"  -p 53:5353/udp@host                 Bind UDP port 5353 to host port 53\n"+
+			"  -p 192.168.76.0/24:53:5353/udp@host Bind UDP port 5353 to host port 53 on every host IP address\n"+
+			"                                      contained in the prefix 192.168.76.0/24")
 	cmd.Flags().StringVar(&opts.pull, "pull", api.PullPolicyMissing,
 		fmt.Sprintf("Pull image from the registry before running service containers ('%s', '%s', '%s').",
 			api.PullPolicyAlways, api.PullPolicyMissing, api.PullPolicyNever))
