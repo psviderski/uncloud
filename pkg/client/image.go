@@ -87,21 +87,12 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 			continue
 		}
 
-		if msg.Metadata.Error != "" {
-			// Continue processing other messages even if some machines return an error to avoid a partial failure
-			// of the entire command.
-			tui.PrintWarning(fmt.Sprintf(
-				"failed to list images on machine %s: %s", msg.Metadata.MachineName, msg.Metadata.Error,
-			))
-			continue
-		}
-
 		mi := api.MachineImages{
 			Metadata:        msg.Metadata,
 			ContainerdStore: msg.ContainerdStore,
 		}
 
-		if len(msg.Images) > 0 {
+		if msg.Metadata.Error == "" && len(msg.Images) > 0 {
 			if err = json.Unmarshal(msg.Images, &mi.Images); err != nil {
 				return nil, fmt.Errorf("unmarshal images: %w", err)
 			}
@@ -223,12 +214,15 @@ func (cli *Client) pushImageToMachine(
 		Machines: []string{machine.Id},
 		Name:     "%invalid-name-to-only-check-store-type%",
 	})
+	if err == nil {
+		err = images[0].Error()
+	}
 	if err != nil {
 		return fmt.Errorf("check Docker image store type on machine '%s': %w", machine.Name, err)
 	}
 
 	// Only support Docker with containerd image store enabled to avoid the confusion of pushing images to containerd
-	// and then not being able to see and use them in Docker.
+	// and then not being able to use them in Docker.
 	if !images[0].ContainerdStore {
 		pw.Event(progress.NewEvent(pushEventID, progress.Error, "containerd image store required"))
 		return fmt.Errorf("docker on machine '%s' is not using containerd image store, "+

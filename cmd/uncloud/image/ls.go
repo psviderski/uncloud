@@ -102,6 +102,12 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	var rows []imageRow
 
 	for _, machineImages := range clusterImages {
+		if err := machineImages.Error(); err != nil {
+			tui.PrintWarning(fmt.Sprintf("failed to list images on machine '%s': %s",
+				machineImages.Metadata.MachineName, err))
+			continue
+		}
+
 		// Get machine name for better readability.
 		machineName := machineImages.Metadata.MachineName
 

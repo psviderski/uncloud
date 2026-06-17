@@ -1,6 +1,8 @@
 package api
 
 import (
+	"errors"
+
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/image"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -20,6 +22,14 @@ type MachineImages struct {
 	// ContainerdStore indicates whether Docker on the machine uses the containerd image store
 	// (containerd-snapshotter feature).
 	ContainerdStore bool
+}
+
+// Error returns a non-nil error if listing images on this machine failed.
+func (mi MachineImages) Error() error {
+	if mi.Metadata != nil && mi.Metadata.Error != "" {
+		return errors.New(mi.Metadata.Error)
+	}
+	return nil
 }
 
 // ImageFilter defines criteria to filter images in ListImages.
