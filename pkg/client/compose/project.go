@@ -128,9 +128,9 @@ func checkRelativeVolumeMount(data any, _ tree.Path, _ bool) (any, error) {
 		return data, nil
 	}
 	// Only check actual paths, not volumes _names_
-	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") {
+	if strings.HasPrefix(source, ".") || strings.HasPrefix(source, "~") {
 		// uc run also warns against this
-		return nil, fmt.Errorf("invalid volume mount: volume name '%s' is relative. If you intended to pass a host "+
+		return nil, fmt.Errorf("invalid volume mount: bind mount source '%s' is relative. If you intended to pass a host "+
 			"directory or file, use absolute path, or configs might be better suited for this use case. "+
 			"See https://uncloud.run/docs/concepts/configs", source)
 	}

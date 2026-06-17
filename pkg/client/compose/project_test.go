@@ -311,6 +311,16 @@ volumes:
 `,
 			shouldErr: true,
 		},
+		{
+			name: "home-relative volume source",
+			composeYAML: `services:
+  app:
+    image: myapp:latest
+    volumes:
+      - ~/conf:/conf:ro
+`,
+			shouldErr: true,
+		},
 	}
 
 	for _, tt := range tests {
