@@ -127,11 +127,12 @@ func checkRelativeVolumeMount(data any, _ tree.Path, _ bool) (any, error) {
 	if !ok || filepath.IsAbs(source) {
 		return data, nil
 	}
-	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") { // only check actual paths, not volumes _names_
+	// Only check actual paths, not volumes _names_
+	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") {
 		// uc run also warns against this
-		return nil, fmt.Errorf("invalid volume mount, volume name '%s' is relative. If you intended to pass a host "+
-			"host directory or file, use absolute path, or configs might be better suited for this use case. "+
-			"See https://docs.docker.com/reference/compose-file/configs/", source)
+		return nil, fmt.Errorf("invalid volume mount: volume name '%s' is relative. If you intended to pass a host "+
+			"directory or file, use absolute path, or configs might be better suited for this use case. "+
+			"See https://uncloud.run/docs/concepts/configs", source)
 	}
 
 	return data, nil
