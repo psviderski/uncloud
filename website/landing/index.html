@@ -122,14 +122,13 @@
                     <div class="max-w-3xl mx-auto">
                         <div class="text-center pb-12 md:pb-16">
                             <h1 class="font-inter-tight text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-zinc-500 via-zinc-900 to-zinc-900 pb-4">
-                                Multi-machine Docker Compose for production
+                                Multi-node Docker Compose for production
                             </h1>
                             <p class="text-lg text-zinc-500 mb-8">
-                                Uncloud creates a Docker cluster with self-configuring WireGuard mesh, zero-downtime
-                                deploys, cross-machine scaling, automatic HTTPS via Caddy, service discovery, and an
-                                intuitive CLI.
-                                Everything you need to run web apps on cloud VMs or your own hardware, using
-                                familiar Compose files. Without cluster-management overhead.
+                                Deploy web apps across cloud servers or your own hardware without cluster-management
+                                overhead.
+                                Uncloud links your Docker hosts into a secure WireGuard network and gives you cross-host
+                                communication, zero-downtime deploys, and HTTPS out of the box.
                             </p>
                             <p class="text-base text-zinc-500 mb-8">
                                 A simpler alternative to
@@ -174,7 +173,7 @@
                 <div class="max-w-6xl mx-auto px-4 sm:px-6 flex justify-center pb-12 md:pb-20 relative before:absolute before:-top-12 before:left-1/2 before:-translate-x-1/2 before:w-96 before:h-96 before:bg-zinc-900 before:opacity-[.15] before:rounded-full before:blur-3xl before:-z-10">
                     <video class="block w-full rounded-lg shadow-2xl"
                            controls playsinline preload="metadata"
-                           aria-label="Demo: build, push, and deploy an app to two machines with a Compose file"
+                           aria-label="Demo: build, push, and deploy an app to two servers with a Compose file"
                            poster="https://media.uncloud.run/uc-deploy-demo.webp">
                         <source src="https://media.uncloud.run/uc-deploy-demo.mp4" type="video/mp4">
                         Your browser does not support the video tag.
@@ -836,7 +835,7 @@ prod-3  201.45.91.123:51820  1m56s ago  11ms   5.12MB    9.34MB
                             Subscribe to follow the development journey and get early insights into new features.<br>
                             See <a href="https://psviderski.substack.com/" target="_blank" rel="noopener"
                                    class="text-zinc-200 underline decoration-zinc-500 underline-offset-2 hover:text-zinc-100 hover:decoration-zinc-300 transition-colors">previous
-                                newsletters</a>.
+                            newsletters</a>.
                         </p>
                         <div class="flex justify-center">
                             <iframe src="https://psviderski.substack.com/embed?transparent=true" width="480"
