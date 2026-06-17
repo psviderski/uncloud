@@ -170,7 +170,9 @@ func (s *Service) ListImages(ctx context.Context, opts image.ListOptions) (Image
 
 // ContainerLogs streams logs from a container and returns demultiplexed entries via a channel.
 // The channel is closed when streaming completes or context is cancelled.
-func (s *Service) ContainerLogs(ctx context.Context, containerID string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
+func (s *Service) ContainerLogs(
+	ctx context.Context, containerID string, opts api.ServiceLogsOptions,
+) (<-chan api.LogEntry, error) {
 	dockerOpts := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,

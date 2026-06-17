@@ -17,8 +17,12 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
-// Image is the Corrosion image pinned to the uncloudd version.
-const Image = "ghcr.io/unlabs-dev/corrosion:2026.6.15"
+const (
+	// Image is the Corrosion image pinned to the uncloudd version.
+	Image = "ghcr.io/unlabs-dev/corrosion:2026.6.15"
+	// ContainerName is the name of the managed Corrosion container.
+	ContainerName = "uncloud-corrosion"
+)
 
 type DockerService struct {
 	Client *client.Client

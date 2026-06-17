@@ -3,7 +3,6 @@ package journal
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -13,10 +12,6 @@ import (
 
 // Logs streams logs from a service and returns entries via a channel.
 func Logs(ctx context.Context, unit string, opts api.ServiceLogsOptions) (<-chan api.LogEntry, error) {
-	if !ValidUnit(unit) {
-		return nil, fmt.Errorf("journal logs: invalid unit: %s", unit)
-	}
-
 	reader, wait, err := logs(ctx, unit, opts)
 	if err != nil {
 		return nil, err

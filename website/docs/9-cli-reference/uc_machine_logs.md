@@ -1,16 +1,16 @@
 # uc machine logs
 
-View systemd service logs.
+View system service logs.
 
 ## Synopsis
 
-View logs from the specified systemd service(s) across all machines in the cluster.
+View logs from the specified system service(s) across all machines in the cluster.
 Use -m to restrict to specific machines.
 
 Supported services:
-  uncloud            the Uncloud daemon
-  docker             the Docker daemon
-  uncloud-corrosion  the Corrosion distributed state store
+  corrosion  the Corrosion distributed state store
+  docker     the Docker daemon
+  uncloud    the Uncloud daemon
 
 If no services are specified, streams logs from the uncloud service.
 
@@ -29,7 +29,7 @@ uc machine logs [SERVICE...] [flags]
   uc machine logs -f uncloud
 
   # View logs from multiple services.
-  uc machine logs uncloud docker uncloud-corrosion
+  uc machine logs uncloud docker corrosion
 
   # Show last 20 lines per machine (default is 100).
   uc machine logs -n 20 docker
@@ -41,7 +41,7 @@ uc machine logs [SERVICE...] [flags]
   uc machine logs --since 3h --until 1h30m docker
 
   # View logs only from specific machines.
-  uc machine logs -m machine1,machine2 uncloud uncloud-corrosion
+  uc machine logs -m machine1,machine2 uncloud corrosion
 ```
 
 ## Options

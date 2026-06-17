@@ -129,7 +129,7 @@ func (f *Formatter) PrintEntry(entry api.ServiceLogEntry) {
 	output.WriteString(f.formatMachine(entry.Metadata.MachineName))
 	output.WriteString(" ")
 
-	// Service/container_id or service name for a systemd service.
+	// Service/container_id or service name for a system service.
 	output.WriteString(f.formatService(entry.Metadata.ServiceName, entry.Metadata.ContainerID, entry.Metadata.Hook))
 	output.WriteString(" ")
 
@@ -160,7 +160,7 @@ func (f *Formatter) printError(entry api.ServiceLogEntry) {
 			stringid.TruncateID(entry.Metadata.ContainerID),
 			entry.Metadata.MachineName)
 	} else {
-		msg = fmt.Sprintf("WARNING: log stream from systemd service '%s' on machine '%s'",
+		msg = fmt.Sprintf("WARNING: log stream from system service '%s' on machine '%s'",
 			entry.Metadata.ServiceName,
 			entry.Metadata.MachineName)
 	}

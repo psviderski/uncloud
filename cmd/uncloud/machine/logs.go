@@ -3,11 +3,12 @@ package machine
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/logs"
-	"github.com/psviderski/uncloud/internal/journal"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
@@ -19,14 +20,14 @@ func NewLogsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "logs [SERVICE...]",
 		Aliases: []string{"log"},
-		Short:   "View systemd service logs.",
-		Long: `View logs from the specified systemd service(s) across all machines in the cluster.
+		Short:   "View system service logs.",
+		Long: `View logs from the specified system service(s) across all machines in the cluster.
 Use -m to restrict to specific machines.
 
 Supported services:
-  uncloud            the Uncloud daemon
-  docker             the Docker daemon
-  uncloud-corrosion  the Corrosion distributed state store
+  corrosion  the Corrosion distributed state store
+  docker     the Docker daemon
+  uncloud    the Uncloud daemon
 
 If no services are specified, streams logs from the uncloud service.`,
 		Example: `  # View recent logs for the uncloud service.
@@ -37,7 +38,7 @@ If no services are specified, streams logs from the uncloud service.`,
   uc machine logs -f uncloud
 
   # View logs from multiple services.
-  uc machine logs uncloud docker uncloud-corrosion
+  uc machine logs uncloud docker corrosion
 
   # Show last 20 lines per machine (default is 100).
   uc machine logs -n 20 docker
@@ -49,7 +50,7 @@ If no services are specified, streams logs from the uncloud service.`,
   uc machine logs --since 3h --until 1h30m docker
 
   # View logs only from specific machines.
-  uc machine logs -m machine1,machine2 uncloud uncloud-corrosion`,
+  uc machine logs -m machine1,machine2 uncloud corrosion`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return runLogs(cmd.Context(), uncli, args, options)
@@ -62,14 +63,14 @@ If no services are specified, streams logs from the uncloud service.`,
 	return cmd
 }
 
-func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Options) error {
-	if len(units) == 0 {
-		units = []string{journal.UnitUncloud}
+func runLogs(ctx context.Context, uncli *cli.CLI, services []string, opts logs.Options) error {
+	if len(services) == 0 {
+		services = []string{api.SystemServiceUncloud}
 	}
-
-	for _, unit := range units {
-		if !journal.ValidUnit(unit) {
-			return fmt.Errorf("invalid systemd service '%s'", unit)
+	for _, service := range services {
+		if !slices.Contains(api.SystemServices, service) {
+			return fmt.Errorf("invalid system service '%s'; valid services: %s",
+				service, strings.Join(api.SystemServices, ", "))
 		}
 	}
 
@@ -104,27 +105,27 @@ func runLogs(ctx context.Context, uncli *cli.CLI, units []string, opts logs.Opti
 		machineNames = append(machineNames, m.Machine.Name)
 	}
 
-	// Collect one log stream per unit. MachineLogs merges across machines internally.
-	unitStreams := make([]<-chan api.ServiceLogEntry, 0, len(units))
-	for _, unit := range units {
-		ch, err := c.MachineLogs(ctx, unit, logsOpts)
+	// Collect one log stream per service. MachineLogs merges across machines internally.
+	serviceStreams := make([]<-chan api.ServiceLogEntry, 0, len(services))
+	for _, service := range services {
+		ch, err := c.MachineLogs(ctx, service, logsOpts)
 		if err != nil {
-			return fmt.Errorf("stream logs for systemd service '%s': %w", unit, err)
+			return fmt.Errorf("stream logs for system service '%s': %w", service, err)
 		}
-		unitStreams = append(unitStreams, ch)
+		serviceStreams = append(serviceStreams, ch)
 	}
 
 	var stream <-chan api.ServiceLogEntry
-	if len(unitStreams) == 1 {
-		stream = unitStreams[0]
+	if len(serviceStreams) == 1 {
+		stream = serviceStreams[0]
 	} else {
 		// Each MachineLogs stream already runs its own inner merger with stall detection,
-		// so the outer merger across units skips it to avoid duplicate warnings.
-		merger := client.NewLogMerger(unitStreams, client.LogMergerOptions{})
+		// so the outer merger across services skips it to avoid duplicate warnings.
+		merger := client.NewLogMerger(serviceStreams, client.LogMergerOptions{})
 		stream = merger.Stream()
 	}
 
-	formatter := logs.NewFormatter(machineNames, units, opts.UTC)
+	formatter := logs.NewFormatter(machineNames, services, opts.UTC)
 
 	// Print merged logs.
 	for entry := range stream {

@@ -16,6 +16,16 @@ const (
 	LogStreamHeartbeat
 )
 
+// System service names whose logs can be streamed via client.MachineLogs.
+const (
+	SystemServiceCorrosion = "corrosion"
+	SystemServiceDocker    = "docker"
+	SystemServiceUncloud   = "uncloud"
+)
+
+// SystemServices lists all system services that support log streaming.
+var SystemServices = []string{SystemServiceCorrosion, SystemServiceDocker, SystemServiceUncloud}
+
 type LogStreamType int
 
 // LogStreamTypeFromProto converts a protobuf LogEntry.StreamType to the internal LogStreamType.
@@ -61,7 +71,7 @@ type ServiceLogsOptions struct {
 	Machines []string
 }
 
-// ServiceLogEntry represents a single log entry from a service container or systemd service.
+// ServiceLogEntry represents a single log entry from a service container or system service.
 type ServiceLogEntry struct {
 	// Metadata may not be set if an error occurred (Err is not nil).
 	Metadata ServiceLogEntryMetadata

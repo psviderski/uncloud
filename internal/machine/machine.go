@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -139,7 +140,7 @@ func (c *Config) SetDefaults() (*Config, error) {
 		cfg.CorrosionService = &corroservice.DockerService{
 			Client:  cfg.DockerClient,
 			Image:   corroservice.Image,
-			Name:    "uncloud-corrosion",
+			Name:    corroservice.ContainerName,
 			DataDir: cfg.CorrosionDataDir,
 			RunDir:  cfg.CorrosionRunDir,
 			User:    fmt.Sprintf("%d:%d", uid, gid),
@@ -1217,7 +1218,7 @@ func (m *Machine) InspectService(
 // logsHeartbeatInterval is the interval at which heartbeat entries are sent when there are no logs to stream.
 const logsHeartbeatInterval = 200 * time.Millisecond
 
-// MachineLogs streams logs from a systemd service.
+// MachineLogs streams logs from a system service.
 func (m *Machine) MachineLogs(
 	req *pb.LogsRequest, stream grpc.ServerStreamingServer[pb.LogEntry],
 ) error {
@@ -1231,16 +1232,31 @@ func (m *Machine) MachineLogs(
 		Until:  req.Until,
 	}
 
-	logsCh, err := journal.Logs(ctx, req.Id, opts)
+	var logsCh <-chan api.LogEntry
+	var err error
+	log := slog.With("stream_id", fmt.Sprintf("%p", stream)[2:])
+	switch req.Id {
+	case api.SystemServiceUncloud, api.SystemServiceDocker:
+		// These run as systemd units whose names match the service name.
+		logsCh, err = journal.Logs(ctx, req.Id, opts)
+		log = log.With("unit", req.Id)
+	case api.SystemServiceCorrosion:
+		// Corrosion runs as a daemon-managed container, not a systemd unit, so read its logs
+		// from the container, the same way `uc logs` does for service containers.
+		logsCh, err = m.dockerService.ContainerLogs(ctx, corroservice.ContainerName, opts)
+		log = log.With("container", corroservice.ContainerName)
+	default:
+		return status.Errorf(codes.InvalidArgument, "unsupported system service %q; supported services: %s",
+			req.Id, strings.Join(api.SystemServices, ", "))
+	}
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return status.Error(codes.NotFound, err.Error())
 		}
-		return status.Errorf(codes.Internal, "get journal logs: %v", err)
+		return status.Errorf(codes.Internal, "get logs: %v", err)
 	}
 
-	log := slog.With("unit", req.Id, "stream_id", fmt.Sprintf("%p", stream)[2:])
-	log.Debug("Starting systemd service logs streaming.",
+	log.Debug("Starting system service logs streaming.",
 		"follow", req.Follow, "tail", req.Tail, "since", req.Since, "until", req.Until)
 
 	// Heartbeats are needed only when following logs to let the client know when there are no new log entries

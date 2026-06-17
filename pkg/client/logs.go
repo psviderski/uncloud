@@ -156,11 +156,11 @@ func (cli *Client) ContainerLogs(
 	return ch, nil
 }
 
-// MachineLogs streams journal logs for the given systemd service across one or more machines in
+// MachineLogs streams logs for the given system service across one or more machines in
 // chronological order based on timestamps. If opts.Machines is empty, logs are streamed from all
 // machines in the cluster.
 func (cli *Client) MachineLogs(
-	ctx context.Context, unit string, opts api.ServiceLogsOptions,
+	ctx context.Context, service string, opts api.ServiceLogsOptions,
 ) (<-chan api.ServiceLogEntry, error) {
 	machines, err := cli.ListMachines(ctx, &api.MachineFilter{NamesOrIDs: opts.Machines})
 	if err != nil {
@@ -172,18 +172,18 @@ func (cli *Client) MachineLogs(
 
 	streams := make([]<-chan api.ServiceLogEntry, 0, len(machines))
 	for _, m := range machines {
-		ch, err := cli.systemdServiceLogs(ctx, m.Machine.Id, unit, opts)
+		ch, err := cli.systemServiceLogs(ctx, m.Machine.Id, service, opts)
 		if err != nil {
 			// TODO: cancel already-opened streams. Currently they leak until ctx is cancelled which could
 			//  be critical when used as SDK.
-			return nil, fmt.Errorf("stream logs from systemd service '%s' on machine '%s': %w",
-				unit, m.Machine.Name, err)
+			return nil, fmt.Errorf("stream logs from system service '%s' on machine '%s': %w",
+				service, m.Machine.Name, err)
 		}
 
-		// Enrich journal log entries with the systemd service name and machine metadata.
+		// Enrich log entries with the system service name and machine metadata.
 		metadata := api.ServiceLogEntryMetadata{
-			ServiceID:   unit,
-			ServiceName: unit,
+			ServiceID:   service,
+			ServiceName: service,
 			MachineID:   m.Machine.Id,
 			MachineName: m.Machine.Name,
 		}
@@ -194,14 +194,14 @@ func (cli *Client) MachineLogs(
 	return merger.Stream(), nil
 }
 
-// systemdServiceLogs streams log entries from a single systemd service on the specified machine.
-func (cli *Client) systemdServiceLogs(
-	ctx context.Context, machineID, unit string, opts api.ServiceLogsOptions,
+// systemServiceLogs streams log entries from a single system service on the specified machine.
+func (cli *Client) systemServiceLogs(
+	ctx context.Context, machineID, service string, opts api.ServiceLogsOptions,
 ) (<-chan api.LogEntry, error) {
 	proxyCtx := cli.ProxySingleMachineContext(ctx, machineID)
 
 	req := &pb.LogsRequest{
-		Id:     unit,
+		Id:     service,
 		Follow: opts.Follow,
 		Tail:   int32(opts.Tail),
 		Since:  opts.Since,
