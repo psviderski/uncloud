@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/psviderski/uncloud/internal/cli"
+	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/logs"
 	"github.com/psviderski/uncloud/internal/journal"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -56,6 +57,8 @@ If no services are specified, streams logs from the uncloud service.`,
 	}
 
 	cmd.Flags().AddFlagSet(logs.Flags(&options))
+	completion.MachinesFlag(cmd)
+
 	return cmd
 }
 
