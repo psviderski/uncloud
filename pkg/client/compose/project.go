@@ -22,6 +22,7 @@ var registerComposeOverrides sync.Once
 func LoadProject(ctx context.Context, paths []string, opts ...composecli.ProjectOptionsFn) (*types.Project, error) {
 	registerComposeOverrides.Do(func() {
 		transform.RegisterDefaultValue("services.*.deploy.update_config", setUpdateConfigDefaults)
+		transform.RegisterDefaultValue("services.*.volumes.*.source", checkRelativeVolumeMount)
 	})
 
 	defaultOpts := []composecli.ProjectOptionsFn{
@@ -117,5 +118,22 @@ func setUpdateConfigDefaults(data any, _ tree.Path, _ bool) (any, error) {
 			v["monitor"] = api.DefaultHealthMonitorPeriod.String()
 		}
 	}
+	return data, nil
+}
+
+// checkRelativeVolumeMount check if a volume mount uses a relative path.
+func checkRelativeVolumeMount(data any, _ tree.Path, _ bool) (any, error) {
+	source, ok := data.(string)
+	if !ok || filepath.IsAbs(source) {
+		return data, nil
+	}
+	// Only check actual paths, not volumes _names_
+	if strings.HasPrefix(source, ".") || strings.HasPrefix(source, "~") {
+		// uc run also warns against this
+		return nil, fmt.Errorf("invalid volume mount: bind mount source '%s' is relative. If you intended to pass a host "+
+			"directory or file, use absolute path, or configs might be better suited for this use case. "+
+			"See https://uncloud.run/docs/concepts/configs", source)
+	}
+
 	return data, nil
 }
