@@ -14,6 +14,7 @@ import (
 	"github.com/psviderski/uncloud/cmd/uncloud/dns"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/psviderski/uncloud/internal/machine/network"
@@ -225,19 +226,27 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	// Since the cluster API needs a few moments to become ready after cluster initialisation,
 	// we keep the user informed during this wait. We wait here even if no Caddy or DNS is requested
 	// as the cluster needs to be ready so that commands such as 'uc machine ls' work immediately after init.
-	err = spinner.New().
-		Title(" Waiting for the cluster to be ready...").
-		Type(spinner.MiniDot).
-		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
-			return &spinner.Styles{
-				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
-				Title:   lipgloss.NewStyle(),
-			}
-		})).
-		ActionWithErr(func(ctx context.Context) error {
-			return client.WaitClusterReady(ctx, 1*time.Minute)
-		}).
-		Run()
+	// The spinner opens /dev/tty and dies headless (CI, SSH, mise tasks); fall back
+	// to a plain wait when stdout isn't a terminal so `uc machine init` works
+	// without a PTY wrapper (and errors surface instead of being swallowed).
+	if tui.IsStdoutTerminal() {
+		err = spinner.New().
+			Title(" Waiting for the cluster to be ready...").
+			Type(spinner.MiniDot).
+			WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
+				return &spinner.Styles{
+					Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
+					Title:   lipgloss.NewStyle(),
+				}
+			})).
+			ActionWithErr(func(ctx context.Context) error {
+				return client.WaitClusterReady(ctx, 1*time.Minute)
+			}).
+			Run()
+	} else {
+		fmt.Println("Waiting for the cluster to be ready...")
+		err = client.WaitClusterReady(ctx, 1*time.Minute)
+	}
 	if err != nil {
 		return fmt.Errorf("wait for cluster to be ready: %w", err)
 	}
