@@ -6,7 +6,12 @@ import (
 	"github.com/compose-spec/compose-go/v2/tree"
 )
 
-func secretsEngine(data any, _ tree.Path, _ bool) (any, error) {
-	fmt.Printf("HALLO %v\n", data)
+func setSecrets(data any, _ tree.Path, _ bool) (any, error) {
+	switch v := data.(type) {
+	case map[string]any:
+		for name, secret := range v {
+			fmt.Printf("%s %s\n", name, secret)
+		}
+	}
 	return data, nil
 }

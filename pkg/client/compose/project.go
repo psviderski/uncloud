@@ -23,6 +23,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 	registerComposeOverrides.Do(func() {
 		transform.RegisterDefaultValue("services.*.deploy.update_config", setUpdateConfigDefaults)
 		transform.RegisterDefaultValue("services.*.volumes.*.source", checkRelativeVolumeMount)
+		transform.RegisterDefaultValue("services.*.environment", setSecrets)
 	})
 
 	defaultOpts := []composecli.ProjectOptionsFn{
