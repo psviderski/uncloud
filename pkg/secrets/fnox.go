@@ -31,7 +31,6 @@ func (f *Fnox) Secrets(ctx context.Context, pattern string) (Secret, error) {
 	if err != nil {
 		return Secret{}, ErrAccessDenied
 	}
-	// only support a single secret
 	return Secret{
 		ID:       pattern,
 		Value:    out,
