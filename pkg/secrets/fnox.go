@@ -16,7 +16,7 @@ const fnox = "fnox"
 
 func (f *Fnox) Secrets(ctx context.Context, pattern string) (Secret, error) {
 	fields := strings.Split(pattern, "/")
-	args := []string{}
+	var args []string
 	switch len(fields) {
 	case 1:
 		args = []string{"get", fields[0]}

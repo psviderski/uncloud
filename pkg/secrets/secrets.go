@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 const Scheme = "uc"
@@ -49,5 +50,5 @@ func Parse(pointer string) (resolver Resolver, pattern string, err error) {
 		return nil, "", fmt.Errorf("%s %w", u.Hostname(), ErrNoProvider)
 	}
 
-	return r, u.Path, nil
+	return r, strings.TrimPrefix(u.Path, "/"), nil
 }
