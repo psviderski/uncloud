@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
@@ -209,7 +210,11 @@ http://app.example.com {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Validator is not expected to be called in these tests.
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil)
+			// Provide a cache with the local machine so RTT-based sorting works.
+			rttCache := rtt.NewCacheWithStats("test-machine-id", map[string]rtt.Stats{
+				"test-machine-id": {Median: 0},
+			})
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", rttCache, nil, nil)
 
 			config, err := generator.Generate(ctx, tt.containers, true)
 
@@ -853,7 +858,7 @@ valid.example.com {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, validator, nil)
 
 			config, err := generator.Generate(ctx, tt.containers, true)
 
@@ -995,7 +1000,7 @@ http://api.example.com {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Validator is not expected to be called in these tests.
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil, nil)
 
 			config, err := generator.Generate(ctx, tt.containers, false)
 			require.NoError(t, err)

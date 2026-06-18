@@ -36,6 +36,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -177,6 +178,8 @@ type Machine struct {
 	// store is the cluster store backed by a distributed Corrosion database.
 	store   *store.Store
 	cluster *cluster.Cluster
+	// rttCache caches round-trip time statistics to other machines in the cluster.
+	rttCache *rtt.Cache
 	// dockerService provides high-level operations for managing Docker containers.
 	dockerService *machinedocker.Service
 	dockerServer  *machinedocker.Server
@@ -462,6 +465,9 @@ func (m *Machine) Run(ctx context.Context) error {
 				),
 			)
 
+			// Create the RTT cache for periodic refresh of cluster RTT data.
+			rttCache := rtt.NewCache(m.state.ID, m.cluster, m.store)
+
 			// Create a new caddyconfig controller for managing the Caddy reverse proxy configuration.
 			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
 			caddyconfigCtrl, err := caddyconfig.NewController(
@@ -469,6 +475,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.config.CaddyConfigDir,
 				DefaultCaddyAdminSockPath,
 				m.store,
+				rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create caddyconfig controller: %w", err)
@@ -477,9 +484,9 @@ func (m *Machine) Run(ctx context.Context) error {
 			dnsResolver := dns.NewClusterResolver(m.store)
 			dnsServer, err := dns.NewServer(
 				m.IP(),
-				m.state.Network.Subnet,
 				dnsResolver,
 				m.config.DNSUpstreams,
+				rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create embedded DNS server: %w", err)
@@ -514,6 +521,8 @@ func (m *Machine) Run(ctx context.Context) error {
 				slog.Warn("Skipping embedded unregistry setup as the containerd socket path could not be detected.")
 			}
 
+			m.rttCache = rttCache
+
 			m.mu.Lock()
 			m.clusterCtrl, err = newClusterController(
 				m.state,
@@ -534,6 +543,14 @@ func (m *Machine) Run(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("initialise cluster controller: %w", err)
 			}
+
+			// Start the RTT cache for periodic refresh of cluster RTT data.
+			errGroup.Go(func() error {
+				if err := rttCache.Run(ctx); err != nil {
+					return fmt.Errorf("run RTT cache: %w", err)
+				}
+				return nil
+			})
 
 			if err = m.clusterCtrl.Run(ctx); err != nil {
 				return fmt.Errorf("run cluster controller: %w", err)
@@ -1029,37 +1046,25 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 	}, nil
 }
 
-// getMachineRTTs retrieves round-trip times to other machines in the cluster.
+// getMachineRTTs retrieves round-trip times to other machines in the cluster
+// by performing a live refresh from Corrosion.
 func (m *Machine) getMachineRTTs(ctx context.Context) (map[string]*pb.RTTStats, error) {
-	rtts, err := m.cluster.MemberRTTs()
+	if m.rttCache == nil {
+		return nil, nil
+	}
+
+	peers, err := m.rttCache.LivePeerRTTs(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get member rtts: %v", err)
+		return nil, status.Errorf(codes.Internal, "get peer RTTs: %v", err)
 	}
 
-	// List machines to map IPs to Machine IDs.
-	machines, err := m.store.ListMachines(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list machines: %v", err)
-	}
-
-	// Map Management IP -> Machine ID
-	ipToMachineID := make(map[netip.Addr]string)
-	for _, mach := range machines {
-		ip, _ := mach.Network.ManagementIp.ToAddr()
-		ipToMachineID[ip] = mach.Id
-	}
-
-	pbRTTs := make(map[string]*pb.RTTStats)
-	for _, stats := range rtts {
-		// Corrosion uses the management IP for gossip.
-		if mid, ok := ipToMachineID[stats.Addr.Addr()]; ok {
-			pbRTTs[mid] = &pb.RTTStats{
-				Median: durationpb.New(stats.Median),
-				StdDev: durationpb.New(stats.StdDev),
-			}
+	pbRTTs := make(map[string]*pb.RTTStats, len(peers))
+	for mid, stats := range peers {
+		pbRTTs[mid] = &pb.RTTStats{
+			Median: durationpb.New(stats.Median),
+			StdDev: durationpb.New(stats.StdDev),
 		}
 	}
-
 	return pbRTTs, nil
 }
 

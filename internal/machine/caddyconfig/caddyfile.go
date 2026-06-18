@@ -14,6 +14,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -70,8 +71,10 @@ type CaddyfileGenerator struct {
 	machineID string
 	// machineName is the human-friendly name of the machine.
 	machineName string
-	validator   CaddyfileValidator
-	log         *slog.Logger
+	// rttCache provides RTT lookup by machine ID. Nil-safe: RTTFor returns UnknownRTT on nil.
+	rttCache  *rtt.Cache
+	validator CaddyfileValidator
+	log       *slog.Logger
 }
 
 // CaddyfileValidator is an interface for validating Caddyfile configurations.
@@ -80,7 +83,8 @@ type CaddyfileValidator interface {
 }
 
 func NewCaddyfileGenerator(
-	machineID, machineName string, validator CaddyfileValidator, log *slog.Logger,
+	machineID, machineName string, rttCache *rtt.Cache,
+	validator CaddyfileValidator, log *slog.Logger,
 ) *CaddyfileGenerator {
 	if log == nil {
 		log = slog.Default()
@@ -88,6 +92,7 @@ func NewCaddyfileGenerator(
 	return &CaddyfileGenerator{
 		machineID:   machineID,
 		machineName: machineName,
+		rttCache:    rttCache,
 		validator:   validator,
 		log:         log,
 	}
@@ -119,7 +124,7 @@ func (g *CaddyfileGenerator) Generate(
 	// The service name and creation time tiebreakers keep the generated Caddyfile stable across regenerations.
 	slices.SortStableFunc(records, func(a, b store.ContainerRecord) int {
 		return cmp.Or(
-			g.localMachineRank(a.MachineID)-g.localMachineRank(b.MachineID),
+			cmp.Compare(g.rttCache.RTTFor(a.MachineID), g.rttCache.RTTFor(b.MachineID)),
 			strings.Compare(a.Container.ServiceName(), b.Container.ServiceName()),
 			a.Container.CreatedTime().Compare(b.Container.CreatedTime()),
 		)
@@ -247,15 +252,6 @@ func (g *CaddyfileGenerator) Generate(
 	}
 
 	return caddyfileHeader + "\n" + caddyfile, nil
-}
-
-// localMachineRank returns 0 if the given machineID matches the local machine and 1 otherwise.
-// Useful for sorting containers running locally first.
-func (g *CaddyfileGenerator) localMachineRank(machineID string) int {
-	if g.machineID == machineID {
-		return 0
-	}
-	return 1
 }
 
 func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceContainer) (string, error) {
