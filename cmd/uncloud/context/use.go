@@ -8,6 +8,7 @@ import (
 	"charm.land/huh/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +50,10 @@ func selectContext(uncli *cli.CLI) error {
 	}
 	if len(uncli.Config.Contexts) == 0 {
 		return fmt.Errorf("no contexts found in Uncloud config (%s)", uncli.Config.Path())
+	}
+	if !tui.IsTerminalAvailable() {
+		return fmt.Errorf("cannot select a context interactively without a terminal. " +
+			"Pass the context name explicitly: uc ctx use CONTEXT")
 	}
 
 	contextNames := slices.Sorted(maps.Keys(uncli.Config.Contexts))

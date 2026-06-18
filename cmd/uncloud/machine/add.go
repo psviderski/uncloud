@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/huh/v2/spinner"
 	"charm.land/lipgloss/v2"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
@@ -173,19 +172,9 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	}
 
 	// Wait for the cluster to be initialised on the machine to be able to deploy the Caddy service.
-	err = spinner.New().
-		Title(" Waiting for the machine to join the cluster...").
-		Type(spinner.MiniDot).
-		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
-			return &spinner.Styles{
-				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
-				Title:   lipgloss.NewStyle(),
-			}
-		})).
-		ActionWithErr(func(ctx context.Context) error {
-			return machineClient.WaitClusterReady(ctx, 5*time.Minute)
-		}).
-		Run()
+	err = tui.RunSpinner(ctx, "Waiting for the machine to join the cluster...", func(ctx context.Context) error {
+		return machineClient.WaitClusterReady(ctx, 5*time.Minute)
+	})
 	if err != nil {
 		return fmt.Errorf("wait for machine to join the cluster: %w", err)
 	}

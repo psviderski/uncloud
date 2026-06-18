@@ -136,7 +136,7 @@ func scale(ctx context.Context, uncli *cli.CLI, opts scaleOptions) error {
 
 	// Ask for confirmation unless auto-confirmed with --yes.
 	if !opts.yes {
-		if !tui.IsStdinTerminal() {
+		if !tui.IsTerminalAvailable() {
 			return errors.New("cannot ask to confirm scaling plan in non-interactive mode, " +
 				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
 		}

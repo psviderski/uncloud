@@ -6,7 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"charm.land/huh/v2/spinner"
 	"charm.land/lipgloss/v2"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-units"
@@ -83,20 +82,10 @@ func runPs(ctx context.Context, uncli *cli.CLI, opts psOptions) error {
 	defer clusterClient.Close()
 
 	var containers []containerInfo
-	err = spinner.New().
-		Title(" Collecting container info...").
-		Type(spinner.MiniDot).
-		WithTheme(spinner.ThemeFunc(func(isDark bool) *spinner.Styles {
-			return &spinner.Styles{
-				Spinner: lipgloss.NewStyle().Foreground(lipgloss.Yellow),
-				Title:   lipgloss.NewStyle(),
-			}
-		})).
-		ActionWithErr(func(ctx context.Context) error {
-			containers, err = collectContainers(ctx, clusterClient)
-			return err
-		}).
-		Run()
+	err = tui.RunSpinner(ctx, "Collecting container info...", func(ctx context.Context) error {
+		containers, err = collectContainers(ctx, clusterClient)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("collect containers: %w", err)
 	}

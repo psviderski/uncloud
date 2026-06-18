@@ -31,10 +31,9 @@ func ConnectCluster(ctx context.Context, conn config.MachineConnection, opts Con
 }
 
 // connectClusterWithProgress connects to the cluster while displaying a progress spinner.
-// If the stdout is not a terminal, it falls back to simple progress logs to stderr.
+// If a terminal is not available, it falls back to simple progress logs to stderr.
 func connectClusterWithProgress(ctx context.Context, conn config.MachineConnection) (*client.Client, error) {
-	// If stdout is not a terminal, fall back to simple progress logs.
-	if !tui.IsStdoutTerminal() {
+	if !tui.IsTerminalAvailable() {
 		fmt.Fprintln(os.Stderr, "Connecting to", conn.String())
 		cli, err := connectCluster(ctx, conn)
 		if err != nil {
@@ -45,8 +44,8 @@ func connectClusterWithProgress(ctx context.Context, conn config.MachineConnecti
 		return cli, err
 	}
 
-	// Run the connection TUI model.
-	p := tea.NewProgram(newConnectModel(ctx, conn))
+	// Run the connection TUI model. Render to stderr so stdout stays clean for command output.
+	p := tea.NewProgram(newConnectModel(ctx, conn), tea.WithOutput(os.Stderr))
 	model, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("run connection TUI: %w", err)

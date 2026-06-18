@@ -203,7 +203,7 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 	// Ask for plan confirmation before proceeding with the deployment unless auto-confirmed with --yes.
 	if !opts.yes {
-		if !tui.IsStdinTerminal() {
+		if !tui.IsTerminalAvailable() {
 			return errors.New("cannot ask to confirm deployment plan in non-interactive mode, " +
 				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
 		}
