@@ -114,7 +114,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 					plural = "s"
 				}
 				fmt.Printf("Found %d service container%s on machine '%s':\n", len(containers), plural, m.Name)
-				fmt.Println(formatContainerTree(containers))
+				lipgloss.Println(formatContainerTree(containers))
 				fmt.Println()
 				fmt.Println("This will remove all service containers from the machine, remove it from the cluster, " +
 					"and reset it to the uninitialised state.")

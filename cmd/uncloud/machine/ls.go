@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/network"
@@ -68,7 +69,7 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 		)
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }
 

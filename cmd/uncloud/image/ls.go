@@ -179,7 +179,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	})
 
 	// Print the images in a table format.
-	fmt.Println(formatImageTable(rows))
+	lipgloss.Println(formatImageTable(rows))
 
 	return nil
 }

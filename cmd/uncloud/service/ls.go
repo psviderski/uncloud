@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -82,6 +83,6 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 		t.Row(row...)
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }

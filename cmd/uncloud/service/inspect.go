@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -126,6 +127,6 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 		}
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }

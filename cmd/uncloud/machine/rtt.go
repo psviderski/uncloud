@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
@@ -107,7 +108,7 @@ func rtt(ctx context.Context, uncli *cli.CLI) error {
 		t.Row(r.machine, r.peer, tui.FormatRTT(r.median), formatRTTStdDev(r.stdDev))
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }
 

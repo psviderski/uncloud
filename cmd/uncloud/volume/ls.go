@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
@@ -95,6 +96,6 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 		t.Row(v.Volume.Name, v.Volume.Driver, v.MachineName)
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }

@@ -182,7 +182,7 @@ func printContainers(containers []containerInfo) error {
 		}
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }
 

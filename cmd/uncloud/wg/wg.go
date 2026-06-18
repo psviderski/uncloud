@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/docker/go-units"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
@@ -133,6 +134,6 @@ func runShow(ctx context.Context, uncli *cli.CLI, opts showOptions) error {
 		)
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }

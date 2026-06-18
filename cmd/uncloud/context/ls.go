@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
@@ -50,6 +51,6 @@ func list(uncli *cli.CLI) error {
 		t.Row(name, current, fmt.Sprintf("%d", connCount))
 	}
 
-	fmt.Println(t)
+	lipgloss.Println(t)
 	return nil
 }
