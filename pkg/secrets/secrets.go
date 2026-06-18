@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path"
 )
 
 const Scheme = "uc"
@@ -22,29 +21,33 @@ type Secret struct {
 var (
 	ErrNotFound     = errors.New("secret not found")
 	ErrAccessDenied = errors.New("access denied")
+	ErrNoProvider   = errors.New("provider not found")
 )
 
-// Providers is the list of plugins we have to resolve a secret.
-var Providers = map[string]Resolver{
+// providers is the list of plugins we have to resolve a secret.
+var providers = map[string]Resolver{
 	fnox: &Fnox{},
 }
 
 // Resolver is the interface all providers should implement.
 type Resolver interface {
-	Secrets(ctx context.Context, pattern string) ([]Secret, error)
+	Secrets(ctx context.Context, pattern string) (Secret, error)
 }
 
 // Parse parses a pattern uc://<provider>/bla/foo and returns the provider
 // and the secrets pattern that is used. The provider implementation knows how to deal with the pattern.
-func Parse(pointer string) (provider, pattern string, err error) {
+func Parse(pointer string) (resolver Resolver, pattern string, err error) {
 	u, err := url.Parse(pointer)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 	if u.Scheme != Scheme {
-		return "", "", fmt.Errorf("unknown scheme: %s", u.Scheme)
+		return nil, "", fmt.Errorf("unknown scheme: %s", u.Scheme)
 	}
-	// first path element is provider, rest is the key's pattern.
-	provider, pattern = path.Split(u.Path)
-	return provider, pattern, nil
+	r, ok := providers[u.Hostname()]
+	if !ok {
+		return nil, "", fmt.Errorf("%s %w", u.Hostname(), ErrNoProvider)
+	}
+
+	return r, u.Path, nil
 }
