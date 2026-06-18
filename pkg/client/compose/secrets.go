@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/compose-spec/compose-go/v2/tree"
-	"github.com/psviderski/uncloud/pkg/secrets"
+	"github.com/psviderski/uncloud/pkg/client/secrets"
 )
 
 func setSecrets(data any, _ tree.Path, _ bool) (any, error) {
