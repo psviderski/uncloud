@@ -12,7 +12,7 @@ protoc-gen-go = "1.34.2"
 protoc-gen-go-grpc = "1.5.1"
 
 [vars]
-corrosion_version = "2026.5.14"
+corrosion_version = "2026.6.15"
 ucind_image = "ghcr.io/psviderski/ucind:latest"
 
 [env]
