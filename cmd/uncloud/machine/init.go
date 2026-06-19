@@ -101,7 +101,7 @@ Connection methods:
 		"API endpoint for the Uncloud DNS service.")
 	cmd.Flags().StringVarP(
 		&opts.name, "name", "n", "",
-		"Assign a name to the machine.",
+		"Assign a name to the machine. (default is the machine's hostname)",
 	)
 	cmd.Flags().StringVar(
 		&opts.network, "network", cluster.DefaultNetwork.String(),

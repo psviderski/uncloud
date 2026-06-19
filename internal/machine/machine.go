@@ -766,9 +766,11 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	}
 	slog.Info("Cluster state initialised.", "network", clusterNetwork.String())
 
+	// Default the machine name to the machine's hostname when not explicitly provided.
 	machineName := req.MachineName
 	if machineName == "" {
-		if machineName, err = cluster.NewRandomMachineName(); err != nil {
+		hostname, _ := os.Hostname()
+		if machineName, err = cluster.DefaultMachineName(hostname, nil); err != nil {
 			return nil, status.Errorf(codes.Internal, "generate machine name: %v", err)
 		}
 	}
@@ -996,6 +998,8 @@ func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo,
 }
 
 func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.InspectMachineResponse, error) {
+	hostname, _ := os.Hostname()
+
 	storeVersion, err := m.store.Version(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get cluster store version: %v", err)
@@ -1014,8 +1018,9 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 			{
 				// Metadata is injected by the gRPC proxy.
 				Machine: &pb.MachineInfo{
-					Id:   m.state.ID,
-					Name: m.state.Name,
+					Id:       m.state.ID,
+					Name:     m.state.Name,
+					Hostname: hostname,
 					Network: &pb.NetworkConfig{
 						Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
 						ManagementIp: pb.NewIP(m.state.Network.ManagementIP),

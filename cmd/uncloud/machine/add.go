@@ -71,7 +71,8 @@ Connection methods:
 			return add(cmd.Context(), uncli, remoteMachine, opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Assign a name to the machine.")
+	cmd.Flags().StringVarP(&opts.name, "name", "n", "",
+		"Assign a name to the machine. (default is the machine's hostname)")
 	cmd.Flags().BoolVar(
 		&opts.noCaddy, "no-caddy", false,
 		"Don't deploy Caddy reverse proxy service to the machine.",

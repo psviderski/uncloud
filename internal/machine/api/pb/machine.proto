@@ -34,6 +34,8 @@ message MachineInfo {
   string name = 2;
   NetworkConfig network = 3;
   IP public_ip = 4;
+  // Operating system hostname of the machine.
+  string hostname = 5;
 }
 
 message NetworkConfig {
