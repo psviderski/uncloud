@@ -19,6 +19,8 @@ service Machine {
   rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
   // InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
   rpc InspectMachine(google.protobuf.Empty) returns (InspectMachineResponse);
+  // UpdateMachine updates the configuration of the machine.
+  rpc UpdateMachine(UpdateMachineRequest) returns (UpdateMachineResponse);
   // InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
   rpc InspectWireGuardNetwork(google.protobuf.Empty) returns (InspectWireGuardNetworkResponse);
   // Reset restores the machine to a clean state, removing all cluster-related configuration and data.
@@ -43,6 +45,17 @@ message NetworkConfig {
   IP management_ip = 2;
   repeated IPPort endpoints = 3;
   bytes public_key = 4;
+}
+
+message UpdateMachineRequest {
+  // Updated machine information. Only the set fields are applied.
+  optional string name = 1;
+  optional IP public_ip = 2;
+  repeated IPPort endpoints = 3;
+}
+
+message UpdateMachineResponse {
+  MachineInfo machine = 1;
 }
 
 message CheckPrerequisitesResponse {

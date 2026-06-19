@@ -22,7 +22,9 @@ type Config struct {
 	MTU        int `json:",omitempty"`
 	PrivateKey secret.Secret
 	PublicKey  secret.Secret
-	Peers      []PeerConfig `json:",omitempty"`
+	// Endpoints are this machine's own WireGuard endpoints advertised to other machines.
+	Endpoints []netip.AddrPort `json:",omitempty"`
+	Peers     []PeerConfig     `json:",omitempty"`
 }
 
 type PeerConfig struct {

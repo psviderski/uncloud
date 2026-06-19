@@ -11,7 +11,6 @@ import "internal/machine/api/pb/machine.proto";
 service Cluster {
   rpc AddMachine(AddMachineRequest) returns (AddMachineResponse);
   rpc ListMachines(google.protobuf.Empty) returns (ListMachinesResponse);
-  rpc UpdateMachine(UpdateMachineRequest) returns (UpdateMachineResponse);
   rpc RemoveMachine(RemoveMachineRequest) returns (google.protobuf.Empty);
 
   rpc ReserveDomain(ReserveDomainRequest) returns (Domain);
@@ -49,20 +48,6 @@ message MachineMember {
 
 message ListMachinesResponse {
   repeated MachineMember machines = 1;
-}
-
-message UpdateMachineRequest {
-  // Machine to update
-  string machine_id = 1;
-
-  // Updated machine information
-  optional string name = 2;
-  optional IP public_ip = 3;
-  repeated IPPort endpoints = 4;
-}
-
-message UpdateMachineResponse {
-  MachineInfo machine = 1;
 }
 
 message RemoveMachineRequest {

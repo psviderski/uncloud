@@ -32,8 +32,10 @@ import (
 // the WireGuard network, API server listening the WireGuard network, Corrosion service, Docker network and containers,
 // and others.
 type clusterController struct {
-	state *State
-	store *store.Store
+	// machine is the parent machine.
+	machine *Machine
+	state   *State
+	store   *store.Store
 
 	wgnet           *network.WireGuardNetwork
 	endpointChanges <-chan network.EndpointChangeEvent
@@ -63,7 +65,7 @@ type clusterController struct {
 }
 
 func newClusterController(
-	state *State,
+	machine *Machine,
 	store *store.Store,
 	server *grpc.Server,
 	corroService corroservice.Service,
@@ -85,14 +87,15 @@ func newClusterController(
 	endpointChanges := wgnet.WatchEndpoints()
 
 	return &clusterController{
-		state:           state,
+		machine:         machine,
+		state:           machine.state,
 		store:           store,
 		wgnet:           wgnet,
 		endpointChanges: endpointChanges,
 		server:          server,
 		corroService:    corroService,
 		corrosionDir:    corrosionDir,
-		dockerCtrl:      docker.NewController(state.ID, dockerService, store),
+		dockerCtrl:      docker.NewController(machine.state.ID, dockerService, store),
 		dockerReady:     dockerReady,
 		clusterReady:    clusterReady,
 		caddyconfigCtrl: caddyfileCtrl,
@@ -189,6 +192,12 @@ func (cc *clusterController) Run(ctx context.Context) error {
 			err = errors.Join(err, corroErr)
 		}
 		return err
+	}
+
+	// Republish this machine's info from local state (the source of truth) to the cluster store. This keeps the
+	// store consistent with the actual machine state on every start.
+	if err = cc.syncMachineInfo(ctx); err != nil {
+		return fmt.Errorf("sync machine info to cluster store: %w", err)
 	}
 
 	errGroup.Go(func() error {
@@ -483,6 +492,69 @@ func (cc *clusterController) waitKnownMissingChanges(ctx context.Context) error 
 				len(changes))
 		}
 	}
+}
+
+// syncMachineInfo republishes this machine's info from local state to the cluster store. The local state is the
+// source of truth for the machine's own MachineInfo.
+func (cc *clusterController) syncMachineInfo(ctx context.Context) error {
+	if err := cc.backfillMachineState(ctx); err != nil {
+		return err
+	}
+
+	info := cc.machine.Info()
+	if err := cc.store.UpdateMachine(ctx, info); err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			// This should not happen but let's try to recreate it.
+			if createErr := cc.store.CreateMachine(ctx, info); createErr != nil {
+				return fmt.Errorf("create machine in store: %w", createErr)
+			}
+			return nil
+		}
+		return fmt.Errorf("update machine in store: %w", err)
+	}
+
+	slog.Info("Synced machine info to cluster store.", "id", info.Id, "name", info.Name)
+	return nil
+}
+
+// backfillMachineState backfills legacy local state that predates local ownership of endpoints/public IP
+// (implemented in 0.20) from the cluster store.
+func (cc *clusterController) backfillMachineState(ctx context.Context) error {
+	cc.state.mu.Lock()
+	defer cc.state.mu.Unlock()
+
+	if len(cc.state.Network.Endpoints) > 0 && cc.state.PublicIP.IsValid() {
+		return nil
+	}
+
+	existing, err := cc.store.GetMachine(ctx, cc.state.ID)
+	if err != nil {
+		if errors.Is(err, store.ErrMachineNotFound) {
+			// No existing row to backfill from. syncMachineInfo will create it.
+			return nil
+		}
+		return fmt.Errorf("get machine from store: %w", err)
+	}
+
+	changed := false
+	if len(cc.state.Network.Endpoints) == 0 {
+		if endpoints := endpointsToAddrPorts(existing.Network.GetEndpoints()); len(endpoints) > 0 {
+			cc.state.Network.Endpoints = endpoints
+			changed = true
+		}
+	}
+	if !cc.state.PublicIP.IsValid() && existing.PublicIp != nil {
+		if ip, _ := existing.PublicIp.ToAddr(); ip.IsValid() {
+			cc.state.PublicIP = ip
+			changed = true
+		}
+	}
+	if changed {
+		if err = cc.state.Save(); err != nil {
+			return fmt.Errorf("save backfilled machine state: %w", err)
+		}
+	}
+	return nil
 }
 
 // syncDockerContainers watches local Docker containers and syncs them to the cluster store.

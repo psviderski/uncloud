@@ -516,7 +516,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 			m.mu.Lock()
 			m.clusterCtrl, err = newClusterController(
-				m.state,
+				m,
 				m.store,
 				proxyServer,
 				m.config.CorrosionService,
@@ -838,7 +838,8 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	// Update the machine state with the new cluster configuration.
+	// Update the machine state with the new cluster configuration. The machine owns its MachineInfo,
+	// so persist the data locally as the source of truth.
 	m.state.ID = addResp.Machine.Id
 	m.state.Name = addResp.Machine.Name
 	m.state.Network = &network.Config{
@@ -848,6 +849,10 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 		MTU:           wgMTU,
 		PrivateKey:    m.state.Network.PrivateKey,
 		PublicKey:     m.state.Network.PublicKey,
+		Endpoints:     endpointsToAddrPorts(addResp.Machine.Network.Endpoints),
+	}
+	if addResp.Machine.PublicIp != nil {
+		m.state.PublicIP, _ = addResp.Machine.PublicIp.ToAddr()
 	}
 	if err = m.state.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "save machine state: %v", err)
@@ -889,6 +894,14 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 	// Update the machine state with the provided cluster configuration.
 	subnet, _ := req.Machine.Network.Subnet.ToPrefix()
 	manageIP, _ := req.Machine.Network.ManagementIp.ToAddr()
+	var publicIP netip.Addr
+	if req.Machine.PublicIp != nil {
+		var err error
+		publicIP, err = req.Machine.PublicIp.ToAddr()
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "invalid public IP: %v", err)
+		}
+	}
 
 	// Resolve the WireGuard listen port from the request, falling back to the default.
 	wgPort := int(req.WireguardPort)
@@ -901,6 +914,8 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		wgMTU = network.DetectMTU()
 	}
 
+	// Update the machine state with the new cluster configuration. The machine owns its MachineInfo,
+	// so persist the data locally as the source of truth.
 	m.state.ID = req.Machine.Id
 	m.state.Name = req.Machine.Name
 	m.state.Network = &network.Config{
@@ -910,7 +925,9 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 		MTU:           wgMTU,
 		PrivateKey:    m.state.Network.PrivateKey,
 		PublicKey:     m.state.Network.PublicKey,
+		Endpoints:     endpointsToAddrPorts(req.Machine.Network.Endpoints),
 	}
+	m.state.PublicIP = publicIP
 	m.state.MinStoreVersion = req.MinStoreVersion
 
 	// Build a peers config from other cluster machines.
@@ -955,6 +972,22 @@ func (m *Machine) JoinCluster(_ context.Context, req *pb.JoinClusterRequest) (*e
 	return &emptypb.Empty{}, nil
 }
 
+// endpointsToAddrPorts converts pb.IPPort endpoints to netip.AddrPort, skipping any that fail to parse.
+func endpointsToAddrPorts(endpoints []*pb.IPPort) []netip.AddrPort {
+	if len(endpoints) == 0 {
+		return nil
+	}
+	addrPorts := make([]netip.AddrPort, 0, len(endpoints))
+	for _, ep := range endpoints {
+		ap, err := ep.ToAddrPort()
+		if err != nil {
+			continue
+		}
+		addrPorts = append(addrPorts, ap)
+	}
+	return addrPorts
+}
+
 // Token returns the local machine's token that can be used for adding the machine to a cluster.
 func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse, error) {
 	if len(m.state.Network.PublicKey) == 0 {
@@ -984,22 +1017,41 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 	return &pb.TokenResponse{Token: tokenStr}, nil
 }
 
-// Deprecated: use InspectMachine instead.
-func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
-	return &pb.MachineInfo{
-		Id:   m.state.ID,
-		Name: m.state.Name,
+// Info returns the machine configuration and runtime details.
+func (m *Machine) Info() *pb.MachineInfo {
+	m.state.mu.RLock()
+	defer m.state.mu.RUnlock()
+
+	hostname, _ := os.Hostname()
+
+	endpoints := make([]*pb.IPPort, len(m.state.Network.Endpoints))
+	for i, ep := range m.state.Network.Endpoints {
+		endpoints[i] = pb.NewIPPort(ep)
+	}
+
+	info := &pb.MachineInfo{
+		Id:       m.state.ID,
+		Name:     m.state.Name,
+		Hostname: hostname,
 		Network: &pb.NetworkConfig{
 			Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
 			ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
+			Endpoints:    endpoints,
 			PublicKey:    m.state.Network.PublicKey,
 		},
-	}, nil
+	}
+	if m.state.PublicIP.IsValid() {
+		info.PublicIp = pb.NewIP(m.state.PublicIP)
+	}
+	return info
+}
+
+// Deprecated: use InspectMachine instead.
+func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
+	return m.Info(), nil
 }
 
 func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.InspectMachineResponse, error) {
-	hostname, _ := os.Hostname()
-
 	storeVersion, err := m.store.Version(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get cluster store version: %v", err)
@@ -1017,21 +1069,91 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 		Machines: []*pb.MachineDetails{
 			{
 				// Metadata is injected by the gRPC proxy.
-				Machine: &pb.MachineInfo{
-					Id:       m.state.ID,
-					Name:     m.state.Name,
-					Hostname: hostname,
-					Network: &pb.NetworkConfig{
-						Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
-						ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
-						PublicKey:    m.state.Network.PublicKey,
-					},
-				},
+				Machine:      m.Info(),
 				StoreVersion: storeVersion,
 				Rtts:         rtts,
 			},
 		},
 	}, nil
+}
+
+// UpdateMachine updates the configuration of this machine in its local state (the source of truth) and syncs
+// the result to the cluster store.
+func (m *Machine) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.UpdateMachineResponse, error) {
+	if !m.Initialised() {
+		return nil, status.Error(codes.FailedPrecondition, "machine is not configured as a cluster member")
+	}
+
+	if err := m.applyMachineUpdate(ctx, req); err != nil {
+		return nil, err
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	info := m.Info()
+	if err := m.store.UpdateMachine(ctx, info); err != nil {
+		return nil, status.Errorf(codes.Internal, "sync machine to cluster store: %v", err)
+	}
+
+	slog.Info("Machine configuration updated.", "id", info.Id, "name", info.Name)
+	return &pb.UpdateMachineResponse{Machine: info}, nil
+}
+
+// applyMachineUpdate validates the request and applies it to the local machine state under the write lock,
+// then persists the state to disk.
+func (m *Machine) applyMachineUpdate(ctx context.Context, req *pb.UpdateMachineRequest) error {
+	m.state.mu.Lock()
+	defer m.state.mu.Unlock()
+
+	if req.Name != nil {
+		if *req.Name == "" {
+			return status.Error(codes.InvalidArgument, "machine name cannot be empty")
+		}
+		// Check for duplicate names across the cluster, excluding this machine.
+		if *req.Name != m.state.Name {
+			machines, err := m.store.ListMachines(ctx)
+			if err != nil {
+				return status.Errorf(codes.Internal, "list machines: %v", err)
+			}
+			for _, other := range machines {
+				if other.Id != m.state.ID && other.Name == *req.Name {
+					return status.Errorf(codes.AlreadyExists, "machine with name '%s' already exists", *req.Name)
+				}
+			}
+		}
+		m.state.Name = *req.Name
+	}
+
+	if req.PublicIp != nil {
+		// An empty IP signals removal of the public IP.
+		if len(req.PublicIp.Ip) == 0 {
+			m.state.PublicIP = netip.Addr{}
+		} else {
+			ip, err := req.PublicIp.ToAddr()
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "invalid public IP: %v", err)
+			}
+			m.state.PublicIP = ip
+		}
+	}
+
+	if len(req.Endpoints) > 0 {
+		endpoints := make([]netip.AddrPort, len(req.Endpoints))
+		for i, ep := range req.Endpoints {
+			ap, err := ep.ToAddrPort()
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "invalid endpoint: %v", err)
+			}
+			endpoints[i] = ap
+		}
+		m.state.Network.Endpoints = endpoints
+	}
+
+	if err := m.state.Save(); err != nil {
+		return status.Errorf(codes.Internal, "save machine state: %v", err)
+	}
+	return nil
 }
 
 // getMachineRTTs retrieves round-trip times to other machines in the cluster.

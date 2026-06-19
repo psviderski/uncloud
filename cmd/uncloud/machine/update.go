@@ -70,7 +70,8 @@ At least one flag must be specified to perform an update.`,
 		fmt.Sprintf("WireGuard endpoint address that other machines in the cluster should use to establish "+
 			"WireGuard connections\n"+
 			"to this machine. This doesn't change the address/port WireGuard listens on the machine.\n"+
-			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n", network.DefaultWireGuardPort)+
+			"Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is %d if omitted.\n",
+			network.DefaultWireGuardPort)+
 			"Multiple endpoints can be specified by repeating the flag or using a comma-separated list.",
 	)
 
@@ -89,16 +90,13 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 	}
 	defer client.Close()
 
-	// First, resolve the machine to get its ID
+	// Resolve the machine to capture its current configuration for the before/after report and to validate existence.
 	machine, err := client.InspectMachine(ctx, machineNameOrID)
 	if err != nil {
 		return fmt.Errorf("find machine: %w", err)
 	}
 
-	// Build the update request
-	req := &pb.UpdateMachineRequest{
-		MachineId: machine.Machine.Id,
-	}
+	req := &pb.UpdateMachineRequest{}
 
 	if opts.name != "" {
 		req.Name = &opts.name
@@ -131,8 +129,7 @@ func update(ctx context.Context, uncli *cli.CLI, cmd *cobra.Command, opts update
 		req.Endpoints = endpoints
 	}
 
-	// Perform the update operation
-	updatedMachine, err := client.UpdateMachine(ctx, req)
+	updatedMachine, err := client.UpdateMachine(ctx, machine.Machine.Id, req)
 	if err != nil {
 		return fmt.Errorf("update machine: %w", err)
 	}

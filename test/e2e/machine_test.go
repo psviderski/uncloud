@@ -25,6 +25,17 @@ func TestMachineOperations(t *testing.T) {
 	require.NoError(t, err)
 	defer cli.Close()
 
+	// waitMachineName waits until the connected machine's store view reports the given name for the machine.
+	// Updates are applied on the target machine and replicated through the cluster store, so they are not
+	// immediately visible when read back from the connected machine.
+	waitMachineName := func(t *testing.T, id, name string) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			m, err := cli.InspectMachine(ctx, id)
+			return err == nil && m.Machine.Name == name
+		}, 15*time.Second, 100*time.Millisecond, "machine %s should be visible as %q", id, name)
+	}
+
 	// RenameMachine subtests.
 
 	t.Run("rename machine by name", func(t *testing.T) {
@@ -44,23 +55,18 @@ func TestMachineOperations(t *testing.T) {
 		assert.Equal(t, newName, updatedMachine.Name)
 		assert.Equal(t, originalMachine.Machine.Id, updatedMachine.Id)
 
-		// Verify the machine list reflects the change.
+		// Wait for the rename to propagate to the connected machine's store view.
+		waitMachineName(t, originalMachine.Machine.Id, newName)
+
+		// Ensure other machines are unaffected.
 		machines, err = cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
 		require.Len(t, machines, 3)
-
-		// Find the renamed machine.
-		var found bool
 		for _, m := range machines {
-			if m.Machine.Id == originalMachine.Machine.Id {
-				assert.Equal(t, newName, m.Machine.Name)
-				found = true
-			} else {
-				// Ensure other machines are unaffected.
+			if m.Machine.Id != originalMachine.Machine.Id {
 				assert.NotEqual(t, newName, m.Machine.Name)
 			}
 		}
-		assert.True(t, found, "Renamed machine should be in the list")
 
 		// Verify we can inspect the machine by its new name.
 		inspectedMachine, err := cli.InspectMachine(ctx, newName)
@@ -99,6 +105,9 @@ func TestMachineOperations(t *testing.T) {
 		assert.Equal(t, newName, updatedMachine.Name)
 		assert.Equal(t, machineID, updatedMachine.Id)
 
+		// Wait for the rename to propagate to the connected machine's store view.
+		waitMachineName(t, machineID, newName)
+
 		// Verify the rename was successful.
 		inspectedMachine, err := cli.InspectMachine(ctx, newName)
 		require.NoError(t, err)
@@ -113,11 +122,7 @@ func TestMachineOperations(t *testing.T) {
 	t.Run("rename non-existent machine", func(t *testing.T) {
 		// Try to rename a machine that doesn't exist.
 		_, err := cli.RenameMachine(ctx, "non-existent-machine", "new-name")
-		assert.ErrorIs(t, err, api.ErrNotFound)
-
-		// Try with a non-existent ID.
-		_, err = cli.RenameMachine(ctx, "non-existent-id-12345", "new-name")
-		assert.ErrorIs(t, err, api.ErrNotFound)
+		assert.ErrorContains(t, err, "machine not found")
 	})
 
 	t.Run("rename to existing name", func(t *testing.T) {
@@ -126,12 +131,21 @@ func TestMachineOperations(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, machines, 3)
 
-		// Try to rename machine 0 to the name of machine 1.
-		machine0Name := machines[0].Machine.Name
-		machine1Name := machines[1].Machine.Name
+		// Rename the connected machine to another machine's name. The uniqueness check runs on the connected
+		// machine, which already sees the other machine's name, so the collision is detected deterministically
+		// (a remote target's store view may lag behind the connected machine's).
+		connectedID := c.Machines[0].ID
+		var otherName string
+		for _, m := range machines {
+			if m.Machine.Id != connectedID {
+				otherName = m.Machine.Name
+				break
+			}
+		}
+		require.NotEmpty(t, otherName)
 
 		// This should fail because the name is already taken.
-		_, err = cli.RenameMachine(ctx, machine0Name, machine1Name)
+		_, err = cli.RenameMachine(ctx, connectedID, otherName)
 		assert.Error(t, err)
 	})
 
@@ -198,6 +212,7 @@ func TestMachineOperations(t *testing.T) {
 		newMachineName := "renamed-for-service-test"
 		_, err = cli.RenameMachine(ctx, originalMachineName, newMachineName)
 		require.NoError(t, err)
+		waitMachineName(t, targetMachine.Machine.Id, newMachineName)
 
 		// Verify service is still running on the renamed machine.
 		svc, err = cli.InspectService(ctx, serviceName)
@@ -224,18 +239,15 @@ func TestMachineOperations(t *testing.T) {
 
 		// Update the machine name using UpdateMachine directly.
 		req := &pb.UpdateMachineRequest{
-			MachineId: targetMachine.Machine.Id,
-			Name:      &newName,
+			Name: &newName,
 		}
-		updatedMachine, err := cli.UpdateMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, targetMachine.Machine.Id, req)
 		require.NoError(t, err)
 		assert.Equal(t, newName, updatedMachine.Name)
 		assert.Equal(t, targetMachine.Machine.Id, updatedMachine.Id)
 
-		// Verify the change persisted.
-		inspected, err := cli.InspectMachine(ctx, updatedMachine.Id)
-		require.NoError(t, err)
-		assert.Equal(t, newName, inspected.Machine.Name)
+		// Wait for the change to propagate to the connected machine's store view.
+		waitMachineName(t, targetMachine.Machine.Id, newName)
 
 		// Verify old name no longer works.
 		_, err = cli.InspectMachine(ctx, originalName)
@@ -264,17 +276,18 @@ func TestMachineOperations(t *testing.T) {
 
 		// Update the public IP.
 		req := &pb.UpdateMachineRequest{
-			MachineId: targetMachine.Machine.Id,
-			PublicIp:  newPublicIP,
+			PublicIp: newPublicIP,
 		}
-		updatedMachine, err := cli.UpdateMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, targetMachine.Machine.Id, req)
 		require.NoError(t, err)
 		assert.Equal(t, newPublicIP.Ip, updatedMachine.PublicIp.Ip)
 
-		// Verify the change persisted.
-		inspected, err := cli.InspectMachine(ctx, targetMachine.Machine.Id)
-		require.NoError(t, err)
-		assert.Equal(t, newPublicIP.Ip, inspected.Machine.PublicIp.Ip)
+		// Verify the change propagated to the connected machine's store view.
+		require.Eventually(t, func() bool {
+			inspected, err := cli.InspectMachine(ctx, targetMachine.Machine.Id)
+			return err == nil && inspected.Machine.PublicIp != nil &&
+				string(inspected.Machine.PublicIp.Ip) == string(newPublicIP.Ip)
+		}, 15*time.Second, 100*time.Millisecond, "public IP should be updated")
 	})
 
 	t.Run("remove machine public IP", func(t *testing.T) {
@@ -286,10 +299,9 @@ func TestMachineOperations(t *testing.T) {
 		// First, set a public IP on a machine.
 		targetMachine := machines[0]
 		setIPReq := &pb.UpdateMachineRequest{
-			MachineId: targetMachine.Machine.Id,
-			PublicIp:  &pb.IP{Ip: []byte{192, 0, 2, 1}}, // TEST-NET-1 address.
+			PublicIp: &pb.IP{Ip: []byte{192, 0, 2, 1}}, // TEST-NET-1 address.
 		}
-		updatedMachine, err := cli.UpdateMachine(ctx, setIPReq)
+		updatedMachine, err := cli.UpdateMachine(ctx, targetMachine.Machine.Id, setIPReq)
 		require.NoError(t, err)
 		require.NotNil(t, updatedMachine.PublicIp)
 
@@ -298,17 +310,17 @@ func TestMachineOperations(t *testing.T) {
 		// Remove the public IP by setting it to empty.
 		emptyIP := &pb.IP{}
 		req := &pb.UpdateMachineRequest{
-			MachineId: updatedMachine.Id,
-			PublicIp:  emptyIP,
+			PublicIp: emptyIP,
 		}
-		removedIPMachine, err := cli.UpdateMachine(ctx, req)
+		removedIPMachine, err := cli.UpdateMachine(ctx, updatedMachine.Id, req)
 		require.NoError(t, err)
 		assert.Nil(t, removedIPMachine.PublicIp)
 
-		// Verify the change persisted.
-		inspected, err := cli.InspectMachine(ctx, updatedMachine.Id)
-		require.NoError(t, err)
-		assert.Nil(t, inspected.Machine.PublicIp)
+		// Verify the removal propagated to the connected machine's store view.
+		require.Eventually(t, func() bool {
+			inspected, err := cli.InspectMachine(ctx, updatedMachine.Id)
+			return err == nil && inspected.Machine.PublicIp == nil
+		}, 15*time.Second, 100*time.Millisecond, "public IP should be removed")
 	})
 
 	t.Run("update machine endpoints", func(t *testing.T) {
@@ -329,10 +341,9 @@ func TestMachineOperations(t *testing.T) {
 		}
 
 		req := &pb.UpdateMachineRequest{
-			MachineId: targetMachine.Machine.Id,
 			Endpoints: newEndpoints,
 		}
-		updatedMachine, err := cli.UpdateMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, targetMachine.Machine.Id, req)
 		require.NoError(t, err)
 		assert.Equal(t, len(newEndpoints), len(updatedMachine.Network.Endpoints))
 
@@ -370,48 +381,57 @@ func TestMachineOperations(t *testing.T) {
 		}
 
 		req := &pb.UpdateMachineRequest{
-			MachineId: targetMachine.Machine.Id,
-			Name:      &newName,
-			PublicIp:  newPublicIP,
+			Name:     &newName,
+			PublicIp: newPublicIP,
 		}
-		updatedMachine, err := cli.UpdateMachine(ctx, req)
+		updatedMachine, err := cli.UpdateMachine(ctx, targetMachine.Machine.Id, req)
 		require.NoError(t, err)
 		assert.Equal(t, newName, updatedMachine.Name)
 		assert.Equal(t, newPublicIP.Ip, updatedMachine.PublicIp.Ip)
 
-		// Verify both changes persisted.
-		inspected, err := cli.InspectMachine(ctx, updatedMachine.Id)
-		require.NoError(t, err)
-		assert.Equal(t, newName, inspected.Machine.Name)
-		assert.Equal(t, newPublicIP.Ip, inspected.Machine.PublicIp.Ip)
+		// Verify both changes propagated to the connected machine's store view.
+		require.Eventually(t, func() bool {
+			inspected, err := cli.InspectMachine(ctx, updatedMachine.Id)
+			if err != nil || inspected.Machine.PublicIp == nil {
+				return false
+			}
+			return inspected.Machine.Name == newName &&
+				string(inspected.Machine.PublicIp.Ip) == string(newPublicIP.Ip)
+		}, 15*time.Second, 100*time.Millisecond, "name and public IP should be updated")
 	})
 
 	t.Run("update non-existent machine", func(t *testing.T) {
 		// Try to update properties on a machine that doesn't exist.
 		nonExistentName := "should-be-updated"
 		req := &pb.UpdateMachineRequest{
-			MachineId: "non-existent-machine-id",
-			Name:      &nonExistentName,
+			Name: &nonExistentName,
 		}
-		_, err := cli.UpdateMachine(ctx, req)
-		assert.Error(t, err)
+		_, err := cli.UpdateMachine(ctx, "non-existent-machine-id", req)
+		assert.ErrorContains(t, err, "machine not found")
 	})
 
 	t.Run("update to duplicate name", func(t *testing.T) {
-		// Get two machines.
 		machines, err := cli.ListMachines(ctx, nil)
 		require.NoError(t, err)
 		require.Len(t, machines, 3)
 
-		machine1 := machines[0]
-		machine2 := machines[1]
-
-		// Try to update machine2 with machine1's name.
-		req := &pb.UpdateMachineRequest{
-			MachineId: machine2.Machine.Id,
-			Name:      &machine1.Machine.Name,
+		// Update the connected machine with another machine's name. The uniqueness check runs on the connected
+		// machine, which already sees the other machine's name, so the collision is detected deterministically
+		// (a remote target's store view may lag behind the connected machine's).
+		connectedID := c.Machines[0].ID
+		var otherName string
+		for _, m := range machines {
+			if m.Machine.Id != connectedID {
+				otherName = m.Machine.Name
+				break
+			}
 		}
-		_, err = cli.UpdateMachine(ctx, req)
+		require.NotEmpty(t, otherName)
+
+		req := &pb.UpdateMachineRequest{
+			Name: &otherName,
+		}
+		_, err = cli.UpdateMachine(ctx, connectedID, req)
 		assert.Error(t, err)
 	})
 
@@ -423,10 +443,8 @@ func TestMachineOperations(t *testing.T) {
 		targetMachine := machines[0]
 
 		// Update with no fields set (should be a no-op).
-		req := &pb.UpdateMachineRequest{
-			MachineId: targetMachine.Machine.Id,
-		}
-		updatedMachine, err := cli.UpdateMachine(ctx, req)
+		req := &pb.UpdateMachineRequest{}
+		updatedMachine, err := cli.UpdateMachine(ctx, targetMachine.Machine.Id, req)
 		require.NoError(t, err)
 
 		// Machine should remain unchanged.

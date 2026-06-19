@@ -54,7 +54,7 @@ type LogsClient interface {
 type MachineClient interface {
 	InspectMachine(ctx context.Context, id string) (*pb.MachineMember, error)
 	ListMachines(ctx context.Context, filter *MachineFilter) (MachineMembersList, error)
-	UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.MachineInfo, error)
+	UpdateMachine(ctx context.Context, nameOrID string, req *pb.UpdateMachineRequest) (*pb.MachineInfo, error)
 	RenameMachine(ctx context.Context, nameOrID, newName string) (*pb.MachineInfo, error)
 }
 

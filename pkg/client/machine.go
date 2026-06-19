@@ -74,9 +74,12 @@ func (cli *Client) ListMachines(ctx context.Context, filter *api.MachineFilter) 
 	return machines, nil
 }
 
-// UpdateMachine updates machine configuration in the cluster.
-func (cli *Client) UpdateMachine(ctx context.Context, req *pb.UpdateMachineRequest) (*pb.MachineInfo, error) {
-	resp, err := cli.ClusterClient.UpdateMachine(ctx, req)
+// UpdateMachine updates the configuration of the machine identified by nameOrID.
+func (cli *Client) UpdateMachine(
+	ctx context.Context, nameOrID string, req *pb.UpdateMachineRequest,
+) (*pb.MachineInfo, error) {
+	ctx = cli.ProxySingleMachineContext(ctx, nameOrID)
+	resp, err := cli.MachineClient.UpdateMachine(ctx, req)
 	if err != nil {
 		if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
 			return nil, api.ErrNotFound
@@ -88,19 +91,10 @@ func (cli *Client) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReque
 
 // RenameMachine renames an existing machine in the cluster.
 func (cli *Client) RenameMachine(ctx context.Context, nameOrID, newName string) (*pb.MachineInfo, error) {
-	// First, resolve the machine to get its ID
-	machine, err := cli.InspectMachine(ctx, nameOrID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update the machine with the new name
 	req := &pb.UpdateMachineRequest{
-		MachineId: machine.Machine.Id,
-		Name:      &newName,
+		Name: &newName,
 	}
-
-	return cli.UpdateMachine(ctx, req)
+	return cli.UpdateMachine(ctx, nameOrID, req)
 }
 
 // WaitMachineReady waits for the machine API on the connected machine to respond.

@@ -26,6 +26,7 @@ const (
 	Machine_Token_FullMethodName                   = "/api.Machine/Token"
 	Machine_Inspect_FullMethodName                 = "/api.Machine/Inspect"
 	Machine_InspectMachine_FullMethodName          = "/api.Machine/InspectMachine"
+	Machine_UpdateMachine_FullMethodName           = "/api.Machine/UpdateMachine"
 	Machine_InspectWireGuardNetwork_FullMethodName = "/api.Machine/InspectWireGuardNetwork"
 	Machine_Reset_FullMethodName                   = "/api.Machine/Reset"
 	Machine_InspectService_FullMethodName          = "/api.Machine/InspectService"
@@ -45,6 +46,8 @@ type MachineClient interface {
 	Inspect(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MachineInfo, error)
 	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
 	InspectMachine(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectMachineResponse, error)
+	// UpdateMachine updates the configuration of the machine.
+	UpdateMachine(ctx context.Context, in *UpdateMachineRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
 	// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
 	InspectWireGuardNetwork(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectWireGuardNetworkResponse, error)
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
@@ -121,6 +124,16 @@ func (c *machineClient) InspectMachine(ctx context.Context, in *emptypb.Empty, o
 	return out, nil
 }
 
+func (c *machineClient) UpdateMachine(ctx context.Context, in *UpdateMachineRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMachineResponse)
+	err := c.cc.Invoke(ctx, Machine_UpdateMachine_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *machineClient) InspectWireGuardNetwork(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectWireGuardNetworkResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(InspectWireGuardNetworkResponse)
@@ -183,6 +196,8 @@ type MachineServer interface {
 	Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error)
 	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
 	InspectMachine(context.Context, *emptypb.Empty) (*InspectMachineResponse, error)
+	// UpdateMachine updates the configuration of the machine.
+	UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error)
 	// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
 	InspectWireGuardNetwork(context.Context, *emptypb.Empty) (*InspectWireGuardNetworkResponse, error)
 	// Reset restores the machine to a clean state, removing all cluster-related configuration and data.
@@ -216,6 +231,9 @@ func (UnimplementedMachineServer) Inspect(context.Context, *emptypb.Empty) (*Mac
 }
 func (UnimplementedMachineServer) InspectMachine(context.Context, *emptypb.Empty) (*InspectMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectMachine not implemented")
+}
+func (UnimplementedMachineServer) UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateMachine not implemented")
 }
 func (UnimplementedMachineServer) InspectWireGuardNetwork(context.Context, *emptypb.Empty) (*InspectWireGuardNetworkResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectWireGuardNetwork not implemented")
@@ -358,6 +376,24 @@ func _Machine_InspectMachine_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_UpdateMachine_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMachineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).UpdateMachine(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_UpdateMachine_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).UpdateMachine(ctx, req.(*UpdateMachineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Machine_InspectWireGuardNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -453,6 +489,10 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InspectMachine",
 			Handler:    _Machine_InspectMachine_Handler,
+		},
+		{
+			MethodName: "UpdateMachine",
+			Handler:    _Machine_UpdateMachine_Handler,
 		},
 		{
 			MethodName: "InspectWireGuardNetwork",
