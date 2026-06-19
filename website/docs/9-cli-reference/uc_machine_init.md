@@ -38,7 +38,7 @@ uc machine init [schema://]USER@HOST[:PORT] [flags]
   -c, --context string        Name of the new context to be created in the Uncloud config to manage the cluster. (default "default")
       --dns-endpoint string   API endpoint for the Uncloud DNS service. (default "https://dns.uncloud.run/v1")
   -h, --help                  help for init
-  -n, --name string           Assign a name to the machine.
+  -n, --name string           Assign a name to the machine. (default is the machine's hostname)
       --network string        IPv4 network CIDR to use for machines and services. (default "10.210.0.0/16")
       --no-caddy              Don't deploy Caddy reverse proxy service to the machine. You can deploy it later with 'uc caddy deploy'.
       --no-dns                Don't reserve a cluster domain in Uncloud DNS. You can reserve it later with 'uc dns reserve'.
