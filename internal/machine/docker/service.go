@@ -49,8 +49,6 @@ func (s *Service) WatchDaemonRestart(ctx context.Context) <-chan struct{} {
 	ch := make(chan struct{}, 1)
 
 	go func() {
-		defer close(ch)
-
 		boff := backoff.WithContext(backoff.NewExponentialBackOff(
 			backoff.WithInitialInterval(1*time.Second),
 			backoff.WithMaxInterval(30*time.Second),

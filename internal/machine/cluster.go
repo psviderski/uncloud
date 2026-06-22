@@ -523,10 +523,14 @@ func (cc *clusterController) runMachineSync(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
 		case <-ticker.C: // Scheduled periodic sync.
 		case <-cc.syncMachineTrigger: // Immediate sync request.
 		case <-dockerRestarted: // Docker daemon restarted -- engine version may have changed.
+		}
+
+		// A pending restart signal can race with context cancellation and win the select.
+		if ctx.Err() != nil {
+			return nil
 		}
 
 		if err := cc.syncMachineInfo(ctx); err != nil {
@@ -548,30 +552,32 @@ func (cc *clusterController) RequestMachineSync() {
 // write if the info is unchanged since the last successful write.
 func (cc *clusterController) syncMachineInfo(ctx context.Context) error {
 	publishedInfo, err := cc.store.GetMachine(ctx, cc.state.ID)
-	if err != nil {
+	if err != nil && !errors.Is(err, store.ErrMachineNotFound) {
 		return fmt.Errorf("get machine from store: %w", err)
 	}
 
 	info := cc.machine.Info(ctx)
-	// Info leaves the Docker engine version empty when the engine is unavailable. Keep the previously
-	// published version in that case rather than overwriting it with an empty value.
-	if info.DockerVersion == "" {
-		info.DockerVersion = publishedInfo.DockerVersion
-	}
+	if publishedInfo != nil {
+		// Info leaves the Docker engine version empty when the engine is unavailable. Keep the previously
+		// published version in that case rather than overwriting it with an empty value.
+		if info.DockerVersion == "" {
+			info.DockerVersion = publishedInfo.DockerVersion
+		}
 
-	if proto.Equal(info, publishedInfo) {
-		return nil
+		// Skip the write if nothing changed since the last successful sync.
+		if proto.Equal(info, publishedInfo) {
+			return nil
+		}
 	}
 
 	if err = cc.store.UpdateMachine(ctx, info); err != nil {
-		if errors.Is(err, store.ErrMachineNotFound) {
-			// This should not happen but let's try to recreate it.
-			if createErr := cc.store.CreateMachine(ctx, info); createErr != nil {
-				return fmt.Errorf("create machine in store: %w", createErr)
-			}
-			return nil
+		if !errors.Is(err, store.ErrMachineNotFound) {
+			return fmt.Errorf("update machine in store: %w", err)
 		}
-		return fmt.Errorf("update machine in store: %w", err)
+		// The machine row is missing (not created yet or lost). Recreate it.
+		if err = cc.store.CreateMachine(ctx, info); err != nil {
+			return fmt.Errorf("create machine in store: %w", err)
+		}
 	}
 
 	slog.Info("Synced machine info to cluster store.", "id", info.Id, "name", info.Name)
