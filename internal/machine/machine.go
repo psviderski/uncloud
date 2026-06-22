@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -38,6 +39,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/internal/version"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/unregistry"
 	"github.com/siderolabs/grpc-proxy/proxy"
@@ -1018,7 +1020,18 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 }
 
 // Info returns the machine configuration and runtime details.
-func (m *Machine) Info() *pb.MachineInfo {
+func (m *Machine) Info(ctx context.Context) *pb.MachineInfo {
+	// Best-effort fetch of the Docker engine version. It stays empty if the engine is unavailable.
+	var dockerVersion string
+	if m.dockerService != nil {
+		v, err := m.dockerService.Client.ServerVersion(ctx)
+		if err != nil {
+			slog.Debug("Failed to get Docker engine version.", "err", err)
+		} else {
+			dockerVersion = v.Version
+		}
+	}
+
 	m.state.mu.RLock()
 	defer m.state.mu.RUnlock()
 
@@ -1030,25 +1043,29 @@ func (m *Machine) Info() *pb.MachineInfo {
 	}
 
 	info := &pb.MachineInfo{
-		Id:       m.state.ID,
-		Name:     m.state.Name,
-		Hostname: hostname,
+		Id:   m.state.ID,
+		Name: m.state.Name,
 		Network: &pb.NetworkConfig{
 			Subnet:       pb.NewIPPrefix(m.state.Network.Subnet),
 			ManagementIp: pb.NewIP(m.state.Network.ManagementIP),
 			Endpoints:    endpoints,
 			PublicKey:    m.state.Network.PublicKey,
 		},
+		Hostname:      hostname,
+		Arch:          runtime.GOARCH,
+		DaemonVersion: version.String(),
+		DockerVersion: dockerVersion,
 	}
 	if m.state.PublicIP.IsValid() {
 		info.PublicIp = pb.NewIP(m.state.PublicIP)
 	}
+
 	return info
 }
 
 // Deprecated: use InspectMachine instead.
-func (m *Machine) Inspect(_ context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
-	return m.Info(), nil
+func (m *Machine) Inspect(ctx context.Context, _ *emptypb.Empty) (*pb.MachineInfo, error) {
+	return m.Info(ctx), nil
 }
 
 func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.InspectMachineResponse, error) {
@@ -1069,7 +1086,7 @@ func (m *Machine) InspectMachine(ctx context.Context, _ *emptypb.Empty) (*pb.Ins
 		Machines: []*pb.MachineDetails{
 			{
 				// Metadata is injected by the gRPC proxy.
-				Machine:      m.Info(),
+				Machine:      m.Info(ctx),
 				StoreVersion: storeVersion,
 				Rtts:         rtts,
 			},
@@ -1089,13 +1106,13 @@ func (m *Machine) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 	}
 
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	info := m.Info()
-	if err := m.store.UpdateMachine(ctx, info); err != nil {
-		return nil, status.Errorf(codes.Internal, "sync machine to cluster store: %v", err)
+	clusterCtrl := m.clusterCtrl
+	m.mu.RUnlock()
+	if clusterCtrl != nil {
+		clusterCtrl.RequestMachineSync()
 	}
 
+	info := m.Info(ctx)
 	slog.Info("Machine configuration updated.", "id", info.Id, "name", info.Name)
 	return &pb.UpdateMachineResponse{Machine: info}, nil
 }

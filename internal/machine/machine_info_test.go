@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -63,7 +64,7 @@ func TestMachineInfo(t *testing.T) {
 			t.Parallel()
 
 			m := &Machine{state: tt.state}
-			info := m.Info()
+			info := m.Info(context.Background())
 
 			assert.Equal(t, tt.state.ID, info.Id)
 			assert.Equal(t, tt.state.Name, info.Name)

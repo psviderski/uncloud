@@ -290,7 +290,8 @@ func (s *Store) SubscribeMachines(ctx context.Context) ([]*pb.MachineInfo, <-cha
 		}
 
 		var m pb.MachineInfo
-		if err = protojson.Unmarshal([]byte(mJSON), &m); err != nil {
+		protojsonParser := protojson.UnmarshalOptions{DiscardUnknown: true}
+		if err = protojsonParser.Unmarshal([]byte(mJSON), &m); err != nil {
 			return nil, nil, fmt.Errorf("unmarshal machine info: %w", err)
 		}
 		machines = append(machines, &m)

@@ -36,8 +36,14 @@ message MachineInfo {
   string name = 2;
   NetworkConfig network = 3;
   IP public_ip = 4;
-  // Operating system hostname of the machine.
+  // Operating system hostname.
   string hostname = 5;
+  // CPU architecture.
+  string arch = 6;
+  // Version of the machine daemon (uncloudd).
+  string daemon_version = 7;
+  // Version of the Docker engine running on the machine. Could be empty if unable to get.
+  string docker_version = 8;
 }
 
 message NetworkConfig {

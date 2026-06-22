@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -38,6 +40,71 @@ func NewService(client *client.Client, db *sqlx.DB) *Service {
 		Client: client,
 		db:     db,
 	}
+}
+
+// WatchDaemonRestart watches the Docker engine and signals on the returned channel whenever the daemon
+// becomes reachable again after a disconnect, which typically indicates a restart.
+func (s *Service) WatchDaemonRestart(ctx context.Context) <-chan struct{} {
+	// Buffering as a pending signal is enough for the consumer to react to a restart.
+	ch := make(chan struct{}, 1)
+
+	go func() {
+		defer close(ch)
+
+		boff := backoff.WithContext(backoff.NewExponentialBackOff(
+			backoff.WithInitialInterval(1*time.Second),
+			backoff.WithMaxInterval(30*time.Second),
+			backoff.WithMaxElapsedTime(0),
+		), ctx)
+
+		// firstConnect tracks the initial connection so it is not reported as a restart.
+		firstConnect := true
+
+		watch := func() error {
+			// Confirm the daemon is reachable. While it is down this fails and is retried with backoff.
+			if _, err := s.Client.Ping(ctx); err != nil {
+				firstConnect = false
+				return fmt.Errorf("ping Docker daemon: %w", err)
+			}
+			// Reset the backoff after a successful connection so the next reconnect retries quickly.
+			boff.Reset()
+
+			if firstConnect {
+				firstConnect = false
+			} else {
+				// The daemon became reachable again after a disconnect. It likely restarted.
+				slog.Debug("Docker daemon reconnected.")
+				select {
+				case ch <- struct{}{}:
+				default:
+				}
+			}
+
+			// Subscribe to daemon events and block until the stream breaks (daemon stopped/restarting) or
+			// the context is done. Filter to non-existent events to not receive any events.
+			eventCh, errCh := s.Client.Events(ctx, events.ListOptions{
+				Filters: filters.NewArgs(filters.Arg("type", "invalid")),
+			})
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-eventCh:
+					// This shouldn't emit anything but drain just in case. We only care about the stream lifecycle.
+				case streamErr := <-errCh:
+					if ctx.Err() != nil {
+						return nil
+					}
+					return fmt.Errorf("docker event stream closed: %w", streamErr)
+				}
+			}
+		}
+
+		// Retry watching the engine until the context is cancelled.
+		_ = backoff.Retry(watch, boff)
+	}()
+
+	return ch
 }
 
 // InspectServiceContainer inspects a Docker container and retrieves its associated ServiceSpec

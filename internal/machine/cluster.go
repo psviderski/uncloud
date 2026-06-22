@@ -26,7 +26,12 @@ import (
 	"github.com/psviderski/unregistry"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
+
+// machineSyncInterval is how often the machine info is republished to the cluster store to recover from
+// failed synchronous syncs.
+const machineSyncInterval = 60 * time.Second
 
 // clusterController is the main controller for the machine that is a cluster member. It manages components such as
 // the WireGuard network, API server listening the WireGuard network, Corrosion service, Docker network and containers,
@@ -44,10 +49,14 @@ type clusterController struct {
 	corroService corroservice.Service
 	// corrosionDir is the disk path that holds the Corrosion config and data.
 	// TODO: remove in 0.22 assuming all pre 0.20 clusters upgraded their pre-v1 Corrosion.
-	corrosionDir string
-	dockerCtrl   *docker.Controller
+	corrosionDir  string
+	dockerService *docker.Service
+	dockerCtrl    *docker.Controller
 	// dockerReady is signalled when Docker is configured and ready for containers.
 	dockerReady chan<- struct{}
+
+	// syncMachineTrigger requests to sync the machine info to the cluster store.
+	syncMachineTrigger chan struct{}
 	// clusterReady is signalled when the cluster controller has finished initializing all components.
 	clusterReady    chan<- struct{}
 	caddyconfigCtrl *caddyconfig.Controller
@@ -87,23 +96,25 @@ func newClusterController(
 	endpointChanges := wgnet.WatchEndpoints()
 
 	return &clusterController{
-		machine:         machine,
-		state:           machine.state,
-		store:           store,
-		wgnet:           wgnet,
-		endpointChanges: endpointChanges,
-		server:          server,
-		corroService:    corroService,
-		corrosionDir:    corrosionDir,
-		dockerCtrl:      docker.NewController(machine.state.ID, dockerService, store),
-		dockerReady:     dockerReady,
-		clusterReady:    clusterReady,
-		caddyconfigCtrl: caddyfileCtrl,
-		dnsServer:       dnsServer,
-		dnsResolver:     dnsResolver,
-		unregistry:      unregistry,
-		metricsServer:   metricsServer,
-		stopped:         make(chan struct{}),
+		machine:            machine,
+		state:              machine.state,
+		store:              store,
+		wgnet:              wgnet,
+		endpointChanges:    endpointChanges,
+		server:             server,
+		corroService:       corroService,
+		corrosionDir:       corrosionDir,
+		dockerService:      dockerService,
+		dockerCtrl:         docker.NewController(machine.state.ID, dockerService, store),
+		dockerReady:        dockerReady,
+		syncMachineTrigger: make(chan struct{}, 1),
+		clusterReady:       clusterReady,
+		caddyconfigCtrl:    caddyfileCtrl,
+		dnsServer:          dnsServer,
+		dnsResolver:        dnsResolver,
+		unregistry:         unregistry,
+		metricsServer:      metricsServer,
+		stopped:            make(chan struct{}),
 	}, nil
 }
 
@@ -194,12 +205,6 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return err
 	}
 
-	// Republish this machine's info from local state (the source of truth) to the cluster store. This keeps the
-	// store consistent with the actual machine state on every start.
-	if err = cc.syncMachineInfo(ctx); err != nil {
-		return fmt.Errorf("sync machine info to cluster store: %w", err)
-	}
-
 	errGroup.Go(func() error {
 		slog.Info("Starting metrics server.")
 		if err := cc.metricsServer.Run(ctx); err != nil {
@@ -223,6 +228,11 @@ func (cc *clusterController) Run(ctx context.Context) error {
 			return fmt.Errorf("embedded DNS server failed: %w", err)
 		}
 		return nil
+	})
+
+	// Keep the machine info in the cluster store in sync with the actual machine state (the source of truth).
+	errGroup.Go(func() error {
+		return cc.runMachineSync(ctx)
 	})
 
 	// Synchronise Docker containers to the cluster store.
@@ -494,15 +504,66 @@ func (cc *clusterController) waitKnownMissingChanges(ctx context.Context) error 
 	}
 }
 
-// syncMachineInfo republishes this machine's info from local state to the cluster store. The local state is the
-// source of truth for the machine's own MachineInfo.
-func (cc *clusterController) syncMachineInfo(ctx context.Context) error {
+// runMachineSync keeps this machine's info in the cluster store in sync with the local state and the Docker engine
+// version. Call RequestMachineSync to trigger an immediate sync.
+func (cc *clusterController) runMachineSync(ctx context.Context) error {
+	// Backfill legacy local state from the cluster store once before the first sync.
 	if err := cc.backfillMachineState(ctx); err != nil {
-		return err
+		return fmt.Errorf("backfill machine state: %w", err)
 	}
 
-	info := cc.machine.Info()
-	if err := cc.store.UpdateMachine(ctx, info); err != nil {
+	if err := cc.syncMachineInfo(ctx); err != nil {
+		slog.Error("Failed to sync machine info to cluster store.", "err", err)
+	}
+
+	ticker := time.NewTicker(machineSyncInterval)
+	defer ticker.Stop()
+	dockerRestarted := cc.dockerService.WatchDaemonRestart(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C: // Scheduled periodic sync.
+		case <-cc.syncMachineTrigger: // Immediate sync request.
+		case <-dockerRestarted: // Docker daemon restarted -- engine version may have changed.
+		}
+
+		if err := cc.syncMachineInfo(ctx); err != nil {
+			slog.Error("Failed to sync machine info to cluster store.", "err", err)
+		}
+	}
+}
+
+// RequestMachineSync triggers an immediate sync of this machine's info to the cluster store.
+// It never blocks and coalesces with any already pending sync.
+func (cc *clusterController) RequestMachineSync() {
+	select {
+	case cc.syncMachineTrigger <- struct{}{}:
+	default:
+	}
+}
+
+// syncMachineInfo republishes this machine's info from local state to the cluster store, skipping the
+// write if the info is unchanged since the last successful write.
+func (cc *clusterController) syncMachineInfo(ctx context.Context) error {
+	publishedInfo, err := cc.store.GetMachine(ctx, cc.state.ID)
+	if err != nil {
+		return fmt.Errorf("get machine from store: %w", err)
+	}
+
+	info := cc.machine.Info(ctx)
+	// Info leaves the Docker engine version empty when the engine is unavailable. Keep the previously
+	// published version in that case rather than overwriting it with an empty value.
+	if info.DockerVersion == "" {
+		info.DockerVersion = publishedInfo.DockerVersion
+	}
+
+	if proto.Equal(info, publishedInfo) {
+		return nil
+	}
+
+	if err = cc.store.UpdateMachine(ctx, info); err != nil {
 		if errors.Is(err, store.ErrMachineNotFound) {
 			// This should not happen but let's try to recreate it.
 			if createErr := cc.store.CreateMachine(ctx, info); createErr != nil {
@@ -519,6 +580,7 @@ func (cc *clusterController) syncMachineInfo(ctx context.Context) error {
 
 // backfillMachineState backfills legacy local state that predates local ownership of endpoints/public IP
 // (implemented in 0.20) from the cluster store.
+// TODO: remove after releasing 0.22.
 func (cc *clusterController) backfillMachineState(ctx context.Context) error {
 	cc.state.mu.Lock()
 	defer cc.state.mu.Unlock()
