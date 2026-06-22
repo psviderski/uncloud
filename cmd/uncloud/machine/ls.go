@@ -40,7 +40,7 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 
 	// Print the list of machines in a table format.
 	t := tui.NewTable()
-	t.Headers("NAME", "STATE", "ADDRESS", "PUBLIC IP", "WIREGUARD ENDPOINTS", "MACHINE ID")
+	t.Headers("NAME", "STATE", "ADDRESS", "PUBLIC IP", "WIREGUARD ENDPOINTS", "ARCH", "VERSION", "DOCKER", "MACHINE ID")
 
 	for _, member := range machines {
 		m := member.Machine
@@ -59,12 +59,30 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			endpoints[i] = addrPort.String()
 		}
 
+		arch := "-"
+		if m.Arch != "" {
+			arch = m.Arch
+		}
+
+		daemonVersion := "-"
+		if m.DaemonVersion != "" {
+			daemonVersion = m.DaemonVersion
+		}
+
+		dockerVersion := "-"
+		if m.DockerVersion != "" {
+			dockerVersion = m.DockerVersion
+		}
+
 		t.Row(
 			m.Name,
 			capitalise(member.State.String()),
 			subnet.String(),
 			publicIP,
 			strings.Join(endpoints, tui.Faint.Render(", ")),
+			arch,
+			daemonVersion,
+			dockerVersion,
 			member.Machine.Id,
 		)
 	}
