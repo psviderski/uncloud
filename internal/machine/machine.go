@@ -378,6 +378,18 @@ func (m *Machine) Run(ctx context.Context) error {
 	if err := docker.WaitDaemonReady(ctx, m.config.DockerClient); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
+	defer m.config.DockerClient.Close()
+
+	// Bind the local API listeners before starting the dependencies (e.g. corrosion) to not deal with the teardown
+	// on failure.
+	machineListener, err := listenUnixSocket(m.config.MachineSockPath)
+	if err != nil {
+		return fmt.Errorf("listen machine API unix socket %q: %w", m.config.MachineSockPath, err)
+	}
+	proxyListener, err := listenUnixSocket(m.config.UncloudSockPath)
+	if err != nil {
+		return fmt.Errorf("listen API proxy unix socket %q: %w", m.config.UncloudSockPath, err)
+	}
 
 	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
 	// member. This provides the store required for the machine to initialise a new cluster on it. Once the machine
@@ -393,7 +405,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		}
 		slog.Info("Corrosion service started.")
 	} else {
-		// Migrate the on-disk Corrosion store to 2026.5.14 (v1.0.0 upstream) if a v0.x store.db is detected,
+		// Migrate the on-disk Corrosion store to 2026.x.x (v1.0.0 upstream) if a v0.x store.db is detected,
 		// before any Corrosion start attempt. The legacy systemd unit (if installed) is stopped here too
 		// so we own the data dir exclusively.
 		if err := corromigrate.MigrateIfNeeded(ctx, m.config.CorrosionDataDir, m.config.CorrosionUser); err != nil {
@@ -405,10 +417,6 @@ func (m *Machine) Run(ctx context.Context) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Start the local machine API server.
-	machineListener, err := listenUnixSocket(m.config.MachineSockPath)
-	if err != nil {
-		return fmt.Errorf("listen machine API unix socket %q: %w", m.config.MachineSockPath, err)
-	}
 	errGroup.Go(func() error {
 		slog.Info("Starting local machine API server.", "path", m.config.MachineSockPath)
 		if err := m.localMachineServer.Serve(machineListener); err != nil {
@@ -418,10 +426,6 @@ func (m *Machine) Run(ctx context.Context) error {
 	})
 
 	// Start the local API proxy server.
-	proxyListener, err := listenUnixSocket(m.config.UncloudSockPath)
-	if err != nil {
-		return fmt.Errorf("listen API proxy unix socket %q: %w", m.config.UncloudSockPath, err)
-	}
 	errGroup.Go(func() error {
 		slog.Info("Starting local API proxy server.", "path", m.config.UncloudSockPath)
 		if err := m.localProxyServer.Serve(proxyListener); err != nil {
@@ -551,8 +555,6 @@ func (m *Machine) Run(ctx context.Context) error {
 
 	// Shutdown goroutine.
 	errGroup.Go(func() error {
-		var err error
-
 		<-ctx.Done()
 		slog.Info("Stopping local machine API server.")
 		// TODO: implement timeout for graceful shutdown.
@@ -566,28 +568,31 @@ func (m *Machine) Run(ctx context.Context) error {
 		m.proxyDirector.Close()
 		slog.Info("Local API proxy server stopped.")
 
-		// Stop the corrosion container so this node stops gossiping its membership as "Up" while the
-		// gRPC API is gone. Use a fresh context because ctx is already cancelled here.
-		slog.Info("Stopping corrosion service.")
-		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		if stopErr := m.config.CorrosionService.Stop(stopCtx); stopErr != nil {
-			slog.Error("Failed to stop corrosion service.", "err", stopErr)
-		}
-		cancel()
-
-		// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
-		if m.resetting {
-			slog.Info("Cleaning up machine data and resources.")
-			if err = m.cleanup(); err != nil {
-				slog.Error("Failed to clean up machine data and resources.", "err", err)
-			}
-		}
-
-		m.config.DockerClient.Close()
-		return err
+		return nil
 	})
 
-	return errGroup.Wait()
+	err = errGroup.Wait()
+
+	// Stop the corrosion container only after the API servers, cluster controller, and all components depending on the
+	// store have stopped, so this machine keeps serving the store until then. Use a fresh context because ctx
+	// is already cancelled here.
+	slog.Info("Stopping corrosion service.")
+	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if stopErr := m.config.CorrosionService.Stop(stopCtx); stopErr != nil {
+		slog.Error("Failed to stop corrosion service.", "err", stopErr)
+	}
+	cancel()
+	slog.Info("Corrosion service stopped.")
+
+	// Clean up the machine data and resources if the machine shutdown was initiated by a reset.
+	if m.resetting {
+		slog.Info("Cleaning up machine data and resources.")
+		if cleanupErr := m.cleanup(); cleanupErr != nil {
+			slog.Error("Failed to clean up machine data and resources.", "err", cleanupErr)
+		}
+	}
+
+	return err
 }
 
 // listenUnixSocket creates a new Unix socket listener with the specified path. The socket file is created with 0660

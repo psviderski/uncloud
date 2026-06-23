@@ -151,7 +151,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		slog.Info("Corrosion service started.")
 	}
 
-	// Apply the seed to finish Corrosion migrations from 0.x to 2026.5.14 (upstream v1.0.0) if applicable.
+	// Apply the seed to finish Corrosion migrations from 0.x to 2026.x.x (upstream v1.0.0) if applicable.
 	if err := corromigrate.ApplySeedIfPresent(ctx, cc.corrosionDir, cc.store); err != nil {
 		return fmt.Errorf("apply corrosion migration seed: %w", err)
 	}
@@ -173,7 +173,9 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// Start the network API server. Assume the management IP can't be changed when the network is running.
+	// Start the network API server before waiting for the store sync so the machine is reachable on the mesh
+	// during the sync and can serve requests that don't depend on the store.
+	// Assume the management IP can't be changed when the network is running.
 	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
 	listener, err := net.Listen("tcp", apiAddr)
 	if err != nil {
@@ -197,12 +199,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	// Check if waitStoreSync exited because the context was cancelled. Return early in that case.
 	if ctx.Err() != nil {
 		cc.stopAPIServer()
-
-		err := errGroup.Wait()
-		if corroErr := cc.stopCorrosion(); corroErr != nil {
-			err = errors.Join(err, corroErr)
-		}
-		return err
+		return errGroup.Wait()
 	}
 
 	errGroup.Go(func() error {
@@ -289,15 +286,9 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		slog.Info("Unregistry server stopped.")
 	}
 
-	// Wait for all controllers to finish.
-	err = errGroup.Wait()
-
-	// Stop Corrosion after all controllers depending on it and API server are stopped.
-	if corroErr := cc.stopCorrosion(); corroErr != nil {
-		err = errors.Join(err, corroErr)
-	}
-
-	return err
+	// Wait for all controllers to finish. The Corrosion service shutdown is handled by the machine after stopping all
+	// local API servers that may still serve requests depending on the store.
+	return errGroup.Wait()
 }
 
 // stopAPIServer gracefully stops the network API server with a timeout.
@@ -321,19 +312,6 @@ func (cc *clusterController) stopAPIServer() {
 	}
 
 	slog.Info("Network API server stopped.")
-}
-
-// stopCorrosion stops the Corrosion service with a timeout.
-func (cc *clusterController) stopCorrosion() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := cc.corroService.Stop(ctx); err != nil {
-		return fmt.Errorf("stop corrosion service: %w", err)
-	}
-	slog.Info("Corrosion service stopped.")
-
-	return nil
 }
 
 // ensureDockerNetwork ensures that the Docker network is configured and ready for containers.
