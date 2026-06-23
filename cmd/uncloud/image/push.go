@@ -44,6 +44,9 @@ The image is uploaded to all cluster machines (default) or the specified machine
 			opts.image = args[0]
 			return push(cmd.Context(), uncli, opts)
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			return completion.LocalImages(cmd.Context(), args, toComplete)
+		},
 	}
 
 	cmd.Flags().StringSliceVarP(&opts.machines, "machine", "m", nil,
