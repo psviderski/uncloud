@@ -107,7 +107,7 @@ func (c *Controller) Run(ctx context.Context) error {
 		select {
 		case _, ok := <-changes:
 			if !ok {
-				return fmt.Errorf("containers subscription failed")
+				return fmt.Errorf("subscription to container changes in cluster store failed")
 			}
 			c.log.Debug("Cluster containers changed, regenerating Caddy configuration.")
 

@@ -208,6 +208,8 @@ func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error 
 // SubscribeContainers returns a list of containers and a channel that signals changes to the list. The channel doesn't
 // receive any values, it just signals when a container(s) has been added, updated, or deleted in the database.
 // The result excludes orphan containers whose machine is no longer in the cluster.
+// The channel is closed when the containers are no longer subscribable: either the provided context is cancelled or
+// the underlying subscription fails.
 func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-chan struct{}, error) {
 	// TODO: figure out whether we need sync_status at all (not used at the moment).
 	q := sq.Select("c.id", "c.container", "c.machine_id", "c.sync_status", "c.updated_at").

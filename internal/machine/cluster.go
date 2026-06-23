@@ -630,74 +630,52 @@ func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
 }
 
 // handleMachineChanges subscribes to machine changes in the cluster and reconfigures the network peers accordingly
-// when changes occur.
+// when changes occur. It returns an error when the subscription fails.
 func (cc *clusterController) handleMachineChanges(ctx context.Context) error {
-	for {
-		// Retry to subscribe to machine changes indefinitely until the context is done.
-		boff := backoff.WithContext(backoff.NewExponentialBackOff(
-			backoff.WithInitialInterval(1*time.Second),
-			backoff.WithMaxInterval(60*time.Second),
-			backoff.WithMaxElapsedTime(0),
-		), ctx)
+	machines, changes, err := cc.store.SubscribeMachines(ctx)
+	if err != nil {
+		return fmt.Errorf("subscribe to machine changes: %w", err)
+	}
+	slog.Info("Subscribed to machine changes in the cluster to reconfigure network peers.")
 
-		var (
-			machines []*pb.MachineInfo
-			changes  <-chan struct{}
-			err      error
-		)
-		subscribe := func() error {
-			if machines, changes, err = cc.store.SubscribeMachines(ctx); err != nil {
-				slog.Info("Failed to subscribe to machine changes, retrying.", "err", err)
-			}
-			return err
-		}
-		if err = backoff.Retry(subscribe, boff); err != nil {
-			if errors.Is(err, context.Canceled) {
-				return nil
-			}
-			slog.Error("Unexpected error while retrying to subscribe to machine changes.", "err", err)
-			continue
-		}
-		slog.Info("Subscribed to machine changes in the cluster to reconfigure network peers.")
-
-		// The machine store may be empty when a machine first joins the cluster, before store synchronization
-		// completes. Skip configuration now and apply it when the store changes are received.
-		// TODO: remove this check after ensuring the store is actually synced to the latest known state at this point.
-		//  See TODO in waitStoreSync.
-		if len(machines) > 0 {
-			slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
-			if err = cc.configurePeers(machines); err != nil {
-				slog.Error("Failed to configure peers.", "err", err)
-			}
-		}
-		// For simplicity, reconfigure all peers on any change.
-		for {
-			select {
-			// TODO: test when Corrosion fails and the subscription fails to resubscribe (after 1 minute). It seems
-			//  the changes channel will be closed and this will become a busy loop. Perhaps, the outer for loop should
-			//  be reworked as well.
-			case <-changes:
-				slog.Info("Cluster machines changed, reconfiguring network peers.")
-				if machines, err = cc.store.ListMachines(ctx); err != nil {
-					slog.Error("Failed to list machines.", "err", err)
-					continue
-				}
-				// Skip reconfiguration if the machines list is empty. This can happen when joining the cluster.
-				// Corrosion can notifies about table changes before the data is fully replicated.
-				// Reconfiguring with an empty list would remove all peers and lock this machine out of the cluster.
-				// See https://github.com/psviderski/uncloud/issues/155.
-				if len(machines) == 0 {
-					slog.Debug("Skipping peer reconfiguration: machines list in store is empty.")
-					continue
-				}
-				if err = cc.configurePeers(machines); err != nil {
-					slog.Error("Failed to configure peers.", "err", err)
-				}
-			case <-ctx.Done():
-				return nil
-			}
+	// Assume the initial store synchronization when this machine first joined the cluster has already been completed.
+	// So the machines should not be empty. But we still have a safety check to not reconfigure with an empty list,
+	// which would remove all peers and lock this machine out of the cluster.
+	// A list containing only this machine is a valid state (e.g. all other machines were removed) and should still
+	// trigger reconfiguration to drop any stale peers.
+	if len(machines) > 0 {
+		slog.Info("Reconfiguring network peers with the current machines.", "machines", len(machines))
+		if err = cc.configurePeers(machines); err != nil {
+			slog.Error("Failed to configure peers.", "err", err)
 		}
 	}
+
+	// For simplicity, reconfigure all peers on any change. The subscription closes the changes channel both on context
+	// cancellation and when the subscription fails, so this loop exits in both cases.
+	for range changes {
+		slog.Info("Cluster machines changed, reconfiguring network peers.")
+		if machines, err = cc.store.ListMachines(ctx); err != nil {
+			slog.Error("Failed to list machines.", "err", err)
+			continue
+		}
+		// A safety check for the exceptional case when something bad happened with the store. Reconfiguring with an
+		// empty list would remove all peers and lock this machine out of the cluster.
+		// See https://github.com/psviderski/uncloud/issues/155.
+		if len(machines) == 0 {
+			slog.Debug("Skipping peer reconfiguration: machines list in store is empty.")
+			continue
+		}
+		if err = cc.configurePeers(machines); err != nil {
+			slog.Error("Failed to configure peers.", "err", err)
+		}
+	}
+
+	// The changes channel was closed. It's a clean shutdown if the context was cancelled, otherwise the subscription
+	// failed and we return an error to fail the controller.
+	if ctx.Err() != nil {
+		return nil
+	}
+	return fmt.Errorf("subscription to machine changes in cluster store failed")
 }
 
 func (cc *clusterController) configurePeers(machines []*pb.MachineInfo) error {

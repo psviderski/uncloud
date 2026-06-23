@@ -50,7 +50,7 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 		select {
 		case _, ok := <-changes:
 			if !ok {
-				return fmt.Errorf("containers subscription failed")
+				return fmt.Errorf("subscription to container changes in cluster store failed")
 			}
 			r.log.Debug("Cluster containers changed, updating DNS records.")
 
