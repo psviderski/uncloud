@@ -7,6 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.2
 	charm.land/huh/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.1
+	codeberg.org/miekg/dns v0.6.81
 	github.com/BurntSushi/toml v1.5.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/squirrel v1.5.4
@@ -32,12 +33,11 @@ require (
 	github.com/google/go-containerregistry v0.20.2
 	github.com/google/uuid v1.6.0
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/miekg/dns v1.1.65
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.5.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/client_golang v1.23.2
 	github.com/psviderski/unregistry v0.4.1
 	github.com/siderolabs/grpc-proxy v0.5.1
 	github.com/spf13/cobra v1.10.1
@@ -45,17 +45,17 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
-	golang.org/x/crypto v0.41.0
-	golang.org/x/net v0.43.0
+	golang.org/x/crypto v0.48.0
+	golang.org/x/net v0.51.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.45.0
-	golang.org/x/term v0.34.0
+	golang.org/x/term v0.40.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a
 	google.golang.org/grpc v1.74.2
-	google.golang.org/protobuf v1.36.9
-	modernc.org/sqlite v1.36.3
+	google.golang.org/protobuf v1.36.11
+	modernc.org/sqlite v1.46.1
 	tags.cncf.io/container-device-interface v1.0.1
 )
 
@@ -92,8 +92,8 @@ require (
 	github.com/aws/smithy-go v1.20.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/goterm v1.0.4 // indirect
-	github.com/caddyserver/certmagic v0.21.4 // indirect
-	github.com/caddyserver/zerossl v0.1.3 // indirect
+	github.com/caddyserver/certmagic v0.25.2 // indirect
+	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -156,7 +156,7 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/glog v1.2.5 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -197,10 +197,10 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
-	github.com/libdns/libdns v0.2.2 // indirect
+	github.com/libdns/libdns v1.1.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/manifoldco/promptui v0.9.0 // indirect
@@ -213,6 +213,7 @@ require (
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mholt/acmez/v2 v2.0.3 // indirect
+	github.com/miekg/dns v1.1.72 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -239,7 +240,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
-	github.com/ncruces/go-strftime v0.1.9 // indirect
+	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
 	github.com/opencontainers/runtime-spec v1.2.1 // indirect
 	github.com/opencontainers/selinux v1.12.0 // indirect
@@ -248,9 +249,9 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.62.0 // indirect
-	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/common v0.67.5 // indirect
+	github.com/prometheus/procfs v0.20.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.48.2 // indirect
 	github.com/redis/go-redis/extra/rediscmd/v9 v9.0.5 // indirect
@@ -326,16 +327,17 @@ require (
 	go.uber.org/automaxprocs v1.5.3 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0 // indirect
-	go.uber.org/zap/exp v0.2.0 // indirect
+	go.uber.org/zap v1.27.1 // indirect
+	go.uber.org/zap/exp v0.3.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20240507223354-67b13616a595 // indirect
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
-	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
+	golang.org/x/mod v0.33.0 // indirect
+	golang.org/x/oauth2 v0.34.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/tools v0.42.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
@@ -351,12 +353,23 @@ require (
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
-	modernc.org/libc v1.61.13 // indirect
+	modernc.org/libc v1.68.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.8.2 // indirect
+	modernc.org/memory v1.11.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+// codeberg.org/miekg/dns transitively requires newer versions of the modules below than Caddy v2.8 can
+// compile against, so pin them back to the versions Caddy supports. The left side of a replace directive is
+// version-specific: if a future dependency bump selects a newer version of one of these modules, the
+// corresponding replace silently stops applying and must be updated. Remove these replaces once Caddy is
+// upgraded to a version compatible with the newer module versions.
+replace go.uber.org/zap/exp v0.3.0 => go.uber.org/zap/exp v0.2.0
+
+replace github.com/caddyserver/certmagic v0.25.2 => github.com/caddyserver/certmagic v0.21.4
+
+replace github.com/libdns/libdns v1.1.1 => github.com/libdns/libdns v0.2.2
 
 replace charm.land/bubbletea/v2 => github.com/unlabs-dev/bubbletea/v2 v2.0.8-uncloud.1
