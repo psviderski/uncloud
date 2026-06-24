@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	CurrentContext string              `yaml:"current_context"`
-	Contexts       map[string]*Context `yaml:"contexts"`
+	CurrentContext string              `yaml:"current_context" json:"CurrentContext"`
+	Contexts       map[string]*Context `yaml:"contexts" json:"Contexts"`
 
 	// path is the file path config is read from.
 	path string

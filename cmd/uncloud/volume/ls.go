@@ -2,6 +2,7 @@ package volume
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/output"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
@@ -17,6 +19,7 @@ import (
 type listOptions struct {
 	machines []string
 	quiet    bool
+	output   string
 }
 
 func NewListCommand() *cobra.Command {
@@ -26,9 +29,13 @@ func NewListCommand() *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List volumes across all machines in the cluster.",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return list(cmd.Context(), uncli, opts)
+		},
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return output.FlagValue(opts.output)
 		},
 	}
 
@@ -37,6 +44,7 @@ func NewListCommand() *cobra.Command {
 			"(default is include all machines)")
 	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false,
 		"Only display volume names.")
+	output.Flag(cmd, &opts.output)
 
 	completion.MachinesFlag(cmd)
 
@@ -62,6 +70,15 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	volumes, err := client.ListVolumes(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("list volumes: %w", err)
+	}
+
+	if opts.output == "json" {
+		type Volumes struct { // Wrap in Volumes type to create array of Volumes.
+			Volumes []api.MachineVolume `json:"Volumes"`
+		}
+		data, _ := json.MarshalIndent(Volumes{volumes}, "", "  ")
+		fmt.Println(string(data))
+		return nil
 	}
 
 	if len(volumes) == 0 {
