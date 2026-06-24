@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -155,4 +156,61 @@ func TestSubscription_ResubscribeFromNonZeroSkipsSnapshot(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "timed out waiting for a change after resubscribe", sub.Err())
 	}
+}
+
+// TestSubscription_ResubscribeNotFoundFailsFast verifies that when Corrosion returns 404 to a resubscription
+// (the subscription no longer exists, e.g. after a restart that dropped it), the change handler stops retrying
+// immediately and closes the changes channel with ErrSubscriptionNotFound, instead of retrying for the full
+// backoff window.
+func TestSubscription_ResubscribeNotFoundFailsFast(t *testing.T) {
+	t.Parallel()
+
+	var getCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			// Initial subscription, then end the stream to force a resubscribe.
+			w.Header().Set("corro-query-id", "test-sub")
+			w.WriteHeader(http.StatusOK)
+			flushString(t, w, `{"columns":["id","info"]}`+"\n"+
+				`{"row":[1,["a","b"]]}`+"\n"+
+				`{"eoq":{"time":1e-7,"change_id":5}}`+"\n")
+		case http.MethodGet:
+			// Resubscription: Corrosion no longer knows this subscription.
+			getCount.Add(1)
+			http.Error(w, "", http.StatusNotFound)
+		default:
+			require.FailNow(t, fmt.Sprintf("unexpected request method: %s", r.Method))
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sub, err := client.SubscribeContext(ctx, "SELECT id, info FROM machines", nil, false)
+	require.NoError(t, err)
+
+	rows := sub.Rows()
+	for rows.Next() {
+	}
+	require.NoError(t, rows.Err())
+
+	changes, err := sub.Changes()
+	require.NoError(t, err)
+
+	select {
+	case change := <-changes:
+		// The channel must close (nil change) rather than deliver anything.
+		require.Nil(t, change, "expected the changes channel to close on a gone subscription")
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out waiting for the changes channel to close")
+	}
+
+	require.ErrorIs(t, sub.Err(), ErrSubscriptionNotFound)
+	// The 404 must not be retried: exactly one GET resubscription request was made.
+	assert.Equal(t, int32(1), getCount.Load())
 }

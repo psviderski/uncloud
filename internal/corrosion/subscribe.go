@@ -22,6 +22,10 @@ var (
 	ChangeTypeDelete ChangeType = "delete"
 )
 
+// ErrSubscriptionNotFound is returned when resubscribing to a subscription that Corrosion
+// no longer knows about (HTTP 404).
+var ErrSubscriptionNotFound = errors.New("subscription not found")
+
 type ChangeEvent struct {
 	Type     ChangeType
 	RowID    uint64
@@ -289,6 +293,13 @@ func (c *APIClient) resubscribeWithBackoffFn(id string) func(context.Context, ui
 		return backoff.RetryWithData(func() (*Subscription, error) {
 			sub, err := c.ResubscribeContext(ctx, id, fromChange)
 			if err != nil {
+				// A gone subscription can never be resubscribed, so stop retrying immediately and let the caller
+				// recover by creating a fresh subscription.
+				if errors.Is(err, ErrSubscriptionNotFound) {
+					slog.Debug("Corrosion subscription no longer exists, giving up resubscribing.",
+						"id", id, "from_change", fromChange)
+					return nil, backoff.Permanent(fmt.Errorf("resubscribe to %s: %w", id, err))
+				}
 				slog.Debug("Failed to resubscribe to Corrosion query. Retrying with backoff.",
 					"id", id, "from_change", fromChange, "err", err)
 			}
@@ -316,11 +327,17 @@ func (c *APIClient) ResubscribeContext(ctx context.Context, id string, fromChang
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			resp.Body.Close()
+			return nil, ErrSubscriptionNotFound
+		}
+
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("read response body: %w", err)
 		}
+
 		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, respBody)
 	}
 
