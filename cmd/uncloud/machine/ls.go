@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -14,19 +15,29 @@ import (
 )
 
 func NewListCommand() *cobra.Command {
+	var output string
+
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List machines in a cluster.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return list(cmd.Context(), uncli)
+			return list(cmd.Context(), uncli, output)
 		},
 	}
+
+	cmd.Flags().StringVarP(&output, "output", "o", "",
+		"Output format: 'json' or empty for a human-readable table.")
+
 	return cmd
 }
 
-func list(ctx context.Context, uncli *cli.CLI) error {
+func list(ctx context.Context, uncli *cli.CLI, output string) error {
+	if output != "" && output != "json" {
+		return fmt.Errorf("unsupported output format '%s' (supported: json)", output)
+	}
+
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -38,10 +49,19 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 		return fmt.Errorf("list machines: %w", err)
 	}
 
+	if output == "json" {
+		data, err := json.MarshalIndent(machines.ToNative(), "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal machines: %w", err)
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
 	// Print the list of machines in a table format.
 	t := tui.NewTable()
 	t.Headers("NAME", "STATE", "ADDRESS", "PUBLIC IP", "WIREGUARD ENDPOINTS",
-		"OS", "KERNEL", "ARCH", "DOCKER", "VERSION", "MACHINE ID")
+		"OS", "KERNEL", "ARCH", "DOCKER", "VERSION")
 
 	for _, member := range machines {
 		m := member.Machine
@@ -96,7 +116,6 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			arch,
 			dockerVersion,
 			daemonVersion,
-			member.Machine.Id,
 		)
 	}
 
