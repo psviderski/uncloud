@@ -9,7 +9,8 @@ uc machine ls [flags]
 ## Options
 
 ```
-  -h, --help   help for ls
+  -h, --help            help for ls
+  -o, --output string   Output format: 'json' or empty for a human-readable table.
 ```
 
 ## Options inherited from parent commands
