@@ -297,13 +297,13 @@ func (c *APIClient) resubscribeWithBackoffFn(id string) func(context.Context, ui
 				// A gone subscription can never be resubscribed, so stop retrying immediately and let the caller
 				// recover by creating a fresh subscription.
 				if errors.Is(err, ErrSubscriptionNotFound) {
-					slog.Debug("Corrosion subscription no longer exists, giving up resubscribing.",
+					slog.Error("Corrosion subscription no longer exists, giving up resubscribing.",
 						"id", id, "from_change", fromChange)
 					return nil, backoff.Permanent(fmt.Errorf("resubscribe to %s: %w", id, err))
 				}
 				// Don't log retries triggered by context cancellation, the backoff will stop immediately.
 				if ctx.Err() == nil {
-					slog.Debug("Failed to resubscribe to Corrosion query. Retrying with backoff.",
+					slog.Error("Failed to resubscribe to Corrosion query. Retrying with backoff.",
 						"id", id, "from_change", fromChange, "err", err)
 				}
 			}

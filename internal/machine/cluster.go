@@ -606,7 +606,7 @@ func (cc *clusterController) backfillMachineState(ctx context.Context) error {
 // syncDockerContainers watches local Docker containers and syncs them to the cluster store.
 // TODO: move this to the Docker controller.
 func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
-	// Retry to watch and sync containers until the context is done.
+	// Supervise the watch-and-sync pipeline until the context is done.
 	boff := backoff.WithContext(backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(100*time.Millisecond),
 		backoff.WithMaxInterval(5*time.Second),
@@ -614,7 +614,7 @@ func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
 	), ctx)
 	watchAndSync := func() error {
 		if wErr := cc.dockerCtrl.WatchAndSyncContainers(ctx); wErr != nil {
-			slog.Debug("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
+			slog.Error("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
 			return wErr
 		}
 		return nil

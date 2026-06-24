@@ -19,10 +19,10 @@ import (
 const (
 	// http2ConnectTimeout is the maximum amount of time an HTTP2 client will wait for a connection to be established.
 	http2ConnectTimeout = 3 * time.Second
-	// http2MaxRetryTime is the maximum amount of time an HTTP2 client will retry a request.
-	http2MaxRetryTime = 10 * time.Second
-	// resubscribeMaxRetryTime is the maximum amount of time an API client will retry resubscribing to a query after
-	// an error occurs.
+	// http2MaxRetryTime bounds the transport retry of a single request. Kept short so it only absorbs transient
+	// blips. Retrying during a Corrosion outage is the job of the higher-level recovery loops.
+	http2MaxRetryTime = 2 * time.Second
+	// resubscribeMaxRetryTime bounds resubscribing to a query after an error.
 	resubscribeMaxRetryTime = 60 * time.Second
 )
 
@@ -35,10 +35,10 @@ type APIClient struct {
 
 // NewAPIClient creates a new Corrosion API client. The bearerToken is sent in the Authorization header of every
 // request to authenticate against Corrosion API.
-// The client retries on network errors using an exponential backoff policy with a maximum interval of 1 second and
-// a maximum elapsed time of 10 seconds.
-// It automatically resubscribes to active subscriptions if an error occurs using an exponential backoff policy with a
-// maximum interval of 1 second and a maximum elapsed time of 60 seconds.
+//
+// Retries are split by failure mode: the transport briefly retries a single request on transient network errors, while
+// subscriptions resubscribe from the last change ID when their stream breaks and own the wait while Corrosion is down.
+//
 // Use the WithHTTP2Client option to provide a custom HTTP client and the WithResubscribeBackoff option to change the
 // backoff policy for resubscribing to a query.
 func NewAPIClient(addr netip.AddrPort, bearerToken string, opts ...APIClientOption) (*APIClient, error) {
@@ -61,7 +61,6 @@ func NewAPIClient(addr netip.AddrPort, bearerToken string, opts ...APIClientOpti
 			NewBackoff: func() backoff.BackOff {
 				return backoff.NewExponentialBackOff(
 					backoff.WithInitialInterval(100*time.Millisecond),
-					backoff.WithMaxInterval(1*time.Second),
 					backoff.WithMaxElapsedTime(http2MaxRetryTime),
 				)
 			},
@@ -120,6 +119,7 @@ func (rt *AuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	return rt.Base.RoundTrip(req)
 }
 
+// RetryRoundTripper retries a single HTTP request on transient network errors using the backoff returned by NewBackoff.
 type RetryRoundTripper struct {
 	Base http.RoundTripper
 	// NewBackoff creates a new backoff policy for each request.
