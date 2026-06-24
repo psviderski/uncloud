@@ -37,6 +37,15 @@ func (m MachineMembersList) ToNative() []MachineMember {
 }
 
 // MachineMember is the JSON-serializable view of a machine member.
+// TODO: Make these Machine structs the main domain types for the api/client layer instead of using the proto-generated
+// structs directly.
+//
+//	A reasonable rule of thumb to project a domain type:
+//	- it's a user-facing resource (Machine, Service, Volume, Image)
+//	- returned from client and used in many places
+//	- JSON-serialised for 'uc' commands output
+//	- an aggregate that isn't 1:1 with one RPC type (e.g. Service)
+//	Pass proto/plain args directly when it's a one-off RPC envelope used by a single, rarely-called method.
 type MachineMember struct {
 	ID       string
 	Name     string
