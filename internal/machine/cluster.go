@@ -614,7 +614,7 @@ func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
 	), ctx)
 	watchAndSync := func() error {
 		if wErr := cc.dockerCtrl.WatchAndSyncContainers(ctx); wErr != nil {
-			slog.Error("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
+			slog.Debug("Failed to watch and sync containers to cluster store, retrying.", "err", wErr)
 			return wErr
 		}
 		return nil
