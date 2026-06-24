@@ -37,6 +37,7 @@ import (
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	"github.com/psviderski/uncloud/internal/machine/osinfo"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/version"
@@ -1037,10 +1038,12 @@ func (m *Machine) Info(ctx context.Context) *pb.MachineInfo {
 		}
 	}
 
+	hostname, _ := os.Hostname()
+	osName := osinfo.PrettyName()
+	kernelVersion := osinfo.KernelVersion()
+
 	m.state.mu.RLock()
 	defer m.state.mu.RUnlock()
-
-	hostname, _ := os.Hostname()
 
 	endpoints := make([]*pb.IPPort, len(m.state.Network.Endpoints))
 	for i, ep := range m.state.Network.Endpoints {
@@ -1056,10 +1059,12 @@ func (m *Machine) Info(ctx context.Context) *pb.MachineInfo {
 			Endpoints:    endpoints,
 			PublicKey:    m.state.Network.PublicKey,
 		},
-		Hostname:      hostname,
-		Arch:          runtime.GOARCH,
 		DaemonVersion: version.String(),
 		DockerVersion: dockerVersion,
+		Hostname:      hostname,
+		Arch:          runtime.GOARCH,
+		OsPrettyName:  osName,
+		KernelVersion: kernelVersion,
 	}
 	if m.state.PublicIP.IsValid() {
 		info.PublicIp = pb.NewIP(m.state.PublicIP)

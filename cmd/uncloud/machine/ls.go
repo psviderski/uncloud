@@ -40,7 +40,8 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 
 	// Print the list of machines in a table format.
 	t := tui.NewTable()
-	t.Headers("NAME", "STATE", "ADDRESS", "PUBLIC IP", "WIREGUARD ENDPOINTS", "ARCH", "VERSION", "DOCKER", "MACHINE ID")
+	t.Headers("NAME", "STATE", "ADDRESS", "PUBLIC IP", "WIREGUARD ENDPOINTS",
+		"OS", "KERNEL", "ARCH", "DOCKER", "VERSION", "MACHINE ID")
 
 	for _, member := range machines {
 		m := member.Machine
@@ -64,6 +65,16 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			arch = m.Arch
 		}
 
+		osName := "-"
+		if m.OsPrettyName != "" {
+			osName = m.OsPrettyName
+		}
+
+		kernel := "-"
+		if m.KernelVersion != "" {
+			kernel = m.KernelVersion
+		}
+
 		daemonVersion := "-"
 		if m.DaemonVersion != "" {
 			daemonVersion = m.DaemonVersion
@@ -80,9 +91,11 @@ func list(ctx context.Context, uncli *cli.CLI) error {
 			subnet.String(),
 			publicIP,
 			strings.Join(endpoints, tui.Faint.Render(", ")),
+			osName,
+			kernel,
 			arch,
-			daemonVersion,
 			dockerVersion,
+			daemonVersion,
 			member.Machine.Id,
 		)
 	}
