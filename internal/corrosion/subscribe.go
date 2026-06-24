@@ -290,6 +290,7 @@ func (c *APIClient) resubscribeWithBackoffFn(id string) func(context.Context, ui
 		return nil
 	}
 	return func(ctx context.Context, fromChange uint64) (*Subscription, error) {
+		boff := backoff.WithContext(c.newResubBackoff(), ctx)
 		return backoff.RetryWithData(func() (*Subscription, error) {
 			sub, err := c.ResubscribeContext(ctx, id, fromChange)
 			if err != nil {
@@ -300,11 +301,14 @@ func (c *APIClient) resubscribeWithBackoffFn(id string) func(context.Context, ui
 						"id", id, "from_change", fromChange)
 					return nil, backoff.Permanent(fmt.Errorf("resubscribe to %s: %w", id, err))
 				}
-				slog.Debug("Failed to resubscribe to Corrosion query. Retrying with backoff.",
-					"id", id, "from_change", fromChange, "err", err)
+				// Don't log retries triggered by context cancellation, the backoff will stop immediately.
+				if ctx.Err() == nil {
+					slog.Debug("Failed to resubscribe to Corrosion query. Retrying with backoff.",
+						"id", id, "from_change", fromChange, "err", err)
+				}
 			}
 			return sub, err
-		}, c.newResubBackoff())
+		}, boff)
 	}
 }
 

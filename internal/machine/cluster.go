@@ -620,7 +620,7 @@ func (cc *clusterController) syncDockerContainers(ctx context.Context) error {
 		return nil
 	}
 	if err := backoff.Retry(watchAndSync, boff); err != nil {
-		if errors.Is(err, context.Canceled) {
+		if ctx.Err() != nil {
 			return nil
 		}
 		return fmt.Errorf("watch and sync containers to cluster store: %w", err)

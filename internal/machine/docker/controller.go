@@ -139,7 +139,7 @@ func (c *Controller) WatchAndSyncContainers(ctx context.Context) error {
 				return fmt.Errorf("sync containers to cluster store: %w", err)
 			}
 		case err := <-errCh:
-			if errors.Is(err, context.Canceled) {
+			if ctx.Err() != nil {
 				return nil
 			}
 			return fmt.Errorf("receive Docker event: %w", err)
