@@ -3,6 +3,7 @@ package store
 import (
 	"cmp"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -92,6 +93,17 @@ func normaliseContainerForStore(ctr *api.ServiceContainer) {
 	// Remove the environment variables to avoid leaking secrets.
 	ctr.Config.Env = nil
 	ctr.ServiceSpec.Container.Env = nil
+
+	// Base64 encode secrets, we should encrypt them, but where does that key live, so it doesn't look. For
+	// now do a fake base64 "encryption" to at least have some code that can later be updated to do proper
+	// encryption. TODO: encrypt properly.
+	for i := range ctr.ServiceSpec.Secrets {
+		content := ctr.ServiceSpec.Secrets[i].Content
+		b64 := make([]byte, base64.StdEncoding.EncodedLen(len(content)))
+		base64.StdEncoding.Encode(b64, content)
+
+		ctr.ServiceSpec.Secrets[i].Content = b64
+	}
 
 	// Docker returns Mounts in a non-deterministic order so sort them.
 	slices.SortFunc(ctr.Mounts, func(a, b container.MountPoint) int {
