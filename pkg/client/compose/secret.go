@@ -3,11 +3,13 @@ package compose
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/mattn/go-shellwords"
@@ -22,6 +24,8 @@ const (
 	SecretCommandExtensionKey = "x-command"
 	// secretExecDriver is a secret driver that resolves a secret by running an arbitrary command and using its output.
 	secretExecDriver = "exec"
+	// secretCommandTimeout bounds how long an 'exec' secret command may run before it is terminated.
+	secretCommandTimeout = 1 * time.Minute
 )
 
 // secretRefName returns the secret name from the secret reference, for example, 'name' from 'secret://name'.
@@ -142,6 +146,7 @@ func secretValue(ctx context.Context, secret types.SecretConfig, project *types.
 // runSecretCommand runs the command in workingDir with the given environment and returns its stdout.
 // The command runs directly without a shell, so shell features need an explicit shell, e.g. 'sh -c "cmd1 | cmd2"'.
 // Its stdin and stderr are connected to the current process so it can prompt for authentication interactively.
+// The command is terminated if it runs longer than secretCommandTimeout.
 func runSecretCommand(ctx context.Context, command, workingDir string, env []string) (string, error) {
 	args, err := shellwords.Parse(command)
 	if err != nil {
@@ -150,6 +155,9 @@ func runSecretCommand(ctx context.Context, command, workingDir string, env []str
 	if len(args) == 0 {
 		return "", fmt.Errorf("command '%s' is empty", command)
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, secretCommandTimeout)
+	defer cancel()
 
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Dir = workingDir
@@ -162,6 +170,9 @@ func runSecretCommand(ctx context.Context, command, workingDir string, env []str
 	cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 
 	if err := cmd.Run(); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return "", fmt.Errorf("command '%s' timed out after %s", command, secretCommandTimeout)
+		}
 		// Include stderr but never stdout in the error as stdout may contain secret data.
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
