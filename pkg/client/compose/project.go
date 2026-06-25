@@ -23,6 +23,7 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 	registerComposeOverrides.Do(func() {
 		transform.RegisterDefaultValue("services.*.deploy.update_config", setUpdateConfigDefaults)
 		transform.RegisterDefaultValue("services.*.volumes.*.source", checkRelativeVolumeMount)
+		transform.RegisterDefaultValue("secrets.*", expandSecretCommandExtension)
 	})
 
 	defaultOpts := []composecli.ProjectOptionsFn{
@@ -66,6 +67,11 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 
 	// Validate extension combinations after all transformations.
 	if err = validateServicesExtensions(project); err != nil {
+		return nil, err
+	}
+
+	// Validate secrets and clear the transient 'external' marker set on command secrets during loading.
+	if err = validateSecrets(project); err != nil {
 		return nil, err
 	}
 
@@ -136,4 +142,47 @@ func checkRelativeVolumeMount(data any, _ tree.Path, _ bool) (any, error) {
 	}
 
 	return data, nil
+}
+
+// expandSecretCommandExtension expands the 'x-command' secret shorthand to the long form 'driver: exec'. It also marks
+// driver-based secrets external so they pass compose-go's consistency check, which requires 'file' or 'environment'
+// for non-external secrets. User-defined external secrets are not allowed. validateSecrets clears the 'external' marker
+// after loading.
+func expandSecretCommandExtension(data any, p tree.Path, _ bool) (any, error) {
+	secret, ok := data.(map[string]any)
+	if !ok {
+		return data, nil
+	}
+
+	name := p.Last()
+	// We don't have a standalone secret entity in a cluster so external secrets don't make sense. Fail on any
+	// user-defined external secrets here so that we can be sure only driver-based secrets will be marked as external.
+	if ext, ok := secret["external"].(bool); ok && ext {
+		return nil, fmt.Errorf("secret '%s': external secrets are not supported", name)
+	}
+
+	if command, ok := secret[SecretCommandExtensionKey]; ok {
+		cmd, ok := command.(string)
+		if !ok || cmd == "" {
+			return nil, fmt.Errorf("secret '%s': '%s' must be a non-empty string", name, SecretCommandExtensionKey)
+		}
+		if secret["driver"] != nil || secret["driver_opts"] != nil {
+			return nil, fmt.Errorf("secret '%s': '%s' cannot be combined with 'driver' or 'driver_opts'",
+				name, SecretCommandExtensionKey)
+		}
+		if secret["file"] != nil || secret["environment"] != nil {
+			return nil, fmt.Errorf("secret '%s': '%s' cannot be combined with 'file' or 'environment'",
+				name, SecretCommandExtensionKey)
+		}
+
+		delete(secret, SecretCommandExtensionKey)
+		secret["driver"] = secretExecDriver
+		secret["driver_opts"] = map[string]string{"command": cmd}
+	}
+
+	if secret["driver"] != nil && secret["file"] == nil && secret["environment"] == nil {
+		secret["external"] = true
+	}
+
+	return secret, nil
 }
