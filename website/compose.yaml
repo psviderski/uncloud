@@ -1,8 +1,6 @@
 services:
   uncloud-website:
     image: uncloud-website
-    env_file:
-      - .env
     build:
       cache_from:
         - type=gha,scope=uncloud-website
