@@ -111,9 +111,9 @@ func ResolveSecrets(ctx context.Context, project *types.Project) error {
 }
 
 // secretValue resolves a secret to its value depending on its source: an 'exec' driver command,
-// an environment variable, or a file. The command output is trimmed of surrounding whitespace as
-// command-line tools commonly append a trailing newline; environment and file values are returned
-// verbatim.
+// an environment variable, or a file. A single trailing newline ('\n' or '\r\n') is stripped from the command
+// output as command-line tools commonly append one. All other whitespace is kept. Environment and file values are
+// returned verbatim.
 func secretValue(ctx context.Context, secret types.SecretConfig, project *types.Project) (string, error) {
 	switch {
 	case secret.Environment != "":
@@ -136,7 +136,11 @@ func secretValue(ctx context.Context, secret types.SecretConfig, project *types.
 		if err != nil {
 			return "", err
 		}
-		return strings.TrimSuffix(out, "\n"), nil
+		// Strip a single trailing newline, treating it as '\r\n' on Windows.
+		if trimmed, ok := strings.CutSuffix(out, "\n"); ok {
+			out = strings.TrimSuffix(trimmed, "\r")
+		}
+		return out, nil
 	default:
 		return "", fmt.Errorf("secret has no source: define one of 'file', 'environment', '%s', or 'driver'",
 			SecretCommandExtensionKey)

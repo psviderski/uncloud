@@ -94,6 +94,20 @@ secrets:
 			want: env(map[string]string{"TOKEN": "  spaced value  "}),
 		},
 		{
+			name: "command output trailing CRLF newline trimmed",
+			content: `
+services:
+  foo:
+    image: foo
+    environment:
+      TOKEN: secret://token
+secrets:
+  token:
+    x-command: printf 'value\r\r\n'
+`,
+			want: env(map[string]string{"TOKEN": "value\r"}),
+		},
+		{
 			name: "empty command output is allowed",
 			content: `
 services:
