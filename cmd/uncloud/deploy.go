@@ -100,11 +100,6 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		}
 	}
 
-	fmt.Printf("#### nginx environment: %+v\n", project.Services["nginx"].Environment)
-	fmt.Printf("#### nginx env_file: %+v\n", project.Services["nginx"].EnvFiles)
-	fmt.Printf("#### nginx secret: %+v\n", project.Secrets["my_secret"])
-	os.Exit(1)
-
 	servicesToBuild, err := cli.ServicesThatNeedBuild(project, opts.services, false)
 	if err != nil {
 		return fmt.Errorf("determine services to build: %w", err)
