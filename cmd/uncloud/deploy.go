@@ -38,8 +38,9 @@ type deployOptions struct {
 func NewDeployCommand() *cobra.Command {
 	opts := deployOptions{}
 	cmd := &cobra.Command{
-		Use:   "deploy [FLAGS] [SERVICE...]",
-		Short: "Deploy services from a Compose file.",
+		Use:     "deploy [FLAGS] [SERVICE...]",
+		Aliases: []string{"up"},
+		Short:   "Deploy services from a Compose file.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
 
