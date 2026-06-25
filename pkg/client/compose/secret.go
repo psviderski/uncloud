@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -140,6 +141,7 @@ func secretValue(ctx context.Context, secret types.SecretConfig, project *types.
 
 // runSecretCommand runs the command in workingDir with the given environment and returns its stdout.
 // The command runs directly without a shell, so shell features need an explicit shell, e.g. 'sh -c "cmd1 | cmd2"'.
+// Its stdin and stderr are connected to the current process so it can prompt for authentication interactively.
 func runSecretCommand(ctx context.Context, command, workingDir string, env []string) (string, error) {
 	args, err := shellwords.Parse(command)
 	if err != nil {
@@ -153,9 +155,11 @@ func runSecretCommand(ctx context.Context, command, workingDir string, env []str
 	cmd.Dir = workingDir
 	cmd.Env = env
 
+	// Forward stdin and stderr to the user's terminal so prompts and progress are visible.
 	var stdout, stderr bytes.Buffer
+	cmd.Stdin = os.Stdin
 	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 
 	if err := cmd.Run(); err != nil {
 		// Include stderr but never stdout in the error as stdout may contain secret data.
