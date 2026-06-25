@@ -161,7 +161,7 @@ func TestResolveSecrets_CommandUsesProjectEnvironment(t *testing.T) {
 	// secret command, proving the resolved project environment is passed to it, not just os.Environ().
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("DOTENV_ONLY=from-dotenv\n"), 0o600))
-	// '$$' escapes the '$' so Compose doesn't interpolate it; the shell expands it at run time.
+	// '$$' escapes the '$' so Compose doesn't interpolate it; the explicit shell expands it at run time.
 	composeYAML := `
 services:
   foo:
@@ -170,7 +170,7 @@ services:
       TOKEN: secret://token
 secrets:
   token:
-    x-command: printf '%s' "$$DOTENV_ONLY"
+    x-command: sh -c 'printf %s "$$DOTENV_ONLY"'
 `
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte(composeYAML), 0o644))
 
@@ -244,7 +244,7 @@ services:
       TOKEN: secret://token
 secrets:
   token:
-    x-command: echo boom >&2; exit 3
+    x-command: sh -c 'echo boom >&2; exit 3'
 `,
 			errContains: "boom",
 		},
@@ -294,7 +294,7 @@ services:
       TOKEN: secret://token
 secrets:
   token:
-    x-command: "echo run >> %s; printf abc"
+    x-command: "sh -c 'echo run >> %s; printf abc'"
 `, counter)
 
 	project := loadProject(t, content)

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/mattn/go-shellwords"
 )
 
 const (
@@ -137,9 +138,18 @@ func secretValue(ctx context.Context, secret types.SecretConfig, project *types.
 	}
 }
 
-// runSecretCommand runs command via 'sh -c' in workingDir with the given environment and returns its stdout.
+// runSecretCommand runs the command in workingDir with the given environment and returns its stdout.
+// The command runs directly without a shell, so shell features need an explicit shell, e.g. 'sh -c "cmd1 | cmd2"'.
 func runSecretCommand(ctx context.Context, command, workingDir string, env []string) (string, error) {
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	args, err := shellwords.Parse(command)
+	if err != nil {
+		return "", fmt.Errorf("parse command '%s': %w", command, err)
+	}
+	if len(args) == 0 {
+		return "", fmt.Errorf("command '%s' is empty", command)
+	}
+
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Dir = workingDir
 	cmd.Env = env
 
