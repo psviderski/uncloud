@@ -163,6 +163,14 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 		fmt.Println()
 	}
 
+	// Resolve 'secret://name' references to actual secret values before creating a deployment.
+	if compose.HasCommandSecretRefs(project) {
+		fmt.Fprintln(os.Stderr, "Resolving secrets...")
+	}
+	if err = compose.ResolveSecrets(ctx, project); err != nil {
+		return fmt.Errorf("resolve secrets: %w", err)
+	}
+
 	strategy := &deploy.RollingStrategy{
 		ForceRecreate:     opts.recreate,
 		SkipHealthMonitor: opts.skipHealth,

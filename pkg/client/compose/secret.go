@@ -110,6 +110,26 @@ func ResolveSecrets(ctx context.Context, project *types.Project) error {
 	return nil
 }
 
+// HasCommandSecretRefs reports whether any service environment references a secret that is resolved by running
+// a command.
+func HasCommandSecretRefs(project *types.Project) bool {
+	for _, service := range project.Services {
+		for _, v := range service.Environment {
+			if v == nil {
+				continue
+			}
+			name, ok := secretRefName(*v)
+			if !ok {
+				continue
+			}
+			if secret, ok := project.Secrets[name]; ok && secret.Driver == secretExecDriver {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // secretValue resolves a secret to its value depending on its source: an 'exec' driver command,
 // an environment variable, or a file. A single trailing newline ('\n' or '\r\n') is stripped from the command
 // output as command-line tools commonly append one. All other whitespace is kept. Environment and file values are

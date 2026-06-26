@@ -290,9 +290,9 @@ secrets:
 	}
 }
 
-// TestResolveSecrets_RunsOnce verifies a secret's command runs only once even when referenced by
-// multiple services.
-func TestResolveSecrets_RunsOnce(t *testing.T) {
+// TestResolveSecrets_Once verifies a secret's command runs only once, both when referenced by
+// multiple services and across repeated resolutions (ResolveSecrets is idempotent).
+func TestResolveSecrets_Once(t *testing.T) {
 	t.Parallel()
 
 	counter := filepath.Join(t.TempDir(), "runs")
@@ -314,14 +314,85 @@ secrets:
 	project := loadProject(t, content)
 	require.NoError(t, ResolveSecrets(context.Background(), project))
 
-	foo, err := ServiceSpecFromCompose(project, "foo")
-	require.NoError(t, err)
-	assert.Equal(t, "abc", foo.Container.Env["TOKEN"])
-	bar, err := ServiceSpecFromCompose(project, "bar")
-	require.NoError(t, err)
-	assert.Equal(t, "abc", bar.Container.Env["TOKEN"])
+	assert.Equal(t, "abc", *project.Services["foo"].Environment["TOKEN"])
+	assert.Equal(t, "abc", *project.Services["bar"].Environment["TOKEN"])
+
+	// A second resolution is a no-op: references are already replaced with their values.
+	require.NoError(t, ResolveSecrets(context.Background(), project))
+
+	assert.Equal(t, "abc", *project.Services["foo"].Environment["TOKEN"])
+	assert.Equal(t, "abc", *project.Services["bar"].Environment["TOKEN"])
 
 	runs, err := os.ReadFile(counter)
 	require.NoError(t, err)
-	assert.Equal(t, "run\n", string(runs), "command should run exactly once for both services")
+	assert.Equal(t, "run\n", string(runs), "command should run exactly once across services and repeated resolutions")
+}
+
+func TestHasCommandSecretRefs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{
+			name: "command secret referenced",
+			content: `
+services:
+  foo:
+    image: foo
+    environment:
+      TOKEN: secret://token
+secrets:
+  token:
+    x-command: printf abc
+`,
+			want: true,
+		},
+		{
+			name: "environment secret referenced",
+			content: `
+services:
+  foo:
+    image: foo
+    environment:
+      TOKEN: secret://token
+secrets:
+  token:
+    environment: SOME_VAR
+`,
+			want: false,
+		},
+		{
+			name: "command secret defined but not referenced",
+			content: `
+services:
+  foo:
+    image: foo
+    environment:
+      PLAIN: hello
+secrets:
+  token:
+    x-command: printf abc
+`,
+			want: false,
+		},
+		{
+			name: "no secrets",
+			content: `
+services:
+  foo:
+    image: foo
+`,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, HasCommandSecretRefs(loadProject(t, tt.content)))
+		})
+	}
 }
