@@ -65,6 +65,12 @@ func (d *Deployment) Plan(ctx context.Context) (Plan, error) {
 	}
 	var plan Plan
 
+	// Resolve 'secret://name' references to actual secret values (if there are some and they haven't been resolved yet)
+	// before building service specs from the project.
+	if err := ResolveSecrets(ctx, d.Project); err != nil {
+		return plan, fmt.Errorf("resolve secrets: %w", err)
+	}
+
 	// Generate service specs for all services in the project.
 	var serviceSpecs []api.ServiceSpec
 	var mu sync.Mutex
