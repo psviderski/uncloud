@@ -234,3 +234,8 @@ If config changes don't take effect:
 1. Run `uc deploy` to redeploy with new config content
 2. Check that you're modifying the correct config file
 3. Verify the config is properly mounted in the container with `docker exec <service> cat <config-path>` on the remote machine
+
+## See also
+
+- [Secrets](8-secrets.md): Pass sensitive values such as passwords, tokens, and keys to your services
+- [Compose support matrix](../8-compose-file-reference/1-support-matrix.md): Which Compose features Uncloud supports

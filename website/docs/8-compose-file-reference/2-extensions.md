@@ -117,3 +117,23 @@ The hook container also gets `UNCLOUD_HOOK_PRE_DEPLOY=true` environment variable
 
 See [Pre-deploy hooks](../4-guides/1-deployments/5-pre-deploy-hooks.md) for more details, usage examples, and failure
 handling.
+
+## `secrets.*.x-command`
+
+Resolve a secret by running a command locally and using its output as the value. Define a secret under the top-level
+`secrets` section, then reference it as `secret://<name>` in a service's `environment`:
+
+```yaml
+services:
+  api:
+    image: myapp
+    environment:
+      DB_PASSWORD: secret://db_password
+
+secrets:
+  db_password:
+    # Read the secret value from 1Password by running this command locally.
+    x-command: op read "op://prod/myapp/db_password"
+```
+
+See [Secrets](../3-concepts/8-secrets.md) for more details and supported secret sources.
