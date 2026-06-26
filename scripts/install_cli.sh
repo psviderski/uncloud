@@ -11,12 +11,11 @@ print_manual_install() {
     RELEASES_URL="https://github.com/${GITHUB_REPO}/releases/${VERSION}"
     echo "Failed while attempting to install uncloud CLI. You can install it manually:"
     echo "  1. Open your web browser and go to ${RELEASES_URL}"
-    echo "  2. Download uncloud_<OS>_<ARCH>.tar.gz for your platform (OS: linux/macos, ARCH: amd64/arm64)."
-    echo "  3. Extract the 'uncloud' binary from the archive: tar -xvf uncloud_*.tar.gz"
-    echo "  4. Install the binary to /usr/local/bin: sudo install ./uncloud ${INSTALL_DIR}/uncloud"
-    echo "  5. Optionally create a 'uc' symlink: sudo ln -sf ${INSTALL_DIR}/uncloud ${INSTALL_DIR}/uc"
-    echo "  6. Delete the downloaded archive and extracted binary: rm uncloud*"
-    echo "  7. Run 'uncloud --help' to verify the installation. Enjoy! ✨"
+    echo "  2. Download uc_<OS>_<ARCH>.tar.gz for your platform (OS: linux/macos, ARCH: amd64/arm64)."
+    echo "  3. Extract the 'uc' binary from the archive: tar -xvf uc_*.tar.gz"
+    echo "  4. Install the binary to /usr/local/bin: sudo install ./uc ${INSTALL_DIR}/uc"
+    echo "  5. Delete the downloaded archive and extracted binary: rm uc*"
+    echo "  6. Run 'uc --help' to verify the installation. Enjoy! ✨"
 }
 
 fetch_latest_version() {
@@ -64,7 +63,7 @@ esac
 if [ "$VERSION" = "latest" ]; then
     fetch_latest_version
 fi
-BINARY_NAME="uncloud_${BINARY_OS}_${BINARY_ARCH}.tar.gz"
+BINARY_NAME="uc_${BINARY_OS}_${BINARY_ARCH}.tar.gz"
 BINARY_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${BINARY_NAME}"
 CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/$VERSION/checksums.txt"
 
@@ -73,7 +72,7 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Download the binary and checksums file.
-echo "Downloading uncloud binary ${VERSION} ${BINARY_URL}"
+echo "Downloading uc binary ${VERSION} ${BINARY_URL}"
 curl -fsSL "$BINARY_URL" -o "${TMP_DIR}/${BINARY_NAME}"
 curl -fsSL "$CHECKSUM_URL" -o "${TMP_DIR}/checksums.txt"
 echo "Download complete."
@@ -91,17 +90,14 @@ echo "Checksum is valid."
 tar -xf "${BINARY_NAME}"
 
 if [ -z "${SUDO}" ]; then
-    echo "Installing uncloud binary to ${INSTALL_DIR}"
+    echo "Installing uc binary to ${INSTALL_DIR}"
 else
-    echo "Installing uncloud binary to ${INSTALL_DIR} using sudo. You may be prompted for your password."
+    echo "Installing uc binary to ${INSTALL_DIR} using sudo. You may be prompted for your password."
 fi
-if ! $SUDO install ./uncloud "${INSTALL_DIR}/uncloud"; then
-    echo "Failed to install uncloud binary to ${INSTALL_DIR}"
+if ! $SUDO install ./uc "${INSTALL_DIR}/uc"; then
+    echo "Failed to install uc binary to ${INSTALL_DIR}"
     print_manual_install
     exit 1
 fi
-# Create 'uc' shortcut symlink.
-$SUDO ln -sf "${INSTALL_DIR}/uncloud" "${INSTALL_DIR}/uc"
 
-echo "Successfully installed uncloud binary ${VERSION} to ${INSTALL_DIR}/uncloud"
-echo "Created a shortcut command 'uc' for convenience ✨"
+echo "Successfully installed uc binary ${VERSION} to ${INSTALL_DIR}/uc ✨"

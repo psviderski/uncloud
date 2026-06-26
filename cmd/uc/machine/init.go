@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/docker/compose/v2/pkg/progress"
-	"github.com/psviderski/uncloud/cmd/uncloud/caddy"
-	"github.com/psviderski/uncloud/cmd/uncloud/dns"
+	"github.com/psviderski/uncloud/cmd/uc/caddy"
+	"github.com/psviderski/uncloud/cmd/uc/dns"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/cli/tui"

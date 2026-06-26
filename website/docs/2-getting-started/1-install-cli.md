@@ -36,8 +36,7 @@ The script will:
 
 - Detect your operating system and architecture
 - Download the appropriate latest binary from [GitHub releases](https://github.com/psviderski/uncloud/releases)
-- Install it to `/usr/local/bin/uncloud` using `sudo` (you may need to enter your user password)
-- Create a shortcut `uc` in `/usr/local/bin` for convenience
+- Install it to `/usr/local/bin/uc` using `sudo` (you may need to enter your user password)
 
 Don't like `curl | sh`? You can download and review the [install script](https://get.uncloud.run/install.sh) first and
 then run it:
@@ -66,26 +65,22 @@ You can manually download and use a pre-built binary from the
 <Tabs>
   <TabItem value="macOS (Apple Silicon)">
     ```shell
-    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_arm64.tar.gz | tar xz
-    mv uncloud uc
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uc_macos_arm64.tar.gz | tar xz
     ```
   </TabItem>
   <TabItem value="macOS (Intel)">
     ```shell
-    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_macos_amd64.tar.gz | tar xz
-    mv uncloud uc
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uc_macos_amd64.tar.gz | tar xz
     ```
   </TabItem>
   <TabItem value="Linux (AMD 64-bit)">
     ```shell
-    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_amd64.tar.gz | tar xz
-    mv uncloud uc
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uc_linux_amd64.tar.gz | tar xz
     ```
   </TabItem>
   <TabItem value="Linux (ARM 64-bit)">
     ```shell
-    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uncloud_linux_arm64.tar.gz | tar xz
-    mv uncloud uc
+    curl -L https://github.com/psviderski/uncloud/releases/latest/download/uc_linux_arm64.tar.gz | tar xz
     ```
   </TabItem>
 </Tabs>

@@ -20,9 +20,9 @@ snapshot:
   version_template: "{{ incminor .Version }}-nightly-{{.ShortCommit}}"
 
 builds:
-  - id: uncloud
-    main: ./cmd/uncloud
-    binary: uncloud
+  - id: uc
+    main: ./cmd/uc
+    binary: uc
     env:
       # Use CGO to be able to build fsevent required by compose on macOS.
       - CGO_ENABLED={{ if eq .Os "darwin" }}1{{ else }}0{{ end }}
@@ -60,9 +60,9 @@ builds:
         -X github.com/psviderski/uncloud/internal/version.builtBy=goreleaser
 
 archives:
-  - id: uncloud
+  - id: uc
     builds:
-      - uncloud
+      - uc
     formats:
       # gz is not compatible with homebrew releases, so we use tar.gz
       - tar.gz
@@ -103,10 +103,9 @@ brews:
     description: "Uncloud CLI"
     homepage: "https://uncloud.run"
     ids:
-      - uncloud
+      - uc
     install: |
-      bin.install "uncloud"
-      bin.install_symlink "uncloud" => "uc"
+      bin.install "uc"
     skip_upload: false
     repository:
       owner: psviderski
