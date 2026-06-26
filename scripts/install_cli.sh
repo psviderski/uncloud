@@ -3,9 +3,29 @@ set -e
 
 GITHUB_REPO="psviderski/uncloud"
 INSTALL_DIR=${INSTALL_DIR:-/usr/local/bin}
-# Use the latest version or specify the version to install:
+# Use the latest version or specify the version to install (the 'v' prefix is optional):
 #   curl ... | VERSION=v1.2.3 sh
 VERSION=${VERSION:-latest}
+
+# Normalise numeric versions to a 'vX.Y.Z' release tag so VERSION can be passed with or without
+# the 'v' prefix. Non-numeric refs such as 'nightly' are tags as-is and left untouched.
+case "${VERSION#v}" in
+    [0-9]*) VERSION="v${VERSION#v}" ;;
+esac
+
+
+# The CLI archive and binary were renamed from 'uncloud' to 'uc' in v0.20.0. Returns success (0) when VERSION
+# is a numeric release older than v0.20.0, which still uses the legacy 'uncloud_*' archive and 'uncloud' binary name.
+#  Newer versions and non-numeric refs such as 'nightly' use 'uc'.
+is_legacy_version() {
+    v="${VERSION#v}"
+    major="${v%%.*}"
+    rest="${v#*.}"
+    minor="${rest%%.*}"
+    case "$major" in ''|*[!0-9]*) return 1 ;; esac
+    case "$minor" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$major" -eq 0 ] && [ "$minor" -lt 20 ]
+}
 
 print_manual_install() {
     RELEASES_URL="https://github.com/${GITHUB_REPO}/releases/${VERSION}"
@@ -63,7 +83,14 @@ esac
 if [ "$VERSION" = "latest" ]; then
     fetch_latest_version
 fi
-BINARY_NAME="uc_${BINARY_OS}_${BINARY_ARCH}.tar.gz"
+
+# Pick the archive and binary name for the requested version. Pre-v0.20.0 releases ship the legacy 'uncloud' name.
+# v0.20.0 and newer ship 'uc'.
+CLI_NAME="uc"
+if is_legacy_version; then
+    CLI_NAME="uncloud"
+fi
+BINARY_NAME="${CLI_NAME}_${BINARY_OS}_${BINARY_ARCH}.tar.gz"
 BINARY_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${BINARY_NAME}"
 CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/$VERSION/checksums.txt"
 
@@ -94,7 +121,7 @@ if [ -z "${SUDO}" ]; then
 else
     echo "Installing uc binary to ${INSTALL_DIR} using sudo. You may be prompted for your password."
 fi
-if ! $SUDO install ./uc "${INSTALL_DIR}/uc"; then
+if ! $SUDO install "./${CLI_NAME}" "${INSTALL_DIR}/uc"; then
     echo "Failed to install uc binary to ${INSTALL_DIR}"
     print_manual_install
     exit 1
