@@ -6,6 +6,9 @@ Add a remote machine to a cluster.
 
 Add a new machine to an existing Uncloud cluster.
 
+By default, it installs Docker and the Uncloud daemon on the machine over SSH unless --no-install
+is specified, which assumes they are already installed and running.
+
 Connection methods:
   [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
   ssh+go://user@host  - Use Go's built-in SSH library
@@ -20,7 +23,7 @@ uc machine add [USER@]HOST[:PORT] [flags]
   -h, --help                  help for add
   -n, --name string           Assign a name to the machine. (default is the machine's hostname)
       --no-caddy              Don't deploy Caddy reverse proxy service to the machine.
-      --no-install            Skip installation of Docker, Uncloud daemon, and dependencies on the machine. Assumes they're already installed and running.
+      --no-install            Skip installation of Docker and the Uncloud daemon on the machine. Assumes they're already installed and running.
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
       --version string        Version of the Uncloud daemon to install on the machine. (default "latest")

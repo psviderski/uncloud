@@ -40,6 +40,9 @@ func NewAddCommand() *cobra.Command {
 		Short: "Add a remote machine to a cluster.",
 		Long: `Add a new machine to an existing Uncloud cluster.
 
+By default, it installs Docker and the Uncloud daemon on the machine over SSH unless --no-install
+is specified, which assumes they are already installed and running.
+
 Connection methods:
   [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
   ssh+go://user@host  - Use Go's built-in SSH library`,
@@ -79,7 +82,7 @@ Connection methods:
 	)
 	cmd.Flags().BoolVar(
 		&opts.noInstall, "no-install", false,
-		"Skip installation of Docker, Uncloud daemon, and dependencies on the machine. "+
+		"Skip installation of Docker and the Uncloud daemon on the machine. "+
 			"Assumes they're already installed and running.",
 	)
 	cmd.Flags().StringVar(

@@ -7,6 +7,9 @@ Initialise a new cluster with a remote machine as the first member.
 Initialise a new cluster by setting up a remote machine as the first member.
 This command creates a new context in your Uncloud config to manage the cluster.
 
+By default, it installs Docker and the Uncloud daemon on the machine over SSH unless --no-install
+is specified, which assumes they are already installed and running.
+
 Connection methods:
   [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
   ssh+go://user@host  - Use Go's built-in SSH library
@@ -42,7 +45,7 @@ uc machine init [schema://]USER@HOST[:PORT] [flags]
       --network string        IPv4 network CIDR to use for machines and services. (default "10.210.0.0/16")
       --no-caddy              Don't deploy Caddy reverse proxy service to the machine. You can deploy it later with 'uc caddy deploy'.
       --no-dns                Don't reserve a cluster domain in Uncloud DNS. You can reserve it later with 'uc dns reserve'.
-      --no-install            Skip installation of Docker, Uncloud daemon, and dependencies on the machine. Assumes they're already installed and running.
+      --no-install            Skip installation of Docker and the Uncloud daemon on the machine. Assumes they're already installed and running.
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
       --version string        Version of the Uncloud daemon to install on the machine. (default "latest")
