@@ -136,8 +136,7 @@ func remove(ctx context.Context, uncli *cli.CLI, nameOrID string, opts removeOpt
 			return fmt.Errorf("confirm removal: %w", err)
 		}
 		if !confirmed {
-			fmt.Println("Cancelled. Machine was not removed.")
-			return nil
+			return cli.Cancelled("Cancelled. Machine was not removed.")
 		}
 	}
 
