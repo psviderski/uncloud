@@ -116,7 +116,7 @@ Alternatively, you can download `.deb` packages directly from the repository
 After installation, verify that `uc` command is working:
 
 ```shell
-uc --version
+uc version
 ```
 
 ## Next steps
