@@ -47,9 +47,12 @@ Connection methods:
   [ssh://]user@host   - Use system 'ssh' command with full SSH config support (default, no prefix required)
   ssh+go://user@host  - Use Go's built-in SSH library`,
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
-
+			cli.BindEnvToFlag(cmd, "version", "UNCLOUD_DAEMON_VERSION")
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			// Determine connection mode and strip scheme.
@@ -97,7 +100,7 @@ Connection methods:
 	)
 	cmd.Flags().StringVar(
 		&opts.version, "version", "latest",
-		"Version of the Uncloud daemon to install on the machine.",
+		"Version of the Uncloud daemon to install on the machine. [$UNCLOUD_DAEMON_VERSION]",
 	)
 	cmd.Flags().StringSliceVar(
 		&opts.wgEndpoints, "wg-endpoint", nil,

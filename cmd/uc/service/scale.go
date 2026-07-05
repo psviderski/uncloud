@@ -30,9 +30,11 @@ func NewScaleCommand(groupID string) *cobra.Command {
 		Short: "Scale a replicated service by changing the number of replicas.",
 		Long:  "Scale a replicated service by changing the number of replicas.",
 		Args:  cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
-
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			opts.service = args[0]

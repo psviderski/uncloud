@@ -65,9 +65,12 @@ Connection methods:
   uc machine init root@<your-server-ip> --no-caddy --no-dns`,
 		// TODO: support initialising a cluster on the local machine.
 		Args: cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
-
+			cli.BindEnvToFlag(cmd, "version", "UNCLOUD_DAEMON_VERSION")
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			var remoteMachine *cli.RemoteMachine
@@ -135,7 +138,7 @@ Connection methods:
 	)
 	cmd.Flags().StringVar(
 		&opts.version, "version", "latest",
-		"Version of the Uncloud daemon to install on the machine.",
+		"Version of the Uncloud daemon to install on the machine. [$UNCLOUD_DAEMON_VERSION]",
 	)
 	cmd.Flags().StringSliceVar(
 		&opts.wgEndpoints, "wg-endpoint", nil,

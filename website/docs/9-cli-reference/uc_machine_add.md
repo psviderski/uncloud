@@ -26,7 +26,7 @@ uc machine add [USER@]HOST[:PORT] [flags]
       --no-install            Skip installation of Docker and the Uncloud daemon on the machine. Assumes they're already installed and running.
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
-      --version string        Version of the Uncloud daemon to install on the machine. (default "latest")
+      --version string        Version of the Uncloud daemon to install on the machine. [$UNCLOUD_DAEMON_VERSION] (default "latest")
       --wg-endpoint strings   WireGuard endpoint address that other machines in the cluster should use to establish WireGuard connections
                               to this machine. This doesn't change the address/port WireGuard listens on the machine.
                               Format: IP, IP:PORT, IPv6, or [IPv6]:PORT. Default port is the value of --wg-port if omitted.
