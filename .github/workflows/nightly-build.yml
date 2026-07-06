@@ -57,7 +57,8 @@ jobs:
 
           The commands below show how to install the nightly version of uncloud.
 
-          > **Warning**: These are nightly development builds and may be unstable.
+          > [!WARNING]
+          > These are nightly development builds and may be unstable.
 
           **Install uncloud CLI:**
 
