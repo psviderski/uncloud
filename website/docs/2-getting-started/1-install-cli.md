@@ -99,13 +99,15 @@ Follow the same steps to upgrade to the latest version in the future.
 ## Debian
 
 On a Debian system, you can install Uncloud CLI from an unofficial
-[repository](https://debian.griffo.io/) maintained by
+[repository](https://deb.griffo.io/) maintained by
 [@dariogriffo](https://github.com/dariogriffo):
 
 ```shell
-curl -sS https://debian.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc | sudo gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/debian.griffo.io.gpg
-echo "deb https://debian.griffo.io/apt $(lsb_release -sc 2>/dev/null) main" | sudo tee /etc/apt/sources.list.d/debian.griffo.io.list
-apt install -y uncloud
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://deb.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/deb.griffo.io.gpg
+echo "deb [signed-by=/etc/apt/keyrings/deb.griffo.io.gpg] https://deb.griffo.io/apt $(lsb_release -sc 2>/dev/null) main" | sudo tee /etc/apt/sources.list.d/deb.griffo.io.list
+sudo apt update
+sudo apt install -y uncloud
 ```
 
 Alternatively, you can download `.deb` packages directly from the repository
