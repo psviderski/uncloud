@@ -143,6 +143,9 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 			fmt.Printf("Failed to proxy to '%s': %v\n", remoteAddr, err)
 			cancel()
 		},
+		OnConnError: func(err error) {
+			fmt.Printf("Connection error proxying to '%s' (proxy continues): %v\n", remoteAddr, err)
+		},
 	}
 
 	// Run the proxy in the background and signal when it has fully shut down.
