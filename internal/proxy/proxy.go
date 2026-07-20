@@ -139,6 +139,6 @@ func (p *Proxy) handleConnection(ctx context.Context, localConn net.Conn) {
 
 // isBenignConnError reports whether err is expected connection noise (the peer
 // closed or aborted the connection mid-transfer) that is not worth reporting.
-func isBenignConnError(err error) bool {
+func isTemporaryError(err error) bool {
 	return errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
 }
