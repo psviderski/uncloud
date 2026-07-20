@@ -18,10 +18,6 @@ type Proxy struct {
 	RemoteAddr  string
 	DialContext func(ctx context.Context, network, address string) (net.Conn, error)
 	OnError     func(error)
-	// OnConnError is called for non-fatal per-connection errors (remote dial
-	// and data copy failures). A single failed or aborted client connection
-	// must not tear down the whole proxy.
-	OnConnError func(error)
 	activeConns sync.WaitGroup
 }
 
@@ -93,8 +89,8 @@ func (p *Proxy) handleConnection(ctx context.Context, localConn net.Conn) {
 
 	remoteConn, err := p.DialContext(dialCtx, "tcp", p.RemoteAddr)
 	if err != nil {
-		if p.OnConnError != nil {
-			p.OnConnError(fmt.Errorf("connect remote address '%s': %w", p.RemoteAddr, err))
+		if p.OnError != nil {
+			p.OnError(fmt.Errorf("connect remote address '%s': %w", p.RemoteAddr, err))
 		}
 		return
 	}
@@ -130,15 +126,16 @@ func (p *Proxy) handleConnection(ctx context.Context, localConn net.Conn) {
 			remoteConn.Close()
 			return
 		case err = <-done:
-			if err != nil && !isBenignConnError(err) && p.OnConnError != nil {
-				p.OnConnError(fmt.Errorf("data copy: %w", err))
+			if err != nil && !isTemporaryError(err) && p.OnError != nil {
+				p.OnError(fmt.Errorf("data copy: %w", err))
 			}
 		}
 	}
 }
 
-// isBenignConnError reports whether err is expected connection noise (the peer
-// closed or aborted the connection mid-transfer) that is not worth reporting.
+// isTemporaryError reports whether err is expected, temporary connection noise
+// (the peer closed or aborted the connection mid-transfer) that is not worth
+// reporting.
 func isTemporaryError(err error) bool {
 	return errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
 }
