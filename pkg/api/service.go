@@ -265,6 +265,10 @@ type ContainerSpec struct {
 	LogDriver *LogDriver
 	// PidMode sets the PID namespace mode for the container. Currently only "" or "host" is supported.
 	PidMode string
+	// Tty attach sstandard streams to a tty, including stdin if it is not closed.
+	Tty bool
+	// OpenStdin keeps stdin open.
+	OpenStdin bool
 	// Privileged gives extended privileges to the container. This is a security risk and should be used with caution.
 	Privileged bool
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.

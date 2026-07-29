@@ -54,6 +54,8 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Image:       service.Image,
 			Init:        service.Init,
 			PidMode:     service.Pid,
+			Tty:         service.Tty,
+			OpenStdin:   service.StdinOpen,
 			Privileged:  service.Privileged,
 			PullPolicy:  pullPolicy,
 			Resources:   resourcesFromCompose(service),

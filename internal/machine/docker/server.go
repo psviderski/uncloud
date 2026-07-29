@@ -562,7 +562,9 @@ func (s *Server) CreateServiceContainer(
 			api.LabelServiceMode: spec.Mode,
 			api.LabelManaged:     "",
 		},
-		User: spec.Container.User,
+		User:      spec.Container.User,
+		Tty:       spec.Container.Tty,
+		OpenStdin: spec.Container.OpenStdin,
 	}
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated

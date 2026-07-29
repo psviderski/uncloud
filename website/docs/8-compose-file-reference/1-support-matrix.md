@@ -39,6 +39,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `memswap_limit`                  | ❌ Not supported    |                                                                                                                                            |
 | `networks`                       | ❌ Not supported    | All containers share cluster network                                                                                                       |
 | `pid`                            | ✅ Supported        | Set the PID namespace mode, `pid: host` only                                                                                               |
+| `tty`, `stdin_open`              | ✅ Supported        | Attach standard streams to a tty, keep standard input open                                                                                 |
 | `ports`                          | ⚠️ Limited         | `mode: host` only, use [`x-ports`](2-extensions.md#x-ports) for HTTP/HTTPS                                                                 |
 | `privileged`                     | ✅ Supported        | Run containers in privileged mode                                                                                                          |
 | `pull_policy`                    | ✅ Supported        | `always`, `missing`, `never`                                                                                                               |
