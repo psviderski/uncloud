@@ -128,6 +128,8 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							},
 						},
 						PidMode:    "host",
+						Tty:        true,
+						OpenStdin:  true,
 						Privileged: true,
 						PullPolicy: api.PullPolicyAlways,
 						Resources: api.ContainerResources{
