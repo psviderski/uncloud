@@ -1,12 +1,14 @@
 package docker
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -233,11 +235,17 @@ func (s *Service) ListImages(ctx context.Context, opts image.ListOptions) (Image
 	return imagesResp, nil
 }
 
-// ContainerLogs streams logs from a container and returns demultiplexed entries via a channel.
+// ContainerLogs streams logs from a container and returns entries via a channel.
 // The channel is closed when streaming completes or context is cancelled.
 func (s *Service) ContainerLogs(
 	ctx context.Context, containerID string, opts api.ServiceLogsOptions,
 ) (<-chan api.LogEntry, error) {
+	ctr, err := s.Client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return nil, fmt.Errorf("inspect container '%s': %w", containerID, err)
+	}
+	isTTY := ctr.Config != nil && ctr.Config.Tty
+
 	dockerOpts := container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -257,25 +265,31 @@ func (s *Service) ContainerLogs(
 	stdoutWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: false}
 	stderrWriter := &logsChannelWriter{ctx: ctx, ch: outCh, isStderr: true}
 
-	// Wrap the context in a cancellable one to unblock the second goroutine below when StdCopy completes.
+	// Wrap the context in a cancellable one to unblock the second goroutine when log copying completes.
 	ctx, cancel := context.WithCancel(ctx)
 
-	// Run StdCopy in a goroutine to be able to handle context cancellation.
+	// Copy logs in a goroutine to be able to handle context cancellation.
 	go func() {
 		defer close(outCh)
 		defer cancel()
 
-		// StdCopy is blocking and will return when the reader is closed in another goroutine below or on error.
-		if _, err := stdcopy.StdCopy(stdoutWriter, stderrWriter, reader); err != nil {
+		// Docker returns raw stdout for TTY containers and multiplexed stdout/stderr otherwise.
+		var err error
+		if isTTY {
+			_, err = copyRawContainerLogs(stdoutWriter, reader)
+		} else {
+			_, err = stdcopy.StdCopy(stdoutWriter, stderrWriter, reader)
+		}
+		if err != nil {
 			// Send error as the last entry.
 			select {
-			case outCh <- api.LogEntry{Err: fmt.Errorf("demultiplex container logs: %w", err)}:
+			case outCh <- api.LogEntry{Err: fmt.Errorf("copy container logs: %w", err)}:
 			case <-ctx.Done():
 			}
 		}
 	}()
 
-	// Close the reader when the context is done to cancel StdCopy if it's still running.
+	// Close the reader when the context is done to cancel log copying if it's still running.
 	go func() {
 		<-ctx.Done()
 		reader.Close()
@@ -284,7 +298,32 @@ func (s *Service) ContainerLogs(
 	return outCh, nil
 }
 
-// logsChannelWriter is a writer for stdcopy.StdCopy that sends demultiplexed container logs to a channel.
+// copyRawContainerLogs copies a raw TTY log stream one line at a time so each write produces one log entry.
+func copyRawContainerLogs(dst io.Writer, src io.Reader) (written int64, _ error) {
+	reader := bufio.NewReader(src)
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			n, writeErr := dst.Write(line)
+			written += int64(n)
+			if writeErr != nil {
+				return written, writeErr
+			}
+			if n != len(line) {
+				return written, io.ErrShortWrite
+			}
+		}
+
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return written, nil
+			}
+			return written, readErr
+		}
+	}
+}
+
+// logsChannelWriter sends container log writes to a channel.
 type logsChannelWriter struct {
 	ctx      context.Context
 	ch       chan<- api.LogEntry
