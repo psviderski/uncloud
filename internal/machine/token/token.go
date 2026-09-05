@@ -1,4 +1,4 @@
-package machine
+package token
 
 import (
 	"encoding/base64"

@@ -5,4 +5,7 @@ const (
 	MachineAPIPort = 51000
 	// UnregistryPort is the port for the embedded container registry listening on the machine IP.
 	UnregistryPort = 51500
+
+	// DefaultUncloudSockPath is the default path to the Uncloud API Unix socket.
+	DefaultUncloudSockPath = "/run/uncloud/uncloud.sock"
 )

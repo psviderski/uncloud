@@ -39,6 +39,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/osinfo"
 	"github.com/psviderski/uncloud/internal/machine/store"
+	machinetoken "github.com/psviderski/uncloud/internal/machine/token"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/version"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -58,8 +59,8 @@ import (
 
 const (
 	DefaultMachineSockPath = "/run/uncloud/machine.sock"
-	DefaultUncloudSockPath = "/run/uncloud/uncloud.sock"
 	DefaultSockGroup       = "uncloud"
+
 	// DefaultCaddyAdminSockPath is the default path to the Caddy admin socket for validating the generated Caddy
 	// reverse proxy configuration.
 	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
@@ -107,7 +108,7 @@ func (c *Config) SetDefaults() (*Config, error) {
 		cfg.MachineSockPath = DefaultMachineSockPath
 	}
 	if cfg.UncloudSockPath == "" {
-		cfg.UncloudSockPath = DefaultUncloudSockPath
+		cfg.UncloudSockPath = constants.DefaultUncloudSockPath
 	}
 
 	if cfg.DockerClient == nil {
@@ -1026,7 +1027,7 @@ func (m *Machine) Token(_ context.Context, _ *emptypb.Empty) (*pb.TokenResponse,
 		endpoints[i] = netip.AddrPortFrom(ip, uint16(m.state.Network.EffectiveWireGuardPort()))
 	}
 
-	token := NewToken(m.state.Network.PublicKey, publicIP, endpoints)
+	token := machinetoken.NewToken(m.state.Network.PublicKey, publicIP, endpoints)
 	tokenStr, err := token.String()
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())

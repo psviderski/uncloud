@@ -9,10 +9,10 @@ import (
 
 	"github.com/docker/cli/cli/streams"
 	"github.com/psviderski/uncloud/internal/cli/config"
-	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/psviderski/uncloud/internal/machine/network"
+	machinetoken "github.com/psviderski/uncloud/internal/machine/token"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
@@ -399,7 +399,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (_ *clie
 	if err != nil {
 		return nil, nil, fmt.Errorf("get remote machine token: %w", err)
 	}
-	token, err := machine.ParseToken(tokenResp.Token)
+	token, err := machinetoken.ParseToken(tokenResp.Token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse remote machine token: %w", err)
 	}
