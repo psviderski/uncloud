@@ -12,11 +12,11 @@ func NewWireGuardNetwork() (*WireGuardNetwork, error) {
 }
 
 func (n *WireGuardNetwork) Configure(config Config) error {
-	return errors.New("not implemented on darwin")
+	return errors.New("not implemented on Windows")
 }
 
 func (n *WireGuardNetwork) Run(ctx context.Context) error {
-	return errors.New("not implemented on darwin")
+	return errors.New("not implemented on Windows")
 }
 
 func (n *WireGuardNetwork) WatchEndpoints() <-chan EndpointChangeEvent {
@@ -24,5 +24,5 @@ func (n *WireGuardNetwork) WatchEndpoints() <-chan EndpointChangeEvent {
 }
 
 func (n *WireGuardNetwork) Cleanup() error {
-	return errors.New("not implemented on darwin")
+	return errors.New("not implemented on Windows")
 }
