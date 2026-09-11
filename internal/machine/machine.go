@@ -186,6 +186,9 @@ type Machine struct {
 	clusterReady chan struct{}
 	// resetting is true when the machine is being reset.
 	resetting bool
+	// reconfiguringPort is true while an asynchronous WireGuard listen port change is in progress. It prevents
+	// concurrent port changes from spawning overlapping network reconfigurations that could destabilise the mesh.
+	reconfiguringPort bool
 	// stop cancels the Run method context to stop the machine gracefully.
 	stop func()
 
@@ -1197,7 +1200,26 @@ func (m *Machine) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 		return nil, status.Error(codes.FailedPrecondition, "machine is not configured as a cluster member")
 	}
 
+	// Reject a WireGuard listen port change while another one is still being applied. Overlapping asynchronous
+	// reconfigurations race to rebind the socket and advertise endpoints, which destabilises the mesh.
+	if req.WireguardPort != nil {
+		m.mu.Lock()
+		if m.reconfiguringPort {
+			m.mu.Unlock()
+			return nil, status.Error(codes.FailedPrecondition,
+				"a WireGuard listen port change is already in progress on this machine")
+		}
+		m.reconfiguringPort = true
+		m.mu.Unlock()
+	}
+
 	if err := m.applyMachineUpdate(ctx, req); err != nil {
+		// Release the guard if we set it but failed to apply the update.
+		if req.WireguardPort != nil {
+			m.mu.Lock()
+			m.reconfiguringPort = false
+			m.mu.Unlock()
+		}
 		return nil, err
 	}
 
@@ -1219,6 +1241,12 @@ func (m *Machine) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 			// reaches the client before the socket rebinds. The change is already persisted to state and would
 			// also be applied on the next daemon restart.
 			go func() {
+				defer func() {
+					m.mu.Lock()
+					m.reconfiguringPort = false
+					m.mu.Unlock()
+				}()
+
 				clusterCtrl.RequestMachineSync()
 				time.Sleep(reconfigureNetworkDelay)
 				if err := clusterCtrl.ReconfigureNetwork(); err != nil {
@@ -1228,6 +1256,11 @@ func (m *Machine) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 		} else {
 			clusterCtrl.RequestMachineSync()
 		}
+	} else if req.WireguardPort != nil {
+		// No cluster controller to run the async reconfiguration, so release the guard now.
+		m.mu.Lock()
+		m.reconfiguringPort = false
+		m.mu.Unlock()
 	}
 
 	info := m.Info(ctx)
