@@ -13,6 +13,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.20.0
 	github.com/caarlos0/go-version v0.2.2
 	github.com/caddyserver/caddy/v2 v2.8.4
+	github.com/caddyserver/certmagic v0.21.4
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.7
@@ -93,7 +94,6 @@ require (
 	github.com/aws/smithy-go v1.20.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/goterm v1.0.4 // indirect
-	github.com/caddyserver/certmagic v0.21.4 // indirect
 	github.com/caddyserver/zerossl v0.1.3 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
