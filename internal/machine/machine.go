@@ -1205,6 +1205,13 @@ func (m *Machine) UpdateMachine(ctx context.Context, req *pb.UpdateMachineReques
 	clusterCtrl := m.clusterCtrl
 	m.mu.RUnlock()
 	if clusterCtrl != nil {
+		// A WireGuard listen port change requires reconfiguring the WireGuard interface and firewall so the
+		// daemon starts listening on the new port immediately, without waiting for a restart.
+		if req.WireguardPort != nil {
+			if err := clusterCtrl.ReconfigureNetwork(); err != nil {
+				return nil, status.Errorf(codes.Internal, "reconfigure network with new WireGuard port: %v", err)
+			}
+		}
 		clusterCtrl.RequestMachineSync()
 	}
 
@@ -1251,7 +1258,22 @@ func (m *Machine) applyMachineUpdate(ctx context.Context, req *pb.UpdateMachineR
 		}
 	}
 
-	if len(req.Endpoints) > 0 {
+	// Capture the current effective listen port before applying any change so endpoints advertised on the
+	// old port can be auto-adjusted when the port changes without explicit endpoints.
+	oldPort := uint16(m.state.Network.EffectiveWireGuardPort())
+
+	if req.WireguardPort != nil {
+		port := req.GetWireguardPort()
+		if port < 1 || port > 65535 {
+			return status.Errorf(codes.InvalidArgument,
+				"invalid WireGuard port %d: must be between 1 and 65535", port)
+		}
+		m.state.Network.WireGuardPort = int(port)
+	}
+
+	switch {
+	case len(req.Endpoints) > 0:
+		// Explicit endpoints always win over auto-adjustment.
 		endpoints := make([]netip.AddrPort, len(req.Endpoints))
 		for i, ep := range req.Endpoints {
 			ap, err := ep.ToAddrPort()
@@ -1261,6 +1283,18 @@ func (m *Machine) applyMachineUpdate(ctx context.Context, req *pb.UpdateMachineR
 			endpoints[i] = ap
 		}
 		m.state.Network.Endpoints = endpoints
+	case req.WireguardPort != nil:
+		// No explicit endpoints provided with a port change: adjust advertised endpoints that used the old
+		// listen port to the new port. Endpoints on a different custom port (e.g. NAT port forwarding) are
+		// left untouched.
+		newPort := uint16(m.state.Network.EffectiveWireGuardPort())
+		if newPort != oldPort {
+			for i, ep := range m.state.Network.Endpoints {
+				if ep.Port() == oldPort {
+					m.state.Network.Endpoints[i] = netip.AddrPortFrom(ep.Addr(), newPort)
+				}
+			}
+		}
 	}
 
 	if err := m.state.Save(); err != nil {
