@@ -2,21 +2,15 @@ package machine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/netip"
 	"strings"
 	"time"
 
-	"charm.land/lipgloss/v2"
-	"github.com/docker/compose/v2/pkg/progress"
-	"github.com/psviderski/uncloud/cmd/uc/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/network"
-	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +75,7 @@ Connection methods:
 		"Assign a name to the machine. (default is the machine's hostname)")
 	cmd.Flags().BoolVar(
 		&opts.noCaddy, "no-caddy", false,
-		"Don't deploy Caddy reverse proxy service to the machine.",
+		"Don't deploy Caddy reverse proxy service to the machine. This also cancels scaling any global services.",
 	)
 	cmd.Flags().BoolVar(
 		&opts.noInstall, "no-install", false,
@@ -187,81 +181,5 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	}
 	fmt.Println("Machine joined the cluster.")
 
-	// TODO: scale the existing Caddy service to the new machine instead of running a new deployment
-	//  that may cause a small downtime.
-	// Deploy a Caddy service container to the added machine. If caddy service is already deployed on other machines,
-	// use the deployed image version.
-	// NOTE: We use the cluster client to inspect and scale the Caddy service because the newly added machine may have
-	// issues accessing the Machine API of existing machines in the cluster.
-	// See the issue for more details: https://github.com/psviderski/uncloud/issues/65.
-	caddyImage := ""
-	caddySvc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
-	if err != nil {
-		if errors.Is(err, api.ErrNotFound) {
-			// Caddy service is not deployed.
-			return nil
-		}
-		return fmt.Errorf("inspect caddy service: %w", err)
-	}
-	caddyImage = caddySvc.Containers[0].Container.Config.Image
-	// Find the latest created container and use its image.
-	var latestCreated time.Time
-	for _, c := range caddySvc.Containers[1:] {
-		created, err := time.Parse(time.RFC3339Nano, c.Container.Created)
-		if err != nil {
-			continue
-		}
-		if created.After(latestCreated) {
-			latestCreated = created
-			caddyImage = c.Container.Config.Image
-		}
-	}
-
-	fmt.Println()
-	fmt.Println("Preparing Caddy deployment...")
-	d, err := clusterClient.NewCaddyDeployment(caddyImage, "", api.Placement{})
-	if err != nil {
-		return fmt.Errorf("create caddy deployment: %w", err)
-	}
-
-	plan, err := d.Plan(ctx)
-	if err != nil {
-		return fmt.Errorf("plan caddy deployment: %w", err)
-	}
-
-	if len(plan.Operations) == 0 {
-		fmt.Printf("%s service is up to date.\n", client.CaddyServiceName)
-	} else {
-		fmt.Println(tui.Bold.Underline(true).Render("Deployment plan"))
-		fmt.Println()
-		fmt.Print(plan.Format())
-
-		summary := plan.FormatSummary()
-		fmt.Println(tui.Faint.Render(strings.Repeat("─", lipgloss.Width(summary))))
-		fmt.Println(summary)
-		fmt.Println()
-
-		if !opts.yes {
-			confirmed, err := tui.Confirm("Proceed with deployment?")
-			if err != nil {
-				return fmt.Errorf("confirm deployment: %w", err)
-			}
-			if !confirmed {
-				return cli.Cancelled("Caddy deploy cancelled. The machine has been added to the cluster.")
-			}
-		}
-
-		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-			if _, err = d.Run(ctx); err != nil {
-				return fmt.Errorf("deploy caddy: %w", err)
-			}
-			return nil
-		}, uncli.ProgressOut(), fmt.Sprintf("Deploying service %s (%s mode)", d.Spec.Name, d.Spec.Mode))
-		if err != nil {
-			return err
-		}
-	}
-
-	fmt.Println()
-	return caddy.UpdateDomainRecords(ctx, machineClient, uncli.ProgressOut())
+	return scale(ctx, clusterClient, machineClient, uncli, opts.yes)
 }

@@ -22,7 +22,7 @@ uc machine add [USER@]HOST[:PORT] [flags]
 ```
   -h, --help                  help for add
   -n, --name string           Assign a name to the machine. (default is the machine's hostname)
-      --no-caddy              Don't deploy Caddy reverse proxy service to the machine.
+      --no-caddy              Don't deploy Caddy reverse proxy service to the machine. This also cancels scaling any global services.
       --no-install            Skip installation of Docker and the Uncloud daemon on the machine. Assumes they're already installed and running.
       --public-ip string      Public IP address of the machine for ingress configuration. Use 'auto' for automatic detection, blank '' or 'none' to disable ingress on this machine, or specify an IP address. (default "auto")
   -i, --ssh-key string        Path to SSH private key for remote login (if not already added to SSH agent). (default "~/.ssh/id_ed25519")
