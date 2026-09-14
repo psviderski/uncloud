@@ -105,6 +105,23 @@ func ResolveSecrets(ctx context.Context, project *types.Project) error {
 			}
 			service.Environment[k] = &value
 		}
+
+		if predeploy, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+			for k, v := range predeploy.Environment {
+				if v == nil {
+					continue
+				}
+				secretName, ok := secretRefName(*v)
+				if !ok {
+					continue
+				}
+				value, err := resolve(secretName)
+				if err != nil {
+					return err
+				}
+				predeploy.Environment[k] = &value
+			}
+		}
 	}
 
 	return nil
@@ -124,6 +141,21 @@ func HasCommandSecretRefs(project *types.Project) bool {
 			}
 			if secret, ok := project.Secrets[name]; ok && secret.Driver == secretExecDriver {
 				return true
+			}
+
+			if predeploy, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+				for _, v := range predeploy.Environment {
+					if v == nil {
+						continue
+					}
+					name, ok := secretRefName(*v)
+					if !ok {
+						continue
+					}
+					if secret, ok := project.Secrets[name]; ok && secret.Driver == secretExecDriver {
+						return true
+					}
+				}
 			}
 		}
 	}
