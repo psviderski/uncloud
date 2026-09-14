@@ -28,6 +28,7 @@ const (
 type ContainerRecord struct {
 	Container  api.ServiceContainer
 	MachineID  string
+	MachineName string
 	SyncStatus string
 	UpdatedAt  time.Time
 }

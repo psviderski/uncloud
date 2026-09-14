@@ -2157,7 +2157,7 @@ func TestServiceLifecycle(t *testing.T) {
 			assertNoDNSErrors(t, dnsOutput)
 		})
 
-		t.Run("machine-specific service DNS lookups", func(t *testing.T) {
+		t.Run("machine-id-specific service DNS lookups", func(t *testing.T) {
 			for _, targetContainer := range svc.Containers {
 				targetMachineID := targetContainer.MachineID
 				targetContainerIP := targetContainer.Container.UncloudNetworkIP().String()
@@ -2174,6 +2174,34 @@ func TestServiceLifecycle(t *testing.T) {
 				// Machine-specific lookup should return only the container on that machine.
 				for _, ctr := range svc.Containers {
 					if ctr.MachineID != targetMachineID {
+						otherContainerIP := ctr.Container.UncloudNetworkIP().String()
+						assert.NotContains(t, dnsOutput, otherContainerIP,
+							"Machine-specific DNS %s should not resolve to other container IP %s",
+							machineSpecificDNS, otherContainerIP)
+					}
+				}
+
+				assertNoDNSErrors(t, dnsOutput)
+			}
+		})
+
+		t.Run("machine-name-specific service DNS lookups", func(t *testing.T) {
+			for _, targetContainer := range svc.Containers {
+				targetMachineName := targetContainer.MachineName
+				targetContainerIP := targetContainer.Container.UncloudNetworkIP().String()
+
+				machineSpecificDNS := targetMachineName + ".m." + serviceName + ".internal"
+
+				dnsOutput := runNslookup(t, machineSpecificDNS)
+				t.Logf("Machine-specific DNS query output for %s:\n%s", machineSpecificDNS, dnsOutput)
+
+				assert.Contains(t, dnsOutput, targetContainerIP,
+					"Machine-specific DNS %s should resolve to container IP %s",
+					machineSpecificDNS, targetContainerIP)
+
+				// Machine-specific lookup should return only the container on that machine.
+				for _, ctr := range svc.Containers {
+					if ctr.MachineName != targetMachineName {
 						otherContainerIP := ctr.Container.UncloudNetworkIP().String()
 						assert.NotContains(t, dnsOutput, otherContainerIP,
 							"Machine-specific DNS %s should not resolve to other container IP %s",
