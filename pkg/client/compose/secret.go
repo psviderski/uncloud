@@ -89,42 +89,73 @@ func ResolveSecrets(ctx context.Context, project *types.Project) error {
 		return v, nil
 	}
 
-	// Resolve only secret references set as values for environment variables in enabled services.
 	for _, service := range project.Services {
-		for k, v := range service.Environment {
-			if v == nil {
-				continue
-			}
-			secretName, ok := secretRefName(*v)
-			if !ok {
-				continue
-			}
-			value, err := resolve(secretName)
-			if err != nil {
+		// Resolve secret references set as values for environment variables in the service.
+		if err := resolveEnvSecrets(service.Environment, resolve); err != nil {
+			return err
+		}
+
+		// Resolve secret references set as values for the pre-deploy hook's environment variables, if any.
+		if hook, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+			if err := resolveEnvSecrets(hook.Environment, resolve); err != nil {
 				return err
 			}
-			service.Environment[k] = &value
 		}
 	}
 
 	return nil
 }
 
-// HasCommandSecretRefs reports whether any service environment references a secret that is resolved by running
-// a command.
+// resolveEnvSecrets resolves 'secret://name' references found as values in env to actual secret values using
+// resolve, setting each referenced variable to the secret's value in place. Variables that are not secret
+// references are left untouched.
+func resolveEnvSecrets(env types.MappingWithEquals, resolve func(string) (string, error)) error {
+	for k, v := range env {
+		if v == nil {
+			continue
+		}
+		secretName, ok := secretRefName(*v)
+		if !ok {
+			continue
+		}
+		value, err := resolve(secretName)
+		if err != nil {
+			return err
+		}
+		env[k] = &value
+	}
+	return nil
+}
+
+// HasCommandSecretRefs reports whether any service environment, including a pre-deploy hook's environment,
+// references a secret that is resolved by running a command.
 func HasCommandSecretRefs(project *types.Project) bool {
 	for _, service := range project.Services {
-		for _, v := range service.Environment {
-			if v == nil {
-				continue
-			}
-			name, ok := secretRefName(*v)
-			if !ok {
-				continue
-			}
-			if secret, ok := project.Secrets[name]; ok && secret.Driver == secretExecDriver {
+		if envHasCommandSecretRef(service.Environment, project) {
+			return true
+		}
+		if hook, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+			if envHasCommandSecretRef(hook.Environment, project) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+// envHasCommandSecretRef reports whether env contains a 'secret://name' reference to a secret resolved
+// by running a command.
+func envHasCommandSecretRef(env types.MappingWithEquals, project *types.Project) bool {
+	for _, v := range env {
+		if v == nil {
+			continue
+		}
+		name, ok := secretRefName(*v)
+		if !ok {
+			continue
+		}
+		if secret, ok := project.Secrets[name]; ok && secret.Driver == secretExecDriver {
+			return true
 		}
 	}
 	return false

@@ -328,6 +328,74 @@ secrets:
 	assert.Equal(t, "run\n", string(runs), "command should run exactly once across services and repeated resolutions")
 }
 
+// TestResolveSecrets_PreDeployHook pins the behaviour that 'secret://name' references in the pre-deploy hook's
+// environment are resolved just like references in the service's own environment.
+// See https://github.com/psviderski/uncloud/issues/422.
+func TestResolveSecrets_PreDeployHook(t *testing.T) {
+	t.Parallel()
+
+	content := `
+services:
+  foo:
+    image: foo
+    environment:
+      CONTROL_TOKEN: secret://control_token
+    x-pre_deploy:
+      command: ["./migrate.sh"]
+      environment:
+        HOOK_TOKEN: secret://hook_token
+        PLAIN: hello
+secrets:
+  control_token:
+    x-command: printf control-value
+  hook_token:
+    x-command: printf hook-value
+`
+	project := loadProject(t, content)
+	require.NoError(t, ResolveSecrets(context.Background(), project))
+
+	assert.Equal(t, env(map[string]string{"CONTROL_TOKEN": "control-value"}), project.Services["foo"].Environment)
+
+	hook, ok := project.Services["foo"].Extensions[PreDeployHookExtensionKey].(PreDeployHook)
+	require.True(t, ok, "x-pre_deploy extension not found")
+	assert.Equal(t, env(map[string]string{"HOOK_TOKEN": "hook-value", "PLAIN": "hello"}), hook.Environment)
+}
+
+// TestResolveSecrets_PreDeployHook_ResolvedOnce verifies that a secret referenced from both the service's
+// environment and its pre-deploy hook's environment is only resolved once.
+func TestResolveSecrets_PreDeployHook_ResolvedOnce(t *testing.T) {
+	t.Parallel()
+
+	counter := filepath.Join(t.TempDir(), "runs")
+	content := fmt.Sprintf(`
+services:
+  foo:
+    image: foo
+    environment:
+      TOKEN: secret://token
+    x-pre_deploy:
+      command: ["./migrate.sh"]
+      environment:
+        TOKEN: secret://token
+secrets:
+  token:
+    x-command: "sh -c 'echo run >> %s; printf abc'"
+`, counter)
+
+	project := loadProject(t, content)
+	require.NoError(t, ResolveSecrets(context.Background(), project))
+
+	assert.Equal(t, "abc", *project.Services["foo"].Environment["TOKEN"])
+	hook, ok := project.Services["foo"].Extensions[PreDeployHookExtensionKey].(PreDeployHook)
+	require.True(t, ok, "x-pre_deploy extension not found")
+	assert.Equal(t, "abc", *hook.Environment["TOKEN"])
+
+	runs, err := os.ReadFile(counter)
+	require.NoError(t, err)
+	assert.Equal(t, "run\n", string(runs),
+		"command should run exactly once across the service and hook environments")
+}
+
 func TestHasCommandSecretRefs(t *testing.T) {
 	t.Parallel()
 
@@ -386,6 +454,22 @@ services:
     image: foo
 `,
 			want: false,
+		},
+		{
+			name: "command secret referenced from pre-deploy hook",
+			content: `
+services:
+  foo:
+    image: foo
+    x-pre_deploy:
+      command: ["./migrate.sh"]
+      environment:
+        TOKEN: secret://token
+secrets:
+  token:
+    x-command: printf abc
+`,
+			want: true,
 		},
 	}
 
