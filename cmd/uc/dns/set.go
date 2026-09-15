@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/miekg/dns"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
