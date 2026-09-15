@@ -184,7 +184,7 @@ func (s *Storage) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			}
 			ttl, err := caddy.ParseDuration(d.Val())
 			if err != nil {
-				return d.Errf("invalid lock_ttl '%s': %v", d.Val(), err)
+				return d.Errf("invalid lock_ttl '%s': %w", d.Val(), err)
 			}
 			if ttl <= 0 {
 				return d.Err("lock_ttl must be positive")
