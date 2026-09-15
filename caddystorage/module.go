@@ -101,7 +101,7 @@ func (s *Storage) Provision(ctx caddy.Context) error {
 	s.locker = locker
 	s.locks = make(map[string]*distlock.Lease)
 
-	s.log.Debug("module provisioned", "socket", s.Socket, "lock_ttl", time.Duration(s.LockTTL))
+	s.log.Info("module provisioned", "socket", s.Socket, "lock_ttl", time.Duration(s.LockTTL))
 	return nil
 }
 
@@ -131,12 +131,12 @@ func (s *Storage) Cleanup() error {
 			}
 		}
 		if remaining := s.lockOps.Load(); timedOut && remaining > 0 {
-			s.log.Debug("timed out waiting for active locks to be unlocked",
+			s.log.Warn("timed out waiting for active locks to be unlocked",
 				"locks", remaining, "timeout", lockCleanupTimeout)
 		}
 
 		if err := s.client.Close(); err != nil {
-			s.log.Debug("failed to clean up module", "duration", time.Since(started), "error", err)
+			s.log.Warn("failed to clean up module", "duration", time.Since(started), "error", err)
 			return
 		}
 		s.log.Debug("module cleanup complete", "duration", time.Since(started))
