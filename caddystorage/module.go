@@ -22,7 +22,7 @@ const (
 	// ModuleID is the Caddy module ID for Uncloud storage.
 	ModuleID = "caddy.storage.uncloud"
 	// DefaultSocketPath is the default path to the Uncloud API socket.
-	DefaultSocketPath = "/run/uncloud/uncloud.sock"
+	DefaultSocketPath = "/run/uncloud/api/uncloud.sock"
 	// DefaultLockTTL is the default duration of a distributed lock lease.
 	DefaultLockTTL = 20 * time.Second
 	// lockCleanupTimeout bounds how long an unloaded module waits for active lock operations when cleaning up.
@@ -37,7 +37,7 @@ func init() {
 // Storage implements a Caddy storage backend that uses an Uncloud cluster to store assets such as TLS certificates.
 type Storage struct {
 	// Socket is the path to the Uncloud API socket.
-	// Defaults to /run/uncloud/uncloud.sock when not set.
+	// Defaults to /run/uncloud/api/uncloud.sock when not set.
 	Socket string `json:"socket,omitempty"`
 	// LockTTL is the duration of a distributed lock after which it expires if not renewed. Locks renew automatically
 	// until unlocked. If an instance crashes or cannot renew, expiry allows another instance to acquire the stale lock.
@@ -101,7 +101,7 @@ func (s *Storage) Provision(ctx caddy.Context) error {
 	s.locker = locker
 	s.locks = make(map[string]*distlock.Lease)
 
-	s.log.Debug("module provisioned", "socket", s.Socket, "lock_ttl", time.Duration(s.LockTTL))
+	s.log.Info("module provisioned", "socket", s.Socket, "lock_ttl", time.Duration(s.LockTTL))
 	return nil
 }
 
@@ -131,12 +131,12 @@ func (s *Storage) Cleanup() error {
 			}
 		}
 		if remaining := s.lockOps.Load(); timedOut && remaining > 0 {
-			s.log.Debug("timed out waiting for active locks to be unlocked",
+			s.log.Warn("timed out waiting for active locks to be unlocked",
 				"locks", remaining, "timeout", lockCleanupTimeout)
 		}
 
 		if err := s.client.Close(); err != nil {
-			s.log.Debug("failed to clean up module", "duration", time.Since(started), "error", err)
+			s.log.Warn("failed to clean up module", "duration", time.Since(started), "error", err)
 			return
 		}
 		s.log.Debug("module cleanup complete", "duration", time.Since(started))
@@ -154,7 +154,7 @@ func (s *Storage) CertMagicStorage() (certmagic.Storage, error) {
 //
 //	{
 //	    storage uncloud {
-//	        socket /run/uncloud/uncloud.sock
+//	        socket /run/uncloud/api/uncloud.sock
 //	        lock_ttl 20s
 //	    }
 //	}
@@ -184,7 +184,7 @@ func (s *Storage) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			}
 			ttl, err := caddy.ParseDuration(d.Val())
 			if err != nil {
-				return d.Errf("invalid lock_ttl '%s': %v", d.Val(), err)
+				return d.Errf("invalid lock_ttl '%s': %w", d.Val(), err)
 			}
 			if ttl <= 0 {
 				return d.Err("lock_ttl must be positive")

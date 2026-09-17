@@ -17,9 +17,9 @@ cluster. It has a name and a list of connection details for the machines in that
 A context is not the same thing as a cluster. It is your local view of a cluster: which machines you can connect through
 and in what order to try them. Different people or environments may need to reach the same cluster in different ways.
 
-You can also manually create multiple contexts for the same cluster. For example, one that connects through
-a machine with a public IP when you're not in the office, and another that connects through a private machine on the
-office network when you're on-site to reduce latency. You can switch between them depending on where you are.
+You can also manually create multiple contexts for the same cluster. For example, one that connects through a machine
+with a public IP when you're not in the office, and another that connects through a private machine on the office
+network when you're on-site to reduce latency. You can switch between them depending on where you are.
 
 ### Managing contexts
 
@@ -46,11 +46,14 @@ When you run a `uc` command, it determines which cluster to connect to using thi
 Once the context is resolved, `uc` tries each connection in the context's `connections` list in order until one
 succeeds.
 
-## User permissions on the machine
+## API socket access
 
-When `uc` connects to a machine over SSH, it communicates with the Uncloud daemon through the Unix socket
-`/run/uncloud/uncloud.sock` on that machine. The daemon restricts access to the socket to the `root` user and members
-of the `uncloud` Linux group. This means your SSH user must be either `root` or a member of the `uncloud` group.
+The Uncloud daemon exposes the API through the Unix socket `/run/uncloud/api/uncloud.sock` on each machine. It restricts
+access to the `root` user and members of the `uncloud` Linux group.
+
+### User access
+
+When `uc` connects to a machine over SSH, the SSH user must be either `root` or a member of the `uncloud` group.
 
 In most cases you don't need to set this up manually. When you initialise or add a machine with a non-root user,
 `uc machine init` and `uc machine add` automatically add that user to the `uncloud` group during installation.
@@ -66,6 +69,21 @@ user, close any long-running SSH connections to the machine (for example, SSH Co
 
 The same requirement applies when running `uc` locally on a cluster machine with a `unix://` connection. The local user
 must be `root` or a member of the `uncloud` group.
+
+### Container access
+
+If a container needs to talk to the Uncloud API over the socket, mount `/run/uncloud/api` as a read-only directory. Do
+not mount the socket file directly. The directory mount lets the container see a replacement socket after the daemon
+restarts.
+
+:::warning Full cluster access
+
+Mounting the Uncloud API socket gives the container the same cluster-wide privileges as a local `uc` client. A process
+with access can manage workloads across the cluster and may be able to gain root access to cluster machines through the
+workloads it creates. Treat the Uncloud API socket like the Docker socket. Only mount it into containers that you fully
+trust.
+
+:::
 
 ## Global flags and environment variables
 
@@ -95,11 +113,11 @@ uc --connect ssh://root@203.0.113.1 ls
 # Go's built-in SSH library (no SSH config support, useful when the system ssh is not available)
 uc --connect ssh+go://root@203.0.113.1 ls
 
-# Direct connection to machine gRPC API over TCP (for advanced users with custom setups)
+# Direct connection to the Uncloud API over TCP (for advanced users with custom setups)
 uc --connect tcp://[fdcc:4439:f545:3ca:5d17:66e5:7c96:40bd]:51000 ls
 
-# Direct connection to machine gRPC API over a Unix socket (for running uc locally on a cluster machine)
-uc --connect unix:///run/uncloud/uncloud.sock ls
+# Direct connection to the Uncloud API over a Unix socket (for running uc locally on a cluster machine)
+uc --connect unix:///run/uncloud/api/uncloud.sock ls
 ```
 
 :::info

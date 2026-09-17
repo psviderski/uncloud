@@ -35,7 +35,7 @@ func (cfg *SSHConnectorConfig) Destination() string {
 	return dst
 }
 
-// SSHConnector establishes a connection to the machine API through an SSH tunnel to the machine.
+// SSHConnector establishes a connection to the Uncloud API through an SSH tunnel to the machine.
 type SSHConnector struct {
 	config SSHConnectorConfig
 	client *ssh.Client
@@ -69,7 +69,7 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 
 	sockPath := c.config.SockPath
 	if sockPath == "" {
-		sockPath = machine.DefaultUncloudSockPath
+		sockPath = machine.DefaultClusterAPISockPath
 	}
 	conn, err := grpc.NewClient(
 		"unix://"+sockPath,
@@ -83,7 +83,7 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 				conn, dErr := c.client.DialContext(ctx, "unix", addr)
 				if dErr != nil {
 					return nil, fmt.Errorf(
-						"connect to machine API socket '%s' through SSH tunnel (is uncloud.service running "+
+						"connect to Uncloud API socket '%s' through SSH tunnel (is uncloud.service running "+
 							"on the remote machine and does the SSH user '%s' have permissions to access the socket?):"+
 							" %w",
 						addr, c.client.User(), dErr,
@@ -94,7 +94,7 @@ func (c *SSHConnector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create machine API client: %w", err)
+		return nil, fmt.Errorf("create Uncloud API client: %w", err)
 	}
 	return conn, nil
 }

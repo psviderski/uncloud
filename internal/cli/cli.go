@@ -603,7 +603,7 @@ func provisionOrConnectRemoteMachine(
 		if remoteMachine.User != rootUser {
 			// provisionMachine has just added the user to the uncloud group. Any SSH ControlMaster left over from
 			// a previous uc invocation (e.g. a failed uc command against the uninitialised machine) still holds
-			// the old user groups and would deny access to /run/uncloud/uncloud.sock. Close the current session
+			// the old user groups and would deny access to /run/uncloud/api/uncloud.sock. Close the current session
 			// if it exists so the next session picks up the new groups.
 			conn.CloseControlMaster(ctx)
 		}

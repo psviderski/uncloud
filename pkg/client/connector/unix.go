@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// UnixConnector establishes a connection to the machine API through a unix domain socket.
+// UnixConnector establishes a connection to the Uncloud API through a Unix domain socket.
 type UnixConnector struct {
 	socketPath string
 }
@@ -31,7 +31,7 @@ func (c *UnixConnector) Connect(_ context.Context) (*grpc.ClientConn, error) {
 		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create machine API client: %w", err)
+		return nil, fmt.Errorf("create Uncloud API client: %w", err)
 	}
 	return conn, nil
 }

@@ -114,7 +114,7 @@ func (s *Storage) clusterStoreVersion(ctx context.Context, log *slog.Logger) (ma
 	machines := make([]string, 0, len(resp.Machines))
 	for _, m := range resp.Machines {
 		if m.Metadata.Error != "" {
-			log.Debug("skipping machine when collecting store versions",
+			log.Warn("skipping machine when collecting store versions",
 				"id", m.Metadata.MachineId, "name", m.Metadata.MachineName, "error", m.Metadata.Error)
 			continue
 		}
