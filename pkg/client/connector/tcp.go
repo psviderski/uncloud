@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// TCPConnector establishes a connection to the machine API through a direct TCP connection to an API endpoint.
+// TCPConnector establishes a connection to the Uncloud API through a direct TCP connection.
 type TCPConnector struct {
 	apiAddr netip.AddrPort
 }
@@ -40,7 +40,7 @@ func (c *TCPConnector) Connect(_ context.Context) (*grpc.ClientConn, error) {
 		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create machine API client: %w", err)
+		return nil, fmt.Errorf("create Uncloud API client: %w", err)
 	}
 	return conn, nil
 }

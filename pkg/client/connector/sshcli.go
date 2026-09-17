@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// SSHCLIConnector establishes a connection to the machine API by executing SSH CLI
+// SSHCLIConnector establishes a connection to the Uncloud API by executing SSH CLI
 // and running `uncloudd dial-stdio` on the remote machine.
 type SSHCLIConnector struct {
 	config SSHConnectorConfig
@@ -104,7 +104,7 @@ func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error)
 		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create machine API client: %w", err)
+		return nil, fmt.Errorf("create Uncloud API client: %w", err)
 	}
 
 	return grpcConn, nil

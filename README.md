@@ -166,7 +166,9 @@ $ uc machine init --name oracle-vm ubuntu@152.67.101.197
 ✓ uncloudd binary installed: /usr/local/bin/uncloudd
 ⏳ Downloading uninstall script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh
 ✓ uncloud-uninstall script installed: /usr/local/bin/uncloud-uninstall
+✓ Systemd unit file created: /etc/systemd/system/uncloud.socket
 ✓ Systemd unit file created: /etc/systemd/system/uncloud.service
+Created symlink /etc/systemd/system/sockets.target.wants/uncloud.socket → /etc/systemd/system/uncloud.socket.
 Created symlink /etc/systemd/system/multi-user.target.wants/uncloud.service → /etc/systemd/system/uncloud.service.
 ⏳ Starting Uncloud machine daemon (uncloud.service)...
 ✓ Uncloud machine daemon started.
@@ -208,7 +210,9 @@ $ uc machine add --name hetzner-server root@5.223.45.199
 ✓ uncloudd binary installed: /usr/local/bin/uncloudd
 ⏳ Downloading uninstall script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh
 ✓ uncloud-uninstall script installed: /usr/local/bin/uncloud-uninstall
+✓ Systemd unit file created: /etc/systemd/system/uncloud.socket
 ✓ Systemd unit file created: /etc/systemd/system/uncloud.service
+Created symlink /etc/systemd/system/sockets.target.wants/uncloud.socket → /etc/systemd/system/uncloud.socket.
 Created symlink /etc/systemd/system/multi-user.target.wants/uncloud.service → /etc/systemd/system/uncloud.service.
 ⏳ Starting Uncloud machine daemon (uncloud.service)...
 ✓ Uncloud machine daemon started.
@@ -319,9 +323,9 @@ I'm grateful to the following projects that inspired Uncloud's design and implem
 * [Tailscale](https://tailscale.com/) — for pioneering the vision of decentralised flat mesh networking with an amazing
   user experience that feels like magic.
 * [Talos Linux](https://github.com/siderolabs/talos)
-  and [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/) — for the machine API design using
-  [grpc-proxy](https://github.com/siderolabs/grpc-proxy) and for its elegant approach to secure WireGuard-based overlay
-  networking with zero configuration.
+  and [KubeSpan](https://www.talos.dev/v1.10/talos-guides/network/kubespan/) — for inspiring Uncloud's API routing
+  design with [grpc-proxy](https://github.com/siderolabs/grpc-proxy) and for their elegant approach to secure
+  WireGuard-based overlay networking with zero configuration.
 * [Docker Swarm Classic](https://github.com/docker-archive/classicswarm) and
   [Rancher 1.x](http://rancher-com-website-main-elb-elb-1798790864.us-west-2.elb.amazonaws.com/docs/rancher/v1.6/en/)
   — for showing the power of simplicity and pragmatism in container orchestration and that not every problem needs the

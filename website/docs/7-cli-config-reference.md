@@ -68,12 +68,12 @@ next one. You can change the default connection with an interactive command
 
 Every connection must have exactly one connection type attribute:
 
-| Attribute | Format                      | Description                                                                                                                        |
-|-----------|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| `ssh`     | `user@host[:port]`          | Connect using the system `ssh` command with full SSH config support (default for new connections added with `uc machine init/add`) |
-| `ssh_go`  | `user@host[:port]`          | Connect using Go's built-in SSH library (no SSH config support)                                                                |
-| `tcp`     | `host:port`                 | Connect directly to the machine gRPC API over TCP (for advanced users with custom setups)                                          |
-| `unix`    | `/run/uncloud/uncloud.sock` | Connect directly to the machine gRPC API over a Unix socket (for running `uc` locally on the cluster machines)                     |
+| Attribute | Format                          | Description                                                                                                                        |
+|-----------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `ssh`     | `user@host[:port]`              | Connect using the system `ssh` command with full SSH config support (default for new connections added with `uc machine init/add`) |
+| `ssh_go`  | `user@host[:port]`              | Connect using Go's built-in SSH library (no SSH config support)                                                                    |
+| `tcp`     | `host:port`                     | Connect directly to the Uncloud API over TCP (for advanced users with custom setups)                                               |
+| `unix`    | `/run/uncloud/api/uncloud.sock` | Connect directly to the Uncloud API over a Unix socket (for running `uc` locally on a cluster machine)                             |
 
 A connection can also have these optional attributes:
 

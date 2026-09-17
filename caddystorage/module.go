@@ -22,7 +22,7 @@ const (
 	// ModuleID is the Caddy module ID for Uncloud storage.
 	ModuleID = "caddy.storage.uncloud"
 	// DefaultSocketPath is the default path to the Uncloud API socket.
-	DefaultSocketPath = "/run/uncloud/uncloud.sock"
+	DefaultSocketPath = "/run/uncloud/api/uncloud.sock"
 	// DefaultLockTTL is the default duration of a distributed lock lease.
 	DefaultLockTTL = 20 * time.Second
 	// lockCleanupTimeout bounds how long an unloaded module waits for active lock operations when cleaning up.
@@ -37,7 +37,7 @@ func init() {
 // Storage implements a Caddy storage backend that uses an Uncloud cluster to store assets such as TLS certificates.
 type Storage struct {
 	// Socket is the path to the Uncloud API socket.
-	// Defaults to /run/uncloud/uncloud.sock when not set.
+	// Defaults to /run/uncloud/api/uncloud.sock when not set.
 	Socket string `json:"socket,omitempty"`
 	// LockTTL is the duration of a distributed lock after which it expires if not renewed. Locks renew automatically
 	// until unlocked. If an instance crashes or cannot renew, expiry allows another instance to acquire the stale lock.
@@ -154,7 +154,7 @@ func (s *Storage) CertMagicStorage() (certmagic.Storage, error) {
 //
 //	{
 //	    storage uncloud {
-//	        socket /run/uncloud/uncloud.sock
+//	        socket /run/uncloud/api/uncloud.sock
 //	        lock_ttl 20s
 //	    }
 //	}

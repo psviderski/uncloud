@@ -60,7 +60,7 @@ func (c *WireGuardConnector) Connect(ctx context.Context) (*grpc.ClientConn, err
 	}
 	endpoint := netip.AddrPortFrom(endpointAddr, DefaultEndpointPort)
 	machineManagementIP := network.ManagementIP(machine.PublicKey)
-	machineAPIAddr := net.JoinHostPort(machineManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
+	machineAPIAddr := net.JoinHostPort(machineManagementIP.String(), strconv.Itoa(constants.UncloudAPIPort))
 
 	tunCfg := &Config{
 		LocalAddress:    c.user.ManagementIP(),

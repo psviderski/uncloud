@@ -176,7 +176,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	// Start the network API server before waiting for the store sync so the machine is reachable on the mesh
 	// during the sync and can serve requests that don't depend on the store.
 	// Assume the management IP can't be changed when the network is running.
-	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
+	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.UncloudAPIPort))
 	listener, err := net.Listen("tcp", apiAddr)
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
