@@ -83,6 +83,7 @@ services:
     image: caddybuilds/caddy-cloudflare:2.10.2
     command: caddy run -c /config/Caddyfile
     environment:
+      # unix// is not a typo. Caddy uses network/address format, not a unix:// URL.
       CADDY_ADMIN: unix//run/caddy/admin.sock
     env_file:
       # Contains CLOUDFLARE_API_TOKEN=xxxxx
@@ -91,6 +92,9 @@ services:
       - /var/lib/uncloud/caddy:/data
       - /var/lib/uncloud/caddy:/config
       - /run/uncloud/caddy:/run/caddy
+      # Required by caddy.storage.uncloud module. Remove this mount if Uncloud cluster storage is not used for Caddy.
+      # Mount the directory, not the socket file, so Caddy sees a replacement socket after the daemon restarts.
+      - /run/uncloud/api:/run/uncloud/api:ro
     x-ports:
       - 80:80@host
       - 443:443@host

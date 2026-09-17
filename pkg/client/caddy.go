@@ -53,6 +53,11 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 					VolumeName:    "run",
 					ContainerPath: "/run/caddy",
 				},
+				{
+					VolumeName:    "uncloud-api",
+					ContainerPath: "/run/uncloud/api",
+					ReadOnly:      true,
+				},
 			},
 		},
 		Mode:      api.ServiceModeGlobal,
@@ -93,6 +98,16 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 				BindOptions: &api.BindOptions{
 					HostPath:       "/run/uncloud/caddy",
 					CreateHostPath: true,
+				},
+			},
+			// Bind the Uncloud API socket so caddy.storage.uncloud module can use it to store assets in the cluster.
+			{
+				Name: "uncloud-api",
+				Type: api.VolumeTypeBind,
+				BindOptions: &api.BindOptions{
+					// Mount the parent directory that contains the socket so it lets the container see a replacement
+					// socket after the Uncloud daemon restarts (in case it doesn't use a systemd-activated socket).
+					HostPath: "/run/uncloud/api",
 				},
 			},
 		},
