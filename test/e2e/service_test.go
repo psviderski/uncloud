@@ -17,7 +17,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-units"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/secret"

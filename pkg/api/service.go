@@ -13,7 +13,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 )
 
 const (

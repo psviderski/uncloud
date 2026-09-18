@@ -2,6 +2,7 @@
 *
 
 # Allow files and directories.
+!api/
 !cmd/
 !internal/
 !pkg/

@@ -11,8 +11,8 @@ import (
 
 	"charm.land/huh/v2"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/sshexec"
 	"github.com/psviderski/uncloud/scripts"
 	"google.golang.org/protobuf/types/known/emptypb"

@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

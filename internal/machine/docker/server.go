@@ -40,7 +40,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"

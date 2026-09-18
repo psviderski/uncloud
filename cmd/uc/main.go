@@ -88,10 +88,11 @@ func main() {
 
 			configPath := fs.ExpandHomeDir(opts.configPath)
 
+			// Make uc connect via the local Unix socket when running on a cluster machine.
 			if opts.connect == "" {
-				if !fs.Exists(configPath) && fs.Exists(machine.DefaultUncloudSockPath) {
+				if !fs.Exists(configPath) && fs.Exists(machine.DefaultClusterAPISockPath) {
 					conn = &config.MachineConnection{
-						Unix: machine.DefaultUncloudSockPath,
+						Unix: machine.DefaultClusterAPISockPath,
 					}
 				}
 			}

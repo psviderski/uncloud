@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.3
-// source: internal/machine/api/pb/docker.proto
+// source: api/pb/docker.proto
 
 package pb
 
@@ -807,5 +807,5 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "internal/machine/api/pb/docker.proto",
+	Metadata: "api/pb/docker.proto",
 }

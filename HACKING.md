@@ -107,7 +107,7 @@ make lint-and-fix
 
 ## Code generation
 
-Update the generated Go code for the machine gRPC API after modifying `.proto` files:
+Update the generated Go code for the gRPC API after modifying files in [`api/pb`](./api/pb):
 
 ```shell
 mise run proto

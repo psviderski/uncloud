@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package api;
 
-option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
+option go_package = "github.com/psviderski/uncloud/api/pb";
 
-// Vendored at internal/machine/api/vendor/google/rpc/status.proto.
+// Vendored at api/pb/vendor/google/rpc/status.proto.
 import "google/rpc/status.proto";
 import "google/protobuf/timestamp.proto";
 

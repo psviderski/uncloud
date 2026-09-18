@@ -6,7 +6,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/image"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 )
 
 type MachineImage struct {

@@ -9,8 +9,8 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/corrosion"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"

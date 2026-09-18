@@ -5,7 +5,7 @@ import (
 
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

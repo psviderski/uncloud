@@ -15,8 +15,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/fs"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"google.golang.org/protobuf/encoding/protojson"
 	_ "modernc.org/sqlite"

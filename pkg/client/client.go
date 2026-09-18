@@ -7,9 +7,10 @@ import (
 	"os"
 
 	"github.com/docker/cli/cli/streams"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/pkg/api"
+	distlockgrpc "github.com/psviderski/uncloud/pkg/distlock/grpc"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -24,10 +25,12 @@ type Client struct {
 	//  Methods such as Reset or Inspect are ambiguous in the context of a machine+cluster client.
 	pb.MachineClient
 	pb.ClusterClient
-	Caddy pb.CaddyClient
+	Caddy        pb.CaddyClient
+	CaddyStorage pb.CaddyStorageClient
 	// Docker is a namespaced client for the Docker service to distinguish Uncloud-specific service container operations
 	// from generic Docker operations.
 	Docker *docker.Client
+	leases distlockgrpc.LeaseClient
 }
 
 var _ api.Client = (*Client)(nil)
@@ -56,7 +59,9 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 	c.MachineClient = pb.NewMachineClient(c.conn)
 	c.ClusterClient = pb.NewClusterClient(c.conn)
 	c.Caddy = pb.NewCaddyClient(c.conn)
+	c.CaddyStorage = pb.NewCaddyStorageClient(c.conn)
 	c.Docker = docker.NewClient(c.conn)
+	c.leases = distlockgrpc.NewLeaseClient(c.conn)
 
 	return c, nil
 }
@@ -78,8 +83,8 @@ func (cli *Client) progressOut() *streams.Out {
 // ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
 // If namesOrIDs is nil or empty, all machines are included.
 // This triggers One2Many proxying, which always injects metadata into the response.
-func (cli *Client) ProxyMachinesContext(ctx context.Context, namesOrIDs []string) context.Context {
-	md := metadata.New(nil)
+func ProxyMachinesContext(ctx context.Context, namesOrIDs []string) context.Context {
+	md := outgoingMetadataWithoutProxyTargets(ctx)
 	if len(namesOrIDs) == 0 {
 		md.Append("machines", "*")
 	} else {
@@ -92,7 +97,26 @@ func (cli *Client) ProxyMachinesContext(ctx context.Context, namesOrIDs []string
 // ProxySingleMachineContext returns a new context that proxies gRPC requests to a single specified machine.
 // This triggers One2One proxying, which does NOT inject metadata into the response.
 // Use this for requests that expect a single response message without metadata wrapper.
-func (cli *Client) ProxySingleMachineContext(ctx context.Context, nameOrID string) context.Context {
-	md := metadata.Pairs("machine", nameOrID)
+func ProxySingleMachineContext(ctx context.Context, nameOrID string) context.Context {
+	md := outgoingMetadataWithoutProxyTargets(ctx)
+	md.Set("machine", nameOrID)
 	return metadata.NewOutgoingContext(ctx, md)
+}
+
+func outgoingMetadataWithoutProxyTargets(ctx context.Context) metadata.MD {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md.Delete("machine")
+	md.Delete("machines")
+	return md
+}
+
+// ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
+func (cli *Client) ProxyMachinesContext(ctx context.Context, namesOrIDs []string) context.Context {
+	return ProxyMachinesContext(ctx, namesOrIDs)
+}
+
+// ProxySingleMachineContext returns a new context that proxies gRPC requests to a single specified machine.
+func (cli *Client) ProxySingleMachineContext(ctx context.Context, nameOrID string) context.Context {
+	return ProxySingleMachineContext(ctx, nameOrID)
 }

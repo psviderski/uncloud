@@ -25,9 +25,9 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/docker"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/proxy"
@@ -59,7 +59,7 @@ func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.Mac
 // it lists images on all machines.
 func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]api.MachineImages, error) {
 	// Broadcast the image list request to the specified machines or all machines if none specified.
-	listCtx := cli.ProxyMachinesContext(ctx, filter.Machines)
+	listCtx := ProxyMachinesContext(ctx, filter.Machines)
 
 	opts := image.ListOptions{Manifests: true}
 	if filter.Name != "" {

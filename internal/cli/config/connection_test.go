@@ -70,9 +70,9 @@ func TestMachineConnection_String(t *testing.T) {
 		{
 			name: "unix connection",
 			conn: MachineConnection{
-				Unix: "/run/uncloud/uncloud.sock",
+				Unix: "/run/uncloud/api/uncloud.sock",
 			},
-			want: "unix:///run/uncloud/uncloud.sock",
+			want: "unix:///run/uncloud/api/uncloud.sock",
 		},
 		{
 			name: "no connection",

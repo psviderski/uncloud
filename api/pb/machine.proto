@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package api;
 
-option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
+option go_package = "github.com/psviderski/uncloud/api/pb";
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "internal/machine/api/pb/common.proto";
+import "api/pb/common.proto";
 
 service Machine {
   // CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
@@ -19,6 +19,22 @@ service Machine {
   rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
   // InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
   rpc InspectMachine(google.protobuf.Empty) returns (InspectMachineResponse);
+  // WaitForStoreVersion waits until the cluster store on this machine has reached each requested actor version, with
+  // no known missing or pending transactions through those versions.
+  // Corrosion may satisfy a version by applying its surviving changes or by marking it complete because its changes
+  // have been superseded.
+  //
+  // Waiting normally makes the captured data available on this machine. However, another write may replace some of that
+  // data before it arrives. Corrosion can then complete the older version without transferring the replaced data.
+  // If the replacement is outside the requested versions, this RPC can succeed while the affected data is still missing
+  // or outdated. This can happen during concurrent updates even when all machines are well connected.
+  //
+  // Success does not guarantee an exact snapshot or delivery of every historical value. Callers that require a specific
+  // record or condition should verify it after waiting.
+  //
+  // This RPC observes native replication without initiating synchronisation.
+  // Use the RPC deadline to bound the wait.
+  rpc WaitForStoreVersion(WaitForStoreVersionRequest) returns (google.protobuf.Empty);
   // UpdateMachine updates the configuration of the machine.
   rpc UpdateMachine(UpdateMachineRequest) returns (UpdateMachineResponse);
   // InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
@@ -105,8 +121,8 @@ message JoinClusterRequest {
   // MTU of the WireGuard interface on this machine. The daemon auto-detects the optimal MTU if 0 or not set.
   int32 wireguard_mtu = 7;
   // Cluster store version this machine must reach before participating.
-  // Per-actor vector (Corrosion actor UUID → max applied db_version).
-  map<string, int64> min_store_version = 6;
+  // Per-actor vector (Corrosion actor UUID → minimum required db_version).
+  map<string, uint64> min_store_version = 6;
 }
 
 message InspectMachineResponse {
@@ -119,9 +135,24 @@ message MachineDetails {
   MachineInfo machine = 2;
   // Round-trip times to other machines in the cluster, keyed by peer machine ID.
   map<string, RTTStats> rtts = 4;
-  // Current cluster store version observed on this machine.
-  // Per-actor vector (Corrosion actor UUID → max applied db_version) read from Corrosion crsql_db_versions.
-  map<string, int64> store_version = 5;
+  // Store replication progress observed on this machine.
+  // Maps each Corrosion actor UUID to its highest processed database version. Corrosion also counts versions whose
+  // changes were superseded and skipped. Versions at or below a reported version may still be missing or pending
+  // locally.
+  //
+  // Pass this vector to WaitForStoreVersion on another machine to wait for replication through these versions.
+  // See that RPC's data-availability limitations. To combine observations from several machines, take the maximum
+  // for each actor.
+  // Capturing this vector does not wait for replication or prevent further writes.
+  map<string, uint64> store_version = 5;
+}
+
+message WaitForStoreVersionRequest {
+  // Minimum database version to reach for each Corrosion actor UUID.
+  // Obtain a vector from InspectMachine. To combine several responses, take the maximum version for each actor.
+  // Actors omitted from this vector and versions above its targets are not awaited. An empty vector requires
+  // no replication. Unknown actors with positive targets remain pending until replication reaches them or the RPC ends.
+  map<string, uint64> min_version = 1;
 }
 
 message TokenResponse {

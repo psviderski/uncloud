@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/dns"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

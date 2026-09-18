@@ -4,7 +4,7 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 )
 
 // MachineFilter defines criteria to filter machines in ListMachines.

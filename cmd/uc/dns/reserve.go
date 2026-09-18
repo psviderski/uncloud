@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/cmd/uc/caddy"
 	"github.com/psviderski/uncloud/internal/cli"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"

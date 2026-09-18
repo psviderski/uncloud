@@ -23,7 +23,7 @@ func newDialStdioCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&socketPath, "socket", machine.DefaultUncloudSockPath,
+	cmd.Flags().StringVar(&socketPath, "socket", machine.DefaultClusterAPISockPath,
 		"Path to the Uncloud API socket")
 
 	return cmd

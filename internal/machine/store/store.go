@@ -3,14 +3,13 @@ package store
 import (
 	"context"
 	_ "embed"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/corrosion"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -31,14 +30,19 @@ func New(corro *corrosion.APIClient) *Store {
 	return &Store{corro: corro}
 }
 
+// Get retrieves an unnamespaced legacy value.
+//
+// Deprecated: Existing callers may continue to use Get for legacy records. New
+// code should use [Store.Keyspace].
 func (s *Store) Get(ctx context.Context, key string, value any) error {
 	rows, err := s.corro.QueryContext(ctx, "SELECT value FROM cluster WHERE key = ?", key)
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 	if !rows.Next() {
-		if rows.Err() != nil {
-			return rows.Err()
+		if err = rows.Err(); err != nil {
+			return err
 		}
 		return ErrKeyNotFound
 	}
@@ -48,32 +52,47 @@ func (s *Store) Get(ctx context.Context, key string, value any) error {
 	return nil
 }
 
+// Put stores an unnamespaced legacy value.
+//
+// Deprecated: Existing callers may continue to use Put for legacy records. New
+// code should use [Store.Keyspace].
 func (s *Store) Put(ctx context.Context, key string, value any) error {
 	_, err := s.corro.ExecContext(ctx,
-		"INSERT OR REPLACE INTO cluster (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+		"INSERT OR REPLACE INTO cluster (key, value, updated_at) VALUES (?, ?, datetime('now', 'subsec'))",
 		key, value)
 	return err
 }
 
+// Delete deletes an unnamespaced legacy value.
+//
+// Deprecated: Existing callers may continue to use Delete for legacy records.
+// New code should use [Store.Keyspace].
 func (s *Store) Delete(ctx context.Context, key string) error {
 	_, err := s.corro.ExecContext(ctx, "DELETE FROM cluster WHERE key = ?", key)
 	return err
 }
 
-// Version returns the cluster store's per-actor version vector:
-// Corrosion actor ID (UUID string) → max received db_version for that actor.
-func (s *Store) Version(ctx context.Context) (map[string]int64, error) {
+// Version returns the replication progress observed by this store.
+// Each entry maps a Corrosion actor UUID to its highest processed database version. Corrosion also counts versions
+// whose changes were superseded and skipped. Versions at or below a reported version may still be missing or pending
+// locally.
+//
+// You can use [Store.WaitForVersion] to wait for replication through these versions, subject to the data-availability
+// limitations documented there.
+//
+// Capturing a vector does not wait for replication or prevent further writes.
+func (s *Store) Version(ctx context.Context) (map[string]uint64, error) {
 	rows, err := s.corro.QueryContext(ctx, "SELECT site_id, db_version FROM crsql_db_versions")
 	if err != nil {
 		return nil, fmt.Errorf("query crsql_db_versions: %w", err)
 	}
 	defer rows.Close()
 
-	versions := make(map[string]int64)
+	versions := make(map[string]uint64)
 	for rows.Next() {
 		var (
 			siteID  []byte
-			version int64
+			version uint64
 		)
 		if err = rows.Scan(&siteID, &version); err != nil {
 			return nil, fmt.Errorf("scan actor version: %w", err)
@@ -85,35 +104,6 @@ func (s *Store) Version(ctx context.Context) (map[string]int64, error) {
 		versions[actor.String()] = version
 	}
 	return versions, nil
-}
-
-type MissingChange struct {
-	ActorID      string
-	StartVersion int64
-	EndVersion   int64
-}
-
-// KnownMissingChanges returns a list of currently known missing changes in the Corrosion database.
-func (s *Store) KnownMissingChanges(ctx context.Context) ([]MissingChange, error) {
-	rows, err := s.corro.QueryContext(ctx, "SELECT actor_id, start, end FROM __corro_bookkeeping_gaps")
-	if err != nil {
-		return nil, fmt.Errorf("query missing changes: %w", err)
-	}
-	defer rows.Close()
-
-	var changes []MissingChange
-	for rows.Next() {
-		var c MissingChange
-		var actorBytes []byte
-		if err = rows.Scan(&actorBytes, &c.StartVersion, &c.EndVersion); err != nil {
-			return nil, fmt.Errorf("scan missing change: %w", err)
-		}
-
-		c.ActorID = hex.EncodeToString(actorBytes)
-		changes = append(changes, c)
-	}
-
-	return changes, nil
 }
 
 func (s *Store) CreateMachine(ctx context.Context, m *pb.MachineInfo) error {

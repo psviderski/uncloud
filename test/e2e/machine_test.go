@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"

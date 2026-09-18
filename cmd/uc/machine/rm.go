@@ -13,10 +13,10 @@ import (
 	"charm.land/lipgloss/v2/tree"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )

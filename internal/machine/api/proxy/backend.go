@@ -3,7 +3,7 @@ package proxy
 import (
 	"fmt"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protowire"

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 )
 
 // MachineTarget represents a resolved machine target.

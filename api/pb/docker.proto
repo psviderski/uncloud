@@ -2,10 +2,10 @@ syntax = "proto3";
 
 package api;
 
-option go_package = "github.com/psviderski/uncloud/internal/machine/api/pb";
+option go_package = "github.com/psviderski/uncloud/api/pb";
 
 import "google/protobuf/empty.proto";
-import "internal/machine/api/pb/common.proto";
+import "api/pb/common.proto";
 
 service Docker {
   rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);

@@ -44,7 +44,7 @@ run = "mise lock --platform linux-x64,macos-arm64"
 description = "Regenerate gRPC API code from .proto files"
 run = """
 protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-  --proto_path=. --proto_path=internal/machine/api/vendor internal/machine/api/pb/*.proto
+  --proto_path=. --proto_path=api/pb/vendor api/pb/*.proto pkg/distlock/grpc/*.proto
 """
 
 [tasks.uc]

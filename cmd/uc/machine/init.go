@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/cmd/uc/caddy"
 	"github.com/psviderski/uncloud/cmd/uc/dns"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/config"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/pkg/api"

@@ -13,8 +13,8 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/api/pb"
 	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"

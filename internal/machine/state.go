@@ -29,9 +29,9 @@ type State struct {
 	// PublicIP is this machine's advertised public IP for ingress. Zero value if unset.
 	PublicIP netip.Addr `json:",omitempty"`
 	// MinStoreVersion is the cluster store version this machine must reach before participating.
-	// Per-actor vector (Corrosion actor UUID → max applied db_version) captured from an existing
+	// Per-actor vector (Corrosion actor UUID → max processed db_version) captured from an existing
 	// member at join time. Cleared once reached.
-	MinStoreVersion map[string]int64 `json:",omitempty"`
+	MinStoreVersion map[string]uint64 `json:",omitempty"`
 	// CorrosionAPIToken authenticates requests to the local Corrosion API.
 	CorrosionAPIToken secret.Secret `json:",omitempty"`
 

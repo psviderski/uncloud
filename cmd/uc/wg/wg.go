@@ -8,10 +8,10 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/docker/go-units"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/spf13/cobra"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"google.golang.org/grpc/codes"

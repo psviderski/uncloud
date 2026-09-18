@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.3
-// source: internal/machine/api/pb/caddy.proto
+// source: api/pb/caddy.proto
 
 package pb
 
@@ -120,5 +120,5 @@ var Caddy_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/machine/api/pb/caddy.proto",
+	Metadata: "api/pb/caddy.proto",
 }

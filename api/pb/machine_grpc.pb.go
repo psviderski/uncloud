@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.3
-// source: internal/machine/api/pb/machine.proto
+// source: api/pb/machine.proto
 
 package pb
 
@@ -26,6 +26,7 @@ const (
 	Machine_Token_FullMethodName                   = "/api.Machine/Token"
 	Machine_Inspect_FullMethodName                 = "/api.Machine/Inspect"
 	Machine_InspectMachine_FullMethodName          = "/api.Machine/InspectMachine"
+	Machine_WaitForStoreVersion_FullMethodName     = "/api.Machine/WaitForStoreVersion"
 	Machine_UpdateMachine_FullMethodName           = "/api.Machine/UpdateMachine"
 	Machine_InspectWireGuardNetwork_FullMethodName = "/api.Machine/InspectWireGuardNetwork"
 	Machine_Reset_FullMethodName                   = "/api.Machine/Reset"
@@ -46,6 +47,22 @@ type MachineClient interface {
 	Inspect(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MachineInfo, error)
 	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
 	InspectMachine(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectMachineResponse, error)
+	// WaitForStoreVersion waits until the cluster store on this machine has reached each requested actor version, with
+	// no known missing or pending transactions through those versions.
+	// Corrosion may satisfy a version by applying its surviving changes or by marking it complete because its changes
+	// have been superseded.
+	//
+	// Waiting normally makes the captured data available on this machine. However, another write may replace some of that
+	// data before it arrives. Corrosion can then complete the older version without transferring the replaced data.
+	// If the replacement is outside the requested versions, this RPC can succeed while the affected data is still missing
+	// or outdated. This can happen during concurrent updates even when all machines are well connected.
+	//
+	// Success does not guarantee an exact snapshot or delivery of every historical value. Callers that require a specific
+	// record or condition should verify it after waiting.
+	//
+	// This RPC observes native replication without initiating synchronisation.
+	// Use the RPC deadline to bound the wait.
+	WaitForStoreVersion(ctx context.Context, in *WaitForStoreVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateMachine updates the configuration of the machine.
 	UpdateMachine(ctx context.Context, in *UpdateMachineRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error)
 	// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
@@ -124,6 +141,16 @@ func (c *machineClient) InspectMachine(ctx context.Context, in *emptypb.Empty, o
 	return out, nil
 }
 
+func (c *machineClient) WaitForStoreVersion(ctx context.Context, in *WaitForStoreVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Machine_WaitForStoreVersion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *machineClient) UpdateMachine(ctx context.Context, in *UpdateMachineRequest, opts ...grpc.CallOption) (*UpdateMachineResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateMachineResponse)
@@ -196,6 +223,22 @@ type MachineServer interface {
 	Inspect(context.Context, *emptypb.Empty) (*MachineInfo, error)
 	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
 	InspectMachine(context.Context, *emptypb.Empty) (*InspectMachineResponse, error)
+	// WaitForStoreVersion waits until the cluster store on this machine has reached each requested actor version, with
+	// no known missing or pending transactions through those versions.
+	// Corrosion may satisfy a version by applying its surviving changes or by marking it complete because its changes
+	// have been superseded.
+	//
+	// Waiting normally makes the captured data available on this machine. However, another write may replace some of that
+	// data before it arrives. Corrosion can then complete the older version without transferring the replaced data.
+	// If the replacement is outside the requested versions, this RPC can succeed while the affected data is still missing
+	// or outdated. This can happen during concurrent updates even when all machines are well connected.
+	//
+	// Success does not guarantee an exact snapshot or delivery of every historical value. Callers that require a specific
+	// record or condition should verify it after waiting.
+	//
+	// This RPC observes native replication without initiating synchronisation.
+	// Use the RPC deadline to bound the wait.
+	WaitForStoreVersion(context.Context, *WaitForStoreVersionRequest) (*emptypb.Empty, error)
 	// UpdateMachine updates the configuration of the machine.
 	UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error)
 	// InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
@@ -231,6 +274,9 @@ func (UnimplementedMachineServer) Inspect(context.Context, *emptypb.Empty) (*Mac
 }
 func (UnimplementedMachineServer) InspectMachine(context.Context, *emptypb.Empty) (*InspectMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectMachine not implemented")
+}
+func (UnimplementedMachineServer) WaitForStoreVersion(context.Context, *WaitForStoreVersionRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WaitForStoreVersion not implemented")
 }
 func (UnimplementedMachineServer) UpdateMachine(context.Context, *UpdateMachineRequest) (*UpdateMachineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateMachine not implemented")
@@ -376,6 +422,24 @@ func _Machine_InspectMachine_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machine_WaitForStoreVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WaitForStoreVersionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachineServer).WaitForStoreVersion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Machine_WaitForStoreVersion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachineServer).WaitForStoreVersion(ctx, req.(*WaitForStoreVersionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Machine_UpdateMachine_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateMachineRequest)
 	if err := dec(in); err != nil {
@@ -491,6 +555,10 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Machine_InspectMachine_Handler,
 		},
 		{
+			MethodName: "WaitForStoreVersion",
+			Handler:    _Machine_WaitForStoreVersion_Handler,
+		},
+		{
 			MethodName: "UpdateMachine",
 			Handler:    _Machine_UpdateMachine_Handler,
 		},
@@ -514,5 +582,5 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "internal/machine/api/pb/machine.proto",
+	Metadata: "api/pb/machine.proto",
 }

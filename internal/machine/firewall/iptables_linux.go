@@ -48,12 +48,12 @@ func ConfigureIptablesChains(machineIP netip.Addr, wgPort int) error {
 		}
 	}
 
-	// Allow cluster machines to access Machine API via the management IPv6 WireGuard network.
+	// Allow cluster machines to access the Uncloud API via the management IPv6 WireGuard network.
 	acceptMachineAPIRule := []string{
 		"-i", network.WireGuardInterfaceName,
 		"-s", "fdcc::/16",
 		"-p", "tcp",
-		"--dport", strconv.Itoa(constants.MachineAPIPort),
+		"--dport", strconv.Itoa(constants.UncloudAPIPort),
 		"-j", "ACCEPT",
 	}
 	// Allow Corrosion gossip traffic from cluster machines via the management IPv6 WireGuard network.

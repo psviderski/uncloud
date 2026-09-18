@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/psviderski/uncloud/api/pb";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// CaddyStorage exposes the CertMagic storage operations backed by the distributed cluster store.
+// Each request operates on the receiving machine's store replica. Callers that need replication to catch up before
+// reading should capture store versions with Machine.InspectMachine and call Machine.WaitForStoreVersion on the
+// receiving machine, subject to that RPC's data-availability limitations (see WaitForStoreVersion docs).
+// See Storage interface in https://github.com/caddyserver/certmagic/blob/master/storage.go.
+service CaddyStorage {
+  rpc Store(StoreCaddyStorageRequest) returns (google.protobuf.Empty);
+  rpc Load(LoadCaddyStorageRequest) returns (LoadCaddyStorageResponse);
+  rpc Delete(DeleteCaddyStorageRequest) returns (google.protobuf.Empty);
+  rpc List(ListCaddyStorageRequest) returns (ListCaddyStorageResponse);
+  rpc Stat(StatCaddyStorageRequest) returns (StatCaddyStorageResponse);
+}
+
+message StoreCaddyStorageRequest {
+  string key = 1;
+  bytes value = 2;
+}
+
+message LoadCaddyStorageRequest {
+  string key = 1;
+}
+
+message LoadCaddyStorageResponse {
+  bytes value = 1;
+  google.protobuf.Timestamp updated_at = 2;
+}
+
+message DeleteCaddyStorageRequest {
+  string key = 1;
+}
+
+message ListCaddyStorageRequest {
+  string prefix = 1;
+  bool recursive = 2;
+}
+
+message ListCaddyStorageResponse {
+  repeated string keys = 1;
+}
+
+message StatCaddyStorageRequest {
+  string key = 1;
+}
+
+message StatCaddyStorageResponse {
+  string key = 1;
+  google.protobuf.Timestamp updated_at = 2;
+  int64 size = 3;
+  bool is_terminal = 4;
+}

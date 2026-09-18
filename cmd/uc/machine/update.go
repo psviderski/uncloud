@@ -6,9 +6,9 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/spf13/cobra"
 )
