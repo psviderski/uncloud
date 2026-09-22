@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -16,6 +17,7 @@ import (
 	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/machine"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
+	"github.com/psviderski/uncloud/pkg/client"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -317,6 +319,78 @@ func (p *Provisioner) WaitClusterReady(ctx context.Context, c Cluster, timeout t
 		if err = mcli.WaitClusterReady(ctx, timeout); err != nil {
 			return fmt.Errorf("wait for cluster to be ready on machine '%s': %w", m.Name, err)
 		}
+	}
+
+	return nil
+}
+
+// WaitClusterMeshReady waits until every machine can reach every other machine through the WireGuard mesh network.
+func (p *Provisioner) WaitClusterMeshReady(ctx context.Context, c Cluster, timeout time.Duration) error {
+	if len(c.Machines) < 2 {
+		return nil
+	}
+
+	clients := make([]*client.Client, len(c.Machines))
+	for i := range c.Machines {
+		cli, err := c.Machines[i].Connect(ctx)
+		if err != nil {
+			return fmt.Errorf("connect to machine '%s' over TCP '%s': %w",
+				c.Machines[i].Name, c.Machines[i].APIAddress, err)
+		}
+		clients[i] = cli
+		defer cli.Close()
+	}
+
+	type machinePair struct {
+		source int
+		target int
+	}
+	pairs := make([]machinePair, 0, len(c.Machines)*(len(c.Machines)-1))
+	for source := range c.Machines {
+		for target := range c.Machines {
+			if source != target {
+				pairs = append(pairs, machinePair{source: source, target: target})
+			}
+		}
+	}
+
+	boff := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(time.Second),
+		backoff.WithMaxElapsedTime(timeout),
+	), ctx)
+
+	checkMeshReady := func() error {
+		errs := make([]error, len(pairs))
+		var wg sync.WaitGroup
+		for i, pair := range pairs {
+			wg.Go(func() {
+				source := c.Machines[pair.source]
+				target := c.Machines[pair.target]
+
+				probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				resp, err := clients[pair.source].MachineClient.InspectMachine(
+					clients[pair.source].ProxySingleMachineContext(probeCtx, target.ID),
+					nil,
+				)
+				if err != nil {
+					errs[i] = fmt.Errorf("reach machine '%s' from '%s': %w", target.Name, source.Name, err)
+					return
+				}
+				if len(resp.Machines) != 1 || resp.Machines[0].Machine == nil ||
+					resp.Machines[0].Machine.Id != target.ID {
+					errs[i] = fmt.Errorf("machine '%s' returned an unexpected response when reached from '%s'",
+						target.Name, source.Name)
+				}
+			})
+		}
+		wg.Wait()
+
+		return errors.Join(errs...)
+	}
+	if err := backoff.Retry(checkMeshReady, boff); err != nil {
+		return fmt.Errorf("wait for cluster WireGuard mesh to be ready: %w", err)
 	}
 
 	return nil

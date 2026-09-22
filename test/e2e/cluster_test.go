@@ -36,6 +36,10 @@ func createTestCluster(
 	if envName != "" {
 		c, err := p.InspectCluster(ctx, envName)
 		if err == nil {
+			if waitReady {
+				require.NoError(t, p.WaitClusterReady(ctx, c, 90*time.Second))
+				require.NoError(t, p.WaitClusterMeshReady(ctx, c, 90*time.Second))
+			}
 			return c, p
 		}
 		if !errors.Is(err, ucind.ErrNotFound) {
@@ -60,6 +64,7 @@ func createTestCluster(
 
 	if waitReady {
 		require.NoError(t, p.WaitClusterReady(ctx, c, 90*time.Second))
+		require.NoError(t, p.WaitClusterMeshReady(ctx, c, 90*time.Second))
 	}
 
 	return c, p
@@ -111,6 +116,7 @@ func TestClusterLifecycle(t *testing.T) {
 			}, 30*time.Second, 50*time.Millisecond, "cluster store not reconciled on machine #%d", i+1)
 		}
 	})
+	require.NoError(t, p.WaitClusterMeshReady(ctx, c, 90*time.Second))
 
 	t.Run("inspect", func(t *testing.T) {
 		cluster, err := p.InspectCluster(ctx, name)
