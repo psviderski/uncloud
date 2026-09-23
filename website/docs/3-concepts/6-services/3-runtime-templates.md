@@ -1,5 +1,7 @@
 # Runtime templates
 
+> Added in [v0.21.0](https://github.com/psviderski/uncloud/releases/tag/v0.21.0)
+
 Runtime templates let service configuration use metadata that is only known when Uncloud creates a container. They use
 [Go template](https://pkg.go.dev/text/template) syntax.
 
