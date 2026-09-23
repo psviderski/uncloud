@@ -3,10 +3,10 @@ package api
 import (
 	"fmt"
 	"maps"
+	"path"
 	"reflect"
 	"slices"
 	"sort"
-	"strings"
 
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
@@ -39,7 +39,8 @@ type VolumeSpec struct {
 
 // BindOptions represents options for a bind volume.
 type BindOptions struct {
-	// HostPath is the absolute path on the host filesystem.
+	// HostPath is the absolute path on the host filesystem. It may contain runtime templates such as
+	// {{.Container.Name}}, which the destination daemon renders before creating the container.
 	HostPath string
 	// CreateHostPath indicates whether the host path should be created if it doesn't exist.
 	// If false, deployment will fail if the path doesn't exist.
@@ -102,6 +103,9 @@ func (v *VolumeSpec) Validate() error {
 	case VolumeTypeBind:
 		if v.BindOptions == nil {
 			return fmt.Errorf("bind volume must have bind options")
+		}
+		if !path.IsAbs(v.BindOptions.HostPath) {
+			return fmt.Errorf("invalid host path: %q must be an absolute path", v.BindOptions.HostPath)
 		}
 	case VolumeTypeVolume, VolumeTypeTmpfs:
 	default:
@@ -196,7 +200,8 @@ func (v *VolumeSpec) Clone() VolumeSpec {
 type VolumeMount struct {
 	// VolumeName references a volume defined in ServiceSpec.Volumes by its Name field.
 	VolumeName string
-	// ContainerPath is the absolute path where the volume is mounted in the container.
+	// ContainerPath is the absolute path where the volume is mounted in the container. It may contain runtime templates
+	// such as {{.Container.Name}}, which the destination daemon renders before creating the container.
 	ContainerPath string
 	// ReadOnly indicates whether the volume should be mounted read-only.
 	// If false (default), the volume is mounted read-write.
@@ -207,9 +212,8 @@ func (m *VolumeMount) Validate() error {
 	if m.VolumeName == "" {
 		return fmt.Errorf("volume name must not be empty")
 	}
-
-	if !strings.HasPrefix(m.ContainerPath, "/") {
-		return fmt.Errorf("invalid container path: '%s', must be an absolute path in the container", m.ContainerPath)
+	if !path.IsAbs(m.ContainerPath) {
+		return fmt.Errorf("invalid container path: %q must be an absolute path", m.ContainerPath)
 	}
 
 	return nil

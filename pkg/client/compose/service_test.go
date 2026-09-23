@@ -161,6 +161,10 @@ func TestServiceSpecFromCompose(t *testing.T) {
 								ReadOnly:      true,
 							},
 							{
+								VolumeName:    "bind-cd9bef32904c6831a0cd0d49cf503078a46a0989acea375fdd3d3b43b2bfec4f",
+								ContainerPath: "/unique/host/bind",
+							},
+							{
 								VolumeName:    "data1",
 								ContainerPath: "/data1",
 							},
@@ -237,6 +241,14 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							Type: api.VolumeTypeBind,
 							BindOptions: &api.BindOptions{
 								HostPath:       "/etc/passwd",
+								CreateHostPath: true,
+							},
+						},
+						{
+							Name: "bind-cd9bef32904c6831a0cd0d49cf503078a46a0989acea375fdd3d3b43b2bfec4f",
+							Type: "bind",
+							BindOptions: &api.BindOptions{
+								HostPath:       "/runtime/template/{{.Container.Name}}",
 								CreateHostPath: true,
 							},
 						},
@@ -1291,5 +1303,43 @@ services:
 			assert.Equal(t, tt.expectedDevices, spec.Container.Resources.Devices)
 			assert.Equal(t, tt.expectedReservations, spec.Container.Resources.DeviceReservations)
 		})
+	}
+}
+
+func TestServiceSpecFromCompose_RuntimeTemplates(t *testing.T) {
+	t.Setenv("UNCLOUD_TEST_TEMPLATE_ROOT", "uncloud-test")
+
+	project, err := LoadProjectFromContent(context.Background(), `
+services:
+  short:
+    image: busybox:latest
+    volumes:
+      - "/var/lib/${UNCLOUD_TEST_TEMPLATE_ROOT}/{{.Container.Name}}:/data/{{.Container.Name}}:ro"
+  long:
+    image: busybox:latest
+    volumes:
+      - type: bind
+        source: "/var/lib/${UNCLOUD_TEST_TEMPLATE_ROOT}/{{.Container.Name}}"
+        target: "/data/{{.Container.Name}}"
+        read_only: true
+        bind:
+          create_host_path: true
+`)
+	require.NoError(t, err)
+
+	shortSpec, err := ServiceSpecFromCompose(project, "short")
+	require.NoError(t, err)
+	longSpec, err := ServiceSpecFromCompose(project, "long")
+	require.NoError(t, err)
+
+	for _, spec := range []api.ServiceSpec{shortSpec, longSpec} {
+		require.Len(t, spec.Volumes, 1)
+		require.NotNil(t, spec.Volumes[0].BindOptions)
+		assert.Equal(t, "/var/lib/uncloud-test/{{.Container.Name}}", spec.Volumes[0].BindOptions.HostPath)
+		assert.True(t, spec.Volumes[0].BindOptions.CreateHostPath)
+		require.Len(t, spec.Container.VolumeMounts, 1)
+		assert.Equal(t, "/data/{{.Container.Name}}", spec.Container.VolumeMounts[0].ContainerPath)
+		assert.True(t, spec.Container.VolumeMounts[0].ReadOnly)
+		require.NoError(t, spec.Validate())
 	}
 }

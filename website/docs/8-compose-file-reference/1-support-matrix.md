@@ -64,7 +64,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `update_config`                  | ⚠️ Limited         | `order` and `monitor` supported. See [rolling deployments](../4-guides/1-deployments/4-rolling-deployments.md)                             |
 | **Volumes**                      |                    |                                                                                                                                            |
 | Named volumes                    | ✅ Supported        | Docker volumes                                                                                                                             |
-| Bind mounts                      | ✅ Supported        | Host path binding                                                                                                                          |
+| Bind mounts                      | ✅ Supported        | Host path binding with optional [runtime templates](../3-concepts/6-services/3-runtime-templates.md)                                       |
 | Tmpfs mounts                     | ✅ Supported        | In-memory filesystems                                                                                                                      |
 | Volume labels                    | ✅ Supported        | Custom labels                                                                                                                              |
 | External volumes                 | ✅ Supported        | Must exist before deployment                                                                                                               |

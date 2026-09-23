@@ -143,6 +143,7 @@ image: myapp:{{gitsha 7}}.${GITHUB_RUN_ID:-local}   # GITHUB_RUN_ID not set → 
 
 ## See also
 
+- [Runtime templates](../3-concepts/6-services/3-runtime-templates.md): Use per-container metadata in service configuration
 - [Deploy an app](../4-guides/1-deployments/1-deploy-app.md): Deploy from source code or pre-built images
 - [Compose Build Specification](https://github.com/compose-spec/compose-spec/blob/main/build.md)
 - [Compose Specification: image](https://github.com/compose-spec/compose-spec/blob/main/spec.md#image)

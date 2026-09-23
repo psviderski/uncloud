@@ -214,6 +214,10 @@ func (s *ServiceSpec) Validate() error {
 		}
 	}
 
+	if err := validateRuntimeTemplates(s); err != nil {
+		return fmt.Errorf("validate runtime templates: %w", err)
+	}
+
 	return nil
 }
 
