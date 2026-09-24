@@ -137,6 +137,7 @@ func main() {
 	cmd.AddCommand(
 		NewBuildCommand(),
 		NewDeployCommand(),
+		NewDestroyCommand(),
 		NewDocsCommand(),
 		NewImagesCommand(),
 		NewPsCommand(),
