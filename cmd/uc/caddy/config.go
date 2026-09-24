@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -64,6 +65,11 @@ func runConfig(ctx context.Context, uncli *cli.CLI, opts configOptions) error {
 			// If highlighting fails, fall back to plain output.
 			fmt.Print(config.Caddyfile)
 		}
+	}
+
+	if config.LastReconciliationError != "" {
+		tui.PrintWarning(fmt.Sprintf("last Caddy config load failed: %s\nShowing the last saved Caddyfile.",
+			config.LastReconciliationError))
 	}
 
 	return nil

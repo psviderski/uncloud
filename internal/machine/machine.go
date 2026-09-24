@@ -198,6 +198,8 @@ type Machine struct {
 	dockerServer  *machinedocker.Server
 	// machineAPIServer handles API requests directly on this machine.
 	machineAPIServer *grpc.Server
+	// caddyService provides methods to interact with the Caddy configuration on the machine.
+	caddyService *caddyconfig.Service
 
 	// proxyDirector routes API requests to local or remote machines.
 	proxyDirector *apiproxy.Director
@@ -302,6 +304,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		dockerService:    dockerService,
 		clusterAPIServer: clusterAPIServer,
 		proxyDirector:    proxyDirector,
+		caddyService:     caddyconfig.NewService(config.CaddyConfigDir),
 	}
 
 	// Machine IP will only be available after the machine is initialised as a cluster member so wrap it in a function.
@@ -316,7 +319,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		NetworkReady:        m.IsNetworkReady,
 		WaitForNetworkReady: m.WaitForNetworkReady,
 	})
-	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir))
+	caddyServer := caddyconfig.NewServer(m.caddyService)
 
 	caddyStore, err := corroStore.Keyspace(caddystorage.Namespace)
 	if err != nil {
@@ -535,7 +538,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
 			caddyconfigCtrl, err := caddyconfig.NewController(
 				m.state.ID,
-				m.config.CaddyConfigDir,
+				m.caddyService,
 				DefaultCaddyAdminSockPath,
 				m.store,
 			)

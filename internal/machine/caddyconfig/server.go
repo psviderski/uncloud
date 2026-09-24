@@ -2,6 +2,7 @@ package caddyconfig
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"google.golang.org/grpc/codes"
@@ -22,18 +23,26 @@ func NewServer(service *Service) *Server {
 	return &Server{service: service}
 }
 
-// GetConfig retrieves the current Caddy configuration from the machine.
+// GetConfig retrieves the saved Caddy configuration and the latest reconciliation error from the machine.
 func (s *Server) GetConfig(ctx context.Context, _ *emptypb.Empty) (*pb.GetCaddyConfigResponse, error) {
 	caddyfile, modifiedAt, err := s.service.Caddyfile()
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
+			if lastErr := s.service.LastReconciliationError(); lastErr != nil {
+				return nil, status.Errorf(codes.NotFound, "%v; last Caddy config load failed: %v", err, lastErr)
+			}
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	recErr := ""
+	if lastErr := s.service.LastReconciliationError(); lastErr != nil {
+		recErr = lastErr.Error()
+	}
 	return &pb.GetCaddyConfigResponse{
-		Caddyfile:  caddyfile,
-		ModifiedAt: timestamppb.New(modifiedAt),
+		Caddyfile:               caddyfile,
+		ModifiedAt:              timestamppb.New(modifiedAt),
+		LastReconciliationError: recErr,
 	}, nil
 }

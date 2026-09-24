@@ -13,8 +13,10 @@ service Caddy {
 }
 
 message GetCaddyConfigResponse {
-  // The generated Caddyfile content.
+  // The saved Caddyfile content.
   string caddyfile = 1;
   // Timestamp when the config was last modified.
   google.protobuf.Timestamp modified_at = 2;
+  // Error from the latest unsuccessful reconciliation attempt.
+  string last_reconciliation_error = 3;
 }

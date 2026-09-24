@@ -208,10 +208,11 @@ http://app.example.com {
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Validator is not expected to be called in these tests.
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil)
+			validator := NewMockCaddyfileValidator(t)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
 
-			config, err := generator.Generate(ctx, tt.containers, true)
+			caddyCtr := newContainerRecordWithCaddyConfig("caddy", "10.210.0.1", "", "", time.Now()).Container
+			config, err := generator.Generate(ctx, caddyCtr, tt.containers, false)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -332,7 +333,7 @@ bad.template.com {
 `,
 		},
 		{
-			name: "caddy service with invalid global config is skipped",
+			name: "caddy service with invalid global config aborts",
 			containers: []store.ContainerRecord{
 				newContainerRecordWithCaddyConfig(
 					"caddy",
@@ -345,10 +346,7 @@ localhost {
 					time.Now(),
 				),
 			},
-			want: testCaddyfileHeader + `
-# Skipped invalid user-defined configs:
-# - service 'caddy': validation failed: invalid config detected
-`,
+			wantErr: true,
 		},
 		{
 			name: "caddy service on different machine is ignored",
@@ -786,7 +784,7 @@ web-v2.example.com {
 `,
 		},
 		{
-			name: "multiple errors: invalid global, template error, and validation error",
+			name: "invalid global aborts before application configs",
 			containers: []store.ContainerRecord{
 				newContainerRecordWithCaddyConfig(
 					"caddy",
@@ -827,17 +825,7 @@ invalid.example.com {
 					time.Now(),
 				),
 			},
-			want: testCaddyfileHeader + `
-# User-defined config for service 'valid'.
-valid.example.com {
-	respond "Valid config"
-}
-
-# Skipped invalid user-defined configs:
-# - service 'caddy': validation failed: invalid config detected
-# - service 'broken-template': failed to render template: parse config as Go template: template: Caddyfile:2: unterminated quoted string
-# - service 'invalid': validation failed: invalid config detected
-`,
+			wantErr: true,
 		},
 	}
 
@@ -846,7 +834,7 @@ valid.example.com {
 	validator.EXPECT().Validate(mock.Anything, mock.Anything).RunAndReturn(
 		func(ctx context.Context, caddyfile string) error {
 			if strings.Contains(caddyfile, "# test:invalid") {
-				return errors.New("invalid config detected")
+				return &InvalidCaddyfileError{Message: "invalid config detected"}
 			}
 			return nil
 		})
@@ -855,7 +843,8 @@ valid.example.com {
 		t.Run(tt.name, func(t *testing.T) {
 			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
 
-			config, err := generator.Generate(ctx, tt.containers, true)
+			caddyCtr := caddyContainerFromTestContainers(tt.containers)
+			config, err := generator.Generate(ctx, caddyCtr, tt.containers, false)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -866,6 +855,167 @@ valid.example.com {
 			assert.Equal(t, tt.want, normaliseGeneratedTimestamp(config), "Generated Caddyfile doesn't match")
 		})
 	}
+}
+
+func TestCaddyfileGeneratorBootstrap(t *testing.T) {
+	// Bootstrap keeps the local Caddy container's globals and generated routes, but omits application custom configs.
+	tests := []struct {
+		name       string
+		containers []store.ContainerRecord
+		want       string
+	}{
+		{
+			name: "global config retained and application custom configs skipped",
+			containers: []store.ContainerRecord{
+				newContainerRecordWithCaddyConfig(
+					"caddy",
+					"10.210.0.1",
+					`# Global config
+{
+	global directive
+}`,
+					"test-machine-id",
+					time.Now(),
+				),
+				newContainerRecordWithCaddyConfig(
+					"web",
+					"10.210.0.2",
+					`web.example.com {
+	reverse_proxy web:3000
+}`,
+					"test-machine-id",
+					time.Now(),
+				),
+				newContainerRecordWithPorts(
+					"api",
+					"10.210.0.3",
+					[]string{"api.example.com:8080/http"},
+					"test-machine-id",
+				),
+			},
+			want: strings.Replace(testCaddyfileHeader, "\n\n# Health check endpoint", `
+# Uncloud bootstrap for Caddy container caddy-10.210.0.1
+
+# User-defined global config from service 'caddy'.
+# Global config
+{
+	global directive
+}
+
+# Health check endpoint`, 1) + `
+# Sites generated from service ports.
+
+http://api.example.com {
+	reverse_proxy 10.210.0.3:8080 {
+		import common_proxy
+	}
+	log
+}
+`,
+		},
+		{
+			name: "no containers with x-caddy configs",
+			containers: []store.ContainerRecord{
+				newContainerRecordWithPorts(
+					"api",
+					"10.210.0.3",
+					[]string{"api.example.com:8080/http"},
+					"test-machine-id",
+				),
+			},
+			want: strings.Replace(testCaddyfileHeader, "\n\n# Health check endpoint", `
+# Uncloud bootstrap for Caddy container caddy-10.210.0.1
+
+# Health check endpoint`, 1) + `
+# Sites generated from service ports.
+
+http://api.example.com {
+	reverse_proxy 10.210.0.3:8080 {
+		import common_proxy
+	}
+	log
+}
+`,
+		},
+	}
+
+	ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			validator := NewMockCaddyfileValidator(t)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+
+			caddyContainer := caddyContainerFromTestContainers(tt.containers)
+			config, err := generator.Generate(ctx, caddyContainer, tt.containers, true)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, normaliseGeneratedTimestamp(config), "Generated Caddyfile doesn't match")
+		})
+	}
+}
+
+func TestCaddyfileGenerator_ValidatorTransportErrorAbortsGeneration(t *testing.T) {
+	validator := NewMockCaddyfileValidator(t)
+	validator.EXPECT().Validate(mock.Anything, mock.Anything).Return(errors.New("socket disappeared"))
+
+	generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+	app := newContainerRecordWithCaddyConfig(
+		"web",
+		"10.210.0.2",
+		"web.example.com { respond ok }",
+		"test-machine-id",
+		time.Now(),
+	)
+
+	_, err := generator.Generate(context.Background(), caddyContainerFromTestContainers(nil),
+		[]store.ContainerRecord{app}, false)
+	require.ErrorContains(t, err, "socket disappeared")
+}
+
+func newContainer(ip string, ports ...string) api.ServiceContainer {
+	portsLabel := strings.Join(ports, ",")
+	return api.ServiceContainer{Container: api.Container{InspectResponse: container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{
+			State: &container.State{
+				Running: true,
+			},
+		},
+		NetworkSettings: &container.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				docker.NetworkName: {
+					IPAddress: ip,
+				},
+			},
+		},
+		Config: &container.Config{
+			Labels: map[string]string{
+				api.LabelServicePorts: portsLabel,
+			},
+		},
+	}}}
+}
+
+func newContainerWithoutNetwork(ports ...string) api.ServiceContainer {
+	portsLabel := strings.Join(ports, ",")
+	return api.ServiceContainer{Container: api.Container{InspectResponse: container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{
+			State: &container.State{
+				Running: true,
+			},
+		},
+		NetworkSettings: &container.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				"other-network": {
+					IPAddress: "172.17.0.2",
+				},
+			},
+		},
+		Config: &container.Config{
+			Labels: map[string]string{
+				api.LabelServicePorts: portsLabel,
+			},
+		},
+	}}}
 }
 
 func newContainerRecord(ctr api.ServiceContainer, machineID string) store.ContainerRecord {
@@ -911,100 +1061,6 @@ func newContainerRecordWithCaddyConfig(serviceName, ip, caddyConfig, machineID s
 	}
 }
 
-func TestCaddyfileGeneratorWithoutCustomConfigs(t *testing.T) {
-	// Test that when includeCustom is false (Caddy not available), x-caddy configs are skipped.
-	tests := []struct {
-		name       string
-		containers []store.ContainerRecord
-		want       string
-	}{
-		{
-			name: "x-caddy configs are skipped",
-			containers: []store.ContainerRecord{
-				newContainerRecordWithCaddyConfig(
-					"caddy",
-					"10.210.0.1",
-					`# Global config
-{
-	global directive
-}`,
-					"test-machine-id",
-					time.Now(),
-				),
-				newContainerRecordWithCaddyConfig(
-					"web",
-					"10.210.0.2",
-					`web.example.com {
-	reverse_proxy web:3000
-}`,
-					"test-machine-id",
-					time.Now(),
-				),
-				newContainerRecordWithPorts(
-					"api",
-					"10.210.0.3",
-					[]string{"api.example.com:8080/http"},
-					"test-machine-id",
-				),
-			},
-			want: testCaddyfileHeader + `
-# Sites generated from service ports.
-
-http://api.example.com {
-	reverse_proxy 10.210.0.3:8080 {
-		import common_proxy
-	}
-	log
-}
-
-# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine
-#       (not accessible via the shared admin socket /run/uncloud/caddy/admin.sock) or the latest
-#       generated config is invalid. Please check the service 'caddy' is running (uc inspect caddy)
-#       and its logs for more details (uc logs caddy).
-`,
-		},
-		{
-			name: "no containers with x-caddy configs",
-			containers: []store.ContainerRecord{
-				newContainerRecordWithPorts(
-					"api",
-					"10.210.0.3",
-					[]string{"api.example.com:8080/http"},
-					"test-machine-id",
-				),
-			},
-			want: testCaddyfileHeader + `
-# Sites generated from service ports.
-
-http://api.example.com {
-	reverse_proxy 10.210.0.3:8080 {
-		import common_proxy
-	}
-	log
-}
-
-# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine
-#       (not accessible via the shared admin socket /run/uncloud/caddy/admin.sock) or the latest
-#       generated config is invalid. Please check the service 'caddy' is running (uc inspect caddy)
-#       and its logs for more details (uc logs caddy).
-`,
-		},
-	}
-
-	ctx := context.Background()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Validator is not expected to be called in these tests.
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, nil)
-
-			config, err := generator.Generate(ctx, tt.containers, false)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.want, normaliseGeneratedTimestamp(config), "Generated Caddyfile doesn't match")
-		})
-	}
-}
-
 func newContainerRecordWithPorts(serviceName, ip string, ports []string, machineID string) store.ContainerRecord {
 	portsLabel := strings.Join(ports, ",")
 	return store.ContainerRecord{
@@ -1036,4 +1092,19 @@ func newContainerRecordWithPorts(serviceName, ip string, ports []string, machine
 		},
 		MachineID: machineID,
 	}
+}
+
+// caddyContainerFromTestContainers returns the local Caddy container from the provided test containers,
+// or creates a default one if not found.
+func caddyContainerFromTestContainers(records []store.ContainerRecord) api.ServiceContainer {
+	if caddyCtr := selectLocalCaddyContainer(records, "test-machine-id"); caddyCtr != nil {
+		return *caddyCtr
+	}
+	return newContainerRecordWithCaddyConfig(
+		"caddy",
+		"10.210.0.1",
+		"",
+		"test-machine-id",
+		time.Now(),
+	).Container
 }

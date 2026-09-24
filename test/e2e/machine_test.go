@@ -10,6 +10,7 @@ import (
 	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -456,6 +457,23 @@ func TestMachineOperations(t *testing.T) {
 	})
 
 	t.Run("remove machine clears container records from cluster store", func(t *testing.T) {
+		// The Caddy controller needs a local Caddy container to supply the global config before it can generate
+		// routes. Place it on the connected machine by ID because earlier tests rename that machine.
+		caddyDeployment, err := cli.NewCaddyDeployment("", "", api.Placement{
+			Machines: []string{c.Machines[0].ID},
+		})
+		require.NoError(t, err)
+		monitorPeriod := 5 * time.Second
+		caddyDeployment.Spec.UpdateConfig.MonitorPeriod = &monitorPeriod
+		_, err = caddyDeployment.Run(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			err := cli.RemoveService(ctx, client.CaddyServiceName)
+			if err != nil && !errors.Is(err, api.ErrNotFound) {
+				assert.NoError(t, err)
+			}
+		})
+
 		// Deploy a global service with an HTTP ingress port so the auto-generated Caddyfile lists
 		// each container's IP as an upstream.
 		serviceName := "test-machine-rm-cleanup"

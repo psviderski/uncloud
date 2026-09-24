@@ -27,6 +27,8 @@ import (
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newServiceID() string {
@@ -42,6 +44,9 @@ func TestDeployment(t *testing.T) {
 
 	clusterName := "ucind-test.deployment"
 	ctx := context.Background()
+	// Caddy may restart once while the controller writes its bootstrap file. Use the normal deployment monitor period
+	// instead of the zero-duration override used by most e2e tests.
+	caddyMonitorPeriod := 5 * time.Second
 	c, _ := createTestCluster(t, clusterName, ucind.CreateClusterOptions{Machines: 3}, true)
 
 	cli, cErr := c.Machines[0].Connect(ctx)
@@ -313,6 +318,7 @@ func TestDeployment(t *testing.T) {
 
 		deployment, err := cli.NewCaddyDeployment("", "", api.Placement{})
 		require.NoError(t, err)
+		deployment.Spec.UpdateConfig.MonitorPeriod = &caddyMonitorPeriod
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -345,6 +351,7 @@ func TestDeployment(t *testing.T) {
 			Machines: []string{c.Machines[0].Name},
 		})
 		require.NoError(t, err)
+		deployment.Spec.UpdateConfig.MonitorPeriod = &caddyMonitorPeriod
 		image := deployment.Spec.Container.Image
 
 		_, err = deployment.Run(ctx)
@@ -361,6 +368,7 @@ func TestDeployment(t *testing.T) {
 		// Deploy to all machines without a placement constraint.
 		deployment, err = cli.NewCaddyDeployment(image, "", api.Placement{})
 		require.NoError(t, err)
+		deployment.Spec.UpdateConfig.MonitorPeriod = &caddyMonitorPeriod
 
 		_, err = deployment.Run(ctx)
 		require.NoError(t, err)
@@ -391,6 +399,13 @@ func TestDeployment(t *testing.T) {
 			}
 		})
 
+		// Without a Caddy container, the controller has no global config to pair with application configs. Keep any
+		// previously saved Caddyfile unchanged rather than publishing a new one without Caddy's global settings.
+		savedBefore, savedBeforeErr := cli.Caddy.GetConfig(ctx, nil)
+		if savedBeforeErr != nil {
+			require.Equal(t, codes.NotFound, status.Code(savedBeforeErr))
+		}
+
 		// First deploy a service with custom caddy config before caddy is deployed.
 		serviceCaddyfile := `test-custom-caddy-config.example.com {
 	reverse_proxy {{upstreams}} {
@@ -416,17 +431,13 @@ func TestDeployment(t *testing.T) {
 		require.NoError(t, err)
 		assertServiceMatchesSpec(t, svc, spec)
 
-		// Check that the generated Caddyfile contains a comment that user-define configs were skipped.
-		var config *pb.GetCaddyConfigResponse
-		require.Eventually(t, func() bool {
-			config, err = cli.Caddy.GetConfig(ctx, nil)
-			if err != nil {
-				return false
+		require.Never(t, func() bool {
+			current, currentErr := cli.Caddy.GetConfig(ctx, nil)
+			if savedBeforeErr != nil {
+				return currentErr == nil
 			}
-			return strings.Contains(config.Caddyfile, "# NOTE: User-defined configs for services were skipped")
-		}, 5*time.Second, 100*time.Millisecond)
-
-		assert.NotContains(t, config.Caddyfile, "test-custom-caddy-config.example.com {")
+			return currentErr == nil && current.Caddyfile != savedBefore.Caddyfile
+		}, 2*time.Second, 100*time.Millisecond)
 
 		// Now deploy caddy with custom config.
 		caddyCaddyfile := `{
@@ -438,6 +449,7 @@ myapp.example.com {
 }`
 		caddyDeployment, err := cli.NewCaddyDeployment("", caddyCaddyfile, api.Placement{})
 		require.NoError(t, err)
+		caddyDeployment.Spec.UpdateConfig.MonitorPeriod = &caddyMonitorPeriod
 
 		_, err = caddyDeployment.Run(ctx)
 		require.NoError(t, err)
@@ -447,6 +459,7 @@ myapp.example.com {
 		assertServiceMatchesSpec(t, caddySvc, caddyDeployment.Spec)
 
 		// Wait for the Caddyfile to be regenerated with both custom configs.
+		var config *pb.GetCaddyConfigResponse
 		require.Eventually(t, func() bool {
 			config, err = cli.Caddy.GetConfig(ctx, nil)
 			if err != nil {
