@@ -1,13 +1,22 @@
 # uc dns set
 
-Set a cluster domain directly in the cluster.
+Set or unset an externally managed cluster domain (EXPERIMENTAL).
 
 ## Synopsis
 
-Set a cluster domain directly in the cluster, bypassing Uncloud DNS. This assumes the DNS is externally set up.
+EXPERIMENTAL: Set the cluster domain used to generate ingress hostnames for services.
+Configure wildcard DNS records for this domain with your DNS provider. Uncloud will not create, verify, update, or delete external DNS records.
+Pass an empty string to unset a manually set domain. Use 'uc dns release' to release a domain reserved in Uncloud DNS. Setting or unsetting the domain does not change existing service hostnames.
 
 ```
 uc dns set DOMAIN_NAME [flags]
+```
+
+## Examples
+
+```
+  uc dns set apps.example.com
+  uc dns set ""
 ```
 
 ## Options
@@ -27,5 +36,5 @@ uc dns set DOMAIN_NAME [flags]
 
 ## See also
 
-* [uc dns](uc_dns.md)	 - Manage cluster domain in Uncloud DNS.
+* [uc dns](uc_dns.md)	 - Manage the cluster domain.
 

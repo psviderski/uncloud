@@ -38,7 +38,7 @@ type ClusterClient interface {
 	ListMachines(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListMachinesResponse, error)
 	RemoveMachine(ctx context.Context, in *RemoveMachineRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReserveDomain(ctx context.Context, in *ReserveDomainRequest, opts ...grpc.CallOption) (*Domain, error)
-	SetDomain(ctx context.Context, in *SetDomainRequest, opts ...grpc.CallOption) (*Domain, error)
+	SetDomain(ctx context.Context, in *SetDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	ReleaseDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	CreateDomainRecords(ctx context.Context, in *CreateDomainRecordsRequest, opts ...grpc.CallOption) (*CreateDomainRecordsResponse, error)
@@ -92,9 +92,9 @@ func (c *clusterClient) ReserveDomain(ctx context.Context, in *ReserveDomainRequ
 	return out, nil
 }
 
-func (c *clusterClient) SetDomain(ctx context.Context, in *SetDomainRequest, opts ...grpc.CallOption) (*Domain, error) {
+func (c *clusterClient) SetDomain(ctx context.Context, in *SetDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Domain)
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Cluster_SetDomain_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ type ClusterServer interface {
 	ListMachines(context.Context, *emptypb.Empty) (*ListMachinesResponse, error)
 	RemoveMachine(context.Context, *RemoveMachineRequest) (*emptypb.Empty, error)
 	ReserveDomain(context.Context, *ReserveDomainRequest) (*Domain, error)
-	SetDomain(context.Context, *SetDomainRequest) (*Domain, error)
+	SetDomain(context.Context, *SetDomainRequest) (*emptypb.Empty, error)
 	GetDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	ReleaseDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	CreateDomainRecords(context.Context, *CreateDomainRecordsRequest) (*CreateDomainRecordsResponse, error)
@@ -166,7 +166,7 @@ func (UnimplementedClusterServer) RemoveMachine(context.Context, *RemoveMachineR
 func (UnimplementedClusterServer) ReserveDomain(context.Context, *ReserveDomainRequest) (*Domain, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReserveDomain not implemented")
 }
-func (UnimplementedClusterServer) SetDomain(context.Context, *SetDomainRequest) (*Domain, error) {
+func (UnimplementedClusterServer) SetDomain(context.Context, *SetDomainRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetDomain not implemented")
 }
 func (UnimplementedClusterServer) GetDomain(context.Context, *emptypb.Empty) (*Domain, error) {

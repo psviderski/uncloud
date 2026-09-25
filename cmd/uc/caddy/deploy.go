@@ -202,6 +202,10 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 		}
 		return fmt.Errorf("get cluster domain: %w", err)
 	}
+	if !domain.Reserved {
+		fmt.Printf("Skipping DNS records update as cluster domain '%s' is managed externally.\n", domain.Name)
+		return nil
+	}
 
 	fmt.Println("Updating cluster domain records in Uncloud DNS to point to machines running caddy service...")
 	// TODO: split the method into two: one to get the records and one to update them to ask for update confirmation.
@@ -216,7 +220,7 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 		if errors.Is(err, client.ErrNoReachableMachines) {
 			fmt.Println()
 			fmt.Printf("DNS records for domain '%s' could not be updated as there are no internet-reachable "+
-				"machines running caddy containers.\n", domain)
+				"machines running caddy containers.\n", domain.Name)
 			fmt.Println()
 			fmt.Println("Possible solutions:")
 			fmt.Println("- Ensure your machines have public IP addresses")
