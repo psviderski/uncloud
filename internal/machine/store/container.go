@@ -92,6 +92,9 @@ func normaliseContainerForStore(ctr *api.ServiceContainer) {
 	// Remove the environment variables to avoid leaking secrets.
 	ctr.Config.Env = nil
 	ctr.ServiceSpec.Container.Env = nil
+	if ctr.ServiceSpec.PreDeploy != nil {
+		ctr.ServiceSpec.PreDeploy.Env = nil
+	}
 
 	// Docker returns Mounts in a non-deterministic order so sort them.
 	slices.SortFunc(ctr.Mounts, func(a, b container.MountPoint) int {
