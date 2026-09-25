@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 // ErrInvalidStoreVersion indicates an invalid actor UUID in a store version vector.
@@ -27,7 +28,7 @@ var ErrInvalidStoreVersion = errors.New("invalid store version")
 //
 // The method observes native replication without initiating synchronisation.
 // An empty minVersion requires no replication. The context controls cancellation and the deadline.
-func (s *Store) WaitForVersion(ctx context.Context, minVersion map[string]uint64) error {
+func (s *Store) WaitForVersion(ctx context.Context, minVersion api.StoreVersion) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

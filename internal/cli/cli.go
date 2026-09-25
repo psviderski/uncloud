@@ -458,7 +458,7 @@ func (cli *CLI) AddMachine(ctx context.Context, opts AddMachineOptions) (_ *clie
 	}
 
 	// Snapshot the cluster store version so the new machine can catch up before participating.
-	var storeVersion map[string]uint64
+	var storeVersion api.StoreVersion
 	inspectResp, err = c.MachineClient.InspectMachine(ctx, &emptypb.Empty{})
 	if err != nil {
 		// TODO(lhf): remove Unimplemented check when v0.17.0 is released.

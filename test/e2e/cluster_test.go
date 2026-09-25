@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/ucind"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/distlock"
 	"github.com/stretchr/testify/assert"
@@ -195,25 +196,23 @@ func TestClusterLifecycle(t *testing.T) {
 			clients[i] = cli
 		}
 
-		storeVersion := func(clis ...*client.Client) map[string]uint64 {
+		storeVersion := func(clis ...*client.Client) api.StoreVersion {
 			t.Helper()
 			callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			version := make(map[string]uint64)
+			version := make(api.StoreVersion)
 			for _, cli := range clis {
-				resp, err := cli.MachineClient.InspectMachine(callCtx, &emptypb.Empty{})
+				resp, err := cli.MachineClient.InspectMachine(callCtx, nil)
 				require.NoError(t, err)
 				require.Len(t, resp.Machines, 1)
 				m := resp.Machines[0]
 				require.Len(t, m.StoreVersion, 3)
-				for actor, v := range m.StoreVersion {
-					version[actor] = max(version[actor], v)
-				}
+				version.MergeMax(m.StoreVersion)
 			}
 			return version
 		}
-		waitForStoreVersion := func(cli *client.Client, version map[string]uint64) {
+		waitForStoreVersion := func(cli *client.Client, version api.StoreVersion) {
 			t.Helper()
 			waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
@@ -352,12 +351,12 @@ func TestClusterLifecycle(t *testing.T) {
 		})
 
 		t.Run("zero version for unknown actor", func(t *testing.T) {
-			err := cli.WaitForStoreVersion(ctx, map[string]uint64{uuid.NewString(): 0})
+			err := cli.WaitForStoreVersion(ctx, api.StoreVersion{uuid.NewString(): 0})
 			require.NoError(t, err)
 		})
 
 		t.Run("invalid actor UUID", func(t *testing.T) {
-			err := cli.WaitForStoreVersion(ctx, map[string]uint64{"not-a-uuid": 1})
+			err := cli.WaitForStoreVersion(ctx, api.StoreVersion{"not-a-uuid": 1})
 			require.Equal(t, codes.InvalidArgument, status.Code(err))
 		})
 
@@ -366,7 +365,7 @@ func TestClusterLifecycle(t *testing.T) {
 			defer cancel()
 
 			// Background writes cannot satisfy a target for an actor that does not exist.
-			err := cli.WaitForStoreVersion(waitCtx, map[string]uint64{uuid.NewString(): 1})
+			err := cli.WaitForStoreVersion(waitCtx, api.StoreVersion{uuid.NewString(): 1})
 			require.Equal(t, codes.DeadlineExceeded, status.Code(err))
 		})
 
@@ -386,7 +385,7 @@ func TestClusterLifecycle(t *testing.T) {
 			timer := time.AfterFunc(500*time.Millisecond, cancel)
 			defer timer.Stop()
 
-			err := cli.WaitForStoreVersion(waitCtx, map[string]uint64{uuid.NewString(): 1})
+			err := cli.WaitForStoreVersion(waitCtx, api.StoreVersion{uuid.NewString(): 1})
 			require.Equal(t, codes.Canceled, status.Code(err))
 		})
 	})

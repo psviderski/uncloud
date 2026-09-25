@@ -10,6 +10,7 @@ import (
 
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 const (
@@ -31,7 +32,7 @@ type State struct {
 	// MinStoreVersion is the cluster store version this machine must reach before participating.
 	// Per-actor vector (Corrosion actor UUID → max processed db_version) captured from an existing
 	// member at join time. Cleared once reached.
-	MinStoreVersion map[string]uint64 `json:",omitempty"`
+	MinStoreVersion api.StoreVersion `json:",omitempty"`
 	// CorrosionAPIToken authenticates requests to the local Corrosion API.
 	CorrosionAPIToken secret.Secret `json:",omitempty"`
 

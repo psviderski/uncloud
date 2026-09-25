@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/distlock"
 )
@@ -102,7 +103,7 @@ func (s *Storage) Lock(ctx context.Context, name string) (err error) {
 }
 
 // clusterStoreVersion returns the per-actor maximum store versions from responding machines and their names.
-func (s *Storage) clusterStoreVersion(ctx context.Context, log *slog.Logger) (map[string]uint64, []string, error) {
+func (s *Storage) clusterStoreVersion(ctx context.Context, log *slog.Logger) (api.StoreVersion, []string, error) {
 	ctx, cancel := context.WithTimeout(ctx, distlock.DefaultMaxNodeCallTimeout)
 	defer cancel()
 	resp, err := s.client.MachineClient.InspectMachine(client.ProxyMachinesContext(ctx, nil), nil)
@@ -110,7 +111,7 @@ func (s *Storage) clusterStoreVersion(ctx context.Context, log *slog.Logger) (ma
 		return nil, nil, fmt.Errorf("inspect machines for store versions: %w", err)
 	}
 
-	maxVersion := make(map[string]uint64)
+	maxVersion := make(api.StoreVersion)
 	machines := make([]string, 0, len(resp.Machines))
 	for _, m := range resp.Machines {
 		if m.Metadata.Error != "" {
@@ -119,9 +120,7 @@ func (s *Storage) clusterStoreVersion(ctx context.Context, log *slog.Logger) (ma
 			continue
 		}
 		machines = append(machines, m.Metadata.MachineName)
-		for actor, v := range m.StoreVersion {
-			maxVersion[actor] = max(maxVersion[actor], v)
-		}
+		maxVersion.MergeMax(m.StoreVersion)
 	}
 	slices.Sort(machines)
 	return maxVersion, machines, nil

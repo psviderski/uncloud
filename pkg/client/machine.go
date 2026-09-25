@@ -157,7 +157,7 @@ func (cli *Client) WaitClusterReady(ctx context.Context, timeout time.Duration) 
 //
 // Success does not guarantee an exact snapshot or delivery of every historical value.
 // Callers that require a specific record or condition should verify it after waiting.
-func (cli *Client) WaitForStoreVersion(ctx context.Context, minVersion map[string]uint64) error {
+func (cli *Client) WaitForStoreVersion(ctx context.Context, minVersion api.StoreVersion) error {
 	_, err := cli.MachineClient.WaitForStoreVersion(ctx, &pb.WaitForStoreVersionRequest{MinVersion: minVersion})
 	return err
 }
