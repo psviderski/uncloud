@@ -459,8 +459,8 @@ func TestMachineOperations(t *testing.T) {
 	t.Run("remove machine clears container records from cluster store", func(t *testing.T) {
 		// The Caddy controller needs a local Caddy container to supply the global config before it can generate
 		// routes. Place it on the connected machine by ID because earlier tests rename that machine.
-		caddyDeployment, err := cli.NewCaddyDeployment("", "", api.Placement{
-			Machines: []string{c.Machines[0].ID},
+		caddyDeployment, err := cli.Caddy.NewDeployment(ctx, client.CaddyDeploymentOptions{
+			Placement: api.Placement{Machines: []string{c.Machines[0].ID}},
 		})
 		require.NoError(t, err)
 		monitorPeriod := 5 * time.Second
@@ -513,7 +513,7 @@ func TestMachineOperations(t *testing.T) {
 
 		// The Caddyfile contains both upstream IPs before the machine removal.
 		require.Eventually(t, func() bool {
-			cfg, err := cli.Caddy.GetConfig(ctx, nil)
+			cfg, err := cli.Caddy.Config(ctx, client.CaddyConfigOptions{})
 			if err != nil {
 				return false
 			}
@@ -528,7 +528,7 @@ func TestMachineOperations(t *testing.T) {
 		// so the Caddy controller regenerates a Caddyfile without that upstream while keeping the
 		// upstreams for the still-running containers.
 		require.Eventually(t, func() bool {
-			cfg, err := cli.Caddy.GetConfig(ctx, nil)
+			cfg, err := cli.Caddy.Config(ctx, client.CaddyConfigOptions{})
 			if err != nil {
 				return false
 			}

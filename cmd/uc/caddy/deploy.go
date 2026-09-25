@@ -110,7 +110,9 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	placement := api.Placement{
 		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
 	}
-	d, err := clusterClient.NewCaddyDeployment(opts.image, caddyfile, placement)
+	d, err := clusterClient.Caddy.NewDeployment(ctx, client.CaddyDeploymentOptions{
+		Image: opts.image, Config: caddyfile, Placement: placement,
+	})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}

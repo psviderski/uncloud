@@ -20,11 +20,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CaddyStorage_Store_FullMethodName  = "/api.CaddyStorage/Store"
-	CaddyStorage_Load_FullMethodName   = "/api.CaddyStorage/Load"
-	CaddyStorage_Delete_FullMethodName = "/api.CaddyStorage/Delete"
-	CaddyStorage_List_FullMethodName   = "/api.CaddyStorage/List"
-	CaddyStorage_Stat_FullMethodName   = "/api.CaddyStorage/Stat"
+	CaddyStorage_Store_FullMethodName            = "/api.CaddyStorage/Store"
+	CaddyStorage_Load_FullMethodName             = "/api.CaddyStorage/Load"
+	CaddyStorage_Delete_FullMethodName           = "/api.CaddyStorage/Delete"
+	CaddyStorage_List_FullMethodName             = "/api.CaddyStorage/List"
+	CaddyStorage_Stat_FullMethodName             = "/api.CaddyStorage/Stat"
+	CaddyStorage_ListCertificates_FullMethodName = "/api.CaddyStorage/ListCertificates"
 )
 
 // CaddyStorageClient is the client API for CaddyStorage service.
@@ -42,6 +43,9 @@ type CaddyStorageClient interface {
 	Delete(ctx context.Context, in *DeleteCaddyStorageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	List(ctx context.Context, in *ListCaddyStorageRequest, opts ...grpc.CallOption) (*ListCaddyStorageResponse, error)
 	Stat(ctx context.Context, in *StatCaddyStorageRequest, opts ...grpc.CallOption) (*StatCaddyStorageResponse, error)
+	// ListCertificates lists certificates issued by Caddy and stored in the cluster store.
+	// Unreadable entries and invalid resource metadata are skipped. Chains and issuer data are returned as stored.
+	ListCertificates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListCertificatesResponse, error)
 }
 
 type caddyStorageClient struct {
@@ -102,6 +106,16 @@ func (c *caddyStorageClient) Stat(ctx context.Context, in *StatCaddyStorageReque
 	return out, nil
 }
 
+func (c *caddyStorageClient) ListCertificates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListCertificatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCertificatesResponse)
+	err := c.cc.Invoke(ctx, CaddyStorage_ListCertificates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CaddyStorageServer is the server API for CaddyStorage service.
 // All implementations must embed UnimplementedCaddyStorageServer
 // for forward compatibility.
@@ -117,6 +131,9 @@ type CaddyStorageServer interface {
 	Delete(context.Context, *DeleteCaddyStorageRequest) (*emptypb.Empty, error)
 	List(context.Context, *ListCaddyStorageRequest) (*ListCaddyStorageResponse, error)
 	Stat(context.Context, *StatCaddyStorageRequest) (*StatCaddyStorageResponse, error)
+	// ListCertificates lists certificates issued by Caddy and stored in the cluster store.
+	// Unreadable entries and invalid resource metadata are skipped. Chains and issuer data are returned as stored.
+	ListCertificates(context.Context, *emptypb.Empty) (*ListCertificatesResponse, error)
 	mustEmbedUnimplementedCaddyStorageServer()
 }
 
@@ -141,6 +158,9 @@ func (UnimplementedCaddyStorageServer) List(context.Context, *ListCaddyStorageRe
 }
 func (UnimplementedCaddyStorageServer) Stat(context.Context, *StatCaddyStorageRequest) (*StatCaddyStorageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Stat not implemented")
+}
+func (UnimplementedCaddyStorageServer) ListCertificates(context.Context, *emptypb.Empty) (*ListCertificatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCertificates not implemented")
 }
 func (UnimplementedCaddyStorageServer) mustEmbedUnimplementedCaddyStorageServer() {}
 func (UnimplementedCaddyStorageServer) testEmbeddedByValue()                      {}
@@ -253,6 +273,24 @@ func _CaddyStorage_Stat_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CaddyStorage_ListCertificates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CaddyStorageServer).ListCertificates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CaddyStorage_ListCertificates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CaddyStorageServer).ListCertificates(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CaddyStorage_ServiceDesc is the grpc.ServiceDesc for CaddyStorage service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +317,10 @@ var CaddyStorage_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Stat",
 			Handler:    _CaddyStorage_Stat_Handler,
+		},
+		{
+			MethodName: "ListCertificates",
+			Handler:    _CaddyStorage_ListCertificates_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

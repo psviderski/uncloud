@@ -9,6 +9,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -47,12 +48,7 @@ func runConfig(ctx context.Context, uncli *cli.CLI, opts configOptions) error {
 	}
 	defer clusterClient.Close()
 
-	if opts.machine != "" {
-		// If a specific machine is requested, use it to get the Caddy configuration.
-		ctx = clusterClient.ProxySingleMachineContext(ctx, opts.machine)
-	}
-
-	config, err := clusterClient.Caddy.GetConfig(ctx, nil)
+	config, err := clusterClient.Caddy.Config(ctx, client.CaddyConfigOptions{Machine: opts.machine})
 	if err != nil {
 		return fmt.Errorf("get Caddy config: %w", err)
 	}
