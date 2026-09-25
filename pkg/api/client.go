@@ -36,7 +36,7 @@ type ContainerClient interface {
 }
 
 type DNSClient interface {
-	GetDomain(ctx context.Context) (string, error)
+	GetDomain(ctx context.Context) (ClusterDomain, error)
 }
 
 type ImageClient interface {

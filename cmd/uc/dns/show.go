@@ -33,11 +33,11 @@ func show(ctx context.Context, uncli *cli.CLI) error {
 	domain, err := clusterClient.GetDomain(ctx)
 	if err != nil {
 		if errors.Is(err, api.ErrNotFound) {
-			return errors.New("no domain reserved")
+			return errors.New("no cluster domain configured")
 		}
 		return err
 	}
 
-	fmt.Println(domain)
+	fmt.Println(domain.Name)
 	return nil
 }

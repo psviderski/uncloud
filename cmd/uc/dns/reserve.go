@@ -49,7 +49,8 @@ func reserve(ctx context.Context, uncli *cli.CLI, opts reserveOptions) error {
 	domain, err := clusterClient.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.endpoint})
 	if err != nil {
 		if status.Convert(err).Code() == codes.AlreadyExists {
-			return errors.New("domain already reserved")
+			return errors.New("cluster domain already configured, unset it with 'uc dns set \"\"' " +
+				"or release a reservation with 'uc dns release' first")
 		}
 		return err
 	}

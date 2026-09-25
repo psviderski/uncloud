@@ -1,16 +1,28 @@
-# uc dns reserve
+# uc dns set
 
-Reserve a cluster domain in Uncloud DNS.
+Set or unset an externally managed cluster domain (EXPERIMENTAL).
+
+## Synopsis
+
+EXPERIMENTAL: Set the cluster domain used to generate ingress hostnames for services.
+Configure wildcard DNS records for this domain with your DNS provider. Uncloud will not create, verify, update, or delete external DNS records.
+Pass an empty string to unset a manually set domain. Use 'uc dns release' to release a domain reserved in Uncloud DNS. Setting or unsetting the domain does not change existing service hostnames.
 
 ```
-uc dns reserve [flags]
+uc dns set DOMAIN_NAME [flags]
+```
+
+## Examples
+
+```
+  uc dns set apps.example.com
+  uc dns set ""
 ```
 
 ## Options
 
 ```
-      --endpoint string   API endpoint for the Uncloud DNS service. (default "https://dns.uncloud.run/v1")
-  -h, --help              help for reserve
+  -h, --help   help for set
 ```
 
 ## Options inherited from parent commands
