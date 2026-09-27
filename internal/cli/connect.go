@@ -44,8 +44,18 @@ func connectClusterWithProgress(ctx context.Context, conn config.MachineConnecti
 		return cli, err
 	}
 
-	// Render to stderr so stdout stays clean for command output.
-	p := tea.NewProgram(newConnectModel(ctx, conn), tea.WithOutput(os.Stderr), tea.WithInput(nil))
+	// Run the connection TUI model. Render to stderr so stdout stays clean for command output.
+	p := tea.NewProgram(newConnectModel(ctx, conn),
+		tea.WithOutput(os.Stderr),
+		tea.WithInput(nil),
+		// Ctrl+C handling
+		tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
+			if _, ok := msg.(tea.InterruptMsg); ok {
+				return connectResultMsg{err: errors.New("connection cancelled")}
+			}
+			return msg
+		}),
+	)
 	model, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("run connection TUI: %w", err)
