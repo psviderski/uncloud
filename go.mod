@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	charm.land/bubbles/v2 v2.0.0
-	charm.land/bubbletea/v2 v2.0.2
+	charm.land/bubbletea/v2 v2.0.10
 	charm.land/huh/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.1
 	github.com/BurntSushi/toml v1.6.0
@@ -90,7 +90,7 @@ require (
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260525132238-948f4557a654 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7 // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240919170804-a4978c8e603a // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
@@ -301,5 +301,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace charm.land/bubbletea/v2 => github.com/unlabs-dev/bubbletea/v2 v2.0.8-uncloud.1
