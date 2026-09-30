@@ -57,15 +57,25 @@ func TestIssuedCertificateFromProto_InvalidCertificate(t *testing.T) {
 		{name: "missing SAN", input: &pb.IssuedCertificate{Chain: valid}, wantErr: "missing SAN"},
 		{name: "blank SAN", input: &pb.IssuedCertificate{San: " \t", Chain: valid}, wantErr: "missing SAN"},
 		{name: "empty chain", input: &pb.IssuedCertificate{San: "app.example.com"}, wantErr: "empty certificate chain"},
-		{name: "invalid PEM", input: &pb.IssuedCertificate{San: "app.example.com", Chain: []byte("not PEM")},
-			wantErr: "empty certificate chain"},
-		{name: "wrong PEM block type", input: &pb.IssuedCertificate{San: "app.example.com",
-			Chain: pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("key")})},
-			wantErr: "unexpected PEM block type"},
-		{name: "invalid DER", input: &pb.IssuedCertificate{San: "app.example.com", Chain: invalidDER},
-			wantErr: "parse X.509 certificate"},
-		{name: "invalid certificate after valid leaf", input: &pb.IssuedCertificate{San: "app.example.com",
-			Chain: append(append([]byte(nil), valid...), invalidDER...)}, wantErr: "parse X.509 certificate"},
+		{
+			name: "invalid PEM", input: &pb.IssuedCertificate{San: "app.example.com", Chain: []byte("not PEM")},
+			wantErr: "empty certificate chain",
+		},
+		{
+			name: "wrong PEM block type", input: &pb.IssuedCertificate{
+				San:   "app.example.com",
+				Chain: pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("key")}),
+			},
+			wantErr: "unexpected PEM block type",
+		},
+		{
+			name: "invalid DER", input: &pb.IssuedCertificate{San: "app.example.com", Chain: invalidDER},
+			wantErr: "parse X.509 certificate",
+		},
+		{name: "invalid certificate after valid leaf", input: &pb.IssuedCertificate{
+			San:   "app.example.com",
+			Chain: append(append([]byte(nil), valid...), invalidDER...),
+		}, wantErr: "parse X.509 certificate"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cert, err := IssuedCertificateFromProto(tt.input)
@@ -126,8 +136,10 @@ func TestIssuedCertificateFromProto_IssuerData(t *testing.T) {
 		{name: "missing certificate URL", raw: `{"ca":"https://ca.example/directory"}`},
 		{name: "invalid JSON", raw: "{"},
 		{name: "invalid field types", raw: `{"url":123,"ca":false}`},
-		{name: "malformed renewal information",
-			raw: `{"url":"https://ca.example/cert/1","ca":"https://ca.example/directory","renewal_info":{"_selectedTime":"invalid"}}`},
+		{
+			name: "malformed renewal information",
+			raw:  `{"url":"https://ca.example/cert/1","ca":"https://ca.example/directory","renewal_info":{"_selectedTime":"invalid"}}`,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cert, err := IssuedCertificateFromProto(&pb.IssuedCertificate{
