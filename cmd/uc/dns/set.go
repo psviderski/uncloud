@@ -9,8 +9,10 @@ import (
 	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/internal/grpcversion"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -49,6 +51,7 @@ func set(ctx context.Context, uncli *cli.CLI, name string) error {
 	}
 	defer clusterClient.Close()
 
+	ctx = metadata.AppendToOutgoingContext(ctx, grpcversion.MetadataKeyMinServerVersion, "0.21.0")
 	_, err = clusterClient.SetDomain(ctx, &pb.SetDomainRequest{Name: name})
 	if err != nil {
 		if status.Convert(err).Code() == codes.AlreadyExists {
