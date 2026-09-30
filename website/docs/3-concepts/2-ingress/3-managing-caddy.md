@@ -34,7 +34,7 @@ uc caddy deploy
 Deploy a specific version or custom image:
 
 ```shell
-uc caddy deploy --image caddybuilds/caddy-cloudflare:2.10.2
+uc caddy deploy --image caddybuilds/caddy-cloudflare:2.11.4
 ```
 
 Deploy only to a specific machine or a subset of machines (comma-separated list):
@@ -80,19 +80,27 @@ config that uses the DNS challenge with Cloudflare to obtain a wildcard TLS cert
 ```yaml
 services:
   caddy:
-    image: caddybuilds/caddy-cloudflare:2.10.2
-    command: caddy run -c /config/Caddyfile
+    image: caddybuilds/caddy-cloudflare:2.11.4
     environment:
       # unix// is not a typo. Caddy uses network/address format, not a unix:// URL.
       CADDY_ADMIN: unix//run/caddy/admin.sock
     env_file:
       # Contains CLOUDFLARE_API_TOKEN=xxxxx
       - .env.secrets
+    healthcheck:
+      test: curl -fsS -o /dev/null --unix-socket /run/caddy/admin.sock http://localhost/config/
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
     volumes:
+      - /var/lib/uncloud/caddy:/etc/caddy:ro
+      # Persists TLS certificates and other assets when using Caddy's default local storage.
       - /var/lib/uncloud/caddy:/data
-      - /var/lib/uncloud/caddy:/config
       - /run/uncloud/caddy:/run/caddy
-      # Required by caddy.storage.uncloud module. Remove this mount if Uncloud cluster storage is not used for Caddy.
+      # Required by the Uncloud cluster storage module (https://github.com/unlabs-dev/caddy-uncloud).
+      # Remove this mount if cluster storage is not used for Caddy.
       # Mount the directory, not the socket file, so Caddy sees a replacement socket after the daemon restarts.
       - /run/uncloud/api:/run/uncloud/api:ro
     x-ports:
@@ -142,9 +150,16 @@ internal.example.com {
 
 :::info note
 
-The specified `command`, `environment`, `volumes`, and `x-ports` properties are essential for Caddy to function
-correctly in the Uncloud cluster. Do not change the source paths of the volume mounts as the Uncloud daemon relies on
-them to communicate with Caddy and update its configuration.
+The specified `environment`, `volumes`, and `x-ports` properties are essential for Caddy to function correctly in the
+Uncloud cluster. Do not change the source paths of the volume mounts as the Uncloud daemon relies on them to communicate
+with Caddy and update its configuration.
+
+The image must include `curl` for the healthcheck and start Caddy with `/etc/caddy/Caddyfile`. Images based on the
+official [Caddy image](https://hub.docker.com/_/caddy) do both by default.
+
+Keep the `/data` mount while using Caddy's default local storage so TLS certificates survive container updates. You can
+remove this mount when using the [Uncloud storage module](https://github.com/unlabs-dev/caddy-uncloud) with
+`storage uncloud` in your global Caddy config.
 
 :::
 

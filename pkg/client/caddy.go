@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/Masterminds/semver"
 	"github.com/distribution/reference"
@@ -66,6 +67,7 @@ func (c *CaddyClient) Config(ctx context.Context, opts CaddyConfigOptions) (api.
 // CaddyDeploymentOptions configures a Caddy reverse proxy deployment.
 type CaddyDeploymentOptions struct {
 	// Image defaults to the latest stable 2.x.x official Caddy image.
+	// Custom images must include curl and start Caddy with /etc/caddy/Caddyfile.
 	Image string
 	// Config contains an optional global Caddyfile.
 	Config    string
@@ -91,17 +93,32 @@ func (c *CaddyClient) NewDeployment(ctx context.Context, opts CaddyDeploymentOpt
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Command: []string{"caddy", "run", "-c", "/config/Caddyfile"},
 			Env: map[string]string{
 				"CADDY_ADMIN": "unix//run/caddy/admin.sock",
+			},
+			Healthcheck: &api.HealthcheckSpec{
+				Test: []string{
+					"CMD",
+					"curl", "-fsS",
+					"-o", "/dev/null",
+					"--unix-socket", "/run/caddy/admin.sock",
+					"http://localhost/config/",
+				},
+				Interval:      30 * time.Second,
+				Timeout:       5 * time.Second,
+				Retries:       3,
+				StartPeriod:   10 * time.Second,
+				StartInterval: 1 * time.Second,
 			},
 			Image: image,
 			VolumeMounts: []api.VolumeMount{
 				{
 					VolumeName:    "data",
-					ContainerPath: "/config",
+					ContainerPath: "/etc/caddy",
+					ReadOnly:      true,
 				},
 				{
+					// Keep local TLS assets persistent while Caddy uses the default file system storage.
 					VolumeName:    "data",
 					ContainerPath: "/data",
 				},
