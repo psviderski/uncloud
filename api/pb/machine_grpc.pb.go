@@ -48,7 +48,7 @@ type MachineClient interface {
 	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
 	InspectMachine(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*InspectMachineResponse, error)
 	// WaitForStoreVersion waits until the cluster store on this machine has reached each requested actor version, with
-	// no known missing or pending transactions through those versions.
+	// no known missing or pending transactions through those versions from active members.
 	// Corrosion may satisfy a version by applying its surviving changes or by marking it complete because its changes
 	// have been superseded.
 	//
@@ -224,7 +224,7 @@ type MachineServer interface {
 	// InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
 	InspectMachine(context.Context, *emptypb.Empty) (*InspectMachineResponse, error)
 	// WaitForStoreVersion waits until the cluster store on this machine has reached each requested actor version, with
-	// no known missing or pending transactions through those versions.
+	// no known missing or pending transactions through those versions from active members.
 	// Corrosion may satisfy a version by applying its surviving changes or by marking it complete because its changes
 	// have been superseded.
 	//

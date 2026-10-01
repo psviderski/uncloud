@@ -262,11 +262,11 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion API client: %w", err)
 	}
-	corroStore := store.New(corro)
 	corroAdmin, err := corrosion.NewAdminClient(config.CorrosionAdminSockPath)
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion admin client: %w", err)
 	}
+	corroStore := store.New(corro, corroAdmin)
 
 	initialised := make(chan struct{})
 	clusterReady := make(chan struct{})

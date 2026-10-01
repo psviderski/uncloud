@@ -143,7 +143,7 @@ func (cli *Client) WaitClusterReady(ctx context.Context, timeout time.Duration) 
 }
 
 // WaitForStoreVersion waits until the cluster store on the target machine has reached each requested actor version
-// in minVersion, with no known missing or pending transactions through those versions.
+// in minVersion, with no known missing or pending transactions through those versions from active members.
 // The context controls cancellation and the deadline. An empty minVersion requires no replication.
 // This method observes replication without initiating synchronisation.
 //

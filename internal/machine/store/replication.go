@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/psviderski/uncloud/internal/corrosion"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
@@ -15,8 +16,8 @@ import (
 var ErrInvalidStoreVersion = errors.New("invalid store version")
 
 // WaitForVersion waits until the local store has reached each actor's minimum version in minVersion, with no known
-// missing or pending transactions through those versions. Corrosion may satisfy a version by applying its surviving
-// changes or by marking it complete because its changes have been superseded.
+// missing or pending transactions through those versions from active members. Corrosion may satisfy a version
+// by applying its surviving changes or by marking it complete because its changes have been superseded.
 //
 // Waiting normally makes the captured data available locally. However, if another write replaces some of that data
 // before it arrives, Corrosion can complete the older version without transferring the replaced data. If the
@@ -53,28 +54,64 @@ func (s *Store) WaitForVersion(ctx context.Context, minVersion api.StoreVersion)
 		return nil
 	}
 
-	// Check all bookkeeping in one SQLite snapshot. Raw buffered rows can remain after application,
-	// but sequence bookkeeping is removed in the same transaction that applies or clears a version.
-	query := `WITH min_version(actor_id, version) AS (VALUES ` + strings.Join(placeholders, ", ") + `)
+	queryPrefix := `WITH min_version(actor_id, version) AS (VALUES ` + strings.Join(placeholders, ", ") + `)
 		SELECT NOT EXISTS (
 			SELECT 1 FROM min_version
 			LEFT JOIN crsql_db_versions AS current ON current.site_id = min_version.actor_id
-			WHERE COALESCE(current.db_version, 0) < min_version.version
-				OR EXISTS (
-					SELECT 1 FROM __corro_bookkeeping_gaps
-					WHERE actor_id = min_version.actor_id AND start <= min_version.version
-				)
-				OR EXISTS (
-					SELECT 1 FROM __corro_seq_bookkeeping
-					WHERE site_id = min_version.actor_id AND db_version <= min_version.version
-				)
-		)`
+			WHERE COALESCE(current.db_version, 0) < min_version.version`
+
+	versionsReached := false
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
-		rows, err := s.corro.QueryContext(ctx, query, args...)
+		query := queryPrefix
+		queryArgs := args
+		// Check for gaps and pending transactions only after the requested versions are reached.
+		if versionsReached {
+			states, err := s.corroAdmin.ClusterMembershipStates(true)
+			if err != nil {
+				return fmt.Errorf("get cluster membership for store replication: %w", err)
+			}
+
+			activePlaceholders := make([]string, 0, len(states))
+			queryArgs = make([]any, len(args), len(args)+len(states))
+			copy(queryArgs, args)
+			for _, state := range states {
+				if state.State != corrosion.MembershipStateAlive && state.State != corrosion.MembershipStateSuspect {
+					continue
+				}
+				actorID, err := uuid.Parse(state.ID)
+				if err != nil {
+					return fmt.Errorf("parse cluster member actor '%s': %w", state.ID, err)
+				}
+				activePlaceholders = append(activePlaceholders, "?")
+				queryArgs = append(queryArgs, [16]byte(actorID))
+			}
+			if len(activePlaceholders) > 0 {
+				// Check active members' gaps and pending sequences in the same query for simplicity.
+				// Buffered rows can remain in __corro_buffered_changes after application, but sequence bookkeeping
+				// is removed when a version completes.
+				query += `
+				OR (
+					min_version.actor_id IN (` + strings.Join(activePlaceholders, ", ") + `)
+					AND (
+						EXISTS (
+							SELECT 1 FROM __corro_bookkeeping_gaps
+							WHERE actor_id = min_version.actor_id AND start <= min_version.version
+						)
+						OR EXISTS (
+							SELECT 1 FROM __corro_seq_bookkeeping
+							WHERE site_id = min_version.actor_id AND db_version <= min_version.version
+						)
+					)
+				)`
+			}
+		}
+		query += ")"
+
+		rows, err := s.corro.QueryContext(ctx, query, queryArgs...)
 		if err != nil {
 			return fmt.Errorf("check store replication: %w", err)
 		}
@@ -84,6 +121,7 @@ func (s *Store) WaitForVersion(ctx context.Context, minVersion api.StoreVersion)
 			}
 			return errors.New("check store replication: store version query returned no rows")
 		}
+
 		var reached int
 		if err = rows.Scan(&reached); err != nil {
 			rows.Close()
@@ -95,7 +133,11 @@ func (s *Store) WaitForVersion(ctx context.Context, minVersion api.StoreVersion)
 			return fmt.Errorf("check store replication: %w", err)
 		}
 		if reached == 1 {
-			return ctx.Err()
+			if versionsReached {
+				return nil
+			}
+			versionsReached = true
+			continue
 		}
 
 		select {

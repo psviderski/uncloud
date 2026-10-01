@@ -24,11 +24,12 @@ var (
 
 // Store is a cluster store backed by a distributed Corrosion database.
 type Store struct {
-	corro *corrosion.APIClient
+	corro      *corrosion.APIClient
+	corroAdmin *corrosion.AdminClient
 }
 
-func New(corro *corrosion.APIClient) *Store {
-	return &Store{corro: corro}
+func New(corro *corrosion.APIClient, corroAdmin *corrosion.AdminClient) *Store {
+	return &Store{corro: corro, corroAdmin: corroAdmin}
 }
 
 // Get retrieves an unnamespaced legacy value.
