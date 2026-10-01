@@ -1,11 +1,26 @@
-# uc caddy
+# uc caddy cert ls
 
-Manage Caddy reverse proxy service.
+List certificates in cluster storage for Caddy.
+
+## Synopsis
+
+List certificates stored in the Uncloud cluster storage for Caddy.
+
+Caddy must use the Uncloud storage module (https://github.com/unlabs-dev/caddy-uncloud)
+configured with 'storage uncloud' in the global options for its certificates to appear here.
+
+This inventory does not check whether Caddy currently serves or trusts a certificate.
+
+```
+uc caddy cert ls [flags]
+```
 
 ## Options
 
 ```
-  -h, --help   help for caddy
+  -h, --help             help for ls
+  -m, --machine string   Name or ID of the machine to read certificate storage from. (default is connected machine)
+  -o, --output string    Output format: 'json' or empty for a human-readable table.
 ```
 
 ## Options inherited from parent commands
@@ -19,9 +34,5 @@ Manage Caddy reverse proxy service.
 
 ## See also
 
-* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc caddy cert](uc_caddy_cert.md)	 - Inspect certificates in cluster storage for Caddy.
-* [uc caddy config](uc_caddy_config.md)	 - Show the current Caddy configuration (Caddyfile).
-* [uc caddy deploy](uc_caddy_deploy.md)	 - Deploy or upgrade Caddy reverse proxy across all machines in the cluster.
-* [uc caddy logs](uc_caddy_logs.md)	 - View caddy logs.
 

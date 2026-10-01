@@ -1,11 +1,11 @@
-# uc caddy
+# uc caddy cert
 
-Manage Caddy reverse proxy service.
+Inspect certificates in cluster storage for Caddy.
 
 ## Options
 
 ```
-  -h, --help   help for caddy
+  -h, --help   help for cert
 ```
 
 ## Options inherited from parent commands
@@ -19,9 +19,6 @@ Manage Caddy reverse proxy service.
 
 ## See also
 
-* [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
-* [uc caddy cert](uc_caddy_cert.md)	 - Inspect certificates in cluster storage for Caddy.
-* [uc caddy config](uc_caddy_config.md)	 - Show the current Caddy configuration (Caddyfile).
-* [uc caddy deploy](uc_caddy_deploy.md)	 - Deploy or upgrade Caddy reverse proxy across all machines in the cluster.
-* [uc caddy logs](uc_caddy_logs.md)	 - View caddy logs.
+* [uc caddy](uc_caddy.md)	 - Manage Caddy reverse proxy service.
+* [uc caddy cert ls](uc_caddy_cert_ls.md)	 - List certificates in cluster storage for Caddy.
 
