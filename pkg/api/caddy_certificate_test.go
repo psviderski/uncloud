@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"math/big"
 	"testing"
@@ -43,6 +44,17 @@ func TestIssuedCertificateFromProto(t *testing.T) {
 			assert.Empty(t, cert.IssuerData)
 		})
 	}
+}
+
+func TestIssuedCertificateFingerprint(t *testing.T) {
+	cert := IssuedCertificate{Chain: []*x509.Certificate{
+		{Raw: []byte("abc")},
+		{Raw: []byte("issuer")},
+	}}
+	want, err := hex.DecodeString("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+	require.NoError(t, err)
+	fingerprint := cert.Fingerprint()
+	assert.Equal(t, want, fingerprint[:])
 }
 
 func TestIssuedCertificateFromProto_InvalidCertificate(t *testing.T) {

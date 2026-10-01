@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -21,6 +22,11 @@ type IssuedCertificate struct {
 	Chain []*x509.Certificate
 	// IssuerData is extra information associated with the certificate, usually provided by the issuer implementation.
 	IssuerData CertificateIssuerData
+}
+
+// Fingerprint returns the SHA-256 fingerprint of the leaf certificate.
+func (c IssuedCertificate) Fingerprint() [sha256.Size]byte {
+	return sha256.Sum256(c.Chain[0].Raw)
 }
 
 // CertificateIssuerData preserves issuer-specific metadata and provides a best-effort typed view of ACME records.
