@@ -44,6 +44,8 @@ complexity of Kubernetes.
   [Uncloud DNS](https://github.com/psviderski/uncloud-dns) service.
 * **Automatic HTTPS**: Built-in Caddy reverse proxy handles TLS certificate provisioning and renewal using Let's
   Encrypt.
+* **Cluster storage for TLS certificates**: Native cluster storage for Caddy shares certificates and ACME challenge
+  tokens across machines and coordinates issuance.
 * **Docker-like CLI**: Familiar commands for managing both infrastructure and applications.
 * **Remote management**: Control your entire infrastructure through SSH access to any single machine in the cluster.
 
