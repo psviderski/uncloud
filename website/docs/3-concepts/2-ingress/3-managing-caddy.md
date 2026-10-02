@@ -3,6 +3,10 @@
 Caddy is automatically deployed as a global service `caddy` when you initialise a cluster with `uc machine init`. By
 default, it runs on every machine to handle incoming HTTP/HTTPS traffic and route it to your services.
 
+Since [v0.21.0](https://github.com/psviderski/uncloud/releases/tag/v0.21.0), Uncloud provides native
+[cluster storage for Caddy](4-cluster-storage-for-caddy.md) (opt-in) to share TLS certificates and coordinate
+certificate issuance across machines.
+
 ## Checking status
 
 View the `caddy` service status and which machines it's running on:
@@ -158,8 +162,7 @@ The image must include `curl` for the healthcheck and start Caddy with `/etc/cad
 official [Caddy image](https://hub.docker.com/_/caddy) do both by default.
 
 Keep the `/data` mount while using Caddy's default local storage so TLS certificates survive container updates. You can
-remove this mount when using the [Uncloud storage module](https://github.com/unlabs-dev/caddy-uncloud) with
-`storage uncloud` in your global Caddy config.
+remove this mount when using [cluster storage for Caddy](4-cluster-storage-for-caddy.md).
 
 :::
 
