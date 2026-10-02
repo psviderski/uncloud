@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,6 +34,9 @@ func resolvedEnv(t *testing.T, content, service string) types.MappingWithEquals 
 	project := loadProject(t, content)
 	require.NoError(t, ResolveSecrets(context.Background(), project))
 
+	if predeploy, ok := project.Services[service].Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
+		maps.Copy(project.Services[service].Environment, predeploy.Environment)
+	}
 	return project.Services[service].Environment
 }
 
@@ -135,6 +139,22 @@ secrets:
     x-command: printf 'abc'
 `,
 			want: env(map[string]string{"PLAIN": "hello", "TOKEN": "abc"}),
+		},
+		{
+			name: "x-pre_deploy secret",
+			content: `
+services:
+  foo:
+    image: foo
+    x-pre_deploy:
+      command: echo foo
+      environment:
+        TOKEN: secret://token
+secrets:
+  token:
+    x-command: printf 'topsecret'
+`,
+			want: env(map[string]string{"TOKEN": "topsecret"}),
 		},
 	}
 
