@@ -15,6 +15,15 @@ includes it and configure Caddy to use it.
 
 ## Enabling cluster storage
 
+:::warning Certificate migration
+
+Caddy doesn't migrate existing certificates automatically when you change its storage backend. **All certificates will
+need to be reissued unless you migrate your existing storage first.** Use the experimental
+[`caddy storage export` and `caddy storage import`](https://caddyserver.com/docs/command-line#caddy-storage)
+commands with the old and new configs to transfer the storage contents.
+
+:::
+
 :::info Requirements
 
 Cluster storage requires Uncloud **v0.21.0 or newer** for both the `uc` CLI and the daemon on every cluster machine.
@@ -55,4 +64,10 @@ List issued certificates in cluster storage with [`uc caddy cert ls`](../../9-cl
 
 ```shell
 uc caddy cert ls
+
+ID             NAME                            ISSUER                    EXPIRES
+c111e23615f7   dns.uncloud.run                 Let's Encrypt             2026-12-31 (2 months)
+b5dcd2a03e1b   nginx.2t5ex2.uncld.dev          Let's Encrypt             2026-12-31 (2 months)
+70707fd2fea2   test-staging.2t5ex2.uncld.dev   Let's Encrypt (staging)   2026-12-31 (2 months)
+c5f9301e1c06   uncloud.run                     Let's Encrypt             2026-12-31 (2 months)
 ```
