@@ -12,7 +12,6 @@ import (
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
 	"github.com/spf13/cobra"
@@ -58,7 +57,7 @@ See "uc service remove" for more details.`,
 	cmd.Flags().StringSliceVarP(&opts.profiles, "profile", "p", nil,
 		"One or more Compose profiles to enable.")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false,
-		"Auto-confirm deployment plan. Should be explicitly set when running non-interactively,\n"+
+		"Auto-confirm destruction plan. Should be explicitly set when running non-interactively,\n"+
 			"e.g., in CI/CD pipelines. [$UNCLOUD_AUTO_CONFIRM]")
 
 	return cmd
@@ -91,15 +90,6 @@ func runDestroy(ctx context.Context, uncli *cli.CLI, opts destroyOptions) error 
 	}
 	defer clusterClient.Close()
 
-	services := []api.Service{}
-	for _, service := range composeServices {
-		svc, err := clusterClient.InspectService(ctx, service)
-		if err != nil {
-			return fmt.Errorf("inspect service: %w", err)
-		}
-		services = append(services, svc)
-	}
-
 	strategy := &deploy.RemoveStrategy{}
 	composeDestroy, err := compose.NewDeploymentWithStrategy(ctx, clusterClient, project, strategy)
 	if err != nil {
@@ -121,34 +111,33 @@ func runDestroy(ctx context.Context, uncli *cli.CLI, opts destroyOptions) error 
 
 	directConn := uncli.DirectConnection()
 	contextName := uncli.ContextOverrideOrCurrent()
-	deployTarget := ""
+	destructTarget := ""
 	if directConn != "" {
-		deployTarget = directConn
+		destructTarget = directConn
 		fmt.Println(tui.Faint.Render("connection: ") + tui.NameStyle.Render(directConn))
 		fmt.Println()
 	} else if contextName != "" && len(uncli.Config.Contexts) > 1 {
 		// Only show context if there's more than one to avoid unnecessary clutter.
-		deployTarget = contextName
+		destructTarget = contextName
 		fmt.Println(tui.Faint.Render("context: ") + tui.NameStyle.Render(contextName))
 		fmt.Println()
 	}
 
 	fmt.Println(plan.Format())
 
-	// Ask for plan confirmation before proceeding with the deployment unless auto-confirmed with --yes.
 	if !opts.yes {
 		if !tui.IsTerminalAvailable() {
-			return errors.New("cannot ask to confirm deployment plan in non-interactive mode, " +
+			return errors.New("cannot ask to confirm destruction plan in non-interactive mode, " +
 				"use --yes flag or set UNCLOUD_AUTO_CONFIRM=true to auto-confirm")
 		}
 
 		title := "Proceed with destruction?"
 		// Include the direct connection or context name in the confirmation prompt to avoid accidentally
-		// deploying to the wrong cluster.
-		if deployTarget != "" {
+		// destroying in the wrong cluster.
+		if destructTarget != "" {
 			isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 			confirmStyle := tui.ThemeConfirm().Theme(isDark).Focused.Title
-			title = "Proceed with destruction in " + tui.NameStyle.Render(deployTarget) + confirmStyle.Render("?")
+			title = "Proceed with destruction in " + tui.NameStyle.Render(destructTarget) + confirmStyle.Render("?")
 		}
 
 		confirmed, err := tui.Confirm(title)
@@ -161,8 +150,8 @@ func runDestroy(ctx context.Context, uncli *cli.CLI, opts destroyOptions) error 
 	}
 
 	title := "Destroying"
-	if deployTarget != "" {
-		title += " in " + tui.NameStyle.Render(deployTarget)
+	if destructTarget != "" {
+		title += " in " + tui.NameStyle.Render(destructTarget)
 	}
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		if err := plan.Execute(ctx, clusterClient); err != nil {
