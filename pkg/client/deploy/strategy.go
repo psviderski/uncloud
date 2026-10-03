@@ -524,3 +524,28 @@ func newEmptyServicePlan(svc *api.Service, spec api.ServiceSpec) (ServicePlan, e
 
 	return plan, nil
 }
+
+// RemoveStrategy is a strategy for removing services.
+type RemoveStrategy struct{}
+
+func (s *RemoveStrategy) Type() string {
+	return "removing"
+}
+
+func (s *RemoveStrategy) Plan(_ *scheduler.ClusterState, svc *api.Service, spec api.ServiceSpec) (ServicePlan, error) {
+	plan, err := newEmptyServicePlan(svc, spec)
+	if err != nil {
+		return plan, err
+	}
+
+	for _, c := range svc.Containers {
+		plan.Operations = append(plan.Operations, &operation.RemoveContainerOperation{
+			MachineID:       c.MachineID,
+			MachineName:     c.MachineName,
+			Container:       c.Container,
+			StopGracePeriod: spec.Container.StopGracePeriod,
+		})
+	}
+
+	return plan, nil
+}
