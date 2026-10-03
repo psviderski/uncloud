@@ -39,7 +39,7 @@ func NewDeployCommand() *cobra.Command {
 	opts := deployOptions{}
 	cmd := &cobra.Command{
 		Use:     "deploy [FLAGS] [SERVICE...]",
-		Aliases: []string{"down"},
+		Aliases: []string{"up"},
 		Short:   "Deploy services from a Compose file.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli.BindEnvToFlag(cmd, "yes", "UNCLOUD_AUTO_CONFIRM")
