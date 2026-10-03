@@ -162,7 +162,7 @@ func runDestroy(ctx context.Context, uncli *cli.CLI, opts destroyOptions) error 
 
 	title := "Destroying"
 	if deployTarget != "" {
-		title += " to " + tui.NameStyle.Render(deployTarget)
+		title += " in " + tui.NameStyle.Render(deployTarget)
 	}
 	err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
 		if err := plan.Execute(ctx, clusterClient); err != nil {
