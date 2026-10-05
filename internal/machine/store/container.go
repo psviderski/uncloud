@@ -267,9 +267,20 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 	changes := make(chan struct{})
 	go func() {
 		defer close(changes)
+		// Coalesce bursts of rapid-fire row-level change events (e.g. from frequent health-check updates
+		// across many services) into a single signal per debounce window, instead of forwarding one signal
+		// per event. Every subscriber of this channel (e.g. the Caddy and DNS reconcilers) otherwise reruns
+		// its full reconciliation on every single event, which can burn significant CPU across the cluster
+		// when there's a lot of container churn.
+		const debounce = 250 * time.Millisecond
+		var timer *time.Timer
+		var timerC <-chan time.Time
 		for {
 			select {
 			case <-ctx.Done():
+				if timer != nil {
+					timer.Stop()
+				}
 				return
 			case _, ok := <-events:
 				if !ok {
@@ -279,8 +290,25 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 					}
 					return
 				}
-				// Just signal that there is a change in the containers list.
-				changes <- struct{}{}
+				if timer == nil {
+					timer = time.NewTimer(debounce)
+				} else {
+					if !timer.Stop() {
+						select {
+						case <-timer.C:
+						default:
+						}
+					}
+					timer.Reset(debounce)
+				}
+				timerC = timer.C
+			case <-timerC:
+				select {
+				case changes <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
+				timerC = nil
 			}
 		}
 	}()
