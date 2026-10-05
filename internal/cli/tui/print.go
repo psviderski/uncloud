@@ -3,9 +3,11 @@ package tui
 import (
 	"fmt"
 	"os"
+
+	"charm.land/lipgloss/v2"
 )
 
 func PrintWarning(msg string) {
 	styledMsg := BoldYellow.Render(fmt.Sprintf("WARNING: %s", msg))
-	fmt.Fprintln(os.Stderr, styledMsg)
+	lipgloss.Fprintln(os.Stderr, styledMsg)
 }
