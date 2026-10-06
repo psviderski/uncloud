@@ -46,7 +46,7 @@ Create a global Caddyfile, or add `storage uncloud` to the global options in you
 Deploy Caddy with the pre-built module image and your global config:
 
 ```shell
-uc caddy deploy --image ghcr.io/unlabs-dev/caddy-uncloud:0.1.2 --caddyfile global.Caddyfile
+uc caddy deploy --image ghcr.io/unlabs-dev/caddy-uncloud:0.1.3 --caddyfile global.Caddyfile
 ```
 
 See the [module README](https://github.com/unlabs-dev/caddy-uncloud#usage) for custom image builds, Compose deployment,
