@@ -14,8 +14,9 @@ func TestTimeRange(t *testing.T) {
 
 	location, err := time.LoadLocation("Australia/Sydney")
 	require.NoError(t, err)
-	// January is daylight-saving time, but July timestamps must use the winter offset.
-	now := time.Date(2026, 1, 15, 12, 0, 0, 123456789, location)
+	// October is daylight-saving time, but July timestamps must use the winter offset.
+	// Daylight saving starts on 4 October. Day durations must still mean 24 elapsed hours.
+	now := time.Date(2026, 10, 5, 12, 0, 0, 123456789, location)
 	tests := []struct {
 		input string
 		want  string
@@ -35,8 +36,13 @@ func TestTimeRange(t *testing.T) {
 		{"1763953966", "2025-11-24T03:12:46Z"},
 		{"1763953966.000000001", "2025-11-24T03:12:46.000000001Z"},
 		{"0", "1970-01-01T00:00:00Z"},
-		{"2m30s", "2026-01-15T00:57:30.123456789Z"},
-		{"-1h", "2026-01-15T02:00:00.123456789Z"},
+		{"2m30s", "2026-10-05T00:57:30.123456789Z"},
+		{"1d", "2026-10-04T01:00:00.123456789Z"},
+		{"2d", "2026-10-03T01:00:00.123456789Z"},
+		{"2d3h", "2026-10-02T22:00:00.123456789Z"},
+		{"1.5d", "2026-10-03T13:00:00.123456789Z"},
+		{"-2d", "2026-10-07T01:00:00.123456789Z"},
+		{"-1h", "2026-10-05T02:00:00.123456789Z"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
@@ -60,8 +66,8 @@ func TestTimeRange(t *testing.T) {
 
 	since, until, err := TimeRange("3h", "1h30m", now)
 	require.NoError(t, err)
-	assert.Equal(t, "2026-01-14T22:00:00.123456789Z", since)
-	assert.Equal(t, "2026-01-14T23:30:00.123456789Z", until)
+	assert.Equal(t, "2026-10-04T22:00:00.123456789Z", since)
+	assert.Equal(t, "2026-10-04T23:30:00.123456789Z", until)
 }
 
 func TestTimeRange_Invalid(t *testing.T) {

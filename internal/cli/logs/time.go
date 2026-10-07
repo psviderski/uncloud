@@ -28,7 +28,7 @@ func timestamp(value string, now time.Time) (string, error) {
 		return "", nil
 	}
 	// A bare zero is the Unix epoch, matching Docker's log filters.
-	if duration, err := time.ParseDuration(value); value != "0" && err == nil {
+	if duration, err := ParseDuration(value); value != "0" && err == nil {
 		return now.Add(-duration).UTC().Format(time.RFC3339Nano), nil
 	}
 
