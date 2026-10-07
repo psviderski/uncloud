@@ -836,6 +836,11 @@ func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (
 	if m.Initialised() {
 		return nil, status.Error(codes.FailedPrecondition, "machine is already configured as a cluster member")
 	}
+	if req.MachineName != "" {
+		if err := api.ValidateMachineName(req.MachineName); err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+	}
 
 	clusterNetwork, err := req.Network.ToPrefix()
 	if err != nil {
@@ -1220,8 +1225,8 @@ func (m *Machine) applyMachineUpdate(ctx context.Context, req *pb.UpdateMachineR
 	defer m.state.mu.Unlock()
 
 	if req.Name != nil {
-		if *req.Name == "" {
-			return status.Error(codes.InvalidArgument, "machine name cannot be empty")
+		if err := api.ValidateMachineName(*req.Name); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
 		}
 		// Check for duplicate names across the cluster, excluding this machine.
 		if *req.Name != m.state.Name {

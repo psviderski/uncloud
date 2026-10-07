@@ -41,12 +41,30 @@ const (
 )
 
 var (
-	serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
-	dnsLabelRegexp  = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+	IDRegex       = regexp.MustCompile("^[0-9a-f]{32}$")
+	DNSLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
 )
 
 func ValidateServiceID(id string) bool {
-	return serviceIDRegexp.MatchString(id)
+	return IDRegex.MatchString(id)
+}
+
+// ValidateServiceName checks that a service name is a lowercase DNS label and doesn't conflict with
+// the machine DNS namespace or service IDs.
+func ValidateServiceName(name string) error {
+	if !DNSLabelRegex.MatchString(name) {
+		return fmt.Errorf("invalid service name %q: must be 1-63 characters, lowercase letters, numbers, "+
+			"and hyphens only, starting and ending with a letter or number", name)
+	}
+	if name == "m" {
+		return fmt.Errorf("invalid service name %q: reserved for the machine DNS namespace", name)
+	}
+	if IDRegex.MatchString(name) {
+		return fmt.Errorf(
+			"invalid service name %q: must not match the service ID format (32 hexadecimal characters)", name)
+	}
+
+	return nil
 }
 
 // ServiceSpec defines the desired state of a service.
@@ -147,12 +165,8 @@ func (s *ServiceSpec) Validate() error {
 	}
 
 	if s.Name != "" {
-		if len(s.Name) > 63 {
-			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
-		}
-		if !dnsLabelRegexp.MatchString(s.Name) {
-			return fmt.Errorf("invalid service name: %q. must be 1-63 characters, lowercase letters, numbers, "+
-				"and dashes only; must start and end with a letter or number", s.Name)
+		if err := ValidateServiceName(s.Name); err != nil {
+			return err
 		}
 	}
 
