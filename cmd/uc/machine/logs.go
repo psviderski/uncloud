@@ -69,6 +69,10 @@ func runLogs(ctx context.Context, uncli *cli.CLI, services []string, opts logs.O
 	if err != nil {
 		return err
 	}
+	tail, err := opts.TailLines()
+	if err != nil {
+		return err
+	}
 
 	if len(services) == 0 {
 		services = []string{api.SystemServiceUncloud}
@@ -78,11 +82,6 @@ func runLogs(ctx context.Context, uncli *cli.CLI, services []string, opts logs.O
 			return fmt.Errorf("invalid system service '%s'; valid services: %s",
 				service, strings.Join(api.SystemServices, ", "))
 		}
-	}
-
-	tail, err := logs.Tail(opts.Tail)
-	if err != nil {
-		return err
 	}
 
 	c, err := uncli.ConnectCluster(ctx)

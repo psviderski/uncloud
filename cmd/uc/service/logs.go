@@ -83,6 +83,10 @@ func RunLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 	if err != nil {
 		return err
 	}
+	tail, err := opts.TailLines()
+	if err != nil {
+		return err
+	}
 
 	serviceArgs, err := logs.ParseServiceArgs(args)
 	if err != nil {
@@ -110,12 +114,6 @@ func RunLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 		for i, name := range composeServices {
 			serviceArgs[i] = logs.ServiceArg{Service: name}
 		}
-	}
-
-	// Parse tail option.
-	tail, err := logs.Tail(opts.Tail)
-	if err != nil {
-		return err
 	}
 
 	c, err := uncli.ConnectCluster(ctx)
