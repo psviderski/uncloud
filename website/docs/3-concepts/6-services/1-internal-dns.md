@@ -3,6 +3,7 @@
 Services can be addressed on the internal WireGuard network by service name, service ID, or a machine-scoped service name:
 
 ## Service name
+
 ```
 $ nslookup nats.internal
 Server:         127.0.0.11
@@ -30,6 +31,7 @@ Address: 10.210.1.4
 ```
 
 ## Service ID
+
 ```
 $ nslookup 3ecb3a8bbec5fd3f46efb056a934714a.internal
 Server:         127.0.0.11
@@ -40,6 +42,7 @@ Address: 10.210.0.4
 ```
 
 ## Machine ID scoped service name
+
 ```
 $ nslookup 0903f0ee483aa97d559eeeaac5e22283.m.nats.internal
 Server:         127.0.0.11
@@ -64,7 +67,8 @@ Address: 10.210.1.4
 
 Additionally, the IP ordering preference can be specified with a `rr` (round-robin) or `nearest` subdomain prefix.
 
-### `rr` (round-robin) *current default*
+### `rr` (round-robin) _current default_
+
 Randomly shuffled order on each lookup.
 
 ```
@@ -96,9 +100,11 @@ Address: 10.210.0.3
 ```
 
 ## Nearest scope
+
 Returns machine-local instances first.
 
 `machine-a`:
+
 ```
 $ nslookup nearest.worker.internal
 Server:         127.0.0.11
@@ -115,6 +121,7 @@ Address: 10.210.1.4
 ```
 
 `machine-b`:
+
 ```
 $ nslookup nearest.worker.internal
 Server:         127.0.0.11
@@ -131,3 +138,28 @@ Address: 10.210.0.4
 ```
 
 The prefixes can be used with service ID and machine-scoped service names, as well (e.g. `nearest.3ecb3a8bbec5fd3f46efb056a934714a.internal` or `rr.0903f0ee483aa97d559eeeaac5e22283.m.worker.internal`).
+
+## Machine name
+
+Machines can be addressed too on the internal WireGuard network, either by name of by ID, these names are
+available from the `m.internal` zone.
+
+```
+$ nslookup machine-1.m.internal
+Server:         127.0.0.11
+Address:        127.0.0.11#53
+
+Name:   machine-1.m.internal
+Address: 10.210.0.1
+```
+
+## Machine ID
+
+```
+$ nslookup c337f00600de51ef4375c9a9a267dba5.m.internal
+Server:         127.0.0.11
+Address:        127.0.0.11#53
+
+Name:   c337f00600de51ef4375c9a9a267dba5.m.internal
+Address: 10.210.0.1
+```
