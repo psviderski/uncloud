@@ -102,8 +102,10 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 		newServiceIPs[serviceNameWithMachineID] = append(newServiceIPs[serviceNameWithMachineID], ip)
 
 		// Add <machine-name>.m.<service-name> as a lookup
-		serviceNameWithMachineName := record.MachineName + ".m." + ctr.ServiceName()
-		newServiceIPs[serviceNameWithMachineName] = append(newServiceIPs[serviceNameWithMachineName], ip)
+		if record.MachineName != "" {
+			serviceNameWithMachineName := record.MachineName + ".m." + ctr.ServiceName()
+			newServiceIPs[serviceNameWithMachineName] = append(newServiceIPs[serviceNameWithMachineName], ip)
+		}
 
 		containersCount++
 	}

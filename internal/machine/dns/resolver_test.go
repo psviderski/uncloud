@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"net/netip"
 	"reflect"
 	"testing"
 
@@ -48,6 +49,39 @@ func TestClusterResolver_UpdateServiceIPs(t *testing.T) {
 	assert.NotEmpty(t, r.Resolve("db"))
 }
 
+func TestClusterResolver_MachineSpecificLookups(t *testing.T) {
+	t.Parallel()
+
+	r := NewClusterResolver(nil)
+	r.updateServiceIPs([]store.ContainerRecord{
+		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1", "mach-1-name"),
+		newRecord("svc-id-1", "web", "10.210.0.3", "mach-2", "mach-2-name"),
+		newRecord("svc-id-2", "api", "10.210.1.2", "mach-1", "mach-1-name"),
+		// A record without a machine name must not register an empty-prefixed lookup.
+		newRecord("svc-id-3", "db", "10.210.2.2", "mach-3", ""),
+	})
+
+	tests := []struct {
+		name  string
+		query string
+		want  []netip.Addr
+	}{
+		{"machine ID", "mach-1.m.web", []netip.Addr{netip.MustParseAddr("10.210.0.2")}},
+		{"machine name", "mach-1-name.m.web", []netip.Addr{netip.MustParseAddr("10.210.0.2")}},
+		{"other machine name", "mach-2-name.m.web", []netip.Addr{netip.MustParseAddr("10.210.0.3")}},
+		{"machine name other service", "mach-1-name.m.api", []netip.Addr{netip.MustParseAddr("10.210.1.2")}},
+		{"machine name without service container", "mach-2-name.m.api", nil},
+		{"machine ID without name", "mach-3.m.db", []netip.Addr{netip.MustParseAddr("10.210.2.2")}},
+		{"empty machine name", ".m.db", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, r.Resolve(tt.query))
+		})
+	}
+}
+
 func newRecord(serviceID, serviceName, ip, machineID, machineName string) store.ContainerRecord {
 	return store.ContainerRecord{
 		Container: api.ServiceContainer{
@@ -72,7 +106,7 @@ func newRecord(serviceID, serviceName, ip, machineID, machineName string) store.
 				},
 			},
 		},
-		MachineID: machineID,	
+		MachineID:   machineID,
 		MachineName: machineName,
 	}
 }

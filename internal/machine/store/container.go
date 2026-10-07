@@ -26,11 +26,11 @@ const (
 )
 
 type ContainerRecord struct {
-	Container  api.ServiceContainer
-	MachineID  string
+	Container   api.ServiceContainer
+	MachineID   string
 	MachineName string
-	SyncStatus string
-	UpdatedAt  time.Time
+	SyncStatus  string
+	UpdatedAt   time.Time
 }
 
 type ListOptions struct {
@@ -106,7 +106,7 @@ func normaliseContainerForStore(ctr *api.ServiceContainer) {
 // ListContainers returns a list of container records from the store database that match the given options.
 // The result excludes orphan containers whose machine is no longer in the cluster.
 func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]ContainerRecord, error) {
-	q := sq.Select("c.id", "c.container", "c.machine_id", "c.sync_status", "c.updated_at").
+	q := sq.Select("c.id", "c.container", "c.machine_id", "COALESCE(m.name, '')", "c.sync_status", "c.updated_at").
 		From("containers c").
 		Join("machines m ON m.id = c.machine_id").
 		Where(sq.Eq{"c.sync_status": SyncStatusSynced})
@@ -138,12 +138,12 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]Contain
 	defer rows.Close()
 
 	var containers []ContainerRecord
-	var id, cJSON, machineID, syncStatus, updatedAtStr string
+	var id, cJSON, machineID, machineName, syncStatus, updatedAtStr string
 	var updatedAt time.Time
 	skipped := 0
 
 	for rows.Next() {
-		if err = rows.Scan(&id, &cJSON, &machineID, &syncStatus, &updatedAtStr); err != nil {
+		if err = rows.Scan(&id, &cJSON, &machineID, &machineName, &syncStatus, &updatedAtStr); err != nil {
 			return nil, fmt.Errorf("scan container record: %w", err)
 		}
 
@@ -163,10 +163,11 @@ func (s *Store) ListContainers(ctx context.Context, opts ListOptions) ([]Contain
 			return nil, fmt.Errorf("parse updated_at: %w", err)
 		}
 		containers = append(containers, ContainerRecord{
-			Container:  c,
-			MachineID:  machineID,
-			SyncStatus: syncStatus,
-			UpdatedAt:  updatedAt,
+			Container:   c,
+			MachineID:   machineID,
+			MachineName: machineName,
+			SyncStatus:  syncStatus,
+			UpdatedAt:   updatedAt,
 		})
 	}
 
@@ -213,7 +214,7 @@ func (s *Store) DeleteContainers(ctx context.Context, opts DeleteOptions) error 
 // the underlying subscription fails.
 func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-chan struct{}, error) {
 	// TODO: figure out whether we need sync_status at all (not used at the moment).
-	q := sq.Select("c.id", "c.container", "c.machine_id", "c.sync_status", "c.updated_at").
+	q := sq.Select("c.id", "c.container", "c.machine_id", "COALESCE(m.name, '')", "c.sync_status", "c.updated_at").
 		From("containers c").
 		Join("machines m ON m.id = c.machine_id").
 		Where(sq.Eq{"c.sync_status": SyncStatusSynced})
@@ -234,7 +235,7 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 	rows := sub.Rows()
 	for rows.Next() {
 		var cr ContainerRecord
-		if err = rows.Scan(&id, &cJSON, &cr.MachineID, &cr.SyncStatus, &updatedAtStr); err != nil {
+		if err = rows.Scan(&id, &cJSON, &cr.MachineID, &cr.MachineName, &cr.SyncStatus, &updatedAtStr); err != nil {
 			return nil, nil, err
 		}
 
