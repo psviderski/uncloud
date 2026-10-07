@@ -31,8 +31,8 @@ func Flags(options *Options) *pflag.FlagSet {
 			"Examples:\n"+
 			"  --since 2m30s                      Relative duration (2 minutes 30 seconds ago)\n"+
 			"  --since 1h                         Relative duration (1 hour ago)\n"+
-			"  --since 2025-11-24                 RFC 3339 date only (midnight using local timezone)\n"+
-			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using local timezone\n"+
+			"  --since 2025-11-24                 RFC 3339 date only (midnight using client local timezone)\n"+
+			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using client local timezone\n"+
 			"  --since 2024-01-31T10:30:00Z       RFC 3339 date/time in UTC\n"+
 			"  --since 1763953966                 Unix timestamp (seconds since January 1, 1970)")
 	set.StringVarP(&options.Tail, "tail", "n", "100",

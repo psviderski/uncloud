@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
@@ -64,6 +65,11 @@ If no services are specified, streams logs from the uncloud service.`,
 }
 
 func runLogs(ctx context.Context, uncli *cli.CLI, services []string, opts logs.Options) error {
+	since, until, err := logs.TimeRange(opts.Since, opts.Until, time.Now())
+	if err != nil {
+		return err
+	}
+
 	if len(services) == 0 {
 		services = []string{api.SystemServiceUncloud}
 	}
@@ -88,8 +94,8 @@ func runLogs(ctx context.Context, uncli *cli.CLI, services []string, opts logs.O
 	logsOpts := api.ServiceLogsOptions{
 		Follow:   opts.Follow,
 		Tail:     tail,
-		Since:    opts.Since,
-		Until:    opts.Until,
+		Since:    since,
+		Until:    until,
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 
