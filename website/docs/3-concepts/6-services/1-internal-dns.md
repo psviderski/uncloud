@@ -1,5 +1,6 @@
-# Internal DNS
-
+---
+title: "Internal DNS"
+---
 Services can be addressed on the internal WireGuard network by service name, service ID, or a machine-scoped service name:
 
 ## Service name

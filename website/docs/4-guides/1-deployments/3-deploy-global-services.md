@@ -1,5 +1,6 @@
-# Deploy a global service
-
+---
+title: "Deploy a global service"
+---
 Deploy exactly one replica of a service on each machine in your cluster.
 
 This is useful for cluster-wide infrastructure services like monitoring or security agents, log collectors, or reverse
@@ -33,7 +34,7 @@ Uncloud doesn't automatically scale global services to new machines.
 
 ## Deploy to a subset of machines
 
-You can combine the `global` mode with [`x-machines`](../../8-compose-file-reference/2-extensions.md#x-machines)
+You can combine the `global` mode with [`x-machines`](/docs/compose-file-reference/extensions#x-machines)
 to deploy one container to each specified machine:
 
 ```yaml title="compose.yaml"
@@ -63,7 +64,7 @@ The default mode is `replicated`, where you specify the number of replicas.
 
 ## See also
 
-- [Deploy an app](1-deploy-app.md): Deploy from source code or pre-built images
-- [Deploy to specific machines](2-deploy-specific-machines.md): Deploy services to specific machines in your cluster
+- [Deploy an app](/docs/guides/deployments/deploy-app): Deploy from source code or pre-built images
+- [Deploy to specific machines](/docs/guides/deployments/deploy-specific-machines): Deploy services to specific machines in your cluster
 - [Compose Specification: deploy.mode](https://github.com/compose-spec/compose-spec/blob/main/deploy.md#mode):
   Compose specification for deployment modes

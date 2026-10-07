@@ -1,11 +1,12 @@
-# Image tag template
-
+---
+title: "Image tag template"
+---
 Template syntax for tagging built images.
 
 ## Overview
 
-When building service images as part of [`uc build`](../9-cli-reference/uc_build.md) or
-[`uc deploy`](../9-cli-reference/uc_deploy.md) commands, Uncloud automatically generates image tags based on the current
+When building service images as part of [`uc build`](/docs/cli-reference/uc_build) or
+[`uc deploy`](/docs/cli-reference/uc_deploy) commands, Uncloud automatically generates image tags based on the current
 Git repository state. You can customise the image name and tag format for the built images using the
 [Go template](https://pkg.go.dev/text/template) syntax and environment variables.
 
@@ -143,8 +144,8 @@ image: myapp:{{gitsha 7}}.${GITHUB_RUN_ID:-local}   # GITHUB_RUN_ID not set → 
 
 ## See also
 
-- [Runtime templates](../3-concepts/6-services/3-runtime-templates.md): Use per-container metadata in service configuration
-- [Deploy an app](../4-guides/1-deployments/1-deploy-app.md): Deploy from source code or pre-built images
+- [Runtime templates](/docs/concepts/services/runtime-templates): Use per-container metadata in service configuration
+- [Deploy an app](/docs/guides/deployments/deploy-app): Deploy from source code or pre-built images
 - [Compose Build Specification](https://github.com/compose-spec/compose-spec/blob/main/build.md)
 - [Compose Specification: image](https://github.com/compose-spec/compose-spec/blob/main/spec.md#image)
 - [Go template documentation](https://pkg.go.dev/text/template)

@@ -1,6 +1,7 @@
-# CLI configuration file
-
-The [`uc`](2-getting-started/1-install-cli.md) CLI stores **cluster connection details** in a YAML configuration file.
+---
+title: "CLI configuration file"
+---
+The [`uc`](/docs/getting-started/install-cli) CLI stores **cluster connection details** in a YAML configuration file.
 Every time you run a command like `uc ls` or `uc deploy`, it reads this file to figure out which cluster to connect to
 and how to reach its machines over SSH.
 
@@ -44,8 +45,8 @@ The config has two top-level attributes: `current_context` and `contexts`.
 ### `current_context`
 
 The name of the active context. `uc` uses this context by default when you run any command. You can switch to a
-different context with an interactive [`uc ctx`](9-cli-reference/uc_ctx.md) command, non-interactively with
-[`uc ctx use`](9-cli-reference/uc_ctx_use.md), or the `--context` flag.
+different context with an interactive [`uc ctx`](/docs/cli-reference/uc_ctx) command, non-interactively with
+[`uc ctx use`](/docs/cli-reference/uc_ctx_use), or the `--context` flag.
 
 ### `contexts`
 
@@ -55,7 +56,7 @@ A context is not the same thing as a cluster. It is your local view of a cluster
 and in what order to try them. Two people on the same team can have different contexts pointing to the same cluster,
 each with their own preferred connection.
 
-See [Connecting to a cluster](3-concepts/1-clusters/1-connecting.md#cluster-contexts) for more details and examples.
+See [Connecting to a cluster](/docs/concepts/clusters/connecting#cluster-contexts) for more details and examples.
 
 ### `connections`
 
@@ -64,7 +65,7 @@ entire cluster. That machine acts as an **entry point** and forwards requests to
 
 The first connection in the list is the default one that `uc` tries first. If it's unavailable, `uc` moves on to the
 next one. You can change the default connection with an interactive command
-[`uc ctx conn`](9-cli-reference/uc_ctx_connection.md).
+[`uc ctx conn`](/docs/cli-reference/uc_ctx_connection).
 
 Every connection must have exactly one connection type attribute:
 
@@ -86,15 +87,15 @@ A connection can also have these optional attributes:
 
 You don't typically need to create or edit the config file manually. `uc` creates and manages it for you:
 
-- [`uc machine init`](9-cli-reference/uc_machine_init.md) creates a file if it doesn't exist and adds a new context with
+- [`uc machine init`](/docs/cli-reference/uc_machine_init) creates a file if it doesn't exist and adds a new context with
   the first machine connection. If you don't specify a context name with `--context`, it uses `default`. If
   `default` already exists, it auto-increments to `default-1`, `default-2`, and so on. You can rename contexts by
   editing the config file.
-- [`uc machine add`](9-cli-reference/uc_machine_add.md) appends a new machine connection to the current context. You can
+- [`uc machine add`](/docs/cli-reference/uc_machine_add) appends a new machine connection to the current context. You can
   manually edit the connections in the config if needed.
-- [`uc ctx`](9-cli-reference/uc_ctx.md) or [`uc ctx use`](9-cli-reference/uc_ctx_use.md) updates `current_context` when
+- [`uc ctx`](/docs/cli-reference/uc_ctx) or [`uc ctx use`](/docs/cli-reference/uc_ctx_use) updates `current_context` when
   you switch contexts.
-- [`uc ctx conn`](9-cli-reference/uc_ctx_connection.md) moves the selected connection to the top of the list to make it
+- [`uc ctx conn`](/docs/cli-reference/uc_ctx_connection) moves the selected connection to the top of the list to make it
   the default for that context.
 
 For example, after initialising a cluster:

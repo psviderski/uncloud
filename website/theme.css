@@ -1,0 +1,5 @@
+/* GitHub-style themed images: show only the variant that matches the current color mode. */
+:root[data-theme="light"] img[src$="#gh-dark-mode-only"],
+:root[data-theme="dark"] img[src$="#gh-light-mode-only"] {
+  display: none;
+}

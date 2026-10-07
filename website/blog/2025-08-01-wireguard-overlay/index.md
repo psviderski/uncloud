@@ -1,11 +1,17 @@
 ---
 title: How to connect Docker containers across multiple hosts with WireGuard
-description: Learn how to configure a WireGuard overlay network that lets Docker containers securely communicate
-  across multiple hosts. No exposed ports needed.
-slug: connect-docker-containers-across-hosts-wireguard
-image: ./wireguard-overlay.png
-authors: psviderski
-tags: [ docker, wireguard, networking, vpn ]
+description: Learn how to configure a WireGuard overlay network that lets Docker containers securely communicate across multiple hosts. No exposed ports needed.
+type: blog
+date: 2025-08-01
+slug: blog/connect-docker-containers-across-hosts-wireguard
+authors:
+  - name: Pasha Sviderski
+    url: https://github.com/psviderski
+    avatar: https://github.com/psviderski.png
+seo:
+  image: /img/blog/wireguard-overlay.png
+search:
+  tags: [docker, wireguard, networking, vpn]
 ---
 
 You want your Docker containers to talk to each other, but they're running on different machines. Perhaps across
@@ -40,9 +46,7 @@ I will use these two machines:
 * Machine 1: Debian 12 virtual machine in my homelab network in Australia, which is behind NAT
 * Machine 2: Ubuntu 24.04 server from Hetzner in Finland that has a public IP
 
-![WireGuard overlay network](wireguard-overlay.png)
-
-<!-- truncate -->
+![WireGuard overlay network](/img/blog/wireguard-overlay.png)
 
 ## Prerequisites
 
