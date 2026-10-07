@@ -1,0 +1,8 @@
+import { defineMeta } from "blume";
+
+export default defineMeta({
+  title: "Compose file reference",
+  collapsed: true,
+  display: "group",
+  directory: "card",
+});

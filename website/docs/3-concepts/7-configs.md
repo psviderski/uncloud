@@ -1,5 +1,6 @@
-# Configs
-
+---
+title: "Configs"
+---
 Uncloud supports [Compose configs](https://github.com/compose-spec/compose-spec/blob/main/08-configs.md) for managing configuration files in your services. Configs allow you to store non-sensitive configuration data separately from your container images and mount them into containers at runtime.
 See also [Docker Compose documentation](https://docs.docker.com/reference/compose-file/configs/) for the same feature.
 
@@ -237,5 +238,5 @@ If config changes don't take effect:
 
 ## See also
 
-- [Secrets](8-secrets.md): Pass sensitive values such as passwords, tokens, and keys to your services
-- [Compose support matrix](../8-compose-file-reference/1-support-matrix.md): Which Compose features Uncloud supports
+- [Secrets](/docs/concepts/secrets): Pass sensitive values such as passwords, tokens, and keys to your services
+- [Compose support matrix](/docs/compose-file-reference/support-matrix): Which Compose features Uncloud supports

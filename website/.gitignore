@@ -1,12 +1,12 @@
 # Dependencies
 /node_modules
 
-# Production
-/build
+# Production build output
+/dist
 
-# Generated files
-.docusaurus
-.cache-loader
+# Generated files and caches
+.blume
+.astro
 
 # Misc
 .DS_Store
@@ -18,3 +18,4 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.blume-verify/

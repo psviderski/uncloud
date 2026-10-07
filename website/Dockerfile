@@ -1,5 +1,5 @@
 # Stage 1: Base image.
-## Start with a base image containing NodeJS so we can build Docusaurus.
+## Start with a base image containing NodeJS so we can build Blume.
 FROM node:lts-alpine AS base
 ## Disable colour output from yarn to make logs easier to read.
 ENV FORCE_COLOR=0
@@ -19,12 +19,12 @@ RUN npm ci
 ## Build the static site.
 RUN npm run build
 
-# Stage 3: Serve static Docusaurus site and landing page with Caddy.
+# Stage 3: Serve static Blume docs site and landing page with Caddy.
 FROM caddy:2.10.0-alpine AS caddy
 ## Copy the Caddyfile.
 COPY ./Caddyfile /etc/caddy/Caddyfile
-## Copy the Docusaurus build output.
-COPY --from=prod /opt/docusaurus/build /usr/share/caddy
+## Copy the Blume build output.
+COPY --from=prod /opt/docusaurus/dist /usr/share/caddy
 # Copy the landing page assets.
 COPY landing/images /usr/share/caddy/images
 COPY landing/js /usr/share/caddy/js

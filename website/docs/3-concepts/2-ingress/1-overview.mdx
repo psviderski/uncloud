@@ -1,0 +1,33 @@
+---
+title: "Ingress & HTTPS"
+sidebar:
+  label: Overview
+---
+Uncloud uses [Caddy](https://caddyserver.com/) as its reverse proxy to handle incoming traffic, provide automatic HTTPS
+with [Let's Encrypt](https://letsencrypt.org/), and route requests to your services.
+
+## How it works
+
+By default, Caddy runs as a global service `caddy` on every machine in your cluster, listening on the host ports 80
+(HTTP), 443 (HTTPS), and 443/UDP (HTTP/3).
+
+It's deployed during cluster initialisation (`uc machine init`) unless you use the `--no-caddy` flag.
+See [Managing Caddy](/docs/concepts/ingress/managing-caddy) for deployment and customisation instructions.
+
+When you [publish a service port](/docs/concepts/ingress/publishing-services), Uncloud automatically configures Caddy to:
+
+1. Listen for requests on the specified hostname (domain name).
+2. Automatically obtain and renew a TLS certificate from Let's Encrypt for HTTPS.
+3. Route traffic to the **healthy** service container(s).
+4. Load balance across healthy replicas if there are multiple.
+
+For advanced use cases, Uncloud allows to customise the Caddy config using the `x-caddy` extension in Compose files.
+See [Custom Caddy configuration](/docs/concepts/ingress/publishing-services#custom-caddy-configuration) for details.
+
+:::tip[Shared TLS certificates]
+
+Uncloud also provides native cluster storage for Caddy. It shares TLS certificates and ACME challenge tokens across
+machines and coordinates certificate issuance. See [Cluster storage for Caddy](/docs/concepts/ingress/cluster-storage-for-caddy)
+to enable it.
+
+:::

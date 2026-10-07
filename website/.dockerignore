@@ -5,12 +5,16 @@
 !blog/
 !docs/
 !landing/
-!src/
-!static/
+!public/
 !pkg/
 !Caddyfile
 !*.js
 !*.json
+!blume.config.ts
+!theme.css
+!components.ts
+!components/
+!integrations/
 
 # Ignore unnecessary files inside allowed directories.
 **/.DS_Store

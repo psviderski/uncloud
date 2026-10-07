@@ -1,0 +1,270 @@
+---
+title: "Managing Caddy"
+---
+Caddy is automatically deployed as a global service `caddy` when you initialise a cluster with `uc machine init`. By
+default, it runs on every machine to handle incoming HTTP/HTTPS traffic and route it to your services.
+
+Since [v0.21.0](https://github.com/psviderski/uncloud/releases/tag/v0.21.0), Uncloud provides native
+[cluster storage for Caddy](/docs/concepts/ingress/cluster-storage-for-caddy) (opt-in) to share TLS certificates and coordinate
+certificate issuance across machines.
+
+## Checking status
+
+View the `caddy` service status and which machines it's running on:
+
+```shell
+uc inspect caddy
+```
+
+```
+ID:    b5b269d5dc5ed4fdae6542894f94de82
+Name:  caddy
+Mode:  global
+
+CONTAINER ID   IMAGE          CREATED        STATUS       MACHINE
+fb8f390e634d   caddy:2.10.0   3 weeks ago    Up 3 weeks   prod-ap1
+0182f5d7bd9f   caddy:2.10.0   3 months ago   Up 3 weeks   prod-us1
+```
+
+## Deploying or updating Caddy
+
+### Using CLI
+
+Update to the latest stable version using the [caddy](https://hub.docker.com/_/caddy) image from Docker Hub:
+
+```shell
+uc caddy deploy
+```
+
+Deploy a specific version or custom image:
+
+```shell
+uc caddy deploy --image caddybuilds/caddy-cloudflare:2.11.4
+```
+
+Deploy only to a specific machine or a subset of machines (comma-separated list):
+
+```shell
+uc caddy deploy --machine machine1
+uc caddy deploy --machine machine2,machine3,machine4
+```
+
+Deploy with custom global configuration:
+
+```shell
+uc caddy deploy --caddyfile global.Caddyfile
+```
+
+Example global configuration:
+
+```text title=global.Caddyfile
+# Global options.
+{
+    debug
+}
+
+# A snippet that can be reused in custom Caddy configs for services (x-caddy).
+(my_snippet) {
+    ...
+}
+
+# Expose an internal service that is not managed by Uncloud.
+internal.example.com {
+    reverse_proxy 192.168.1.100
+}
+```
+
+### Using Compose
+
+You can manage the Caddy deployment with a Compose file for more control. For example, to deploy a custom global Caddy
+config that uses the DNS challenge with Cloudflare to obtain a wildcard TLS certificate for `*.example.com`:
+
+<Tabs>
+<Tab title="compose.yaml">
+
+```yaml
+services:
+  caddy:
+    image: caddybuilds/caddy-cloudflare:2.11.4
+    environment:
+      # unix// is not a typo. Caddy uses network/address format, not a unix:// URL.
+      CADDY_ADMIN: unix//run/caddy/admin.sock
+    env_file:
+      # Contains CLOUDFLARE_API_TOKEN=xxxxx
+      - .env.secrets
+    healthcheck:
+      test: curl -fsS -o /dev/null --unix-socket /run/caddy/admin.sock http://localhost/config/
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+    volumes:
+      - /var/lib/uncloud/caddy:/etc/caddy:ro
+      # Persists TLS certificates and other assets when using Caddy's default local storage.
+      - /var/lib/uncloud/caddy:/data
+      - /run/uncloud/caddy:/run/caddy
+      # Required by the Uncloud cluster storage module (https://github.com/unlabs-dev/caddy-uncloud).
+      # Remove this mount if cluster storage is not used for Caddy.
+      # Mount the directory, not the socket file, so Caddy sees a replacement socket after the daemon restarts.
+      - /run/uncloud/api:/run/uncloud/api:ro
+    x-ports:
+      - 80:80@host
+      - 443:443@host
+      - 443:443/udp@host
+    x-caddy: Caddyfile
+    deploy:
+      mode: global
+    # Optional: deploy only to specific machines.
+    # x-machines:
+    #   - machine1
+    #   - machine2
+```
+
+</Tab>
+<Tab title="Caddyfile">
+
+```text
+# Global options.
+{
+	debug
+}
+
+# A snippet that can be reused in custom Caddy configs for services (x-caddy).
+(my_snippet) {
+	...
+}
+
+# Obtain a wildcard TLS certificate for all subdomains of example.name using DNS challenge with Cloudflare.
+# It will be used for services that publish ports with hostnames under example.name.
+*.example.com {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	respond "No host matched" 404
+}
+
+# Expose an internal service that is not managed by Uncloud.
+internal.example.com {
+	reverse_proxy 192.168.1.100
+}
+```
+
+</Tab>
+</Tabs>
+
+:::info
+
+The specified `environment`, `volumes`, and `x-ports` properties are essential for Caddy to function correctly in the
+Uncloud cluster. Do not change the source paths of the volume mounts as the Uncloud daemon relies on them to communicate
+with Caddy and update its configuration.
+
+The image must include `curl` for the healthcheck and start Caddy with `/etc/caddy/Caddyfile`. Images based on the
+official [Caddy image](https://hub.docker.com/_/caddy) do both by default.
+
+Keep the `/data` mount while using Caddy's default local storage so TLS certificates survive container updates. You can
+remove this mount when using [cluster storage for Caddy](/docs/concepts/ingress/cluster-storage-for-caddy).
+
+:::
+
+Deploy or update the `caddy` service from the Compose file:
+
+```shell
+uc deploy
+```
+
+## Verifying config
+
+View the complete generated Caddyfile served by the `caddy` service. This is useful for debugging and verifying custom
+global and service-specific Caddy configs.
+
+```shell
+uc caddy config
+```
+
+Example output:
+
+```text
+# Caddyfile autogenerated by Uncloud (DO NOT EDIT): 2025-12-22T10:30:12Z
+# Automatically updated on service or health status changes.
+# Docs: https://uncloud.run/docs/concepts/ingress/overview
+
+# User-defined global config from service 'caddy'.
+# Global options.
+{
+	debug
+}
+
+# A snippet that can be reused in custom Caddy configs for services (x-caddy).
+(my_snippet) {
+	...
+}
+
+# Obtain a wildcard TLS certificate for all subdomains of example.name using DNS challenge with Cloudflare.
+# It will be used for services that publish ports with hostnames under example.name.
+*.example.com {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	respond "No host matched" 404
+}
+
+# Expose an internal service that is not managed by Uncloud.
+internal.example.com {
+	reverse_proxy 192.168.1.100
+}
+
+# Health check endpoint to verify Caddy reachability on this machine.
+http:// {
+	handle /.uncloud-verify {
+		respond "a369b9388812f9557feef6a0f5b46f2e" 200
+	}
+	log
+}
+
+(common_proxy) {
+	# Retry failed requests up to lb_retries times against other available upstreams.
+	lb_retries 3
+	# Upstreams are marked unhealthy for fail_duration after a failed request (passive health checking).
+	fail_duration 30s
+}
+
+# Sites generated from service ports.
+
+https://app.example.com {
+	reverse_proxy 10.210.1.3:8000 10.210.2.5:8000 {
+		import common_proxy
+	}
+	log
+}
+
+https://api.example.com {
+	reverse_proxy 10.210.2.2:9000 10.210.1.7:9000 10.210.2.3:9000 {
+		import common_proxy
+	}
+	log
+}
+
+# User-defined config for service 'web'.
+www.example.com {
+	redir https://example.com{uri} permanent
+}
+
+example.com {
+	reverse_proxy 10.210.0.3:8000 {
+		import common_proxy
+	}
+	log
+}
+
+# Skipped invalid user-defined configs:
+# - service 'duplicate-hostname': validation failed: adapting config using caddyfile adapter: ambiguous site definition: example.com
+# - service 'invalid': validation failed: adapting config using caddyfile adapter: Caddyfile:61: unrecognized directive: invalid_directive
+```
+
+The generated config combines:
+
+- Global Caddy configuration (`x-caddy` from the `caddy` service).
+- Auto-generated configs from published service ports (`x-ports`).
+- Custom Caddy configs from services (`x-caddy`).
+- Skipped invalid configs with error messages as comments.

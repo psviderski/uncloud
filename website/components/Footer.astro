@@ -1,0 +1,23 @@
+---
+// Replaces Blume's footer so the "Made with" line sits in the same row as the links, like the old Docusaurus footer.
+const { footer, navigation } = Astro.props;
+const links: { label: string; href: string }[] = footer?.links ?? [];
+const repoUrl: string | undefined = navigation?.repoUrl;
+const linkClass = "text-muted-foreground transition-colors hover:text-foreground";
+---
+
+<footer class="border-border border-t px-4 md:px-6" data-blume-footer>
+  <div class="flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-3 py-3 text-sm">
+    <span class="text-muted-foreground">
+      Made with ❤️ by <a class="underline underline-offset-2 hover:text-foreground" href="https://github.com/psviderski">@psviderski</a> in Australia
+    </span>
+    <ul class="flex flex-wrap items-center gap-x-5 gap-y-2">
+      {links.map((link) => (
+        <li><a class={linkClass} href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a></li>
+      ))}
+      {repoUrl && (
+        <li><a class={linkClass} href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub</a></li>
+      )}
+    </ul>
+  </div>
+</footer>
