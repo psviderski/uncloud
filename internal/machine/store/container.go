@@ -23,6 +23,10 @@ const (
 	// SyncStatusOutdated indicates that a container record may be outdated, for example, due to being unable
 	// to retrieve the container's state from the Docker daemon or when the machine is being stopped or restarted.
 	SyncStatusOutdated = "outdated"
+
+	// containerChangesDebounceInterval defines how long to wait before notifying subscribers about container changes.
+	// Multiple changes within this window are grouped into a single notification to prevent system overload.
+	containerChangesDebounceInterval = 250 * time.Millisecond
 )
 
 type ContainerRecord struct {
@@ -272,15 +276,11 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 		// per event. Every subscriber of this channel (e.g. the Caddy and DNS reconcilers) otherwise reruns
 		// its full reconciliation on every single event, which can burn significant CPU across the cluster
 		// when there's a lot of container churn.
-		const debounce = 250 * time.Millisecond
-		var timer *time.Timer
-		var timerC <-chan time.Time
+		var debouncer *time.Timer
+		var debouncerCh <-chan time.Time
 		for {
 			select {
 			case <-ctx.Done():
-				if timer != nil {
-					timer.Stop()
-				}
 				return
 			case _, ok := <-events:
 				if !ok {
@@ -290,25 +290,21 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 					}
 					return
 				}
-				if timer == nil {
-					timer = time.NewTimer(debounce)
-				} else {
-					if !timer.Stop() {
-						select {
-						case <-timer.C:
-						default:
-						}
+				if debouncerCh == nil {
+					if debouncer == nil {
+						debouncer = time.NewTimer(containerChangesDebounceInterval)
+					} else {
+						debouncer.Reset(containerChangesDebounceInterval)
 					}
-					timer.Reset(debounce)
+					debouncerCh = debouncer.C
 				}
-				timerC = timer.C
-			case <-timerC:
+			case <-debouncerCh:
 				select {
 				case changes <- struct{}{}:
 				case <-ctx.Done():
 					return
 				}
-				timerC = nil
+				debouncerCh = nil
 			}
 		}
 	}()
