@@ -17,9 +17,9 @@ func TestClusterResolver_UpdateServiceIPs(t *testing.T) {
 	t.Parallel()
 
 	containers := []store.ContainerRecord{
-		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1", "mach-1-name"),
-		newRecord("svc-id-1", "web", "10.210.0.3", "mach-2", "mach-2-name"),
-		newRecord("svc-id-2", "api", "10.210.1.2", "mach-1", "mach-1-name"),
+		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1"),
+		newRecord("svc-id-1", "web", "10.210.0.3", "mach-2"),
+		newRecord("svc-id-2", "api", "10.210.1.2", "mach-1"),
 	}
 
 	r := NewClusterResolver(nil)
@@ -43,7 +43,7 @@ func TestClusterResolver_UpdateServiceIPs(t *testing.T) {
 
 	// A real change must rewrite the map.
 	changed := append([]store.ContainerRecord{}, containers...)
-	changed = append(changed, newRecord("svc-id-3", "db", "10.210.2.2", "mach-1", "mach-1-name"))
+	changed = append(changed, newRecord("svc-id-3", "db", "10.210.2.2", "mach-1"))
 	r.updateServiceIPs(changed)
 	assert.NotEqual(t, firstMapPtr, reflect.ValueOf(r.serviceIPs).Pointer(),
 		"adding a new service should rewrite the map")
@@ -54,12 +54,16 @@ func TestClusterResolver_MachineSpecificLookups(t *testing.T) {
 	t.Parallel()
 
 	r := NewClusterResolver(nil)
+	r.updateMachineIPs([]*pb.MachineInfo{
+		newMachineRecord("mach-1", "mach-1-name", "10.210.0.0/24"),
+		newMachineRecord("mach-2", "mach-2-name", "10.210.1.0/24"),
+		// mach-3 is unknown so its containers must not register an empty-prefixed lookup.
+	})
 	r.updateServiceIPs([]store.ContainerRecord{
-		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1", "mach-1-name"),
-		newRecord("svc-id-1", "web", "10.210.0.3", "mach-2", "mach-2-name"),
-		newRecord("svc-id-2", "api", "10.210.1.2", "mach-1", "mach-1-name"),
-		// A record without a machine name must not register an empty-prefixed lookup.
-		newRecord("svc-id-3", "db", "10.210.2.2", "mach-3", ""),
+		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1"),
+		newRecord("svc-id-1", "web", "10.210.0.3", "mach-2"),
+		newRecord("svc-id-2", "api", "10.210.1.2", "mach-1"),
+		newRecord("svc-id-3", "db", "10.210.2.2", "mach-3"),
 	})
 
 	tests := []struct {
@@ -83,7 +87,29 @@ func TestClusterResolver_MachineSpecificLookups(t *testing.T) {
 	}
 }
 
-func newRecord(serviceID, serviceName, ip, machineID, machineName string) store.ContainerRecord {
+func TestClusterResolver_MachineRename(t *testing.T) {
+	t.Parallel()
+
+	webIP := []netip.Addr{netip.MustParseAddr("10.210.0.2")}
+
+	r := NewClusterResolver(nil)
+	// Containers may be received before machines.
+	r.updateServiceIPs([]store.ContainerRecord{
+		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1"),
+	})
+	assert.Nil(t, r.Resolve("old-name.m.web"))
+
+	r.updateMachineIPs([]*pb.MachineInfo{newMachineRecord("mach-1", "old-name", "10.210.0.0/24")})
+	assert.Equal(t, webIP, r.Resolve("old-name.m.web"))
+
+	// Renaming the machine must update service lookups without any container changes.
+	r.updateMachineIPs([]*pb.MachineInfo{newMachineRecord("mach-1", "new-name", "10.210.0.0/24")})
+	assert.Equal(t, webIP, r.Resolve("new-name.m.web"))
+	assert.Nil(t, r.Resolve("old-name.m.web"))
+	assert.Equal(t, webIP, r.Resolve("mach-1.m.web"))
+}
+
+func newRecord(serviceID, serviceName, ip, machineID string) store.ContainerRecord {
 	return store.ContainerRecord{
 		Container: api.ServiceContainer{
 			Container: api.Container{
@@ -107,8 +133,7 @@ func newRecord(serviceID, serviceName, ip, machineID, machineName string) store.
 				},
 			},
 		},
-		MachineID:   machineID,
-		MachineName: machineName,
+		MachineID: machineID,
 	}
 }
 

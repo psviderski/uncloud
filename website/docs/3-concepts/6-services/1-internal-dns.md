@@ -63,6 +63,20 @@ Name:   worker.internal
 Address: 10.210.1.4
 ```
 
+## Machine name scoped service name
+
+You can also use the machine name instead of its ID. The record follows the machine if you rename it with
+`uc machine rename`.
+
+```
+$ nslookup machine-1.m.nats.internal
+Server:         127.0.0.11
+Address:        127.0.0.11#53
+
+Name:   machine-1.m.nats.internal
+Address: 10.210.1.2
+```
+
 ## IP Ordering Mode
 
 Additionally, the IP ordering preference can be specified with a `rr` (round-robin) or `nearest` subdomain prefix.
