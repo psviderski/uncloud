@@ -107,5 +107,4 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOpti
 	}
 
 	return fmt.Errorf("command returned with exit code: %d", exitCode)
-
 }
