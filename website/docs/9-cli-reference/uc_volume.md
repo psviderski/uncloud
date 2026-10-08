@@ -21,6 +21,8 @@ Manage volumes in the cluster.
 
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc volume create](uc_volume_create.md)	 - Create a volume on a specific machine.
+* [uc volume export](uc_volume_export.md)	 - Export a volume as a tar archive to standard output.
+* [uc volume import](uc_volume_import.md)	 - Import a volume from a tar archive from standard input.
 * [uc volume inspect](uc_volume_inspect.md)	 - Display detailed information on a volume.
 * [uc volume ls](uc_volume_ls.md)	 - List volumes across all machines in the cluster.
 * [uc volume rm](uc_volume_rm.md)	 - Remove one or more volumes.
