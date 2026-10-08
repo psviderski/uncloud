@@ -6,8 +6,11 @@ import (
 	"os"
 
 	"github.com/charmbracelet/x/term"
+	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
+	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -24,10 +27,9 @@ func NewImportCommand() *cobra.Command {
 		Use:   "import VOLUME_NAME",
 		Args:  cobra.ExactArgs(1),
 		Short: "Import a volume from a tar archive from standard input.",
-		Long: `Import a volume as tar archive from standard input.
+		Long: `Import a volume as (compressed) tar archive from standard input.
 
-The tar archive is copied from standard input to a GNU tar running in a container. GNU tar can autodetect
-if the archive is compressed.
+The tar archive is copied from standard input to a GNU tar running in a container.
 
 If you have a (gzipped) tar archive you can import this to a new volume with:
 
@@ -57,8 +59,6 @@ by piping the output from 'uc volume export' into import:
 	cmd.Flags().StringVarP(&opts.user, "user", "u", "",
 		"User name or UID and optionally group name or GID used setting the ownership of the file extracted from the tar archive.\n"+
 			"Format: USER[:GROUP] or UID[:GID].")
-	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false,
-		"Hide all output.")
 
 	completion.MachinesFlag(cmd)
 
@@ -67,7 +67,7 @@ by piping the output from 'uc volume export' into import:
 
 func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOptions) error {
 	if isTTY := term.IsTerminal(os.Stdin.Fd()); isTTY {
-		return fmt.Errorf("refusing to read from a terminal, redirect standard input from a file")
+		return fmt.Errorf("refusing to read archive contents from a terminal, redirect standard input from a file")
 	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
@@ -88,6 +88,31 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOpti
 		fmt.Println("Multiple volumes found, use --machine to specify a machine.")
 		return nil
 	}
-	return nil
+
+	ctx = client.ProxySingleMachineContext(ctx, volumes[0].MachineID)
+	config, hostConfig := containerConfig(volumes[0])
+	resp, err := createContainerWithImagePull(ctx, client, ExportName, config, hostConfig)
+	if err != nil {
+		return err
+	}
+
+	if err := client.Docker.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return err
+	}
+	exitCode, err := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
+		ContainerID: resp.ID,
+		Options: api.ExecOptions{
+			Command:     []string{"sh", "-c", "tar xvz; touch /tmp/done"},
+			AttachStdin: true,
+			WorkingDir:  MountPoint,
+			Stdin:       os.Stdin,
+		},
+	})
+
+	if exitCode == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("command returned with exit code: %d", exitCode)
 
 }

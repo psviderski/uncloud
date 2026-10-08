@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -36,7 +37,7 @@ func NewExportCommand() *cobra.Command {
 		Use:   "export VOLUME_NAME",
 		Args:  cobra.ExactArgs(1),
 		Short: "Export a volume as a tar archive to standard output.",
-		Long: `Export a volume as a tar archive to standard output.
+		Long: `Export a volume as a (compressed) tar archive to standard output.
 
 The tar archive is created using GNU tar and outputs a gzipped archive to standard output.
 A file can be created by redirecting the output to a file.
@@ -66,9 +67,9 @@ A file can be created by redirecting the output to a file.
 }
 
 func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions) error {
-	// if isTTY := term.IsTerminal(os.Stdout.Fd()); isTTY {
-	// 	return fmt.Errorf("refusing to output to a terminal, redirect standard output to a file")
-	// }
+	if isTTY := term.IsTerminal(os.Stdout.Fd()); isTTY {
+		return fmt.Errorf("refusing to write archive contents to a terminal, redirect standard output to a file")
+	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -102,7 +103,7 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 	exitCode, err := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
 		ContainerID: resp.ID,
 		Options: api.ExecOptions{
-			Command:      []string{"sh", "-c", "ls -l; touch /tmp/done"},
+			Command:      []string{"sh", "-c", "tar cz .; touch /tmp/done"},
 			AttachStdout: true,
 			WorkingDir:   MountPoint,
 			Stdout:       os.Stdout,
