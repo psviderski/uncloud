@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/charmbracelet/x/term"
-	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
@@ -14,14 +13,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type importOptions struct {
-	machine string
-	user    string
-	quiet   bool
-}
-
 func NewImportCommand() *cobra.Command {
-	opts := importOptions{}
+	opts := exportOptions{containerName: ImportName} // reuse export options
 
 	cmd := &cobra.Command{
 		Use:   "import VOLUME_NAME",
@@ -62,34 +55,18 @@ by piping the output from 'uc volume export' into import:
 	return cmd
 }
 
-func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOptions) error {
+func runImport(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions) error {
 	if isTTY := term.IsTerminal(os.Stdin.Fd()); isTTY {
 		return fmt.Errorf("refusing to read archive contents from a terminal, redirect standard input from a file")
 	}
-	client, err := uncli.ConnectClusterWithOptions(ctx, cli.ConnectOptions{})
+	client, ID, err := setup(ctx, uncli, name, opts)
 	if err != nil {
-		return fmt.Errorf("connect to cluster: %w", err)
+		return err
 	}
 	defer client.Close()
 
-	volumes, err := listVolumes(ctx, client, name, opts.machine)
-	if err != nil {
-		return fmt.Errorf("list volumes: %w", err)
-	}
-
-	ctx = client.ProxySingleMachineContext(ctx, volumes[0].MachineID)
-	config, hostConfig := containerConfig(volumes[0])
-	resp, err := createContainerWithImagePull(ctx, client, ExportName, config, hostConfig)
-	if err != nil {
-		return err
-	}
-
-	if err := client.Docker.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
-		return err
-	}
-
 	exitCode, _ := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
-		ContainerID: resp.ID,
+		ContainerID: ID,
 		Options: api.ExecOptions{
 			Command:      []string{"sh", "-c", "tar xvz; touch /tmp/done"},
 			AttachStdin:  true,

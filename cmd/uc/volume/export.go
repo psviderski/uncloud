@@ -20,7 +20,8 @@ import (
 )
 
 type exportOptions struct {
-	machine string
+	machine       string
+	containerName string
 }
 
 const (
@@ -31,7 +32,7 @@ const (
 )
 
 func NewExportCommand() *cobra.Command {
-	opts := exportOptions{}
+	opts := exportOptions{containerName: ExportName}
 
 	cmd := &cobra.Command{
 		Use:   "export VOLUME_NAME",
@@ -71,29 +72,13 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 		return fmt.Errorf("refusing to write archive contents to a terminal, redirect standard output to a file")
 	}
 
-	client, err := uncli.ConnectClusterWithOptions(ctx, cli.ConnectOptions{})
+	client, ID, err := setup(ctx, uncli, name, opts)
 	if err != nil {
-		return fmt.Errorf("connect to cluster: %w", err)
+		return err
 	}
 	defer client.Close()
-
-	volumes, err := listVolumes(ctx, client, name, opts.machine)
-	if err != nil {
-		return err
-	}
-
-	ctx = client.ProxySingleMachineContext(ctx, volumes[0].MachineID)
-	config, hostConfig := containerConfig(volumes[0])
-	resp, err := createContainerWithImagePull(ctx, client, ExportName, config, hostConfig)
-	if err != nil {
-		return err
-	}
-
-	if err := client.Docker.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
-		return err
-	}
 	exitCode, _ := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
-		ContainerID: resp.ID,
+		ContainerID: ID,
 		Options: api.ExecOptions{
 			Command:      []string{"sh", "-c", "tar cz .; touch /tmp/done"},
 			AttachStdout: true,
@@ -111,7 +96,8 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 	return fmt.Errorf("command returned with exit code: %d", exitCode)
 }
 
-func listVolumes(ctx context.Context, client *client.Client, name, machine string) ([]api.MachineVolume, error) {
+func listVolume(ctx context.Context, client *client.Client, name, machine string) (api.MachineVolume, error) {
+	var volume api.MachineVolume
 	filter := &api.VolumeFilter{
 		Names: []string{name},
 	}
@@ -121,15 +107,15 @@ func listVolumes(ctx context.Context, client *client.Client, name, machine strin
 
 	volumes, err := client.ListVolumes(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("list volumes: %w", err)
+		return volume, fmt.Errorf("list volumes: %w", err)
 	}
 	if len(volumes) == 0 {
-		return volumes, fmt.Errorf("no volumes found.")
+		return volume, fmt.Errorf("no volumes found.")
 	}
 	if len(volumes) != 1 {
-		return volumes, fmt.Errorf("multiple volumes found, use --machine to specify a machine.")
+		return volume, fmt.Errorf("multiple volumes found, use --machine to specify a machine.")
 	}
-	return volumes, nil
+	return volumes[0], nil
 }
 
 func createContainerWithImagePull(ctx context.Context, client *client.Client, name string, config *container.Config, hostConfig *container.HostConfig) (container.CreateResponse, error) {
@@ -158,6 +144,28 @@ func createContainerWithImagePull(ctx context.Context, client *client.Client, na
 	}
 
 	return resp, nil
+}
+
+func setup(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions) (*client.Client, string, error) {
+	client, err := uncli.ConnectClusterWithOptions(ctx, cli.ConnectOptions{})
+	if err != nil {
+		return client, "", fmt.Errorf("connect to cluster: %w", err)
+	}
+
+	volume, err := listVolume(ctx, client, name, opts.machine)
+	if err != nil {
+		return client, "", fmt.Errorf("list volumes: %w", err)
+	}
+
+	ctx = client.ProxySingleMachineContext(ctx, volume.MachineID)
+	config, hostConfig := containerConfig(volume)
+	resp, err := createContainerWithImagePull(ctx, client, opts.containerName, config, hostConfig)
+	if err != nil {
+		return client, "", err
+	}
+
+	err = client.Docker.StartContainer(ctx, resp.ID, container.StartOptions{})
+	return client, resp.ID, err
 }
 
 func pull(ctx context.Context, client *client.Client, config *container.Config) error {
