@@ -88,7 +88,7 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOpti
 		return err
 	}
 
-	exitCode, err := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
+	exitCode, _ := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
 		ContainerID: resp.ID,
 		Options: api.ExecOptions{
 			Command:      []string{"sh", "-c", "tar xvz; touch /tmp/done"},

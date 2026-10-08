@@ -92,7 +92,7 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 	if err := client.Docker.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return err
 	}
-	exitCode, err := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
+	exitCode, _ := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
 		ContainerID: resp.ID,
 		Options: api.ExecOptions{
 			Command:      []string{"sh", "-c", "tar cz .; touch /tmp/done"},
