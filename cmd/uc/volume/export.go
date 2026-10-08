@@ -70,7 +70,8 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 	if isTTY := term.IsTerminal(os.Stdout.Fd()); isTTY {
 		return fmt.Errorf("refusing to write archive contents to a terminal, redirect standard output to a file")
 	}
-	client, err := uncli.ConnectCluster(ctx)
+
+	client, err := uncli.ConnectClusterWithOptions(ctx, cli.ConnectOptions{})
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
@@ -105,8 +106,10 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 		Options: api.ExecOptions{
 			Command:      []string{"sh", "-c", "tar cz .; touch /tmp/done"},
 			AttachStdout: true,
+			AttachStderr: true,
 			WorkingDir:   MountPoint,
 			Stdout:       os.Stdout,
+			Stderr:       os.Stderr,
 		},
 	})
 

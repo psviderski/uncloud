@@ -4,10 +4,9 @@ Import a volume from a tar archive from standard input.
 
 ## Synopsis
 
-Import a volume as tar archive from standard input.
+Import a volume as (compressed) tar archive from standard input.
 
-The tar archive is copied from standard input to a GNU tar running in a container. GNU tar can autodetect
-if the archive is compressed.
+The tar archive is copied from standard input to a GNU tar running in a container.
 
 If you have a (gzipped) tar archive you can import this to a new volume with:
 
@@ -28,8 +27,6 @@ uc volume import VOLUME_NAME [flags]
 ```
   -h, --help             help for import
   -m, --machine string   Name or ID of the machine where the volume is located. If not specified, the volume will be searched across all machines.
-  -u, --user string      User name or UID and optionally group name or GID used setting the ownership of the file extracted from the tar archive.
-                         Format: USER[:GROUP] or UID[:GID].
 ```
 
 ## Options inherited from parent commands

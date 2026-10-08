@@ -4,7 +4,7 @@ Export a volume as a tar archive to standard output.
 
 ## Synopsis
 
-Export a volume as a tar archive to standard output.
+Export a volume as a (compressed) tar archive to standard output.
 
 The tar archive is created using GNU tar and outputs a gzipped archive to standard output.
 A file can be created by redirecting the output to a file.

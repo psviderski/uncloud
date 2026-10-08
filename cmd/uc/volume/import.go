@@ -56,9 +56,6 @@ by piping the output from 'uc volume export' into import:
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine where the volume is located. "+
 			"If not specified, the volume will be searched across all machines.")
-	cmd.Flags().StringVarP(&opts.user, "user", "u", "",
-		"User name or UID and optionally group name or GID used setting the ownership of the file extracted from the tar archive.\n"+
-			"Format: USER[:GROUP] or UID[:GID].")
 
 	completion.MachinesFlag(cmd)
 
@@ -69,7 +66,7 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOpti
 	if isTTY := term.IsTerminal(os.Stdin.Fd()); isTTY {
 		return fmt.Errorf("refusing to read archive contents from a terminal, redirect standard input from a file")
 	}
-	client, err := uncli.ConnectCluster(ctx)
+	client, err := uncli.ConnectClusterWithOptions(ctx, cli.ConnectOptions{})
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
@@ -99,13 +96,18 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOpti
 	if err := client.Docker.StartContainer(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return err
 	}
+
 	exitCode, err := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
 		ContainerID: resp.ID,
 		Options: api.ExecOptions{
-			Command:     []string{"sh", "-c", "tar xvz; touch /tmp/done"},
-			AttachStdin: true,
-			WorkingDir:  MountPoint,
-			Stdin:       os.Stdin,
+			Command:      []string{"sh", "-c", "tar xvz; touch /tmp/done"},
+			AttachStdin:  true,
+			AttachStdout: true,
+			AttachStderr: true,
+			WorkingDir:   MountPoint,
+			Stdin:        os.Stdin,
+			Stdout:       os.Stdout,
+			Stderr:       os.Stderr,
 		},
 	})
 
