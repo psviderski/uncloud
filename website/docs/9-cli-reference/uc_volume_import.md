@@ -15,7 +15,7 @@ If you have a (gzipped) tar archive you can import this to a new volume with:
 When importing the files are printed to standard output. Copying a volume on the fly can be done
 by piping the output from 'uc volume export' into import:
 
-	uc volume export OLD_VOLUME | uc volume export NEW_VOLUME
+	uc volume export OLD_VOLUME | uc volume import NEW_VOLUME
 
 
 ```
