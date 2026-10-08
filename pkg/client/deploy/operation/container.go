@@ -173,6 +173,16 @@ type ReplaceContainerOperation struct {
 func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) error {
 	stopFirst := o.Order == api.UpdateOrderStopFirst
 
+	// Create the new container before stopping the old one. CreateContainer also pulls the image according to the
+	// service pull policy, so the stop-first downtime only includes stopping the old container and starting and
+	// monitoring the new one.
+	resp, err := cli.CreateContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
+	if err != nil {
+		return fmt.Errorf("create new container: %w", err)
+	}
+	// Override event ID so StartContainer and WaitContainerHealthy update the same progress line as creation.
+	newCtx := cliprogress.WithEventID(ctx, cliprogress.NewContainerEventID(ctx, resp.Name, o.MachineName))
+
 	wasRunning := false
 	if stopFirst {
 		// Inspect the old container to remember its running state before stopping.
@@ -189,12 +199,6 @@ func (o *ReplaceContainerOperation) Execute(ctx context.Context, cli Client) err
 		}
 	}
 
-	resp, err := cli.CreateContainer(ctx, o.ServiceID, o.Spec, o.MachineID)
-	if err != nil {
-		return fmt.Errorf("create new container: %w", err)
-	}
-	// Override event ID so StartContainer and WaitContainerHealthy update the same progress line as creation.
-	newCtx := cliprogress.WithEventID(ctx, cliprogress.NewContainerEventID(ctx, resp.Name, o.MachineName))
 	if err = cli.StartContainer(newCtx, o.ServiceID, resp.ID); err != nil {
 		return fmt.Errorf("start new container: %w", err)
 	}
