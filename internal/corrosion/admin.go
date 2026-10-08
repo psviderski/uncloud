@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const adminCommandTimeout = 5 * time.Second
+
 // AdminClient is a client for the Corrosion admin API.
 type AdminClient struct {
 	sockPath string
@@ -32,9 +34,14 @@ type Response struct {
 // The channel will be closed after sending the last or error response. The caller must read from the channel until
 // it is closed.
 func (c *AdminClient) SendCommand(cmd []byte) (<-chan Response, error) {
-	conn, err := net.Dial("unix", c.sockPath)
+	// TODO: Accept contexts in admin methods so callers can cancel requests and set their deadlines.
+	conn, err := net.DialTimeout("unix", c.sockPath, adminCommandTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("connect to admin socket: %w", err)
+	}
+	if err = conn.SetDeadline(time.Now().Add(adminCommandTimeout)); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("set admin connection deadline: %w", err)
 	}
 
 	if _, err = conn.Write(encodeFrame(cmd)); err != nil {

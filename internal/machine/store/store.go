@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/corrosion"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -23,11 +24,12 @@ var (
 
 // Store is a cluster store backed by a distributed Corrosion database.
 type Store struct {
-	corro *corrosion.APIClient
+	corro      *corrosion.APIClient
+	corroAdmin *corrosion.AdminClient
 }
 
-func New(corro *corrosion.APIClient) *Store {
-	return &Store{corro: corro}
+func New(corro *corrosion.APIClient, corroAdmin *corrosion.AdminClient) *Store {
+	return &Store{corro: corro, corroAdmin: corroAdmin}
 }
 
 // Get retrieves an unnamespaced legacy value.
@@ -81,14 +83,14 @@ func (s *Store) Delete(ctx context.Context, key string) error {
 // limitations documented there.
 //
 // Capturing a vector does not wait for replication or prevent further writes.
-func (s *Store) Version(ctx context.Context) (map[string]uint64, error) {
+func (s *Store) Version(ctx context.Context) (api.StoreVersion, error) {
 	rows, err := s.corro.QueryContext(ctx, "SELECT site_id, db_version FROM crsql_db_versions")
 	if err != nil {
 		return nil, fmt.Errorf("query crsql_db_versions: %w", err)
 	}
 	defer rows.Close()
 
-	versions := make(map[string]uint64)
+	versions := make(api.StoreVersion)
 	for rows.Next() {
 		var (
 			siteID  []byte

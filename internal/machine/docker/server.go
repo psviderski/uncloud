@@ -538,6 +538,15 @@ func (s *Server) CreateServiceContainer(
 		containerName = fmt.Sprintf("%s-%s", spec.Name, suffix)
 	}
 
+	desiredSpec := spec
+	renderedSpec, renderErr := desiredSpec.RenderRuntimeTemplates(api.RuntimeTemplateContext{
+		Container: api.RuntimeTemplateContainerContext{Name: containerName},
+	})
+	if renderErr != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "render runtime templates: %v", renderErr)
+	}
+	spec = renderedSpec
+
 	envVars := maps.Clone(spec.Container.Env)
 	if envVars == nil {
 		envVars = make(api.EnvVars)
@@ -745,7 +754,7 @@ func (s *Server) CreateServiceContainer(
 		_ = s.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{RemoveVolumes: true})
 	}
 
-	specBytes, err := json.Marshal(spec)
+	specBytes, err := json.Marshal(desiredSpec)
 	if err != nil {
 		removeContainer()
 		return nil, status.Errorf(codes.Internal, "marshal service spec: %v", err)

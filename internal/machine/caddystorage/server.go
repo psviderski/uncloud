@@ -25,10 +25,17 @@ const Namespace = "caddy_storage"
 // Server implements the machine-local CaddyStorage gRPC service.
 type Server struct {
 	pb.UnimplementedCaddyStorageServer
-	store *store.Keyspace
+	store keyspace
 }
 
-func NewServer(store *store.Keyspace) *Server {
+type keyspace interface {
+	Get(context.Context, string) (store.Record, error)
+	Put(context.Context, string, []byte) error
+	Delete(context.Context, string, store.KeyspaceDeleteOptions) error
+	List(context.Context, string, store.KeyspaceListOptions) ([]store.Record, error)
+}
+
+func NewServer(store keyspace) *Server {
 	return &Server{store: store}
 }
 

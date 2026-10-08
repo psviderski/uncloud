@@ -20,7 +20,7 @@ traditional container orchestrators like Kubernetes or Swarm:
 * Scaling services across multiple machines
 * Cross-machine service communication without exposing ports to the internet
 * DNS-based service discovery
-* Automatic HTTPS and reverse proxy configuration
+* Automatic HTTPS and reverse proxy configuration with clustered storage for certificates
 * Load balancing
 * Persistent storage
 

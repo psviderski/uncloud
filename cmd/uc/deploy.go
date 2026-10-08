@@ -305,7 +305,7 @@ const defaultFailedContainerLogsTail = 10
 // UNCLOUD_FAILED_CONTAINER_LOGS_TAIL environment variable override when set and valid.
 func failedContainerLogsTail() int {
 	if v := os.Getenv("UNCLOUD_FAILED_CONTAINER_LOGS_TAIL"); v != "" {
-		if tail, err := logs.Tail(v); err == nil && (tail == -1 || tail > 0) {
+		if tail, err := logs.ParseTail(v); err == nil && (tail == -1 || tail > 0) {
 			return tail
 		}
 	}

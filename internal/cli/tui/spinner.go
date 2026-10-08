@@ -31,6 +31,8 @@ func RunSpinner(ctx context.Context, title string, action func(ctx context.Conte
 			}
 		})).
 		WithOutput(os.Stderr).
+		// A spinner reads no keys, saying so makes Bubble Tea skip unnecessary terminal capability queries.
+		WithInput(nil).
 		Context(ctx).
 		ActionWithErr(action).
 		Run()

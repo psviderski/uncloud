@@ -23,5 +23,5 @@ uc dns show [flags]
 
 ## See also
 
-* [uc dns](uc_dns.md)	 - Manage cluster domain in Uncloud DNS.
+* [uc dns](uc_dns.md)	 - Manage the cluster domain.
 

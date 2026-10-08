@@ -1,11 +1,32 @@
 package api
 
 import (
+	"fmt"
 	"net/netip"
 	"strings"
 
 	"github.com/psviderski/uncloud/api/pb"
 )
+
+// ValidateMachineName checks that a machine name is a lowercase DNS label and doesn't conflict with
+// internal DNS query modes or machine IDs.
+func ValidateMachineName(name string) error {
+	if !DNSLabelRegex.MatchString(name) {
+		return fmt.Errorf("invalid machine name %q: must be 1-63 characters, lowercase letters, numbers, "+
+			"and hyphens only, starting and ending with a letter or number", name)
+	}
+
+	switch name {
+	case "rr", "nearest":
+		return fmt.Errorf("invalid machine name %q: reserved for internal DNS query modes", name)
+	}
+	if IDRegex.MatchString(name) {
+		return fmt.Errorf(
+			"invalid machine name %q: must not match the machine ID format (32 hexadecimal characters)", name)
+	}
+
+	return nil
+}
 
 // MachineFilter defines criteria to filter machines in ListMachines.
 type MachineFilter struct {

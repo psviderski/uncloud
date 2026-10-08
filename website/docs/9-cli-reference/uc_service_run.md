@@ -47,6 +47,7 @@ uc service run IMAGE [COMMAND...] [flags]
   -v, --volume strings      Mount a data volume or host path into service containers. Service containers will be scheduled on the machine(s) where
                             the volume is located. Can be specified multiple times.
                             Format: volume_name:/container/path[:ro|volume-nocopy] or /host/path:/container/path[:ro]
+                            Host and container paths support runtime templates such as {{.Container.Name}}.
                             Examples:
                               -v postgres-data:/var/lib/postgresql/data  Mount volume 'postgres-data' to /var/lib/postgresql/data in container
                               -v /data/uploads:/app/uploads         	 Bind mount /data/uploads host directory to /app/uploads in container

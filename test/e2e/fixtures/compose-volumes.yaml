@@ -5,6 +5,7 @@ services:
     volumes:
       - test-compose-volumes-data1:/data1
       - /etc/passwd:/host/etc/passwd:ro
+      - "/tmp/uncloud-e2e/{{.Container.Name}}:/host/{{.Container.Name}}:ro"
     deploy:
       replicas: 3
   test-compose-volumes-service2:

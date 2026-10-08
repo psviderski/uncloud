@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -24,6 +25,10 @@ type Formatter struct {
 	maxServiceWidth int
 
 	utc bool
+
+	// Cache each stream's terminal profile to avoid detection on every log entry.
+	stdout *colorprofile.Writer
+	stderr *colorprofile.Writer
 }
 
 func NewFormatter(machineNames, serviceNames []string, utc bool) *Formatter {
@@ -50,6 +55,8 @@ func NewFormatter(machineNames, serviceNames []string, utc bool) *Formatter {
 		maxMachineWidth: maxMachineWidth,
 		maxServiceWidth: maxServiceWidth,
 		utc:             utc,
+		stdout:          colorprofile.NewWriter(os.Stdout, os.Environ()),
+		stderr:          colorprofile.NewWriter(os.Stderr, os.Environ()),
 	}
 }
 
@@ -138,9 +145,9 @@ func (f *Formatter) PrintEntry(entry api.ServiceLogEntry) {
 
 	// Print to appropriate stream.
 	if entry.Stream == api.LogStreamStderr {
-		fmt.Fprint(os.Stderr, output.String())
+		fmt.Fprint(f.stderr, output.String())
 	} else {
-		fmt.Print(output.String())
+		fmt.Fprint(f.stdout, output.String())
 	}
 }
 
@@ -148,8 +155,7 @@ func (f *Formatter) PrintEntry(entry api.ServiceLogEntry) {
 func (f *Formatter) printError(entry api.ServiceLogEntry) {
 	if entry.Metadata.ServiceName == "" {
 		msg := fmt.Sprintf("ERROR: %v", entry.Err)
-		style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.BrightRed)
-		fmt.Fprintln(os.Stderr, style.Render(msg))
+		fmt.Fprintln(f.stderr, tui.BoldRed.Render(msg))
 		return
 	}
 
@@ -171,8 +177,7 @@ func (f *Formatter) printError(entry api.ServiceLogEntry) {
 		msg += fmt.Sprintf(": %v", entry.Err)
 	}
 
-	style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.BrightYellow)
-	fmt.Fprintln(os.Stderr, style.Render(msg))
+	fmt.Fprintln(f.stderr, tui.BoldYellow.Render(msg))
 }
 
 // palette is available colors for machine/service differentiation.

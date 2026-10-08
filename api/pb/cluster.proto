@@ -14,6 +14,7 @@ service Cluster {
   rpc RemoveMachine(RemoveMachineRequest) returns (google.protobuf.Empty);
 
   rpc ReserveDomain(ReserveDomainRequest) returns (Domain);
+  rpc SetDomain(SetDomainRequest) returns (google.protobuf.Empty);
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
   rpc ReleaseDomain(google.protobuf.Empty) returns (Domain);
   rpc CreateDomainRecords(CreateDomainRecordsRequest) returns (CreateDomainRecordsResponse);
@@ -56,10 +57,18 @@ message RemoveMachineRequest {
 
 message Domain {
   string name = 1;
+  // Whether the domain is reserved in Uncloud DNS. Older daemons (<0.21) omit this field
+  // and only support reserved domains, so clients should treat absence as true.
+  optional bool reserved = 2;
 }
 
 message ReserveDomainRequest {
   string endpoint = 1;
+}
+
+message SetDomainRequest {
+  // An externally managed domain name. Empty clears a manually set domain.
+  string name = 1;
 }
 
 message CreateDomainRecordsRequest {

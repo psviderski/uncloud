@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -57,14 +58,12 @@ https://{{$hostname}} {
 	log
 }{{end}}
 `
-	caddyfileUnavailabeFooter = `# NOTE: User-defined configs for services were skipped because Caddy is not running on this machine
-#       (not accessible via the shared admin socket /run/uncloud/caddy/admin.sock) or the latest
-#       generated config is invalid. Please check the service 'caddy' is running (uc inspect caddy)
-#       and its logs for more details (uc logs caddy).
-`
+	bootstrapMarker       = "# Uncloud bootstrap for Caddy container "
+	legacyBootstrapMarker = "# NOTE: User-defined configs for services were skipped because Caddy is not running"
 )
 
 // CaddyfileGenerator generates a Caddyfile configuration for the Caddy reverse proxy.
+// It combines generated routes from published ports with user-defined Caddyfile snippets from service specs (x-caddy).
 type CaddyfileGenerator struct {
 	// machineID is the unique identifier of the machine where the controller is running.
 	machineID string
@@ -74,10 +73,17 @@ type CaddyfileGenerator struct {
 	log         *slog.Logger
 }
 
-// CaddyfileValidator is an interface for validating Caddyfile configurations.
+// CaddyfileValidator checks a candidate Caddyfile without loading it. Validate returns InvalidCaddyfileError only
+// when the candidate is known to be invalid. Other errors mean the check could not be completed. A successful check
+// does not guarantee that the configuration will load.
 type CaddyfileValidator interface {
 	Validate(ctx context.Context, caddyfile string) error
 }
+
+// InvalidCaddyfileError means validation completed and the candidate Caddyfile was rejected.
+type InvalidCaddyfileError struct{ Message string }
+
+func (e *InvalidCaddyfileError) Error() string { return e.Message }
 
 func NewCaddyfileGenerator(
 	machineID, machineName string, validator CaddyfileValidator, log *slog.Logger,
@@ -93,35 +99,41 @@ func NewCaddyfileGenerator(
 	}
 }
 
-// Generate creates a Caddyfile configuration based on the provided service containers.
-// The Caddyfile is generated from the service ports of the healthy containers.
-// If a 'caddy' service container is running on this machine and defines a custom Caddy config (x-caddy) in its service
-// spec, it will be validated and prepended to the generated Caddyfile. Custom Caddy configs (x-caddy) defined in other
-// service specs are validated and appended to the generated Caddyfile. Invalid configs are logged and skipped to ensure
-// the generated Caddyfile remains valid.
+// Generate creates a Caddyfile for the local Caddy container from the supplied healthy application containers.
+// Application service ports provide the generated sites. The Caddy container's custom Caddy config (x-caddy), if
+// defined, provides the global block even when that container is unhealthy. When application custom Caddy configs
+// are included, the newest container for each service provides its config.
 //
-// The final Caddyfile structure includes:
+// The resulting Caddyfile has this structure:
 //
-//	[caddy x-caddy (global config)]
-//	[generated Caddyfile from all service ports]
-//	[service-a x-caddy]
+//	[caddy custom Caddy config (global)]
+//	[generated sites from application service ports]
+//	[service-a custom Caddy config]
 //	...
-//	[service-z x-caddy]
+//	[service-z custom Caddy config]
 //
-// If includeCustom is false, custom Caddy configs (x-caddy) are not included in the generated Caddyfile.
+// Bootstrap mode keeps the global custom Caddy config and generated sites, but omits application custom Caddy configs.
+// It skips validation because Caddy may not be running yet. In this case, Caddy validates the config when it starts.
+// Global template errors still stop generation. In full mode, invalid globals stop generation, while invalid
+// application custom Caddy configs are logged and skipped.
 func (g *CaddyfileGenerator) Generate(
-	ctx context.Context, records []store.ContainerRecord, includeCustom bool,
+	ctx context.Context,
+	caddyCtr api.ServiceContainer,
+	records []store.ContainerRecord,
+	bootstrap bool,
 ) (string, error) {
+	records = slices.Clone(records)
 	// Sort records by local machine first, then by service name and creation time. Placing containers on the local
 	// machine first lets user-defined Caddy configs pair this ordering with the "first" lb_policy to always send
 	// traffic to the same-host replica (skipping the cross-machine hop) and only fall back to remote upstreams when
 	// the local one is unhealthy.
-	// The service name and creation time tiebreakers keep the generated Caddyfile stable across regenerations.
+	// The service name, creation time, and container ID tiebreakers keep the file stable across regenerations.
 	slices.SortStableFunc(records, func(a, b store.ContainerRecord) int {
 		return cmp.Or(
 			g.localMachineRank(a.MachineID)-g.localMachineRank(b.MachineID),
 			strings.Compare(a.Container.ServiceName(), b.Container.ServiceName()),
 			a.Container.CreatedTime().Compare(b.Container.CreatedTime()),
+			strings.Compare(a.Container.ID, b.Container.ID),
 		)
 	})
 
@@ -136,26 +148,11 @@ func (g *CaddyfileGenerator) Generate(
 	}
 
 	caddyfileHeader := fmt.Sprintf(caddyfileHeaderFmt, g.machineName, time.Now().UTC().Format(time.RFC3339))
-	if !includeCustom {
-		return fmt.Sprintf("%s\n%s\n%s", caddyfileHeader, caddyfile, caddyfileUnavailabeFooter), nil
-	}
-
 	upstreams := serviceUpstreams(containers)
 	// Track validation errors for reporting.
 	var configErrors []string
 
-	// Find the 'caddy' service container on this machine. Use the most recent one if multiple exist.
-	var caddyCtr *api.ServiceContainer
-	for _, cr := range records {
-		if cr.MachineID == g.machineID && cr.Container.ServiceName() == CaddyServiceName &&
-			(caddyCtr == nil || cr.Container.CreatedTime().Compare(caddyCtr.CreatedTime()) > 0) {
-			caddyCtr = &cr.Container
-		}
-	}
-
-	// If the caddy container is running on this machine and has a custom Caddy config (global),
-	// prepend it to the generated Caddyfile and validate it.
-	if caddyCtr != nil && caddyCtr.ServiceSpec.CaddyConfig() != "" {
+	if caddyCtr.ServiceSpec.CaddyConfig() != "" {
 		// Render the custom global Caddy config as a Go template with the upstreams.
 		tmplCtx := templateContext{
 			Name:      caddyCtr.ServiceName(),
@@ -163,23 +160,23 @@ func (g *CaddyfileGenerator) Generate(
 		}
 		renderedConfig, err := renderCaddyfile(tmplCtx, caddyCtr.ServiceSpec.CaddyConfig())
 		if err != nil {
-			g.log.Error("Failed to render template directives in user-defined global Caddy config, skipping it.",
-				"service", caddyCtr.ServiceName(), "container", caddyCtr.ID, "err", err)
-			configErrors = append(configErrors,
-				fmt.Sprintf("service '%s': failed to render template: %v", caddyCtr.ServiceName(), err))
-		} else {
-			caddyfileCandidate := fmt.Sprintf("# User-defined global config from service '%s'.\n%s\n\n%s",
-				caddyCtr.ServiceName(), renderedConfig, caddyfile)
-
+			return "", fmt.Errorf(
+				"render template directives in user-defined global Caddy config from Caddy container %s: %w",
+				caddyCtr.ShortID(), err)
+		}
+		caddyfileCandidate := fmt.Sprintf("# User-defined global config from service '%s'.\n%s\n\n%s",
+			caddyCtr.ServiceName(), renderedConfig, caddyfile)
+		if !bootstrap && g.validator != nil {
 			if err = g.validator.Validate(ctx, caddyfileCandidate); err != nil {
-				g.log.Error("User-defined global Caddy config is invalid, skipping it.",
-					"service", caddyCtr.ServiceName(), "container", caddyCtr.ID, "err", err)
-				configErrors = append(configErrors,
-					fmt.Sprintf("service '%s': validation failed: %v", caddyCtr.ServiceName(), err))
-			} else {
-				caddyfile = caddyfileCandidate
+				return "", fmt.Errorf("validate user-defined global Caddy config from Caddy container %s: %w",
+					caddyCtr.ShortID(), err)
 			}
 		}
+		caddyfile = caddyfileCandidate
+	}
+
+	if bootstrap {
+		return caddyfileHeader + bootstrapMarker + caddyCtr.ID + "\n\n" + caddyfile, nil
 	}
 
 	// There could be multiple service containers for the same service with different custom Caddy configs, for example,
@@ -200,7 +197,7 @@ func (g *CaddyfileGenerator) Generate(
 	// Append a custom Caddy config for each service to the Caddyfile and validate it. If the config for a service
 	// is invalid, skip it but continue processing other services to ensure the Caddyfile remains valid.
 	for _, serviceName := range sortedServiceNames {
-		// Skip the caddy container as we already processed it.
+		// Skip the caddy container as we already processed it as the global config.
 		if serviceName == CaddyServiceName {
 			continue
 		}
@@ -226,16 +223,22 @@ func (g *CaddyfileGenerator) Generate(
 
 		caddyfileCandidate := fmt.Sprintf("%s\n# User-defined config for service '%s'.\n%s\n",
 			caddyfile, serviceName, renderedConfig)
-		if err = g.validator.Validate(ctx, caddyfileCandidate); err != nil {
-			g.log.Error("User-defined Caddy config for service is invalid, skipping it.",
-				"service", serviceName, "err", err)
-			configErrors = append(configErrors, fmt.Sprintf("service '%s': validation failed: %v", serviceName, err))
-		} else {
-			caddyfile = caddyfileCandidate
+		if g.validator != nil {
+			if err = g.validator.Validate(ctx, caddyfileCandidate); err != nil {
+				if _, ok := errors.AsType[*InvalidCaddyfileError](err); !ok {
+					return "", fmt.Errorf("validate Caddy config for service '%s': %w", serviceName, err)
+				}
+				g.log.Error("User-defined Caddy config for service is invalid, skipping it.",
+					"service", serviceName, "err", err)
+				configErrors = append(configErrors,
+					fmt.Sprintf("service '%s': validation failed: %v", serviceName, err))
+				continue
+			}
 		}
+		caddyfile = caddyfileCandidate
 	}
 
-	// Append error summary as comment if there were any invalid configs.
+	// Keep skipped-snippet errors in the saved file so an operator can see why routes are missing after a restart.
 	if len(configErrors) > 0 {
 		var errorsComment strings.Builder
 		errorsComment.WriteString("# Skipped invalid user-defined configs:\n")
@@ -249,8 +252,7 @@ func (g *CaddyfileGenerator) Generate(
 	return caddyfileHeader + "\n" + caddyfile, nil
 }
 
-// localMachineRank returns 0 if the given machineID matches the local machine and 1 otherwise.
-// Useful for sorting containers running locally first.
+// localMachineRank is a sorting function for containers that puts running on the local machine first.
 func (g *CaddyfileGenerator) localMachineRank(machineID string) int {
 	if g.machineID == machineID {
 		return 0

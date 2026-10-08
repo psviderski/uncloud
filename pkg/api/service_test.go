@@ -2,12 +2,66 @@ package api
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestServiceSpec_Validate_Name(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{name: "empty allows generated name"},
+		{name: "single character", input: "a"},
+		{name: "single digit", input: "1"},
+		{name: "two characters", input: "a1"},
+		{name: "hyphens and digits", input: "1-web-2"},
+		{name: "consecutive hyphens", input: "web--1"},
+		{name: "maximum length", input: strings.Repeat("a", 63)},
+		{name: "maximum length with hyphens", input: "a" + strings.Repeat("-", 61) + "1"},
+		{name: "round-robin mode is a valid service name", input: "rr"},
+		{name: "nearest mode is a valid service name", input: "nearest"},
+		{name: "machine namespace prefix", input: "m-service"},
+		{name: "short hexadecimal name", input: strings.Repeat("a", 31)},
+		{name: "long hexadecimal name", input: strings.Repeat("a", 33)},
+		{name: "non-hexadecimal 32 characters", input: strings.Repeat("g", 32)},
+		{name: "too long", input: strings.Repeat("a", 64), wantErr: "must be 1-63 characters"},
+		{name: "uppercase", input: "WEB1", wantErr: "lowercase letters"},
+		{name: "leading hyphen", input: "-web", wantErr: "starting and ending"},
+		{name: "trailing hyphen", input: "web-", wantErr: "starting and ending"},
+		{name: "hyphen only", input: "-", wantErr: "starting and ending"},
+		{name: "underscore", input: "web_1", wantErr: "hyphens only"},
+		{name: "dot", input: "web.example", wantErr: "hyphens only"},
+		{name: "slash", input: "web/api", wantErr: "hyphens only"},
+		{name: "space", input: "web 1", wantErr: "hyphens only"},
+		{name: "leading whitespace", input: " web", wantErr: "hyphens only"},
+		{name: "trailing whitespace", input: "web ", wantErr: "hyphens only"},
+		{name: "tab", input: "web\t1", wantErr: "hyphens only"},
+		{name: "newline", input: "web\n", wantErr: "hyphens only"},
+		{name: "non-ASCII", input: "wéb", wantErr: "lowercase letters"},
+		{name: "machine DNS namespace", input: "m", wantErr: "reserved for the machine DNS namespace"},
+		{name: "service ID", input: "c337f00600de51ef4375c9a9a267dba5", wantErr: "service ID format"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			spec := ServiceSpec{Name: tt.input, Container: ContainerSpec{Image: "nginx:latest"}}
+			err := spec.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
 func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 	tests := []struct {

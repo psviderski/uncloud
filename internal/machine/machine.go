@@ -198,6 +198,8 @@ type Machine struct {
 	dockerServer  *machinedocker.Server
 	// machineAPIServer handles API requests directly on this machine.
 	machineAPIServer *grpc.Server
+	// caddyService provides methods to interact with the Caddy configuration on the machine.
+	caddyService *caddyconfig.Service
 
 	// proxyDirector routes API requests to local or remote machines.
 	proxyDirector *apiproxy.Director
@@ -260,11 +262,11 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion API client: %w", err)
 	}
-	corroStore := store.New(corro)
 	corroAdmin, err := corrosion.NewAdminClient(config.CorrosionAdminSockPath)
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion admin client: %w", err)
 	}
+	corroStore := store.New(corro, corroAdmin)
 
 	initialised := make(chan struct{})
 	clusterReady := make(chan struct{})
@@ -302,6 +304,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		dockerService:    dockerService,
 		clusterAPIServer: clusterAPIServer,
 		proxyDirector:    proxyDirector,
+		caddyService:     caddyconfig.NewService(config.CaddyConfigDir),
 	}
 
 	// Machine IP will only be available after the machine is initialised as a cluster member so wrap it in a function.
@@ -316,7 +319,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		NetworkReady:        m.IsNetworkReady,
 		WaitForNetworkReady: m.WaitForNetworkReady,
 	})
-	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir))
+	caddyServer := caddyconfig.NewServer(m.caddyService)
 
 	caddyStore, err := corroStore.Keyspace(caddystorage.Namespace)
 	if err != nil {
@@ -535,7 +538,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
 			caddyconfigCtrl, err := caddyconfig.NewController(
 				m.state.ID,
-				m.config.CaddyConfigDir,
+				m.caddyService,
 				DefaultCaddyAdminSockPath,
 				m.store,
 			)
@@ -832,6 +835,11 @@ func checkDNSPortAvailable() error {
 func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (*pb.InitClusterResponse, error) {
 	if m.Initialised() {
 		return nil, status.Error(codes.FailedPrecondition, "machine is already configured as a cluster member")
+	}
+	if req.MachineName != "" {
+		if err := api.ValidateMachineName(req.MachineName); err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 	}
 
 	clusterNetwork, err := req.Network.ToPrefix()
@@ -1217,8 +1225,8 @@ func (m *Machine) applyMachineUpdate(ctx context.Context, req *pb.UpdateMachineR
 	defer m.state.mu.Unlock()
 
 	if req.Name != nil {
-		if *req.Name == "" {
-			return status.Error(codes.InvalidArgument, "machine name cannot be empty")
+		if err := api.ValidateMachineName(*req.Name); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
 		}
 		// Check for duplicate names across the cluster, excluding this machine.
 		if *req.Name != m.state.Name {

@@ -1,6 +1,18 @@
 package api
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
+
+// CaddyConfig is the saved Caddy configuration on a machine.
+type CaddyConfig struct {
+	Caddyfile string
+	// ModifiedAt is zero when the server does not supply a modification timestamp.
+	ModifiedAt time.Time
+	// LastReconciliationError describes the latest unsuccessful configuration reconciliation.
+	LastReconciliationError string
+}
 
 // CaddySpec is the Caddy reverse proxy configuration for a service.
 type CaddySpec struct {
