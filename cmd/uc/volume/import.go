@@ -6,12 +6,8 @@ import (
 	"os"
 
 	"github.com/charmbracelet/x/term"
-	"github.com/docker/cli/cli/streams"
-	"github.com/docker/compose/v2/pkg/progress"
-	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
-	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +24,10 @@ func NewImportCommand() *cobra.Command {
 		Use:   "import VOLUME_NAME",
 		Args:  cobra.ExactArgs(1),
 		Short: "Import a volume from a tar archive from standard input.",
-		Long: `Import a volume as (gzipped) tar archive from standard input.
+		Long: `Import a volume as tar archive from standard input.
+
+The tar archive is copied from standard input to a GNU tar running in a container. GNU tar can autodetect
+if the archive is compressed.
 
 If you have a (gzipped) tar archive you can import this to a new volume with:
 
@@ -89,51 +88,6 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOpti
 		fmt.Println("Multiple volumes found, use --machine to specify a machine.")
 		return nil
 	}
+	return nil
 
-	spec, err := prepareServiceSpec(volumes[0], "import")
-	if err != nil {
-		return err
-	}
-
-	var resp api.RunServiceResponse
-	if !opts.quiet {
-		err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-			resp, err = client.RunService(ctx, spec)
-			if err != nil {
-				return fmt.Errorf("run service: %w", err)
-			}
-			return nil
-		}, streams.NewOut(os.Stderr), fmt.Sprintf("Running service %s", spec.Name))
-	} else {
-		resp, err = client.RunService(ctx, spec)
-	}
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if !opts.quiet {
-			err = progress.RunWithTitle(ctx, func(ctx context.Context) error {
-				if err = client.RemoveService(ctx, spec.Name); err != nil {
-					return fmt.Errorf("remove service '%s': %w", spec.Name, err)
-				}
-				return nil
-			}, streams.NewOut(os.Stderr), "Removing service "+spec.Name)
-		} else {
-			client.RemoveService(ctx, spec.Name)
-		}
-	}()
-	defer client.StopService(ctx, resp.ID, container.StopOptions{Timeout: new(1)})
-
-	execopts := api.ExecOptions{
-		Command:      []string{"tar", "-xvz"},
-		WorkingDir:   MountPoint,
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Stdin:        os.Stdin,
-		Stdout:       os.Stdout,
-		Stderr:       os.Stderr,
-	}
-	return runCommand(ctx, client, resp.ID, execopts)
 }
