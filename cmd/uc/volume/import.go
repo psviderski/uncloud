@@ -77,15 +77,6 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts importOpti
 		return fmt.Errorf("list volumes: %w", err)
 	}
 
-	if len(volumes) == 0 {
-		fmt.Println("No volumes found.")
-		return nil
-	}
-	if len(volumes) != 1 {
-		fmt.Println("Multiple volumes found, use --machine to specify a machine.")
-		return nil
-	}
-
 	ctx = client.ProxySingleMachineContext(ctx, volumes[0].MachineID)
 	config, hostConfig := containerConfig(volumes[0])
 	resp, err := createContainerWithImagePull(ctx, client, ExportName, config, hostConfig)

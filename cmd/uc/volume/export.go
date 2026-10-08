@@ -39,7 +39,7 @@ func NewExportCommand() *cobra.Command {
 		Short: "Export a volume as a tar archive to standard output.",
 		Long: `Export a volume as a (compressed) tar archive to standard output.
 
-The tar archive is created using GNU tar and outputs a gzipped archive to standard output.
+The tar archive is created using GNU tar running in a container and outputs a gzipped archive to standard output.
 A file can be created by redirecting the output to a file.
 
 	uc volume export VOLUME_NAME > volume.tar.gz
@@ -82,15 +82,6 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 		return err
 	}
 
-	if len(volumes) == 0 {
-		fmt.Println("No volumes found.")
-		return nil
-	}
-	if len(volumes) != 1 {
-		fmt.Println("Multiple volumes found, use --machine to specify a machine.")
-		return nil
-	}
-
 	ctx = client.ProxySingleMachineContext(ctx, volumes[0].MachineID)
 	config, hostConfig := containerConfig(volumes[0])
 	resp, err := createContainerWithImagePull(ctx, client, ExportName, config, hostConfig)
@@ -131,6 +122,12 @@ func listVolumes(ctx context.Context, client *client.Client, name, machine strin
 	volumes, err := client.ListVolumes(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("list volumes: %w", err)
+	}
+	if len(volumes) == 0 {
+		return volumes, fmt.Errorf("no volumes found.")
+	}
+	if len(volumes) != 1 {
+		return volumes, fmt.Errorf("multiple volumes found, use --machine to specify a machine.")
 	}
 	return volumes, nil
 }
