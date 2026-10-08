@@ -145,8 +145,7 @@ func runCommand(ctx context.Context, client *client.Client, serviceID string, ex
 		return fmt.Errorf("no running healthy container found for service '%s'", serviceID)
 	}
 
-	exitCode, err := client.ExecContainer(ctx, serviceID, ctr.Container.ID, execopts)
-
+	exitCode, _ := client.ExecContainer(ctx, serviceID, ctr.Container.ID, execopts)
 	if exitCode == 0 {
 		return nil
 	}
