@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
@@ -29,17 +30,12 @@ func NewExportCommand() *cobra.Command {
 	opts := exportOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "export VOLUME_NAME [FILE]",
-		Aliases: []string{"list"},
-		Args:    cobra.ExactArgs(1),
-		Short:   "Export a volume as a tar archive to standard output.",
-		Long: `Export a volume a (gzipped) tar archive to standard output.
-
-TODO
-TODO`,
+		Use:   "export VOLUME_NAME",
+		Args:  cobra.ExactArgs(1),
+		Short: "Export a volume as a tar archive to standard output.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
-			return export(cmd.Context(), uncli, args[0], opts)
+			return runExport(cmd.Context(), uncli, args[0], opts)
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 			if len(args) > 0 {
@@ -61,23 +57,19 @@ TODO`,
 	return cmd
 }
 
-func export(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions) error {
+func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions) error {
+	if isTTY := term.IsTerminal(os.Stdout.Fd()); isTTY {
+		return fmt.Errorf("refusing to output to a terminal, redirect standard output to a file")
+	}
 	client, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
 	}
 	defer client.Close()
 
-	filter := &api.VolumeFilter{
-		Names: []string{name},
-	}
-	if opts.machine != "" {
-		filter.Machines = []string{opts.machine}
-	}
-
-	volumes, err := client.ListVolumes(ctx, filter)
+	volumes, err := listVolumes(ctx, client, name, opts.machine)
 	if err != nil {
-		return fmt.Errorf("list volumes: %w", err)
+		return err
 	}
 
 	if len(volumes) == 0 {
@@ -124,10 +116,16 @@ func export(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions
 	}()
 	defer client.StopService(ctx, resp.ID, container.StopOptions{Timeout: new(1)})
 
-	return runCommand(ctx, client, resp.ID, []string{"tar", "-cz", "."})
+	execopts := api.ExecOptions{
+		Command:      []string{"tar", "-cz", "."},
+		WorkingDir:   MountPoint,
+		AttachStdout: true,
+		Stdout:       os.Stdout,
+	}
+	return runCommand(ctx, client, resp.ID, execopts)
 }
 
-func runCommand(ctx context.Context, client *client.Client, serviceID string, cmd []string) error {
+func runCommand(ctx context.Context, client *client.Client, serviceID string, execopts api.ExecOptions) error {
 	svc, err := client.InspectService(ctx, serviceID)
 	if err != nil {
 		if errors.Is(err, api.ErrNotFound) {
@@ -147,19 +145,13 @@ func runCommand(ctx context.Context, client *client.Client, serviceID string, cm
 		return fmt.Errorf("no running healthy container found for service '%s'", serviceID)
 	}
 
-	exitCode, err := client.ExecContainer(ctx, serviceID, ctr.Container.ID, api.ExecOptions{
-		Command:      cmd,
-		WorkingDir:   MountPoint,
-		AttachStdout: true,
-		// Not attaching Stderr.
-		Stdout: os.Stdout,
-	})
+	exitCode, err := client.ExecContainer(ctx, serviceID, ctr.Container.ID, execopts)
 
 	if exitCode == 0 {
-		return err // should be nil also
+		return nil
 	}
 
-	return fmt.Errorf("command returned with exit code: %d: %w", exitCode, err)
+	return fmt.Errorf("command returned with exit code: %d", exitCode)
 }
 
 func prepareServiceSpec(volume api.MachineVolume, operation string) (api.ServiceSpec, error) {
@@ -181,7 +173,6 @@ func prepareServiceSpec(volume api.MachineVolume, operation string) (api.Service
 				{
 					VolumeName:    "bind-" + suffix,
 					ContainerPath: MountPoint,
-					ReadOnly:      true,
 				},
 			},
 		},
@@ -202,4 +193,19 @@ func prepareServiceSpec(volume api.MachineVolume, operation string) (api.Service
 	}
 
 	return spec, nil
+}
+
+func listVolumes(ctx context.Context, client *client.Client, name, machine string) ([]api.MachineVolume, error) {
+	filter := &api.VolumeFilter{
+		Names: []string{name},
+	}
+	if machine != "" {
+		filter.Machines = []string{machine}
+	}
+
+	volumes, err := client.ListVolumes(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("list volumes: %w", err)
+	}
+	return volumes, nil
 }
