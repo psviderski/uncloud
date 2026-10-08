@@ -50,6 +50,65 @@ func TestClusterResolver_UpdateServiceIPs(t *testing.T) {
 	assert.NotEmpty(t, r.Resolve("db"))
 }
 
+func TestClusterResolver_MachineSpecificLookups(t *testing.T) {
+	t.Parallel()
+
+	r := NewClusterResolver(nil)
+	r.updateMachineIPs([]*pb.MachineInfo{
+		newMachineRecord("mach-1", "mach-1-name", "10.210.0.0/24"),
+		newMachineRecord("mach-2", "mach-2-name", "10.210.1.0/24"),
+		// mach-3 is unknown so its containers must not register an empty-prefixed lookup.
+	})
+	r.updateServiceIPs([]store.ContainerRecord{
+		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1"),
+		newRecord("svc-id-1", "web", "10.210.0.3", "mach-2"),
+		newRecord("svc-id-2", "api", "10.210.1.2", "mach-1"),
+		newRecord("svc-id-3", "db", "10.210.2.2", "mach-3"),
+	})
+
+	tests := []struct {
+		name  string
+		query string
+		want  []netip.Addr
+	}{
+		{"machine ID", "mach-1.m.web", []netip.Addr{netip.MustParseAddr("10.210.0.2")}},
+		{"machine name", "mach-1-name.m.web", []netip.Addr{netip.MustParseAddr("10.210.0.2")}},
+		{"other machine name", "mach-2-name.m.web", []netip.Addr{netip.MustParseAddr("10.210.0.3")}},
+		{"machine name other service", "mach-1-name.m.api", []netip.Addr{netip.MustParseAddr("10.210.1.2")}},
+		{"machine name without service container", "mach-2-name.m.api", nil},
+		{"machine ID without name", "mach-3.m.db", []netip.Addr{netip.MustParseAddr("10.210.2.2")}},
+		{"empty machine name", ".m.db", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, r.Resolve(tt.query))
+		})
+	}
+}
+
+func TestClusterResolver_MachineRename(t *testing.T) {
+	t.Parallel()
+
+	webIP := []netip.Addr{netip.MustParseAddr("10.210.0.2")}
+
+	r := NewClusterResolver(nil)
+	// Containers may be received before machines.
+	r.updateServiceIPs([]store.ContainerRecord{
+		newRecord("svc-id-1", "web", "10.210.0.2", "mach-1"),
+	})
+	assert.Nil(t, r.Resolve("old-name.m.web"))
+
+	r.updateMachineIPs([]*pb.MachineInfo{newMachineRecord("mach-1", "old-name", "10.210.0.0/24")})
+	assert.Equal(t, webIP, r.Resolve("old-name.m.web"))
+
+	// Renaming the machine must update service lookups without any container changes.
+	r.updateMachineIPs([]*pb.MachineInfo{newMachineRecord("mach-1", "new-name", "10.210.0.0/24")})
+	assert.Equal(t, webIP, r.Resolve("new-name.m.web"))
+	assert.Nil(t, r.Resolve("old-name.m.web"))
+	assert.Equal(t, webIP, r.Resolve("mach-1.m.web"))
+}
+
 func newRecord(serviceID, serviceName, ip, machineID string) store.ContainerRecord {
 	return store.ContainerRecord{
 		Container: api.ServiceContainer{
