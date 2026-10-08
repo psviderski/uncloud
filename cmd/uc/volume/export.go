@@ -77,6 +77,8 @@ func runExport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 		return err
 	}
 	defer client.Close()
+	defer client.Docker.RemoveContainer(ctx, ID, container.RemoveOptions{Force: true}) // either it's already gone, or we need to remove it, prevent lingering containers.
+
 	exitCode, _ := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
 		ContainerID: ID,
 		Options: api.ExecOptions{

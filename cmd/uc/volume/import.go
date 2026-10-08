@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/charmbracelet/x/term"
+	"github.com/docker/docker/api/types/container"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
@@ -64,8 +65,9 @@ func runImport(ctx context.Context, uncli *cli.CLI, name string, opts exportOpti
 		return err
 	}
 	defer client.Close()
+	defer client.Docker.RemoveContainer(ctx, ID, container.RemoveOptions{Force: true})
 
-	exitCode, _ := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
+	exitCode, err := client.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
 		ContainerID: ID,
 		Options: api.ExecOptions{
 			Command:      []string{"sh", "-c", "tar xvz; touch /tmp/done"},
