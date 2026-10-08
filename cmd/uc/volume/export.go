@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/docker/cli/cli/streams"
@@ -24,6 +23,8 @@ type exportOptions struct {
 	quiet   bool
 }
 
+const MountPoint = "/mnt/data"
+
 func NewExportCommand() *cobra.Command {
 	opts := exportOptions{}
 
@@ -32,6 +33,10 @@ func NewExportCommand() *cobra.Command {
 		Aliases: []string{"list"},
 		Args:    cobra.ExactArgs(1),
 		Short:   "Export a volume as a tar archive to standard output.",
+		Long: `Export a volume a (gzipped) tar archive to standard output.
+
+TODO
+TODO`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 			return export(cmd.Context(), uncli, args[0], opts)
@@ -84,46 +89,9 @@ func export(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions
 		return nil
 	}
 
-	suffix, err := secret.RandomAlphaNumeric(4)
+	spec, err := prepareServiceSpec(volumes[0], "export")
 	if err != nil {
-		return fmt.Errorf("generate random suffix: %w", err)
-	}
-
-	volume := volumes[0]
-	spec := api.ServiceSpec{
-		Name: "uncloud-volume-export",
-		Mode: api.ServiceModeReplicated,
-		Container: api.ContainerSpec{
-			Image:           "busybox:latest",
-			Entrypoint:      []string{"sleep"},
-			Command:         []string{"infinity"},
-			PullPolicy:      api.PullPolicyMissing,
-			StopGracePeriod: new(time.Second),
-			VolumeMounts: []api.VolumeMount{
-				{
-					VolumeName:    "bind-" + suffix,
-					ContainerPath: "/mnt/data",
-					ReadOnly:      true,
-				},
-			},
-		},
-		UpdateConfig: api.UpdateConfig{
-			MonitorPeriod: new(time.Second),
-		},
-		Replicas: 1,
-		Placement: api.Placement{
-			Machines: []string{volumes[0].MachineName},
-		},
-		Volumes: []api.VolumeSpec{
-			{
-				Name:        "bind-" + suffix,
-				Type:        api.VolumeTypeBind,
-				BindOptions: &api.BindOptions{HostPath: filepath.Dir(volume.Volume.Mountpoint)},
-			},
-		},
-	}
-	if err := spec.Validate(); err != nil {
-		return fmt.Errorf("invalid service configuration: %w", err)
+		return err
 	}
 
 	var resp api.RunServiceResponse
@@ -134,7 +102,7 @@ func export(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions
 				return fmt.Errorf("run service: %w", err)
 			}
 			return nil
-		}, streams.NewOut(os.Stderr), fmt.Sprintf("Running service %s (%s mode)", spec.Name, spec.Mode))
+		}, streams.NewOut(os.Stderr), fmt.Sprintf("Running service %s", spec.Name))
 	} else {
 		resp, err = client.RunService(ctx, spec)
 	}
@@ -156,10 +124,10 @@ func export(ctx context.Context, uncli *cli.CLI, name string, opts exportOptions
 	}()
 	defer client.StopService(ctx, resp.ID, container.StopOptions{Timeout: new(1)})
 
-	return runAndCapture(ctx, client, resp.ID)
+	return runCommand(ctx, client, resp.ID, []string{"tar", "-cz", "."})
 }
 
-func runAndCapture(ctx context.Context, client *client.Client, serviceID string) error {
+func runCommand(ctx context.Context, client *client.Client, serviceID string, cmd []string) error {
 	svc, err := client.InspectService(ctx, serviceID)
 	if err != nil {
 		if errors.Is(err, api.ErrNotFound) {
@@ -180,14 +148,58 @@ func runAndCapture(ctx context.Context, client *client.Client, serviceID string)
 	}
 
 	exitCode, err := client.ExecContainer(ctx, serviceID, ctr.Container.ID, api.ExecOptions{
-		Command:      []string{"tree", "/mnt/data"},
+		Command:      cmd,
+		WorkingDir:   MountPoint,
 		AttachStdout: true,
-		Stdout:       os.Stdout,
+		// Not attaching Stderr.
+		Stdout: os.Stdout,
 	})
 
 	if exitCode == 0 {
 		return err // should be nil also
 	}
 
-	return fmt.Errorf("tar return exit code: %d: %w", exitCode, err)
+	return fmt.Errorf("command returned with exit code: %d: %w", exitCode, err)
+}
+
+func prepareServiceSpec(volume api.MachineVolume, operation string) (api.ServiceSpec, error) {
+	var spec api.ServiceSpec
+	suffix, err := secret.RandomAlphaNumeric(4)
+	if err != nil {
+		return spec, fmt.Errorf("generate random suffix: %w", err)
+	}
+	spec = api.ServiceSpec{
+		Name: "uncloud-volume-" + operation,
+		Mode: api.ServiceModeReplicated,
+		Container: api.ContainerSpec{
+			Image:           "busybox:latest",
+			Entrypoint:      []string{"sleep"},
+			Command:         []string{"infinity"},
+			PullPolicy:      api.PullPolicyMissing,
+			StopGracePeriod: new(time.Second),
+			VolumeMounts: []api.VolumeMount{
+				{
+					VolumeName:    "bind-" + suffix,
+					ContainerPath: MountPoint,
+					ReadOnly:      true,
+				},
+			},
+		},
+		UpdateConfig: api.UpdateConfig{
+			MonitorPeriod: new(time.Second),
+		},
+		Replicas: 1,
+		Placement: api.Placement{
+			Machines: []string{volume.MachineName},
+		},
+		Volumes: []api.VolumeSpec{
+			{
+				Name:        "bind-" + suffix,
+				Type:        api.VolumeTypeBind,
+				BindOptions: &api.BindOptions{HostPath: volume.Volume.Mountpoint},
+			},
+		},
+	}
+
+	return spec, nil
 }
