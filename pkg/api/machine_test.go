@@ -3,12 +3,59 @@ package api
 import (
 	"encoding/json"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/psviderski/uncloud/api/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestValidateMachineName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{name: "single letter", input: "a"},
+		{name: "single digit", input: "1"},
+		{name: "two characters", input: "a1"},
+		{name: "generated name", input: "machine-ab12"},
+		{name: "hyphens and digits", input: "1-worker-2"},
+		{name: "maximum length", input: strings.Repeat("a", 63)},
+		{name: "maximum length with hyphens", input: "a" + strings.Repeat("-", 61) + "1"},
+		{name: "machine namespace label", input: "m"},
+		{name: "mode prefix", input: "nearest-worker"},
+		{name: "short hexadecimal name", input: strings.Repeat("a", 31)},
+		{name: "long hexadecimal name", input: strings.Repeat("a", 33)},
+		{name: "non-hexadecimal 32 characters", input: strings.Repeat("g", 32)},
+		{name: "empty", wantErr: "must be 1-63 characters"},
+		{name: "too long", input: strings.Repeat("a", 64), wantErr: "must be 1-63 characters"},
+		{name: "uppercase", input: "VPS1", wantErr: "lowercase letters"},
+		{name: "leading hyphen", input: "-worker", wantErr: "starting and ending"},
+		{name: "trailing hyphen", input: "worker-", wantErr: "starting and ending"},
+		{name: "underscore", input: "worker_1", wantErr: "hyphens only"},
+		{name: "dot", input: "worker.example", wantErr: "hyphens only"},
+		{name: "space", input: "worker 1", wantErr: "hyphens only"},
+		{name: "leading whitespace", input: " worker", wantErr: "hyphens only"},
+		{name: "trailing whitespace", input: "worker\t", wantErr: "hyphens only"},
+		{name: "non-ASCII", input: "wörker", wantErr: "lowercase letters"},
+		{name: "round-robin mode", input: "rr", wantErr: "reserved for internal DNS query modes"},
+		{name: "nearest mode", input: "nearest", wantErr: "reserved for internal DNS query modes"},
+		{name: "machine ID", input: "c337f00600de51ef4375c9a9a267dba5", wantErr: "machine ID format"},
+	}
+
+	for _, tt := range tests {
+		err := ValidateMachineName(tt.input)
+		if tt.wantErr == "" {
+			require.NoError(t, err)
+		} else {
+			require.ErrorContains(t, err, tt.wantErr)
+		}
+	}
+}
 
 func TestMachineMembersList_Info(t *testing.T) {
 	t.Parallel()

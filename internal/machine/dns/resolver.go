@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/psviderski/uncloud/api/pb"
+	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 )
 
@@ -18,7 +20,9 @@ type ClusterResolver struct {
 	store *store.Store
 	// serviceIPs maps service names to resolved container IPs with machine metadata.
 	serviceIPs map[string][]ResolvedIP
-	// mu protects the serviceIPs map.
+	// machineIPs maps machine IDs and names to their resolved IP with machine metadata.
+	machineIPs map[string]ResolvedIP
+	// mu protects the serviceIPs and machineIPs map.
 	mu sync.RWMutex
 	// lastUpdate tracks when records were last updated.
 	lastUpdate time.Time
@@ -45,6 +49,13 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 	// TODO: implement machine membership check using Corrossion Admin client to filter available containers.
 	r.updateServiceIPs(containers)
 
+	machines, mchanges, err := r.store.SubscribeMachines(ctx)
+	if err != nil {
+		return fmt.Errorf("subscribe to machine changes: %w", err)
+	}
+	r.log.Info("Subscribed to machine changes in the clsuter to keep machine DNS records updated.")
+	r.updateMachineIPs(machines)
+
 	for {
 		select {
 		case _, ok := <-changes:
@@ -58,9 +69,22 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 				r.log.Error("Failed to list containers.", "err", err)
 				continue
 			}
-
 			// TODO: implement machine membership check using Corrossion Admin client to filter available containers.
 			r.updateServiceIPs(containers)
+
+		case _, ok := <-mchanges:
+			if !ok {
+				return fmt.Errorf("machine subscription failed")
+			}
+			r.log.Debug("Cluster machines changed, updating DNS records.")
+
+			machines, err := r.store.ListMachines(ctx)
+			if err != nil {
+				r.log.Error("Failed to list machines.", "err", err)
+				continue
+			}
+			r.updateMachineIPs(machines)
+
 		case <-ctx.Done():
 			return nil
 		}
@@ -121,19 +145,51 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 	r.log.Info("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
 }
 
-// Resolve returns resolved IPs of the service containers.
-func (r *ClusterResolver) Resolve(serviceName string) []ResolvedIP {
+// updateMachineIPs updates the machine IP map with the given machines.
+func (r *ClusterResolver) updateMachineIPs(machines []*pb.MachineInfo) {
+	newMachineIPs := make(map[string]ResolvedIP, len(machines))
+
+	for _, machine := range machines {
+		subnet, err := machine.Network.Subnet.ToPrefix()
+		if err != nil {
+			continue
+		}
+		addr := network.MachineIP(subnet)
+		resolved := ResolvedIP{Addr: addr, MachineID: machine.Id}
+		newMachineIPs[machine.Name+".m"] = resolved
+		newMachineIPs[machine.Id+".m"] = resolved
+	}
+	r.mu.Lock()
+	r.machineIPs = newMachineIPs
+	r.mu.Unlock()
+
+	r.log.Info("DNS records updated.", "machines", len(machines))
+}
+
+// Resolve returns resolved IPs of the service containers or machines.
+func (r *ClusterResolver) Resolve(name string) []ResolvedIP {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	ips, ok := r.serviceIPs[serviceName]
-	if !ok || len(ips) == 0 {
-		return nil
+	// Return a copy of the IPs slice to prevent modification of the original.
+	ips, ok := r.serviceIPs[name]
+	if ok && len(ips) > 0 {
+		return slices.Clone(ips)
 	}
 
-	// Return a copy of the IPs slice to prevent modification of the original.
-	ipsCopy := make([]ResolvedIP, len(ips))
-	copy(ipsCopy, ips)
+	ip, ok := r.machineIPs[name]
+	if ok {
+		return []ResolvedIP{ip}
+	}
 
-	return ipsCopy
+	if name == "m" { // all machines subdomain
+		// collect all unique IP address
+		uniq := map[string]ResolvedIP{}
+		for _, resolved := range r.machineIPs {
+			uniq[resolved.Addr.String()] = resolved
+		}
+		return slices.Clone(slices.Collect(maps.Values(uniq)))
+	}
+
+	return nil
 }

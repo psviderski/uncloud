@@ -14,6 +14,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/pkg/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -87,6 +88,11 @@ func (c *Cluster) AddMachine(ctx context.Context, req *pb.AddMachineRequest) (*p
 func (c *Cluster) AddMachineWithoutReadyCheck(
 	ctx context.Context, req *pb.AddMachineRequest,
 ) (*pb.AddMachineResponse, error) {
+	if req.Name != "" {
+		if err := api.ValidateMachineName(req.Name); err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+	}
 	if req.Network == nil {
 		return nil, status.Error(codes.InvalidArgument, "network not set")
 	}

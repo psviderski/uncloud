@@ -23,6 +23,10 @@ const (
 	// SyncStatusOutdated indicates that a container record may be outdated, for example, due to being unable
 	// to retrieve the container's state from the Docker daemon or when the machine is being stopped or restarted.
 	SyncStatusOutdated = "outdated"
+
+	// containerChangesDebounceInterval defines how long to wait before notifying subscribers about container changes.
+	// Multiple changes within this window are grouped into a single notification to prevent system overload.
+	containerChangesDebounceInterval = 250 * time.Millisecond
 )
 
 type ContainerRecord struct {
@@ -267,6 +271,13 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 	changes := make(chan struct{})
 	go func() {
 		defer close(changes)
+		// Coalesce bursts of rapid-fire row-level change events (e.g. from frequent health-check updates
+		// across many services) into a single signal per debounce window, instead of forwarding one signal
+		// per event. Every subscriber of this channel (e.g. the Caddy and DNS reconcilers) otherwise reruns
+		// its full reconciliation on every single event, which can burn significant CPU across the cluster
+		// when there's a lot of container churn.
+		var debouncer *time.Timer
+		var debouncerCh <-chan time.Time
 		for {
 			select {
 			case <-ctx.Done():
@@ -279,8 +290,21 @@ func (s *Store) SubscribeContainers(ctx context.Context) ([]ContainerRecord, <-c
 					}
 					return
 				}
-				// Just signal that there is a change in the containers list.
-				changes <- struct{}{}
+				if debouncerCh == nil {
+					if debouncer == nil {
+						debouncer = time.NewTimer(containerChangesDebounceInterval)
+					} else {
+						debouncer.Reset(containerChangesDebounceInterval)
+					}
+					debouncerCh = debouncer.C
+				}
+			case <-debouncerCh:
+				select {
+				case changes <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
+				debouncerCh = nil
 			}
 		}
 	}()

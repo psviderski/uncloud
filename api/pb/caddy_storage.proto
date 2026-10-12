@@ -18,6 +18,10 @@ service CaddyStorage {
   rpc Delete(DeleteCaddyStorageRequest) returns (google.protobuf.Empty);
   rpc List(ListCaddyStorageRequest) returns (ListCaddyStorageResponse);
   rpc Stat(StatCaddyStorageRequest) returns (StatCaddyStorageResponse);
+
+  // ListCertificates lists certificates issued by Caddy and stored in the cluster store.
+  // Unreadable entries and invalid resource metadata are skipped. Chains and issuer data are returned as stored.
+  rpc ListCertificates(google.protobuf.Empty) returns (ListCertificatesResponse);
 }
 
 message StoreCaddyStorageRequest {
@@ -56,4 +60,18 @@ message StatCaddyStorageResponse {
   google.protobuf.Timestamp updated_at = 2;
   int64 size = 3;
   bool is_terminal = 4;
+}
+
+message ListCertificatesResponse {
+  repeated IssuedCertificate certificates = 1;
+}
+
+message IssuedCertificate {
+  // Subject Alternative Name (SAN) of the certificate. Caddy doesn't issue certificates with multiple SANs.
+  string san = 1;
+  // The PEM-encoding of DER-encoded ASN.1 data for the cert or chain, leaf first.
+  bytes chain = 2;
+  // Any extra information associated with the certificate, usually provided by the issuer implementation.
+  // JSON-encoded, may be absent or null.
+  bytes issuer_data = 3;
 }

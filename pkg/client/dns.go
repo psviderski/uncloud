@@ -21,17 +21,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// GetDomain returns the cluster domain name or ErrNotFound if it hasn't been reserved yet.
-func (cli *Client) GetDomain(ctx context.Context) (string, error) {
+// GetDomain returns the cluster domain or api.ErrNotFound if none is configured.
+func (cli *Client) GetDomain(ctx context.Context) (api.ClusterDomain, error) {
 	domain, err := cli.ClusterClient.GetDomain(ctx, nil)
 	if err != nil {
-		if status.Convert(err).Code() == codes.NotFound {
-			return "", api.ErrNotFound
+		if status.Code(err) == codes.NotFound {
+			return api.ClusterDomain{}, api.ErrNotFound
 		}
-		return "", err
+		return api.ClusterDomain{}, err
 	}
 
-	return domain.Name, nil
+	return api.ClusterDomain{
+		Name: domain.Name,
+		// Older daemons (<0.21) omit Reserved and only support reserved domains.
+		Reserved: domain.Reserved == nil || domain.GetReserved(),
+	}, nil
 }
 
 var ErrNoReachableMachines = errors.New("no internet-reachable machines running service containers")
@@ -39,8 +43,17 @@ var ErrNoReachableMachines = errors.New("no internet-reachable machines running 
 // CreateIngressRecords verifies which machines running the specified service (typically Caddy) are reachable from
 // the internet, then creates DNS records for the cluster domain pointing to those machines. It tests each machine
 // by sending HTTP requests to their public IPs. Only machines that respond correctly with their machine ID are included
-// in the resulting DNS configuration. Returns the created DNS records or an error.
+// in the resulting DNS configuration. The domain must be reserved in Uncloud DNS.
+// Returns the created DNS records or an error.
 func (cli *Client) CreateIngressRecords(ctx context.Context, serviceID string) ([]*pb.DNSRecord, error) {
+	domain, err := cli.GetDomain(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get cluster domain: %w", err)
+	}
+	if !domain.Reserved {
+		return nil, status.Error(codes.FailedPrecondition, "cluster domain is not reserved in Uncloud DNS")
+	}
+
 	svc, err := cli.InspectService(ctx, serviceID)
 	if err != nil {
 		return nil, fmt.Errorf("inspect service '%s': %w", serviceID, err)

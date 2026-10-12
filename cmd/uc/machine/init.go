@@ -16,7 +16,7 @@ import (
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/machine/cluster"
 	"github.com/psviderski/uncloud/internal/machine/network"
-	"github.com/psviderski/uncloud/pkg/api"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -221,17 +221,17 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		initOpts.WireguardEndpoints = endpoints
 	}
 
-	client, err := uncli.InitCluster(ctx, initOpts)
+	clusterClient, err := uncli.InitCluster(ctx, initOpts)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer clusterClient.Close()
 
 	// Since the cluster API needs a few moments to become ready after cluster initialisation,
 	// we keep the user informed during this wait. We wait here even if no Caddy or DNS is requested
 	// as the cluster needs to be ready so that commands such as 'uc machine ls' work immediately after init.
 	err = tui.RunSpinner(ctx, "Waiting for the cluster to be ready...", func(ctx context.Context) error {
-		return client.WaitClusterReady(ctx, 1*time.Minute)
+		return clusterClient.WaitClusterReady(ctx, 1*time.Minute)
 	})
 	if err != nil {
 		return fmt.Errorf("wait for cluster to be ready: %w", err)
@@ -245,7 +245,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	fmt.Println()
 
 	if !opts.noDNS {
-		domain, err := client.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.dnsEndpoint})
+		domain, err := clusterClient.ReserveDomain(ctx, &pb.ReserveDomainRequest{Endpoint: opts.dnsEndpoint})
 		if err != nil {
 			return fmt.Errorf("reserve cluster domain in Uncloud DNS: %w", err)
 		}
@@ -253,7 +253,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 	}
 
 	if !opts.noCaddy {
-		d, err := client.NewCaddyDeployment("", "", api.Placement{})
+		d, err := clusterClient.Caddy.NewDeployment(ctx, client.CaddyDeploymentOptions{})
 		if err != nil {
 			return fmt.Errorf("create caddy deployment: %w", err)
 		}
@@ -269,7 +269,7 @@ func initCluster(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteM
 		}
 
 		fmt.Println()
-		return caddy.UpdateDomainRecords(ctx, client, uncli.ProgressOut())
+		return caddy.UpdateDomainRecords(ctx, clusterClient, uncli.ProgressOut())
 	}
 
 	return nil

@@ -122,6 +122,7 @@ func NewRunCommand(groupID string) *cobra.Command {
 		"Mount a data volume or host path into service containers. Service containers will be scheduled on the machine(s) where\n"+
 			"the volume is located. Can be specified multiple times.\n"+
 			"Format: volume_name:/container/path[:ro|volume-nocopy] or /host/path:/container/path[:ro]\n"+
+			"Host and container paths support runtime templates such as {{.Container.Name}}.\n"+
 			"Examples:\n"+
 			"  -v postgres-data:/var/lib/postgresql/data  Mount volume 'postgres-data' to /var/lib/postgresql/data in container\n"+
 			"  -v /data/uploads:/app/uploads         	 Bind mount /data/uploads host directory to /app/uploads in container\n"+

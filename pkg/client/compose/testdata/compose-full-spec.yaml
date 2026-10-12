@@ -52,6 +52,7 @@ services:
     user: nginx:nginx
     volumes:
       - /etc/passwd:/host/etc/passwd:ro
+      - /runtime/template/{{.Container.Name}}:/unique/host/bind
       - data1:/data1
       - type: bind
         source: /path/on/host

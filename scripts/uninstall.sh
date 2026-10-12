@@ -57,14 +57,17 @@ fi
 
 log "⏳ Stopping systemd services..."
 systemctl stop uncloud.service || log "uncloud.service not running or doesn't exist."
+systemctl stop uncloud.socket || log "uncloud.socket not running or doesn't exist."
 # TODO: remove uncloud-corrosion.service handling in 0.22 once pre-0.20 systemd installs are gone.
 systemctl stop uncloud-corrosion.service || log "uncloud-corrosion.service not running or doesn't exist."
 systemctl disable uncloud.service || log "uncloud.service already disabled or doesn't exist."
+systemctl disable uncloud.socket || log "uncloud.socket already disabled or doesn't exist."
 systemctl disable uncloud-corrosion.service || log "uncloud-corrosion.service already disabled or doesn't exist."
 log "✓ Systemd services stopped."
 
 log "⏳ Removing systemd service files..."
 rm -fv "${INSTALL_SYSTEMD_DIR}/uncloud.service"
+rm -fv "${INSTALL_SYSTEMD_DIR}/uncloud.socket"
 # TODO: remove uncloud-corrosion.service handling in 0.22 once pre-0.20 systemd installs are gone.
 rm -fv "${INSTALL_SYSTEMD_DIR}/uncloud-corrosion.service"
 systemctl daemon-reload

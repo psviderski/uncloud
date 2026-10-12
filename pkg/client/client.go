@@ -25,8 +25,8 @@ type Client struct {
 	//  Methods such as Reset or Inspect are ambiguous in the context of a machine+cluster client.
 	pb.MachineClient
 	pb.ClusterClient
-	Caddy        pb.CaddyClient
-	CaddyStorage pb.CaddyStorageClient
+	// Caddy provides Caddy configuration, deployment, and certificate storage operations.
+	Caddy *CaddyClient
 	// Docker is a namespaced client for the Docker service to distinguish Uncloud-specific service container operations
 	// from generic Docker operations.
 	Docker *docker.Client
@@ -58,8 +58,11 @@ func New(ctx context.Context, connector Connector) (*Client, error) {
 
 	c.MachineClient = pb.NewMachineClient(c.conn)
 	c.ClusterClient = pb.NewClusterClient(c.conn)
-	c.Caddy = pb.NewCaddyClient(c.conn)
-	c.CaddyStorage = pb.NewCaddyStorageClient(c.conn)
+	c.Caddy = &CaddyClient{
+		Storage: pb.NewCaddyStorageClient(c.conn),
+		grpc:    pb.NewCaddyClient(c.conn),
+		client:  c,
+	}
 	c.Docker = docker.NewClient(c.conn)
 	c.leases = distlockgrpc.NewLeaseClient(c.conn)
 

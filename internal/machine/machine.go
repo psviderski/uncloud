@@ -59,9 +59,13 @@ import (
 )
 
 const (
-	DefaultMachineSockPath = "/run/uncloud/machine.sock"
-	DefaultUncloudSockPath = "/run/uncloud/uncloud.sock"
-	DefaultSockGroup       = "uncloud"
+	// DefaultMachineAPISockPath is the default path to the Unix socket for API requests handled directly by this
+	// machine.
+	DefaultMachineAPISockPath = "/run/uncloud/machine.sock"
+	// DefaultClusterAPISockPath is the default path to the Unix socket for the client-facing API that routes requests
+	// across the cluster.
+	DefaultClusterAPISockPath = "/run/uncloud/api/uncloud.sock"
+	DefaultSockGroup          = "uncloud"
 	// DefaultCaddyAdminSockPath is the default path to the Caddy admin socket for validating the generated Caddy
 	// reverse proxy configuration.
 	DefaultCaddyAdminSockPath = "/run/uncloud/caddy/admin.sock"
@@ -71,9 +75,15 @@ const (
 
 type Config struct {
 	// DataDir is the directory where the machine stores its persistent state. Default is /var/lib/uncloud.
-	DataDir         string
-	MachineSockPath string
-	UncloudSockPath string
+	DataDir string
+	// MachineAPISockPath is the path to the Unix socket for API requests handled directly by this machine.
+	MachineAPISockPath string
+	// ClusterAPISockPath is the path to the Unix socket for the client-facing API that routes requests across the
+	// cluster.
+	ClusterAPISockPath string
+	// ClusterAPIListener is an optional pre-bound listener for the client-facing API that routes requests across the
+	// cluster. If set, Run takes ownership of it and closes it on shutdown or startup failure.
+	ClusterAPIListener net.Listener
 
 	CorrosionDataDir string
 	// CorrosionRunDir is the runtime directory for the corrosion service.
@@ -105,11 +115,11 @@ func (c *Config) SetDefaults() (*Config, error) {
 	if cfg.DataDir == "" {
 		cfg.DataDir = "/var/lib/uncloud"
 	}
-	if cfg.MachineSockPath == "" {
-		cfg.MachineSockPath = DefaultMachineSockPath
+	if cfg.MachineAPISockPath == "" {
+		cfg.MachineAPISockPath = DefaultMachineAPISockPath
 	}
-	if cfg.UncloudSockPath == "" {
-		cfg.UncloudSockPath = DefaultUncloudSockPath
+	if cfg.ClusterAPISockPath == "" && cfg.ClusterAPIListener == nil {
+		cfg.ClusterAPISockPath = DefaultClusterAPISockPath
 	}
 
 	if cfg.DockerClient == nil {
@@ -166,7 +176,7 @@ type Machine struct {
 
 	config Config
 	state  *State
-	// started is closed when the machine is ready to serve requests on the local API server.
+	// started is closed when the machine and cluster API servers are ready to serve requests.
 	started chan struct{}
 	// initialised is closed when the machine is configured as a member of a cluster.
 	initialised chan struct{}
@@ -189,15 +199,16 @@ type Machine struct {
 	// dockerService provides high-level operations for managing Docker containers.
 	dockerService *machinedocker.Service
 	dockerServer  *machinedocker.Server
-	// localMachineServer is the gRPC server for the machine API listening on the local Unix socket.
-	localMachineServer *grpc.Server
+	// machineAPIServer handles API requests directly on this machine.
+	machineAPIServer *grpc.Server
+	// caddyService provides methods to interact with the Caddy configuration on the machine.
+	caddyService *caddyconfig.Service
 
-	// proxyDirector manages routing of gRPC requests between local and remote machine API servers.
+	// proxyDirector routes API requests to local or remote machines.
 	proxyDirector *apiproxy.Director
-	// localProxyServer is the gRPC proxy server for the machine API listening on the local Unix socket.
-	// It proxies requests to the local or remote machine API servers depending on the request targets
-	// and aggregates responses.
-	localProxyServer *grpc.Server
+	// clusterAPIServer is the client-facing gRPC server that routes API requests across the cluster. It sends requests
+	// to one or more local or remote machines and aggregates their responses.
+	clusterAPIServer *grpc.Server
 
 	// mu protects the Machine from concurrent reads and writes.
 	mu sync.RWMutex
@@ -254,11 +265,11 @@ func NewMachine(config *Config) (*Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion API client: %w", err)
 	}
-	corroStore := store.New(corro)
 	corroAdmin, err := corrosion.NewAdminClient(config.CorrosionAdminSockPath)
 	if err != nil {
 		return nil, fmt.Errorf("create corrosion admin client: %w", err)
 	}
+	corroStore := store.New(corro, corroAdmin)
 
 	initialised := make(chan struct{})
 	clusterReady := make(chan struct{})
@@ -272,10 +283,10 @@ func NewMachine(config *Config) (*Machine, error) {
 	}
 	dockerService := machinedocker.NewService(config.DockerClient, db)
 
-	// Init a local gRPC proxy server that proxies requests to the local or remote machine API servers.
+	// Init the client-facing API server that routes requests to local or remote machines.
 	mapper := apiproxy.NewCorrosionMapper(corroStore)
-	proxyDirector := apiproxy.NewDirector(config.MachineSockPath, constants.MachineAPIPort, mapper)
-	localProxyServer := grpc.NewServer(
+	proxyDirector := apiproxy.NewDirector(config.MachineAPISockPath, constants.UncloudAPIPort, mapper)
+	clusterAPIServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.UnaryInterceptor(grpcversion.ServerUnaryInterceptor),
 		grpc.StreamInterceptor(grpcversion.ServerStreamInterceptor),
@@ -294,8 +305,9 @@ func NewMachine(config *Config) (*Machine, error) {
 		store:            corroStore,
 		cluster:          c,
 		dockerService:    dockerService,
-		localProxyServer: localProxyServer,
+		clusterAPIServer: clusterAPIServer,
 		proxyDirector:    proxyDirector,
+		caddyService:     caddyconfig.NewService(config.CaddyConfigDir),
 	}
 
 	// Machine IP will only be available after the machine is initialised as a cluster member so wrap it in a function.
@@ -310,7 +322,7 @@ func NewMachine(config *Config) (*Machine, error) {
 		NetworkReady:        m.IsNetworkReady,
 		WaitForNetworkReady: m.WaitForNetworkReady,
 	})
-	caddyServer := caddyconfig.NewServer(caddyconfig.NewService(config.CaddyConfigDir))
+	caddyServer := caddyconfig.NewServer(m.caddyService)
 
 	caddyStore, err := corroStore.Keyspace(caddystorage.Namespace)
 	if err != nil {
@@ -319,7 +331,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	caddyStorageServer := caddystorage.NewServer(caddyStore)
 
 	leaseServer := distlockgrpc.NewServer(distlock.NewMemoryStore())
-	m.localMachineServer = newGRPCServer(m, c, m.dockerServer, caddyServer, caddyStorageServer, leaseServer)
+	m.machineAPIServer = newGRPCServer(m, c, m.dockerServer, caddyServer, caddyStorageServer, leaseServer)
 
 	if m.Initialised() {
 		close(m.initialised)
@@ -346,7 +358,7 @@ func newGRPCServer(
 	return s
 }
 
-// Started returns a channel that is closed when the machine is ready to serve requests on the local API server.
+// Started returns a channel that is closed when the machine and cluster API servers are ready to serve requests.
 func (m *Machine) Started() <-chan struct{} {
 	return m.started
 }
@@ -398,21 +410,54 @@ func (m *Machine) Run(ctx context.Context) error {
 	// Create a cancellable context for the Run method to allow stopping the machine gracefully.
 	ctx, m.stop = context.WithCancel(ctx)
 
+	// Take over the systemd-activated socket for the cluster API if provided, otherwise bind to the configured
+	// Unix socket path.
+	clusterAPIListener := m.config.ClusterAPIListener
+	clusterAPISockPath := m.config.ClusterAPISockPath
+	if clusterAPIListener != nil {
+		if clusterAPIListener.Addr().Network() == "unix" {
+			clusterAPISockPath = clusterAPIListener.Addr().String()
+		} else {
+			clusterAPISockPath = ""
+		}
+		defer clusterAPIListener.Close()
+	}
+
+	sockGID, err := socketGID()
+	if err != nil {
+		return err
+	}
+	if err = prepareUnixSocketDirectory(m.config.MachineAPISockPath, sockGID); err != nil {
+		return fmt.Errorf("prepare machine API Unix socket directory: %w", err)
+	}
+	// The cluster API socket activated by systemd may have been created with root group ownership.
+	// Apply the intended access permissions.
+	if clusterAPISockPath != "" {
+		if err = prepareUnixSocketDirectory(clusterAPISockPath, sockGID); err != nil {
+			return fmt.Errorf("prepare cluster API Unix socket directory: %w", err)
+		}
+	}
+
 	// Docker dependency is essential for the machine to function. Block until it's ready.
 	if err := docker.WaitDaemonReady(ctx, m.config.DockerClient); err != nil {
 		return fmt.Errorf("wait for Docker daemon: %w", err)
 	}
 	defer m.config.DockerClient.Close()
 
-	// Bind the local API listeners before starting the dependencies (e.g. corrosion) to not deal with the teardown
+	// Bind the API listeners before starting the dependencies (e.g. corrosion) to not deal with the teardown
 	// on failure.
-	machineListener, err := listenUnixSocket(m.config.MachineSockPath)
+	machineAPIListener, err := sockets.NewUnixSocket(m.config.MachineAPISockPath, sockGID)
 	if err != nil {
-		return fmt.Errorf("listen machine API unix socket %q: %w", m.config.MachineSockPath, err)
+		return fmt.Errorf("listen machine API Unix socket %q: %w", m.config.MachineAPISockPath, err)
 	}
-	proxyListener, err := listenUnixSocket(m.config.UncloudSockPath)
-	if err != nil {
-		return fmt.Errorf("listen API proxy unix socket %q: %w", m.config.UncloudSockPath, err)
+	defer machineAPIListener.Close()
+
+	if clusterAPIListener == nil {
+		clusterAPIListener, err = sockets.NewUnixSocket(clusterAPISockPath, sockGID)
+		if err != nil {
+			return fmt.Errorf("listen cluster API Unix socket %q: %w", clusterAPISockPath, err)
+		}
+		defer clusterAPIListener.Close()
 	}
 
 	// Configure and start the corrosion service on the loopback if the machine is not initialised as a cluster
@@ -440,20 +485,20 @@ func (m *Machine) Run(ctx context.Context) error {
 	// Use an errgroup to coordinate error handling and graceful shutdown of multiple machine components.
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	// Start the local machine API server.
+	// Start the API server that handles requests directly on this machine.
 	errGroup.Go(func() error {
-		slog.Info("Starting local machine API server.", "path", m.config.MachineSockPath)
-		if err := m.localMachineServer.Serve(machineListener); err != nil {
-			return fmt.Errorf("local machine API server failed: %w", err)
+		slog.Info("Starting machine API server.", "path", m.config.MachineAPISockPath)
+		if err := m.machineAPIServer.Serve(machineAPIListener); err != nil {
+			return fmt.Errorf("machine API server failed: %w", err)
 		}
 		return nil
 	})
 
-	// Start the local API proxy server.
+	// Start the client-facing API server that routes requests across the cluster.
 	errGroup.Go(func() error {
-		slog.Info("Starting local API proxy server.", "path", m.config.UncloudSockPath)
-		if err := m.localProxyServer.Serve(proxyListener); err != nil {
-			return fmt.Errorf("local API proxy server failed: %w", err)
+		slog.Info("Starting cluster API server.", "path", clusterAPIListener.Addr().String())
+		if err := m.clusterAPIServer.Serve(clusterAPIListener); err != nil {
+			return fmt.Errorf("cluster API server failed: %w", err)
 		}
 		return nil
 	})
@@ -481,7 +526,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 			slog.Info("Starting cluster controller.")
 			// Update the proxy director's local address to the machine's management IP address, allowing
-			// the proxy to identify which requests should be proxied to the local machine API server.
+			// the proxy to identify which requests should be handled by the local API server.
 			m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
 			proxyServer := grpc.NewServer(
 				grpc.ForceServerCodecV2(proxy.Codec()),
@@ -499,7 +544,7 @@ func (m *Machine) Run(ctx context.Context) error {
 			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
 			caddyconfigCtrl, err := caddyconfig.NewController(
 				m.state.ID,
-				m.config.CaddyConfigDir,
+				m.caddyService,
 				DefaultCaddyAdminSockPath,
 				m.store,
 				rttCache,
@@ -594,17 +639,17 @@ func (m *Machine) Run(ctx context.Context) error {
 	// Shutdown goroutine.
 	errGroup.Go(func() error {
 		<-ctx.Done()
-		slog.Info("Stopping local machine API server.")
+		slog.Info("Stopping machine API server.")
 		// TODO: implement timeout for graceful shutdown.
-		m.localMachineServer.GracefulStop()
-		slog.Info("Local machine API server stopped.")
+		m.machineAPIServer.GracefulStop()
+		slog.Info("Machine API server stopped.")
 
-		slog.Info("Stopping local API proxy server.")
+		slog.Info("Stopping cluster API server.")
 		// TODO: implement timeout for graceful shutdown.
-		m.localProxyServer.GracefulStop()
+		m.clusterAPIServer.GracefulStop()
 		// Close the proxy director to close all backend connections.
 		m.proxyDirector.Close()
-		slog.Info("Local API proxy server stopped.")
+		slog.Info("Cluster API server stopped.")
 
 		return nil
 	})
@@ -633,38 +678,46 @@ func (m *Machine) Run(ctx context.Context) error {
 	return err
 }
 
-// listenUnixSocket creates a new Unix socket listener with the specified path. The socket file is created with 0660
-// access mode and uncloud group if the group is found, otherwise it falls back to the root group.
-func listenUnixSocket(path string) (net.Listener, error) {
+// socketGID returns the uncloud group ID, or the root group ID if the uncloud group does not exist.
+func socketGID() (int, error) {
 	gid := 0 // Fall back to the root group if the uncloud group is not found.
 	group, err := user.LookupGroup(DefaultSockGroup)
 	if err != nil {
 		//goland:noinspection GoTypeAssertionOnErrors
 		if _, ok := err.(user.UnknownGroupError); ok {
 			slog.Info(
-				"Specified group not found, using root group for the API socket.",
-				"group", DefaultSockGroup, "path", path,
+				"Specified group not found, using root group for API sockets.",
+				"group", DefaultSockGroup,
 			)
 		} else {
-			return nil, fmt.Errorf("lookup %q group ID (GID): %w", DefaultSockGroup, err)
+			return 0, fmt.Errorf("lookup %q group ID (GID): %w", DefaultSockGroup, err)
 		}
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
-			return nil, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultSockGroup, group.Gid, err)
+			return 0, fmt.Errorf("parse %q group ID (GID) %q: %w", DefaultSockGroup, group.Gid, err)
 		}
 	}
 
-	// Ensure the parent directory exists and has the correct group permissions.
+	return gid, nil
+}
+
+// prepareUnixSocketDirectory ensures the socket's parent directory has the intended group and permissions.
+func prepareUnixSocketDirectory(path string, gid int) error {
 	parent, _ := filepath.Split(path)
-	if err = os.MkdirAll(parent, 0o750); err != nil {
-		return nil, fmt.Errorf("create directory %q: %w", parent, err)
+	if err := os.MkdirAll(parent, 0o750); err != nil {
+		return fmt.Errorf("create directory %q: %w", parent, err)
 	}
-	if err = os.Chown(parent, -1, gid); err != nil {
-		return nil, fmt.Errorf("chown directory %q: %w", parent, err)
+	if err := os.Chown(parent, -1, gid); err != nil {
+		return fmt.Errorf("chown directory %q: %w", parent, err)
+	}
+	// MkdirAll preserves the mode of an existing directory. A Docker container may have created the bind-mount source
+	// first, so apply the intended mode explicitly.
+	if err := os.Chmod(parent, 0o750); err != nil {
+		return fmt.Errorf("chmod directory %q: %w", parent, err)
 	}
 
-	return sockets.NewUnixSocket(path, gid)
+	return nil
 }
 
 func (m *Machine) configureCorrosion() error {
@@ -799,6 +852,11 @@ func checkDNSPortAvailable() error {
 func (m *Machine) InitCluster(ctx context.Context, req *pb.InitClusterRequest) (*pb.InitClusterResponse, error) {
 	if m.Initialised() {
 		return nil, status.Error(codes.FailedPrecondition, "machine is already configured as a cluster member")
+	}
+	if req.MachineName != "" {
+		if err := api.ValidateMachineName(req.MachineName); err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 	}
 
 	clusterNetwork, err := req.Network.ToPrefix()
@@ -1184,8 +1242,8 @@ func (m *Machine) applyMachineUpdate(ctx context.Context, req *pb.UpdateMachineR
 	defer m.state.mu.Unlock()
 
 	if req.Name != nil {
-		if *req.Name == "" {
-			return status.Error(codes.InvalidArgument, "machine name cannot be empty")
+		if err := api.ValidateMachineName(*req.Name); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
 		}
 		// Check for duplicate names across the cluster, excluding this machine.
 		if *req.Name != m.state.Name {

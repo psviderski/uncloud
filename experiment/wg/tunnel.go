@@ -1,4 +1,4 @@
-package tunnel
+package wg
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 
 const (
 	DefaultEndpointPort = 51820
-	// DefaultKeepaliveInterval is sensible interval that works with a wide variety of firewalls.
+	// DefaultKeepaliveInterval is a sensible interval that works with a wide variety of firewalls.
 	DefaultKeepaliveInterval = 25 * time.Second
 )
 

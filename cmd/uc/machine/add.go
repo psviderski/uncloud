@@ -192,7 +192,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	// Deploy a Caddy service container to the added machine. If caddy service is already deployed on other machines,
 	// use the deployed image version.
 	// NOTE: We use the cluster client to inspect and scale the Caddy service because the newly added machine may have
-	// issues accessing the Machine API of existing machines in the cluster.
+	// issues accessing the API of existing machines in the cluster.
 	// See the issue for more details: https://github.com/psviderski/uncloud/issues/65.
 	caddyImage := ""
 	caddySvc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
@@ -219,7 +219,7 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 
 	fmt.Println()
 	fmt.Println("Preparing Caddy deployment...")
-	d, err := clusterClient.NewCaddyDeployment(caddyImage, "", api.Placement{})
+	d, err := clusterClient.Caddy.NewDeployment(ctx, client.CaddyDeploymentOptions{Image: caddyImage})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}

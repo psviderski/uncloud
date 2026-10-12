@@ -38,9 +38,10 @@ func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpe
 }
 
 func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api.ServiceSpec) {
-	spec = spec.SetDefaults()
-	status := deploy.EvalContainerSpecChange(ctr.ServiceSpec, spec)
+	desiredSpec := spec.SetDefaults()
+	status := deploy.EvalContainerSpecChange(ctr.ServiceSpec, desiredSpec)
 	assert.Equal(t, deploy.ContainerUpToDate, status)
+	spec = renderRuntimeTemplatesForContainer(t, desiredSpec, ctr.Name)
 
 	// Verify labels.
 	assert.True(t, api.ValidateServiceID(ctr.Config.Labels[api.LabelServiceID]))
@@ -148,8 +149,10 @@ func assertHookContainersMatchSpec(t *testing.T, svc api.Service, spec api.Servi
 	t.Helper()
 	require.NotEmpty(t, svc.HookContainers, "Expected at least one hook container")
 
+	desiredSpec := spec
 	for _, mc := range svc.HookContainers {
 		ctr := mc.Container
+		spec := renderRuntimeTemplatesForContainer(t, desiredSpec, ctr.Name)
 
 		// Verify labels.
 		assert.True(t, api.ValidateServiceID(ctr.Config.Labels[api.LabelServiceID]))
@@ -213,6 +216,19 @@ func assertHookContainersMatchSpec(t *testing.T, svc api.Service, spec api.Servi
 		assert.Len(t, ctr.NetworkSettings.Networks, 1)
 		assert.Contains(t, ctr.NetworkSettings.Networks, machinedocker.NetworkName)
 	}
+}
+
+func renderRuntimeTemplatesForContainer(
+	t *testing.T, spec api.ServiceSpec, containerName string,
+) api.ServiceSpec {
+	t.Helper()
+
+	renderedSpec, err := spec.RenderRuntimeTemplates(api.RuntimeTemplateContext{
+		Container: api.RuntimeTemplateContainerContext{Name: containerName},
+	})
+	require.NoError(t, err)
+
+	return renderedSpec
 }
 
 func assertContainerMountsMatchSpec(t *testing.T, mounts []mount.Mount, spec api.ServiceSpec) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/psviderski/uncloud/internal/cli"
@@ -78,6 +79,15 @@ If no services are specified, streams logs from all services defined in the Comp
 }
 
 func RunLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Options) error {
+	since, until, err := logs.TimeRange(opts.Since, opts.Until, time.Now())
+	if err != nil {
+		return err
+	}
+	tail, err := opts.TailLines()
+	if err != nil {
+		return err
+	}
+
 	serviceArgs, err := logs.ParseServiceArgs(args)
 	if err != nil {
 		return err
@@ -106,12 +116,6 @@ func RunLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 		}
 	}
 
-	// Parse tail option.
-	tail, err := logs.Tail(opts.Tail)
-	if err != nil {
-		return err
-	}
-
 	c, err := uncli.ConnectCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to cluster: %w", err)
@@ -121,8 +125,8 @@ func RunLogs(ctx context.Context, uncli *cli.CLI, args []string, opts logs.Optio
 	baseOpts := api.ServiceLogsOptions{
 		Follow:   opts.Follow,
 		Tail:     tail,
-		Since:    opts.Since,
-		Until:    opts.Until,
+		Since:    since,
+		Until:    until,
 		Machines: cli.ExpandCommaSeparatedValues(opts.Machines),
 	}
 

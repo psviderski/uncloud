@@ -20,7 +20,7 @@ service Machine {
   // InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
   rpc InspectMachine(google.protobuf.Empty) returns (InspectMachineResponse);
   // WaitForStoreVersion waits until the cluster store on this machine has reached each requested actor version, with
-  // no known missing or pending transactions through those versions.
+  // no known missing or pending transactions through those versions from active members.
   // Corrosion may satisfy a version by applying its surviving changes or by marking it complete because its changes
   // have been superseded.
   //

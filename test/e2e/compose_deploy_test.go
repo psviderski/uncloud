@@ -282,6 +282,11 @@ func TestComposeDeployment(t *testing.T) {
 						ContainerPath: "/host/etc/passwd",
 						ReadOnly:      true,
 					},
+					{
+						VolumeName:    "bind-b78f4a1e9255dca2997ee1006f32b0fc168bac785cf2440f00aa84c61e58f6fb",
+						ContainerPath: "/host/{{.Container.Name}}",
+						ReadOnly:      true,
+					},
 				},
 			},
 			Volumes: []api.VolumeSpec{
@@ -294,6 +299,14 @@ func TestComposeDeployment(t *testing.T) {
 					Type: api.VolumeTypeBind,
 					BindOptions: &api.BindOptions{
 						HostPath:       "/etc/passwd",
+						CreateHostPath: true,
+					},
+				},
+				{
+					Name: "bind-b78f4a1e9255dca2997ee1006f32b0fc168bac785cf2440f00aa84c61e58f6fb",
+					Type: api.VolumeTypeBind,
+					BindOptions: &api.BindOptions{
+						HostPath:       "/tmp/uncloud-e2e/{{.Container.Name}}",
 						CreateHostPath: true,
 					},
 				},
