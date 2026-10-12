@@ -296,14 +296,17 @@ func NewMachine(config *Config) (*Machine, error) {
 	)
 
 	m := &Machine{
-		config:           *config,
-		state:            state,
-		started:          make(chan struct{}),
-		initialised:      initialised,
-		networkReady:     make(chan struct{}),
-		clusterReady:     clusterReady,
-		store:            corroStore,
-		cluster:          c,
+		config:       *config,
+		state:        state,
+		started:      make(chan struct{}),
+		initialised:  initialised,
+		networkReady: make(chan struct{}),
+		clusterReady: clusterReady,
+		store:        corroStore,
+		cluster:      c,
+		// Created before the machine is initialised as a cluster member. The machine ID is patched
+		// in via UpdateMachineID once it becomes known, the same way as for the cluster above.
+		rttCache:         rtt.NewCache(state.ID, c, corroStore),
 		dockerService:    dockerService,
 		clusterAPIServer: clusterAPIServer,
 		proxyDirector:    proxyDirector,
@@ -516,6 +519,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		select {
 		case <-m.initialised:
 			m.cluster.UpdateMachineID(m.state.ID)
+			m.rttCache.UpdateMachineID(m.state.ID)
 
 			// Ensure the corrosion config is up to date, including a new gossip address if the machine
 			// has just joined a cluster.
@@ -537,9 +541,6 @@ func (m *Machine) Run(ctx context.Context) error {
 				),
 			)
 
-			// Create the RTT cache for periodic refresh of cluster RTT data.
-			rttCache := rtt.NewCache(m.state.ID, m.cluster, m.store)
-
 			// Create a new caddyconfig controller for managing the Caddy reverse proxy configuration.
 			// It will also serve the current machine ID at /.uncloud-verify to verify Caddy reachability.
 			caddyconfigCtrl, err := caddyconfig.NewController(
@@ -547,7 +548,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.caddyService,
 				DefaultCaddyAdminSockPath,
 				m.store,
-				rttCache,
+				m.rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create caddyconfig controller: %w", err)
@@ -558,7 +559,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.IP(),
 				dnsResolver,
 				m.config.DNSUpstreams,
-				rttCache,
+				m.rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create embedded DNS server: %w", err)
@@ -593,8 +594,6 @@ func (m *Machine) Run(ctx context.Context) error {
 				slog.Warn("Skipping embedded unregistry setup as the containerd socket path could not be detected.")
 			}
 
-			m.rttCache = rttCache
-
 			m.mu.Lock()
 			m.clusterCtrl, err = newClusterController(
 				m,
@@ -618,7 +617,7 @@ func (m *Machine) Run(ctx context.Context) error {
 
 			// Start the RTT cache for periodic refresh of cluster RTT data.
 			errGroup.Go(func() error {
-				if err := rttCache.Run(ctx); err != nil {
+				if err := m.rttCache.Run(ctx); err != nil {
 					return fmt.Errorf("run RTT cache: %w", err)
 				}
 				return nil

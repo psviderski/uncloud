@@ -66,6 +66,14 @@ func NewCacheWithStats(machineID string, rtts map[string]Stats) *Cache {
 	}
 }
 
+// UpdateMachineID sets the ID of the local machine. The cache is created before the machine is
+// initialised as a cluster member, so the ID is patched in once it becomes known.
+func (c *Cache) UpdateMachineID(machineID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.machineID = machineID
+}
+
 // Run starts the periodic refresh loop. It blocks until the context is cancelled.
 func (c *Cache) Run(ctx context.Context) error {
 	if err := c.refresh(ctx); err != nil {
@@ -112,9 +120,13 @@ func (c *Cache) refresh(ctx context.Context) error {
 		ipToMachineID[ip] = m.Id
 	}
 
+	c.mu.RLock()
+	machineID := c.machineID
+	c.mu.RUnlock()
+
 	newRTTByID := make(map[string]Stats, len(rtts)+1)
 	// Always include self with RTT 0.
-	newRTTByID[c.machineID] = Stats{Median: 0, StdDev: 0}
+	newRTTByID[machineID] = Stats{Median: 0, StdDev: 0}
 
 	for _, stats := range rtts {
 		// Corrosion uses the management IP (with port) for gossip. Strip the port.
@@ -139,6 +151,12 @@ func (c *Cache) refresh(ctx context.Context) error {
 func (c *Cache) ByMachineID(machineID string) (time.Duration, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	// The local machine always has RTT 0, even before the first refresh populates the cache.
+	// This keeps local-machine-first ordering working during cache warmup.
+	if machineID == c.machineID {
+		return 0, true
+	}
 
 	stats, ok := c.rttByID[machineID]
 	if !ok {

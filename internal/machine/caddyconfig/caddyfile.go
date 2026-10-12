@@ -128,10 +128,10 @@ func (g *CaddyfileGenerator) Generate(
 	bootstrap bool,
 ) (string, error) {
 	records = slices.Clone(records)
-	// Sort records by local machine first, then by service name and creation time. Placing containers on the local
-	// machine first lets user-defined Caddy configs pair this ordering with the "first" lb_policy to always send
-	// traffic to the same-host replica (skipping the cross-machine hop) and only fall back to remote upstreams when
-	// the local one is unhealthy.
+	// Sort records by RTT to the local machine, then by service name and creation time. Placing the closest
+	// containers first (the local machine has RTT 0) lets user-defined Caddy configs pair this ordering with the
+	// "first" lb_policy to always send traffic to the nearest replica (skipping the cross-machine hop) and only
+	// fall back to more distant upstreams when the nearest one is unhealthy.
 	// The service name, creation time, and container ID tiebreakers keep the file stable across regenerations.
 	slices.SortStableFunc(records, func(a, b store.ContainerRecord) int {
 		return cmp.Or(
