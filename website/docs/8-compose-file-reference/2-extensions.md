@@ -105,13 +105,13 @@ services:
 
 ### Attributes
 
-| Attribute     | Type                    | Default         | Description                                                                                                                                                        |
-|---------------|-------------------------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `command`     | string / list           | (required)      | The command to run in the hook container (same format as the service's [`command`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#command)) |
-| `environment` | map / list of KEY=VALUE | -               | Additional env vars that override or extend the service's [`environment`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#environment)       |
-| `privileged`  | bool                    | service's value | Override the service's [`privileged`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#privileged) mode                                       |
-| `timeout`     | duration                | `5m`            | Max time to wait for the command to finish before killing it (e.g., `1m30s`, `30m`, `1h`)                                                                          |
-| `user`        | string                  | service's value | Override the service's [`user`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#user) to run as (`user`, `UID`, `user:group`, or `UID:GID`)  |
+| Attribute     | Type                    | Default         | Description                                                                                                                                                                                                                                     |
+|---------------|-------------------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `command`     | string / list           | (required)      | The command to run in the hook container (same format as the service's [`command`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#command))                                                                              |
+| `environment` | map / list of KEY=VALUE | -               | Additional env vars that override or extend the service's [`environment`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#environment). Supports `secret://<name>` references. See [Secrets](../3-concepts/8-secrets.md). |
+| `privileged`  | bool                    | service's value | Override the service's [`privileged`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#privileged) mode                                                                                                                    |
+| `timeout`     | duration                | `5m`            | Max time to wait for the command to finish before killing it (e.g., `1m30s`, `30m`, `1h`)                                                                                                                                                       |
+| `user`        | string                  | service's value | Override the service's [`user`](https://github.com/compose-spec/compose-spec/blob/main/05-services.md#user) to run as (`user`, `UID`, `user:group`, or `UID:GID`)                                                                               |
 
 The hook container also gets `UNCLOUD_HOOK_PRE_DEPLOY=true` environment variable set automatically.
 
