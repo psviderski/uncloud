@@ -25,6 +25,7 @@ uc ctx [flags]
 
 * [uc](uc.md)	 - A CLI tool for managing Uncloud resources such as machines, services, and volumes.
 * [uc ctx connection](uc_ctx_connection.md)	 - Choose a new default connection for the current context.
+* [uc ctx create](uc_ctx_create.md)	 - Create the cluster context to Uncloud configuration file by connecting to the remote machine.
 * [uc ctx ls](uc_ctx_ls.md)	 - List available cluster contexts.
 * [uc ctx show](uc_ctx_show.md)	 - Show current cluster context.
 * [uc ctx use](uc_ctx_use.md)	 - Switch to a different cluster context.
