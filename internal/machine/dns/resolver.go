@@ -25,6 +25,12 @@ type ClusterResolver struct {
 	machineIPs map[string]netip.Addr
 	// mu protects the serviceIPs and machineIPs map.
 	mu sync.RWMutex
+	// machineNames maps machine IDs to their names to build <machine-name>.m.<service-name> lookups. It's kept
+	// in sync with machine changes as machines can be renamed. Only accessed from the Run goroutine.
+	machineNames map[string]string
+	// containers is the last seen list of container records. It's used to rebuild serviceIPs when machine names
+	// change. Only accessed from the Run goroutine.
+	containers []store.ContainerRecord
 	// lastUpdate tracks when records were last updated.
 	lastUpdate time.Time
 	log        *slog.Logger
@@ -41,6 +47,14 @@ func NewClusterResolver(store *store.Store) *ClusterResolver {
 
 // Run starts watching for container changes and updates DNS records accordingly.
 func (r *ClusterResolver) Run(ctx context.Context) error {
+	// Subscribe to machine changes first so that the initial service records include machine names.
+	machines, mchanges, err := r.store.SubscribeMachines(ctx)
+	if err != nil {
+		return fmt.Errorf("subscribe to machine changes: %w", err)
+	}
+	r.log.Info("Subscribed to machine changes in the cluster to keep machine DNS records updated.")
+	r.updateMachineIPs(machines)
+
 	containers, changes, err := r.store.SubscribeContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("subscribe to container changes: %w", err)
@@ -49,13 +63,6 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 
 	// TODO: implement machine membership check using Corrossion Admin client to filter available containers.
 	r.updateServiceIPs(containers)
-
-	machines, mchanges, err := r.store.SubscribeMachines(ctx)
-	if err != nil {
-		return fmt.Errorf("subscribe to machine changes: %w", err)
-	}
-	r.log.Info("Subscribed to machine changes in the clsuter to keep machine DNS records updated.")
-	r.updateMachineIPs(machines)
 
 	for {
 		select {
@@ -94,6 +101,7 @@ func (r *ClusterResolver) Run(ctx context.Context) error {
 
 // updateServiceIPs processes container records and updates the serviceIPs map.
 func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
+	r.containers = containers
 	newServiceIPs := make(map[string][]netip.Addr, len(r.serviceIPs))
 
 	containersCount := 0
@@ -125,6 +133,12 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 		serviceNameWithMachineID := record.MachineID + ".m." + ctr.ServiceName()
 		newServiceIPs[serviceNameWithMachineID] = append(newServiceIPs[serviceNameWithMachineID], ip)
 
+		// Add <machine-name>.m.<service-name> as a lookup
+		if machineName := r.machineNames[record.MachineID]; machineName != "" {
+			serviceNameWithMachineName := machineName + ".m." + ctr.ServiceName()
+			newServiceIPs[serviceNameWithMachineName] = append(newServiceIPs[serviceNameWithMachineName], ip)
+		}
+
 		containersCount++
 	}
 
@@ -145,10 +159,15 @@ func (r *ClusterResolver) updateServiceIPs(containers []store.ContainerRecord) {
 	r.log.Info("DNS records updated.", "services", len(newServiceIPs)/3, "containers", containersCount)
 }
 
+// updateMachineIPs processes machine records and updates the machineIPs map. It also rebuilds the serviceIPs map
+// when machine names change to keep <machine-name>.m.<service-name> lookups in sync.
 func (r *ClusterResolver) updateMachineIPs(machines []*pb.MachineInfo) {
 	newMachineIPs := make(map[string]netip.Addr, len(machines))
+	newMachineNames := make(map[string]string, len(machines))
 
 	for _, machine := range machines {
+		newMachineNames[machine.Id] = machine.Name
+
 		subnet, err := machine.Network.Subnet.ToPrefix()
 		if err != nil {
 			continue
@@ -162,6 +181,11 @@ func (r *ClusterResolver) updateMachineIPs(machines []*pb.MachineInfo) {
 	r.mu.Unlock()
 
 	r.log.Info("DNS records updated.", "machines", len(machines))
+
+	if !maps.Equal(r.machineNames, newMachineNames) {
+		r.machineNames = newMachineNames
+		r.updateServiceIPs(r.containers)
+	}
 }
 
 // Resolve returns IP addresses of the service containers or machines.
