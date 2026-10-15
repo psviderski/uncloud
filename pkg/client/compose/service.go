@@ -53,6 +53,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Healthcheck: healthcheckFromCompose(service.HealthCheck),
 			Image:       service.Image,
 			Init:        service.Init,
+			NetworkMode: service.NetworkMode,
 			PidMode:     service.Pid,
 			Tty:         service.Tty,
 			OpenStdin:   service.StdinOpen,
@@ -95,6 +96,14 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 	if service.Scale != nil {
 		spec.Replicas = uint(*service.Scale)
+	}
+
+	if service.NetworkMode == "host" {
+		// For network_mode is "host" because we are likely listening on a port,
+		// a subsequent start will fail, so we need stop-first
+		if service.Deploy == nil || service.Deploy.UpdateConfig == nil {
+			spec.UpdateConfig.Order = api.UpdateOrderStopFirst
+		}
 	}
 
 	if service.Deploy != nil {

@@ -258,11 +258,12 @@ func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 func TestContainerSpec_Clone(t *testing.T) {
 	mode := os.FileMode(0o644)
 	original := ContainerSpec{
-		CapAdd:     []string{"NET_ADMIN"},
-		CapDrop:    []string{"ALL"},
-		PidMode:    "host",
-		Command:    []string{"sh", "-c", "echo hello"},
-		Entrypoint: []string{"/bin/bash"},
+		CapAdd:      []string{"NET_ADMIN"},
+		CapDrop:     []string{"ALL"},
+		PidMode:     "host",
+		NetworkMode: "host",
+		Command:     []string{"sh", "-c", "echo hello"},
+		Entrypoint:  []string{"/bin/bash"},
 		Env: EnvVars{
 			"FOO": "bar",
 			"BAZ": "qux",
