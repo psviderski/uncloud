@@ -86,6 +86,25 @@ func TestEvalContainerSpecChange_ContainerTty(t *testing.T) {
 	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
 }
 
+func TestEvalContainerSpecChange_ContainerNetworkMode(t *testing.T) {
+	t.Parallel()
+
+	currentSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:       "nginx:latest",
+			NetworkMode: "host",
+		},
+	}
+
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(currentSpec, newSpec))
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
+}
+
 func TestEvalContainerSpecChange_ContainerResources(t *testing.T) {
 	t.Parallel()
 

@@ -657,6 +657,7 @@ func (s *Server) CreateServiceContainer(
 		Mounts:       mounts,
 		PidMode:      container.PidMode(spec.Container.PidMode),
 		PortBindings: portBindings,
+		NetworkMode:  container.NetworkMode(spec.Container.NetworkMode),
 		Privileged:   spec.Container.Privileged,
 		Resources: container.Resources{
 			NanoCPUs:          spec.Container.Resources.CPU,
@@ -727,6 +728,10 @@ func (s *Server) CreateServiceContainer(
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			NetworkName: {},
 		},
+	}
+	// Reset any network config for host mode, it is not needed.
+	if hostConfig.NetworkMode.IsHost() {
+		networkConfig = nil
 	}
 
 	resp, err := s.client.ContainerCreate(ctx, config, hostConfig, networkConfig, nil, containerName)
