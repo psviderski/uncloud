@@ -99,8 +99,8 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	}
 
 	if service.NetworkMode == "host" {
-		// For network_mode is "host" because we are likely listening on a port,
-		// a subsequent start will fail, so we need stop-first
+		// If network_mode is "host" we are likely listening on a port, a subsequent start will fail, so we
+		// need stop-first.
 		if service.Deploy == nil || service.Deploy.UpdateConfig == nil {
 			spec.UpdateConfig.Order = api.UpdateOrderStopFirst
 		}
