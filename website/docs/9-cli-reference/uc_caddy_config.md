@@ -15,7 +15,6 @@ uc caddy config [flags]
 ```
   -h, --help             help for config
   -m, --machine string   Name or ID of the machine to get the configuration from. (default is connected machine)
-      --no-color         Disable syntax highlighting for the output.
 ```
 
 ## Options inherited from parent commands
