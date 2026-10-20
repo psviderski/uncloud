@@ -144,6 +144,15 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	spec.Configs = configSpecs
 	spec.Container.ConfigMounts = configMounts
 
+	// Parse secrets
+	secretSpecs, secretMounts, err := secretSpecsFromCompose(project.Secrets, service.Secrets, project.WorkingDir)
+	if err != nil {
+		return spec, err
+	}
+
+	spec.Secrets = secretSpecs
+	spec.Container.SecretMounts = secretMounts
+
 	if h, ok := service.Extensions[PreDeployHookExtensionKey].(PreDeployHook); ok {
 		hook := &api.PreDeployHook{
 			Command:    h.Command,
