@@ -1,6 +1,6 @@
 ARG ALPINE_VERSION=3.23.3
 
-FROM golang:1.26.1-alpine AS uncloudd
+FROM --platform=${BUILDPLATFORM} golang:1.26.1-alpine AS uncloudd
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -38,7 +38,7 @@ COPY --from=corrosion-download /usr/bin/corrosion /usr/bin/corrosion
 CMD ["corrosion", "agent"]
 
 
-FROM alpine:${ALPINE_VERSION} AS corrosion-image-tarball
+FROM --platform=${BUILDPLATFORM} alpine:${ALPINE_VERSION} AS corrosion-image-tarball
 ARG CORROSION_VERSION
 ARG CORROSION_IMAGE="ghcr.io/unlabs-dev/corrosion:${CORROSION_VERSION}"
 ARG TARGETOS
@@ -48,7 +48,7 @@ RUN apk --no-cache add crane
 RUN crane pull --platform ${TARGETOS}/${TARGETARCH} "${CORROSION_IMAGE}" /corrosion.tar
 
 # Uncloud-in-Docker (ucind) image for running Uncloud test clusters using Docker.
-FROM docker:29.4.0-dind AS ucind
+FROM --platform=${BUILDPLATFORM} docker:29.4.0-dind AS ucind
 ARG CORROSION_VERSION
 
 # Create system group and user 'uncloud'.
