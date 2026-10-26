@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/containerd/platforms"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
 
 	"github.com/psviderski/uncloud/internal/cli"
@@ -116,49 +117,7 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 			store = "containerd"
 		}
 
-		// Process each image for this machine.
-		for _, img := range machineImages.Images {
-			// Show the first 12 chars without 'sha256:' as the image ID like Docker does.
-			id := strings.TrimPrefix(img.ID, "sha256:")[:12]
-
-			name := "<none>"
-			if len(img.RepoTags) > 0 && img.RepoTags[0] != "<none>:<none>" {
-				name = img.RepoTags[0]
-			}
-
-			imgPlatforms, _ := imagePlatforms(img)
-			formattedPlatforms := formatPlatforms(imgPlatforms)
-
-			created := ""
-			createdAt := time.Unix(img.Created, 0)
-			if !createdAt.IsZero() {
-				created = units.HumanDuration(time.Now().UTC().Sub(createdAt)) + " ago"
-			}
-
-			size := units.HumanSizeWithPrecision(float64(img.Size), 3)
-
-			// Check if the image is in use by any containers. Only supported by Docker API >=1.51
-			inUse := "-"
-			if img.Containers != -1 { // -1 means the info is not available.
-				if img.Containers > 0 {
-					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("●")
-				} else {
-					inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("○")
-				}
-			}
-
-			rows = append(rows, imageRow{
-				id:           id,
-				name:         name,
-				platforms:    formattedPlatforms,
-				createdHuman: created,
-				createdUnix:  img.Created,
-				size:         size,
-				inUse:        inUse,
-				store:        store,
-				machine:      machineName,
-			})
-		}
+		rows = append(rows, imageRows(machineImages.Images, machineName, store)...)
 	}
 
 	if len(rows) == 0 {
@@ -184,13 +143,63 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	return nil
 }
 
+// imageRows keeps every tag visible and retains digest-only and unnamed images.
+func imageRows(images []image.Summary, machineName, store string) []imageRow {
+	var rows []imageRow
+	for _, img := range images {
+		imageRefs := api.ImageReferences(img)
+		var imageNames []string
+		for _, ref := range imageRefs {
+			if !strings.Contains(ref, "@") {
+				imageNames = append(imageNames, ref)
+			}
+		}
+		if len(imageNames) == 0 {
+			imageNames = imageRefs
+		}
+		if len(imageNames) == 0 {
+			imageNames = []string{"<none>"}
+		}
+
+		imgPlatforms, _ := imagePlatforms(img)
+		created := ""
+		if img.Created > 0 {
+			created = units.HumanDuration(time.Since(time.Unix(img.Created, 0))) + " ago"
+		}
+		// Check if the image is in use by any containers. Only supported by Docker API >=1.51
+		inUse := "-"
+		if img.Containers >= 0 { // -1 means the info is not available.
+			inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("○")
+			if img.Containers > 0 {
+				inUse = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("●")
+			}
+		}
+
+		for _, name := range imageNames {
+			rows = append(rows, imageRow{
+				id:           stringid.TruncateID(img.ID),
+				name:         name,
+				platforms:    formatPlatforms(imgPlatforms),
+				createdHuman: created,
+				createdUnix:  img.Created,
+				size:         units.HumanSizeWithPrecision(float64(img.Size), 3),
+				inUse:        inUse,
+				store:        store,
+				machine:      machineName,
+			})
+		}
+	}
+
+	return rows
+}
+
 // imagePlatforms returns a list of platforms supported by the image and a boolean indicating if it's multi-platform.
 func imagePlatforms(img image.Summary) ([]string, bool) {
 	var formattedPlatforms []string
 	multiPlatform := false
 
 	for _, m := range img.Manifests {
-		if m.Kind != image.ManifestKindImage || !m.Available {
+		if m.Kind != image.ManifestKindImage || !m.Available || m.ImageData == nil {
 			continue
 		}
 
