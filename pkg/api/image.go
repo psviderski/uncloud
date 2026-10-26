@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"slices"
 
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/image"
@@ -40,6 +41,28 @@ type ImageFilter struct {
 	// Name filters images by name (with or without tag). Accepts a wildcard pattern.
 	// If empty, it matches all image names.
 	Name string
+}
+
+// ImageReferences returns the image tag and named digest references, sorted and without duplicates.
+// References use familiar names such as "alpine:latest" and "alpine@sha256:...".
+// Bare digests and invalid references are excluded. It returns nil if there are no named references.
+func ImageReferences(img image.Summary) []string {
+	var refs []string
+	for _, names := range [][]string{img.RepoTags, img.RepoDigests} {
+		for _, name := range names {
+			ref, err := reference.ParseAnyReference(name)
+			if err != nil {
+				continue
+			}
+			// RepoDigests can contain bare digests. Keep only references with a repository name.
+			if named, ok := ref.(reference.Named); ok {
+				refs = append(refs, reference.FamiliarString(named))
+			}
+		}
+	}
+
+	slices.Sort(refs)
+	return slices.Compact(refs)
 }
 
 // MachineRemoteImage represents an image in a remote registry fetched by a particular machine.
