@@ -6,8 +6,8 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 )
 
-// Operation represents a single atomic operation in a deployment process.
-// Operations can be composed to form complex deployment strategies.
+// Operation represents a single operation in the cluster that can be executed.
+// Operations can be composed to form complex workflows (plans).
 type Operation interface {
 	// Execute performs the operation using the provided client.
 	Execute(ctx context.Context, cli Client) error
@@ -16,7 +16,7 @@ type Operation interface {
 	String() string
 }
 
-// Client defines the interface required to execute deployment operations.
+// Client defines the interface required to execute cluster operations.
 type Client interface {
 	api.ContainerClient
 	api.VolumeClient

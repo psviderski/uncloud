@@ -12,8 +12,8 @@ import (
 	"github.com/distribution/reference"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
+	"github.com/psviderski/uncloud/pkg/client/operation"
 )
 
 type Client interface {

@@ -18,7 +18,7 @@ import (
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
-	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
+	"github.com/psviderski/uncloud/pkg/client/operation"
 	"github.com/spf13/cobra"
 )
 

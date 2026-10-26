@@ -8,8 +8,8 @@ import (
 	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
+	"github.com/psviderski/uncloud/pkg/client/operation"
 )
 
 // Strategy defines how a service should be deployed or updated. Different implementations can provide various
