@@ -70,10 +70,10 @@ func (cli *Client) ListVolumes(ctx context.Context, filter *api.VolumeFilter) ([
 			continue
 		}
 
-		if mv.Metadata.Error != "" {
+		if err := mv.Metadata.Err(); err != nil {
 			// TODO: return failed machines in the response.
 			tui.PrintWarning(fmt.Sprintf("failed to list volumes on machine '%s': %s", mv.Metadata.MachineName,
-				mv.Metadata.Error))
+				err))
 			continue
 		}
 

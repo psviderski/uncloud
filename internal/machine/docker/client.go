@@ -167,7 +167,7 @@ func (c *Client) ListContainers(ctx context.Context, opts container.ListOptions)
 	machineContainers := make([]MachineContainers, len(resp.Messages))
 	for i, msg := range resp.Messages {
 		machineContainers[i].Metadata = msg.Metadata
-		if msg.Metadata != nil && msg.Metadata.Error != "" {
+		if msg.Metadata.Err() != nil {
 			continue
 		}
 
@@ -258,7 +258,7 @@ func (c *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImag
 
 	notFoundCount := 0
 	for _, msg := range resp.Messages {
-		if msg.Metadata != nil && msg.Metadata.Status != nil && codes.Code(msg.Metadata.Status.Code) == codes.NotFound {
+		if status.Code(msg.Metadata.Err()) == codes.NotFound {
 			notFoundCount++
 		}
 	}
@@ -269,7 +269,7 @@ func (c *Client) InspectImage(ctx context.Context, id string) ([]api.MachineImag
 	images := make([]api.MachineImage, len(resp.Messages))
 	for i, msg := range resp.Messages {
 		images[i].Metadata = msg.Metadata
-		if msg.Metadata != nil && msg.Metadata.Error != "" {
+		if msg.Metadata.Err() != nil {
 			continue
 		}
 
@@ -312,7 +312,7 @@ func parseRemoteImageMessage(msg *pb.RemoteImage) (api.MachineRemoteImage, error
 	mri := api.MachineRemoteImage{
 		Metadata: msg.Metadata,
 	}
-	if msg.Metadata != nil && msg.Metadata.Error != "" {
+	if msg.Metadata.Err() != nil {
 		return mri, nil
 	}
 
@@ -393,7 +393,7 @@ func (c *Client) ListVolumes(ctx context.Context, opts volume.ListOptions) ([]Ma
 	machineVolumes := make([]MachineVolumes, len(resp.Messages))
 	for i, msg := range resp.Messages {
 		machineVolumes[i].Metadata = msg.Metadata
-		if msg.Metadata != nil && msg.Metadata.Error != "" {
+		if msg.Metadata.Err() != nil {
 			continue
 		}
 
@@ -472,7 +472,7 @@ func (c *Client) ListServiceContainers(
 	machineContainers := make([]MachineServiceContainers, len(resp.Messages))
 	for i, msg := range resp.Messages {
 		machineContainers[i].Metadata = msg.Metadata
-		if msg.Metadata != nil && msg.Metadata.Error != "" {
+		if msg.Metadata.Err() != nil {
 			continue
 		}
 
