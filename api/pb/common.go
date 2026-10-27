@@ -4,7 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"net/netip"
+
+	"google.golang.org/grpc/status"
 )
+
+// Err returns the upstream error, preserving its gRPC status code.
+// It returns nil for nil metadata or an absent or successful status.
+func (m *Metadata) Err() error {
+	return status.ErrorProto(m.GetStatus())
+}
 
 func NewIP(addr netip.Addr) *IP {
 	// MarshalBinary always returns a nil error.

@@ -92,7 +92,7 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 			ContainerdStore: msg.ContainerdStore,
 		}
 
-		if msg.Metadata.Error == "" && len(msg.Images) > 0 {
+		if msg.Metadata.Err() == nil && len(msg.Images) > 0 {
 			if err = json.Unmarshal(msg.Images, &mi.Images); err != nil {
 				return nil, fmt.Errorf("unmarshal images: %w", err)
 			}
@@ -104,6 +104,7 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	return machineImages, nil
 }
 
+// TODO: move PushImageOptions to api package and include PushImage in ImageClient interface.
 type PushImageOptions struct {
 	// AllMachines pushes the image to all machines in the cluster. Takes precedence over Machines field.
 	AllMachines bool
@@ -215,7 +216,7 @@ func (cli *Client) pushImageToMachine(
 		Name:     "%invalid-name-to-only-check-store-type%",
 	})
 	if err == nil {
-		err = images[0].Error()
+		err = images[0].Metadata.Err()
 	}
 	if err != nil {
 		return fmt.Errorf("check Docker image store type on machine '%s': %w", machine.Name, err)

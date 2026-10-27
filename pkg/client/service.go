@@ -125,10 +125,10 @@ func (cli *Client) InspectService(ctx context.Context, nameOrID string) (api.Ser
 			continue
 		}
 
-		if mc.Metadata.Error != "" {
+		if err := mc.Metadata.Err(); err != nil {
 			// TODO: return failed machines in the response.
 			tui.PrintWarning(fmt.Sprintf("failed to list containers on machine '%s': %s",
-				mc.Metadata.MachineName, mc.Metadata.Error))
+				mc.Metadata.MachineName, err))
 			continue
 		}
 
@@ -333,10 +333,10 @@ func (cli *Client) ListServices(ctx context.Context) ([]api.Service, error) {
 	// Group containers by service ID using the broadcast results.
 	servicesByID := make(map[string]api.Service)
 	for _, mc := range machineContainers {
-		if mc.Metadata.Error != "" {
+		if err := mc.Metadata.Err(); err != nil {
 			// TODO: return failed machines in the response.
 			tui.PrintWarning(fmt.Sprintf("failed to list containers on machine '%s': %s",
-				mc.Metadata.MachineName, mc.Metadata.Error))
+				mc.Metadata.MachineName, err))
 			continue
 		}
 

@@ -207,9 +207,9 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 
 		machineName := msc.Metadata.MachineName
 
-		if msc.Metadata.Error != "" {
+		if err := msc.Metadata.Err(); err != nil {
 			tui.PrintWarning(fmt.Sprintf("failed to list service containers on machine %s: %s",
-				machineName, msc.Metadata.Error))
+				machineName, err))
 			continue
 		}
 
