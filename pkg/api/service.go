@@ -273,6 +273,9 @@ type ContainerSpec struct {
 	Entrypoint []string
 	// Env defines the environment variables to set inside the container.
 	Env EnvVars
+	// ExposedPorts are the ports that are exposed. Uncloud uses this to make an educated guess for the remote
+	// port with uc proxy.
+	ExposedPorts []string
 	// Healthcheck defines the health check configuration for the container or overrides the health check options
 	// defined in the image. If nil, the image's default health check is used.
 	Healthcheck *HealthcheckSpec `json:",omitempty"`

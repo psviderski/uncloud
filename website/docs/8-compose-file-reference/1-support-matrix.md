@@ -26,6 +26,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `entrypoint`                     | ✅ Supported        | Override container entrypoint                                                                                                              |
 | `env_file`                       | ✅ Supported        | Environment file                                                                                                                           |
 | `environment`                    | ✅ Supported        | Environment variables                                                                                                                      |
+| `expose`                         | ⚠️ Limited          | Used for automatic remote port selection in [uc proxy](../9-cli-reference/uc_proxy)                                                        |
 | `gpus`                           | ✅ Supported        | GPU device access                                                                                                                          |
 | `healthcheck`                    | ✅ Supported        | Health check configuration                                                                                                                 |
 | `image`                          | ✅ Supported        | Container image specification                                                                                                              |

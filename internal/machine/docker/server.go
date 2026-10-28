@@ -613,6 +613,18 @@ func (s *Server) CreateServiceContainer(
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
 	}
+
+	if spec.Container.ExposedPorts != nil {
+		portset := nat.PortSet{}
+		for _, ep := range spec.Container.ExposedPorts {
+			port, err := nat.NewPort("tcp", ep)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse exposed port '%s': %w", ep, err)
+			}
+			portset[port] = struct{}{}
+		}
+		config.ExposedPorts = portset
+	}
 	if hc := spec.Container.Healthcheck; hc != nil {
 		if hc.Disable {
 			config.Healthcheck = &container.HealthConfig{

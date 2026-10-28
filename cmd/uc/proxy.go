@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 
+	"charm.land/huh/v2"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
@@ -26,19 +28,23 @@ type proxyOptions struct {
 func NewProxyCommand() *cobra.Command {
 	opts := proxyOptions{}
 	cmd := &cobra.Command{
-		Use:   "proxy SERVICE [LOCAL_PORT:]REMOTE_PORT",
-		Args:  cobra.ExactArgs(2),
+		Use:   "proxy SERVICE [LOCAL_PORT:][REMOTE_PORT]",
+		Args:  cobra.MinimumNArgs(1),
 		Short: "Proxy a service port to a local port.",
 		Long: `Proxy a service port in the cluster to a local port on this machine.
 
 If the service runs multiple containers, the command connects to the first running and healthy one.
-If you don't provide a local port, the command picks a random one.
+If you don't provide a local port, the command picks a random one. If no remote port is given the command
+will use the exposed port - if multiple ports are exposed a list of available ones will be displayed for selection.
 
 The connection stays open for as long as the command runs.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uncli := cmd.Context().Value("cli").(*cli.CLI)
 
 			opts.service = args[0]
+			if len(args) == 1 {
+				return runProxy(cmd.Context(), uncli, opts)
+			}
 
 			parts := strings.Split(args[1], ":")
 			switch len(parts) {
@@ -54,7 +60,7 @@ The connection stays open for as long as the command runs.`,
 					return fmt.Errorf("invalid local port: '%s': %w", parts[0], err)
 				}
 				remoteport, err := strconv.Atoi(parts[1])
-				if err != nil {
+				if err != nil && parts[1] != "" { // remoteport is optional now
 					return fmt.Errorf("invalid remote port: '%s': %w", parts[1], err)
 				}
 				opts.localPort = localport
@@ -81,8 +87,8 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 	if opts.localPort < 0 || opts.localPort > 65535 {
 		return fmt.Errorf("invalid local port %d: must be between 0 and 65535", opts.localPort)
 	}
-	if opts.remotePort < 1 || opts.remotePort > 65535 {
-		return fmt.Errorf("invalid remote port %d: must be between 1 and 65535", opts.remotePort)
+	if opts.remotePort < 0 || opts.remotePort > 65535 {
+		return fmt.Errorf("invalid remote port %d: must be between 0 and 65535", opts.remotePort)
 	}
 
 	clusterClient, err := uncli.ConnectCluster(ctx)
@@ -116,6 +122,27 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 	if !ip.IsValid() {
 		return fmt.Errorf("container '%s' is not connected to the uncloud Docker network (could be host network)",
 			containerID)
+	}
+
+	ports := []string{}
+	if opts.remotePort == 0 {
+		for p := range ctr.Container.Config.ExposedPorts {
+			ports = append(ports, p.Port())
+		}
+	}
+	switch len(ports) {
+	case 0: // remoteport specified
+	case 1:
+		opts.remotePort, _ = strconv.Atoi(ports[0])
+	default:
+		opts.remotePort, err = selectPort(ports)
+		if err != nil {
+			return err
+		}
+	}
+
+	if opts.remotePort == 0 {
+		return fmt.Errorf("no remote port specified and no exposed ports found for service '%s'", opts.service)
 	}
 
 	dialer, err := clusterClient.Dialer()
@@ -172,4 +199,37 @@ func schemeForPort(port int) string {
 	default:
 		return ""
 	}
+}
+
+func selectPort(ports []string) (int, error) {
+	if !tui.IsTerminalAvailable() {
+		return 0, fmt.Errorf("cannot select a port interactively without a terminal")
+	}
+
+	slices.Sort(ports)
+
+	var selected string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select a port").
+				Options(buildPortOptions(ports)...).
+				Value(&selected),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return 0, fmt.Errorf("select port: %w", err)
+	}
+
+	port, _ := strconv.Atoi(selected)
+	return port, nil
+}
+
+func buildPortOptions(ports []string) []huh.Option[string] {
+	options := make([]huh.Option[string], len(ports))
+	for i, port := range ports {
+		opt := huh.NewOption(port, port)
+		options[i] = opt
+	}
+	return options
 }
