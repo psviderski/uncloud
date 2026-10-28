@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-units"
@@ -1265,10 +1266,10 @@ myapp.example.com {
 			"Containers should be on machines where the volume exists")
 	})
 
-	t.Run("list images for replicated service", func(t *testing.T) {
+	t.Run("image lifecycle for replicated service", func(t *testing.T) {
 		t.Parallel()
 
-		serviceName := "test-list-images-replicated"
+		serviceName := "test-image-lifecycle-replicated"
 		uniqueImage := "portainer/pause:3.9" // Unique image not used by other tests.
 		t.Cleanup(func() {
 			err := cli.RemoveService(ctx, serviceName)
@@ -1301,39 +1302,59 @@ myapp.example.com {
 		machinesWithContainers := serviceMachines(svc)
 		assert.Len(t, machinesWithContainers.ToSlice(), 2, "Containers should be on 2 different machines")
 
-		var machineWithoutContainer string
-		for _, m := range c.Machines {
-			if !machinesWithContainers.Contains(m.ID) {
-				machineWithoutContainer = m.ID
-				break
-			}
-		}
-		assert.NotEmpty(t, machineWithoutContainer, "Should have found a machine without container")
-
-		machineImages, err := cli.ListImages(ctx, api.ImageFilter{})
+		machineImages, err := cli.ListImages(ctx, api.ImageFilter{Name: uniqueImage})
 		require.NoError(t, err)
-		assert.Len(t, machineImages, 3, "Should get images from all 3 machines")
+		require.Len(t, machineImages, len(c.Machines))
 
 		for _, mi := range machineImages {
-			// Checking only DockerImages because the machines in ucind cluster don't use the containerd image store.
+			require.NoError(t, mi.Metadata.Err())
 			if !machinesWithContainers.Contains(mi.Metadata.MachineId) {
-				// This is the machine without service containers, it should not have the unique image.
-				for _, img := range mi.Images {
-					assert.NotContains(t, img.RepoTags, uniqueImage)
-				}
+				assert.Empty(t, mi.Images)
 				continue
 			}
 
-			// Check if the unique image is present on the machine where a service container is running.
-			hasImage := false
-			for _, img := range mi.Images {
-				if slices.Contains(img.RepoTags, uniqueImage) {
-					hasImage = true
-					break
-				}
+			require.Len(t, mi.Images, 1)
+			assert.Contains(t, mi.Images[0].RepoTags, uniqueImage)
+		}
+
+		// The used tag must remain on both machines while their service containers exist.
+		results, err := cli.RemoveImage(ctx, uniqueImage, api.RemoveImageOptions{Machines: spec.Placement.Machines})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "used by container")
+		require.Len(t, results, 2)
+		for _, result := range results {
+			assert.Equal(t, codes.FailedPrecondition, status.Code(result.Metadata.Err()))
+		}
+
+		require.NoError(t, cli.RemoveService(ctx, serviceName))
+
+		// Broadcast removal after deleting the containers. Absence on the third machine is not an overall error.
+		results, err = cli.RemoveImage(ctx, uniqueImage, api.RemoveImageOptions{})
+		require.NoError(t, err)
+		require.Len(t, results, len(c.Machines))
+		for _, result := range results {
+			if !machinesWithContainers.Contains(result.Metadata.MachineId) {
+				assert.Equal(t, codes.NotFound, status.Code(result.Metadata.Err()))
+				continue
 			}
-			assert.True(t, hasImage, "Machine %s with container should have image %s",
-				mi.Metadata.MachineId, uniqueImage)
+			require.NoError(t, result.Metadata.Err())
+			assert.Contains(t, result.Results, image.DeleteResponse{Untagged: uniqueImage})
+		}
+
+		results, err = cli.RemoveImage(ctx, uniqueImage, api.RemoveImageOptions{})
+		require.ErrorIs(t, err, api.ErrNotFound)
+		require.Len(t, results, len(c.Machines))
+		for _, result := range results {
+			assert.Equal(t, codes.NotFound, status.Code(result.Metadata.Err()))
+			assert.Empty(t, result.Results)
+		}
+
+		machineImages, err = cli.ListImages(ctx, api.ImageFilter{Name: uniqueImage})
+		require.NoError(t, err)
+		require.Len(t, machineImages, len(c.Machines))
+		for _, mi := range machineImages {
+			require.NoError(t, mi.Metadata.Err())
+			assert.Empty(t, mi.Images)
 		}
 	})
 

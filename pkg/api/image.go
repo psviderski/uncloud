@@ -32,26 +32,16 @@ type ImageFilter struct {
 	Name string
 }
 
-// ImageReferences returns the image tag and named digest references, sorted and without duplicates.
-// References use familiar names such as "alpine:latest" and "alpine@sha256:...".
-// Bare digests and invalid references are excluded. It returns nil if there are no named references.
-func ImageReferences(img image.Summary) []string {
-	var refs []string
-	for _, names := range [][]string{img.RepoTags, img.RepoDigests} {
-		for _, name := range names {
-			ref, err := reference.ParseAnyReference(name)
-			if err != nil {
-				continue
-			}
-			// RepoDigests can contain bare digests. Keep only references with a repository name.
-			if named, ok := ref.(reference.Named); ok {
-				refs = append(refs, reference.FamiliarString(named))
-			}
-		}
-	}
+// RemoveImageOptions defines options for removing an image from cluster machines.
+type RemoveImageOptions struct {
+	// Machines selects machines to remove the image from (names or IDs). If empty, all cluster machines are selected.
+	Machines []string
+}
 
-	slices.Sort(refs)
-	return slices.Compact(refs)
+// MachineImageRemoval contains the outcome of removing an image on one machine.
+type MachineImageRemoval struct {
+	Metadata *pb.Metadata
+	Results  []image.DeleteResponse
 }
 
 // MachineRemoteImage represents an image in a remote registry fetched by a particular machine.

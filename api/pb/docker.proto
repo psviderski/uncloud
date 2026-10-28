@@ -24,6 +24,7 @@ service Docker {
   // Docker auth credentials if necessary.
   rpc InspectRemoteImage(InspectRemoteImageRequest) returns (InspectRemoteImageResponse);
   rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
+  rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse);
 
   rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
   rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
@@ -177,6 +178,40 @@ message RemoteImage {
 message ListImagesRequest {
   // JSON serialised image.ListOptions.
   bytes options = 1;
+}
+
+message RemoveImageRequest {
+  string id = 1;
+  bool force = 2;
+  bool prune_children = 3;
+  repeated ImagePlatform platforms = 4;
+}
+
+// ImagePlatform describes an OCI image platform.
+message ImagePlatform {
+  string architecture = 1;
+  string os = 2;
+  string os_version = 3;
+  repeated string os_features = 4;
+  string variant = 5;
+}
+
+message RemoveImageResponse {
+  // Must contain only one repeated messages field to allow broadcasting RemoveImage requests to multiple machines.
+  repeated MachineImageRemoval messages = 1;
+}
+
+message MachineImageRemoval {
+  Metadata metadata = 1;
+  repeated ImageRemoval results = 2;
+}
+
+// ImageRemoval reports an image deletion or an untagged image reference.
+message ImageRemoval {
+  // The image ID of an image that was deleted.
+  string deleted = 1;
+  // The image reference of an image that was untagged.
+  string untagged = 2;
 }
 
 message ListImagesResponse {

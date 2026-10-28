@@ -42,6 +42,8 @@ type DNSClient interface {
 type ImageClient interface {
 	InspectImage(ctx context.Context, id string) ([]MachineImage, error)
 	InspectRemoteImage(ctx context.Context, id string) ([]MachineRemoteImage, error)
+	ListImages(ctx context.Context, filter ImageFilter) ([]MachineImages, error)
+	RemoveImage(ctx context.Context, image string, opts RemoveImageOptions) ([]MachineImageRemoval, error)
 }
 
 type LogsClient interface {
