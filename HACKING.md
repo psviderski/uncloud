@@ -116,7 +116,7 @@ mise run proto
 Regenerate mocks:
 
 ```shell
-make mocks
+mise run mocks
 ```
 
 ## Uncloud in Docker (UCinD)

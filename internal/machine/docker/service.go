@@ -31,13 +31,13 @@ import (
 // from the machine database.
 type Service struct {
 	// Client is a Docker client for managing Docker resources.
-	Client *client.Client
+	Client client.APIClient
 	// db is a connection to the machine database.
 	db *sqlx.DB
 }
 
 // NewService creates a new Docker service instance.
-func NewService(client *client.Client, db *sqlx.DB) *Service {
+func NewService(client client.APIClient, db *sqlx.DB) *Service {
 	return &Service{
 		Client: client,
 		db:     db,

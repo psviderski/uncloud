@@ -1,4 +1,10 @@
 packages:
+  github.com/docker/docker/client:
+    config:
+      dir: internal/machine/docker
+      pkgname: docker
+    interfaces:
+      APIClient:
   github.com/psviderski/uncloud/internal/machine/caddyconfig:
     interfaces:
       CaddyfileValidator:

@@ -56,7 +56,7 @@ var fullDockerIDRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
 // Server implements the gRPC Docker service that proxies requests to the Docker daemon.
 type Server struct {
 	pb.UnimplementedDockerServer
-	client  *client.Client
+	client  client.APIClient
 	service *Service
 	db      *sqlx.DB
 	// internalDNSIP is a function that returns the IP address of the internal DNS server. It may return an empty
@@ -347,6 +347,41 @@ func (s *Server) InspectImage(ctx context.Context, req *pb.InspectImageRequest) 
 			},
 		},
 	}, nil
+}
+
+// RemoveImage removes an image while protecting names used by containers, even when force is requested.
+func (s *Server) RemoveImage(ctx context.Context, req *pb.RemoveImageRequest) (*pb.RemoveImageResponse, error) {
+	opts := image.RemoveOptions{Force: req.Force, PruneChildren: req.PruneChildren}
+	for _, platform := range req.Platforms {
+		opts.Platforms = append(opts.Platforms, ocispec.Platform{
+			Architecture: platform.Architecture,
+			OS:           platform.Os,
+			OSVersion:    platform.OsVersion,
+			OSFeatures:   platform.OsFeatures,
+			Variant:      platform.Variant,
+		})
+	}
+
+	removals, err := s.service.RemoveImage(ctx, req.Id, opts)
+	if err != nil {
+		switch {
+		case errdefs.IsNotFound(err):
+			return nil, status.Error(codes.NotFound, err.Error())
+		case errdefs.IsConflict(err):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		case errdefs.IsInvalidArgument(err):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	result := &pb.MachineImageRemoval{}
+	for _, removal := range removals {
+		result.Results = append(result.Results, &pb.ImageRemoval{Deleted: removal.Deleted, Untagged: removal.Untagged})
+	}
+
+	return &pb.RemoveImageResponse{Messages: []*pb.MachineImageRemoval{result}}, nil
 }
 
 // InspectRemoteImage returns the image metadata for an image in a remote registry using the machine's Docker auth
