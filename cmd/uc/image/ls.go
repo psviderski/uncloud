@@ -143,22 +143,14 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 	return nil
 }
 
-// imageRows keeps every tag visible and retains digest-only and unnamed images.
+// imageRows keeps every stored name visible and retains digest-only and unnamed images.
 func imageRows(images []image.Summary, machineName, store string) []imageRow {
 	var rows []imageRow
 	for _, img := range images {
-		imageRefs := api.ImageReferences(img)
-		var imageNames []string
-		for _, ref := range imageRefs {
-			if !strings.Contains(ref, "@") {
-				imageNames = append(imageNames, ref)
-			}
-		}
+		// RepoTags includes stored digest names on containerd. RepoDigests can include derived names.
+		imageNames := img.RepoTags
 		if len(imageNames) == 0 {
-			imageNames = imageRefs
-		}
-		if len(imageNames) == 0 {
-			imageNames = []string{"<none>"}
+			imageNames = []string{"<untagged>"}
 		}
 
 		imgPlatforms, _ := imagePlatforms(img)
