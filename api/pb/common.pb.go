@@ -87,7 +87,8 @@ type Metadata struct {
 	MachineName string `protobuf:"bytes,5,opt,name=machine_name,json=machineName,proto3" json:"machine_name,omitempty"`
 	// Address of the machine the response came from.
 	MachineAddr string `protobuf:"bytes,1,opt,name=machine_addr,json=machineAddr,proto3" json:"machine_addr,omitempty"`
-	// error is set if the request to upstream failed. The rest of the response is undefined.
+	// error is set if the request to upstream failed. The rest of the response apart from this metadata message
+	// is undefined.
 	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	// error as a gRPC Status message.
 	Status *status.Status `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`

@@ -18,7 +18,8 @@ message Metadata {
   // Address of the machine the response came from.
   string machine_addr = 1;
 
-  // error is set if the request to upstream failed. The rest of the response is undefined.
+  // error is set if the request to upstream failed. The rest of the response apart from this metadata message
+  // is undefined.
   string error = 2;
   // error as a gRPC Status message.
   google.rpc.Status status = 3;

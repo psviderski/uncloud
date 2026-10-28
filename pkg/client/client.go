@@ -86,6 +86,7 @@ func (cli *Client) progressOut() *streams.Out {
 // ProxyMachinesContext returns a new context that proxies gRPC requests to the specified machines.
 // If namesOrIDs is nil or empty, all machines are included.
 // This triggers One2Many proxying, which always injects metadata into the response.
+// TODO: validate namesOrIDs can't contain "*" as this is reserved as internal value and may break the caller logic.
 func ProxyMachinesContext(ctx context.Context, namesOrIDs []string) context.Context {
 	md := outgoingMetadataWithoutProxyTargets(ctx)
 	if len(namesOrIDs) == 0 {
