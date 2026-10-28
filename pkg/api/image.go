@@ -1,8 +1,6 @@
 package api
 
 import (
-	"slices"
-
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/image"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
