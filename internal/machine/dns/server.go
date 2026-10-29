@@ -10,9 +10,9 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"codeberg.org/miekg/dns"
@@ -57,7 +57,6 @@ type Server struct {
 	tcpStarted       chan struct{}
 	tcpFailed        chan struct{}
 	forwardClient    *dns.Client
-	inProgressReqs   sync.WaitGroup
 	forwardSemaphore chan struct{}
 	log              *slog.Logger
 }
@@ -177,13 +176,10 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
-// stop gracefully shuts down the DNS server.
+// stop gracefully shuts down the DNS server. dns.Server.Shutdown waits for all in-progress requests to finish.
 func (s *Server) stop() {
 	shutdownServer(s.udpServer, s.udpStarted, s.udpFailed)
 	shutdownServer(s.tcpServer, s.tcpStarted, s.tcpFailed)
-
-	// Wait for all in-progress requests to finish.
-	s.inProgressReqs.Wait()
 }
 
 // shutdownServer shuts down srv once the outcome of its startup is known. dns.Server.Shutdown blocks forever
@@ -202,8 +198,13 @@ func shutdownServer(srv *dns.Server, started, failed <-chan struct{}) {
 
 // handleRequest processes a DNS query and returns an appropriate response.
 func (s *Server) handleRequest(ctx context.Context, w dns.ResponseWriter, req *dns.Msg) {
-	s.inProgressReqs.Add(1)
-	defer s.inProgressReqs.Done()
+	// The server unpacks the request only up to the question section before calling the handler. Unpack the
+	// rest to get the EDNS0 options, such as the UDP buffer size advertised by the client.
+	if err := req.Unpack(); err != nil {
+		s.log.Debug("Failed to unpack DNS query.", "err", err)
+		s.reply(w, req, newResponse(req, dns.RcodeFormatError))
+		return
+	}
 
 	if len(req.Question) == 0 {
 		resp := newResponse(req, dns.RcodeFormatError)
@@ -216,11 +217,12 @@ func (s *Server) handleRequest(ctx context.Context, w dns.ResponseWriter, req *d
 	log := s.log.With("name", qName, "type", dnsutil.TypeToString(qType))
 	log.Debug("Received DNS query.")
 
+	maxSize := responseMaxSize(w, req)
 	if !dnsutil.IsBelow(InternalDomain, dnsutil.Canonical(qName)) {
 		log.Debug("Forwarding non-internal DNS query to upstream DNS servers.")
 
 		// Use the same transport for the forwarded request as the original request.
-		resp, err := s.forwardRequest(ctx, req, w.LocalAddr().Network())
+		resp, err := s.forwardRequest(ctx, req, w.LocalAddr().Network(), maxSize)
 		if err != nil {
 			log.Error("Failed to forward DNS query.", "err", err)
 			resp = newResponse(req, dns.RcodeServerFailure)
@@ -232,7 +234,6 @@ func (s *Server) handleRequest(ctx context.Context, w dns.ResponseWriter, req *d
 	}
 
 	// Handle the query for the internal domain.
-	maxSize := responseMaxSize(w, req)
 	resp := newResponse(req, dns.RcodeSuccess)
 	resp.Authoritative = true
 	resp.RecursionAvailable = true
@@ -250,8 +251,9 @@ func (s *Server) handleRequest(ctx context.Context, w dns.ResponseWriter, req *d
 		// TODO: Handle other query types (SRV, TXT, etc.) as needed.
 	}
 
-	if resp.Len() > maxSize {
-		dnsutil.Truncate(resp)
+	if err := packTruncated(resp, maxSize); err != nil {
+		log.Error("Failed to pack DNS response.", "err", err)
+		resp = newResponse(req, dns.RcodeServerFailure)
 	}
 	metrics.DNSQuery.WithLabelValues("true", metrics.Ok).Inc() // NameError is not an error
 
@@ -292,8 +294,41 @@ func responseMaxSize(w dns.ResponseWriter, req *dns.Msg) int {
 	return dns.MinMsgSize
 }
 
-// forwardRequest forwards a DNS query to system DNS servers
-func (s *Server) forwardRequest(ctx context.Context, req *dns.Msg, proto string) (*dns.Msg, error) {
+// packTruncated packs resp into its Data buffer. If the packed message exceeds maxSize, it sets the TC bit and
+// keeps the largest prefix of answers that fits, so clients without TCP fallback still get some records.
+// The size is checked on the packed message because Msg.Len doesn't account for name compression and
+// overestimates the size of answers that share the same owner name.
+func packTruncated(resp *dns.Msg, maxSize int) error {
+	if err := resp.Pack(); err != nil {
+		return err
+	}
+	if len(resp.Data) <= maxSize {
+		return nil
+	}
+
+	answers := resp.Answer
+	resp.Truncated = true
+	var packErr error
+	// Find the smallest number of answers that doesn't fit. A message without answers always fits.
+	n := sort.Search(len(answers), func(i int) bool {
+		resp.Answer = answers[:i+1]
+		if err := resp.Pack(); err != nil {
+			packErr = err
+			return true
+		}
+		return len(resp.Data) > maxSize
+	})
+	if packErr != nil {
+		return packErr
+	}
+
+	resp.Answer = answers[:n]
+	return resp.Pack()
+}
+
+// forwardRequest forwards a DNS query to system DNS servers. maxSize is the largest response the client
+// accepts over the transport proto.
+func (s *Server) forwardRequest(ctx context.Context, req *dns.Msg, proto string, maxSize int) (*dns.Msg, error) {
 	if len(s.upstreamServers) == 0 {
 		return nil, errors.New("no upstream DNS servers configured")
 	}
@@ -318,9 +353,9 @@ func (s *Server) forwardRequest(ctx context.Context, req *dns.Msg, proto string)
 			Data:      slices.Clone(req.Data),
 		}
 		// Data is already packed so UDPSize doesn't change the message on the wire: the upstream server
-		// still sees the EDNS buffer size advertised by the original client. It only makes Exchange
-		// allocate a read buffer large enough for any possible response.
-		forwardReq.UDPSize = dns.MaxMsgSize
+		// still sees the EDNS buffer size advertised by the original client. It only sets the size of the
+		// read buffer Exchange allocates for the response.
+		forwardReq.UDPSize = uint16(maxSize)
 
 		reqCtx, cancel := context.WithTimeout(ctx, forwardingTimeout)
 		resp, _, err := s.forwardClient.Exchange(reqCtx, forwardReq, proto, server.String())
@@ -345,6 +380,11 @@ func (s *Server) handleAQuery(name string) ([]dns.RR, bool) {
 		return nil, false
 	}
 	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
+
+	// Unmap 4-in-6 mapped addresses so they match the IPv4 local subnet and are packed as IPv4.
+	for i, ip := range ips {
+		ips[i] = ip.Unmap()
+	}
 
 	if len(ips) > 1 {
 		// Shuffle the IPs to approximate round-robin.
@@ -374,9 +414,7 @@ func (s *Server) handleAQuery(name string) ([]dns.RR, bool) {
 	// Create A records for each IP.
 	records := make([]dns.RR, 0, len(ips))
 	for _, ip := range ips {
-		// Unmap 4-in-6 mapped addresses so they are recognized and packed as IPv4. Only IPv4 addresses
-		// can be returned in A records.
-		ip = ip.Unmap()
+		// Only IPv4 addresses can be returned in A records.
 		if !ip.Is4() {
 			continue
 		}

@@ -96,17 +96,16 @@ func TestHandleRequestInternalA(t *testing.T) {
 	}
 }
 
-func TestHandleRequestInternalATruncatesUDPResponse(t *testing.T) {
+func TestHandleRequestNearestPrefersLocalMappedAddresses(t *testing.T) {
 	t.Parallel()
 
-	ips := make([]netip.Addr, 0, 80)
-	for i := 1; i <= 80; i++ {
-		ips = append(ips, netip.MustParseAddr(fmt.Sprintf("10.210.0.%d", i)))
-	}
+	server := newTestServer(t, testResolver{"web": {
+		netip.MustParseAddr("10.211.0.2"),
+		netip.MustParseAddr("10.211.0.3"),
+		netip.MustParseAddr("::ffff:10.210.0.4"),
+	}})
 
-	server := newTestServer(t, testResolver{"web": ips})
-
-	req := dns.NewMsg("web.internal.", dns.TypeA)
+	req := dns.NewMsg("nearest.web.internal.", dns.TypeA)
 	require.NoError(t, req.Pack())
 
 	rec := dnstest.NewTestRecorder()
@@ -114,9 +113,75 @@ func TestHandleRequestInternalATruncatesUDPResponse(t *testing.T) {
 
 	require.NotNil(t, rec.Msg)
 	require.NoError(t, rec.Msg.Unpack())
-	assert.True(t, rec.Msg.Truncated)
-	assert.LessOrEqual(t, len(rec.Msg.Data), dns.MinMsgSize)
-	assert.Empty(t, rec.Msg.Answer)
+	require.Len(t, rec.Msg.Answer, 3)
+	assert.Equal(t, netip.MustParseAddr("10.210.0.4"), rec.Msg.Answer[0].(*dns.A).A.Addr)
+}
+
+// TestHandleRequestUDPResponseSize queries a real UDP server, so the request reaches the handler only partially
+// unpacked like in production.
+func TestHandleRequestUDPResponseSize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		ipCount       int
+		udpSize       uint16
+		wantTruncated bool
+		wantAnswers   int // -1 means any non-zero number of answers.
+	}{
+		{
+			// 25 answers don't fit into 512 bytes uncompressed but fit with name compression.
+			name:        "compressed response fits into 512 bytes",
+			ipCount:     25,
+			wantAnswers: 25,
+		},
+		{
+			name:          "too large response keeps answers that fit",
+			ipCount:       80,
+			wantTruncated: true,
+			wantAnswers:   -1,
+		},
+		{
+			name:        "EDNS buffer size allows larger response",
+			ipCount:     60,
+			udpSize:     1232,
+			wantAnswers: 60,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ips := make([]netip.Addr, 0, tt.ipCount)
+			for i := 1; i <= tt.ipCount; i++ {
+				ips = append(ips, netip.MustParseAddr(fmt.Sprintf("10.210.0.%d", i)))
+			}
+			server := newTestServer(t, testResolver{"web": ips})
+
+			stop, addr, err := dnstest.UDPServer("127.0.0.1:0", func(s *dns.Server) {
+				s.Handler = dns.HandlerFunc(server.handleRequest)
+			})
+			require.NoError(t, err)
+			defer stop()
+
+			req := dns.NewMsg("web.internal.", dns.TypeA)
+			req.UDPSize = tt.udpSize
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			resp, err := dns.Exchange(ctx, req, "udp", addr)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantTruncated, resp.Truncated)
+			assert.LessOrEqual(t, len(resp.Data), max(int(tt.udpSize), dns.MinMsgSize))
+			if tt.wantAnswers == -1 {
+				assert.NotEmpty(t, resp.Answer)
+			} else {
+				assert.Len(t, resp.Answer, tt.wantAnswers)
+			}
+		})
+	}
 }
 
 // TestHandleRequestPooledReadBuffers sends alternating small and large queries through a real UDP server

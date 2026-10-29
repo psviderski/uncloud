@@ -362,14 +362,13 @@ require (
 )
 
 // codeberg.org/miekg/dns transitively requires newer versions of the modules below than Caddy v2.8 can
-// compile against, so pin them back to the versions Caddy supports. The left side of a replace directive is
-// version-specific: if a future dependency bump selects a newer version of one of these modules, the
-// corresponding replace silently stops applying and must be updated. Remove these replaces once Caddy is
-// upgraded to a version compatible with the newer module versions.
-replace go.uber.org/zap/exp v0.3.0 => go.uber.org/zap/exp v0.2.0
+// compile against, so pin them back to the versions Caddy supports. The replaces apply to all versions so a
+// future dependency bump can't silently bypass them. Remove these replaces once Caddy is upgraded to a version
+// compatible with the newer module versions.
+replace go.uber.org/zap/exp => go.uber.org/zap/exp v0.2.0
 
-replace github.com/caddyserver/certmagic v0.25.2 => github.com/caddyserver/certmagic v0.21.4
+replace github.com/caddyserver/certmagic => github.com/caddyserver/certmagic v0.21.4
 
-replace github.com/libdns/libdns v1.1.1 => github.com/libdns/libdns v0.2.2
+replace github.com/libdns/libdns => github.com/libdns/libdns v0.2.2
 
 replace charm.land/bubbletea/v2 => github.com/unlabs-dev/bubbletea/v2 v2.0.8-uncloud.1
