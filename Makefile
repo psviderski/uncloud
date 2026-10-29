@@ -65,7 +65,3 @@ _lint:
 # Explicitly set OS to Linux to not skip *_linux.go files when running on macOS.
 # Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
 	GOOS=linux golangci-lint run $(ARGS)
-
-.PHONY: cli-docs
-cli-docs:
-	go run ./cmd/uc docs

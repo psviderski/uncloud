@@ -14,6 +14,7 @@ on:
       - "**.proto"
       - "go.*"
       - "Makefile"
+      - "mise.toml"
       - "scripts/**"
       - "test/**"
 permissions:
@@ -42,9 +43,9 @@ jobs:
 
       - name: Generate docs
         run: |
-          make cli-docs
+          mise run docs:cli
           git diff --exit-code ||
-            (echo "Documentation is out of date. Please run 'make cli-docs' and commit the changes." && exit 1)
+            (echo "Documentation is out of date. Please run 'mise run docs:cli' and commit the changes." && exit 1)
 
       - name: Run tests
         run: |
