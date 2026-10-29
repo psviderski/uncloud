@@ -281,6 +281,8 @@ type ContainerSpec struct {
 	Init *bool
 	// LogDriver overrides the default logging driver for the container. Each Docker daemon can have its own default.
 	LogDriver *LogDriver
+	// NetworkMode sets the network mode, we only supoprt "host", or the unset ("") default (container network).
+	NetworkMode string
 	// PidMode sets the PID namespace mode for the container. Currently only "" or "host" is supported.
 	PidMode string
 	// Tty allocates a pseudo-TTY and connects the container's standard streams to it.
