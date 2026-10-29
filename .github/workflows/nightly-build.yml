@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 env:
-  MISE_VERSION: "2026.3.7"
+  MISE_VERSION: "2026.10.22"
 
 jobs:
   nightly:
