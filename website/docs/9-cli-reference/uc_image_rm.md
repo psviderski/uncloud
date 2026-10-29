@@ -6,15 +6,15 @@ Remove images from machines in the cluster.
 
 Remove images from all or selected machines in the cluster.
 
-Images used by running or stopped containers cannot be removed. Unused tags can be removed even
-when the same image is used under another tag.
-
 An image name without a tag selects all its tags. Specify a tag, such as myapp:latest, to remove
 only that tag.
 
 Wildcard patterns are supported for image names and tags and should be quoted to prevent your
 shell from expanding them. Removing by image ID attempts to remove each name for that image
-independently. Failed removals do not prevent other removals.
+independently.
+
+Images used by running or stopped containers cannot be removed. Unused tags can be removed even
+when the same image is used under another tag. Failed removals do not prevent other removals.
 
 ```
 uc image rm IMAGE [IMAGE...] [flags]
