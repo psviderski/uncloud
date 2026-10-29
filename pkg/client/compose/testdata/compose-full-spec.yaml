@@ -7,6 +7,8 @@ services:
     command: ["nginx", "updated", "command"]
     cpus: 0.5
     pid: host
+    tty: true
+    stdin_open: true
     deploy:
       update_config:
         order: stop-first
@@ -50,6 +52,7 @@ services:
     user: nginx:nginx
     volumes:
       - /etc/passwd:/host/etc/passwd:ro
+      - /runtime/template/{{.Container.Name}}:/unique/host/bind
       - data1:/data1
       - type: bind
         source: /path/on/host

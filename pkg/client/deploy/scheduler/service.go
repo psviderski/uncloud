@@ -3,7 +3,7 @@ package scheduler
 import (
 	"errors"
 
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 )
 
 type Client interface {
@@ -36,12 +36,14 @@ type ContainerClient interface {
 }
 
 type DNSClient interface {
-	GetDomain(ctx context.Context) (string, error)
+	GetDomain(ctx context.Context) (ClusterDomain, error)
 }
 
 type ImageClient interface {
 	InspectImage(ctx context.Context, id string) ([]MachineImage, error)
 	InspectRemoteImage(ctx context.Context, id string) ([]MachineRemoteImage, error)
+	ListImages(ctx context.Context, filter ImageFilter) ([]MachineImages, error)
+	RemoveImage(ctx context.Context, image string, opts RemoveImageOptions) ([]MachineImageRemoval, error)
 }
 
 type LogsClient interface {

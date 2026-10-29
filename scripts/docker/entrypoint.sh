@@ -35,9 +35,9 @@ echo "Docker in Docker is ready."
 echo "Loading corrosion image from /images/corrosion.tar..."
 docker load < /images/corrosion.tar
 
-# Make machine API accessible from the host via port publishing.
-echo "Proxying Uncloud API port 51000/tcp to Unix socket /run/uncloud/uncloud.sock..."
-socat TCP-LISTEN:51000,reuseaddr,fork,bind="$(hostname -i)" UNIX-CONNECT:/run/uncloud/uncloud.sock &
+# Make the Uncloud API accessible from the host via port publishing.
+echo "Proxying Uncloud API port 51000/tcp to Unix socket /run/uncloud/api/uncloud.sock..."
+socat TCP-LISTEN:51000,reuseaddr,fork,bind="$(hostname -i)" UNIX-CONNECT:/run/uncloud/api/uncloud.sock &
 
 # Execute the passed command and wait for it while maintaining signal handling.
 "$@" &

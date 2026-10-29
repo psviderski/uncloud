@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/psviderski/uncloud/internal/secret"
+	"github.com/psviderski/uncloud/pkg/api"
 )
 
 // NewMachineID generates a new unique machine ID.
@@ -27,7 +28,7 @@ func NewRandomMachineName() (string, error) {
 // a numeric suffix ("-1", "-2", etc.) if needed.
 func DefaultMachineName(hostname string, existing []string) (string, error) {
 	name := machineNameFromHostname(hostname)
-	if name == "" {
+	if api.ValidateMachineName(name) != nil {
 		var err error
 		if name, err = NewRandomMachineName(); err != nil {
 			return "", err
@@ -38,7 +39,9 @@ func DefaultMachineName(hostname string, existing []string) (string, error) {
 		return name, nil
 	}
 	for i := 1; ; i++ {
-		candidate := fmt.Sprintf("%s-%d", name, i)
+		suffix := fmt.Sprintf("-%d", i)
+		base := strings.TrimRight(name[:min(len(name), 63-len(suffix))], "-")
+		candidate := base + suffix
 		if !slices.Contains(existing, candidate) {
 			return candidate, nil
 		}
@@ -55,12 +58,13 @@ func machineNameFromHostname(hostname string) string {
 	var b strings.Builder
 	for _, r := range label {
 		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-', r == '_':
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
 			b.WriteRune(r)
 		default:
 			b.WriteRune('-')
 		}
 	}
 	// Trim leading and trailing hyphens that may result from the sanitisation above.
-	return strings.Trim(b.String(), "-")
+	name := strings.Trim(b.String(), "-")
+	return strings.TrimRight(name[:min(len(name), 63)], "-")
 }

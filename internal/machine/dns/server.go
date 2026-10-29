@@ -373,13 +373,13 @@ func (s *Server) forwardRequest(ctx context.Context, req *dns.Msg, proto string,
 // handleAQuery processes an A query for the internal domain and returns A records for the requested name.
 // The internal domain suffix is already stripped from the name. An empty list is returned if no records are found.
 func (s *Server) handleAQuery(name string) ([]dns.RR, bool) {
-	serviceName, mode := extractModeFromDomain(trimInternalDomain(name))
-	ips := s.resolver.Resolve(serviceName)
+	unname, mode := extractModeFromDomain(trimInternalDomain(name))
+	ips := s.resolver.Resolve(unname)
 	if len(ips) == 0 {
-		s.log.Debug("Failed to resolve service name.", "service", serviceName)
+		s.log.Debug("Failed to resolve internal name.", "name", name)
 		return nil, false
 	}
-	s.log.Debug("Resolved service name.", "service", serviceName, "ips", ips)
+	s.log.Debug("Resolved service internal name.", "name", name, "ips", ips)
 
 	// Unmap 4-in-6 mapped addresses so they match the IPv4 local subnet and are packed as IPv4.
 	for i, ip := range ips {

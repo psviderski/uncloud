@@ -12,10 +12,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
 	"github.com/psviderski/uncloud/internal/cli/tui"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
@@ -110,7 +110,9 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 	placement := api.Placement{
 		Machines: cli.ExpandCommaSeparatedValues(opts.machines),
 	}
-	d, err := clusterClient.NewCaddyDeployment(opts.image, caddyfile, placement)
+	d, err := clusterClient.Caddy.NewDeployment(ctx, client.CaddyDeploymentOptions{
+		Image: opts.image, Config: caddyfile, Placement: placement,
+	})
 	if err != nil {
 		return fmt.Errorf("create caddy deployment: %w", err)
 	}
@@ -202,6 +204,10 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 		}
 		return fmt.Errorf("get cluster domain: %w", err)
 	}
+	if !domain.Reserved {
+		fmt.Printf("Skipping DNS records update as cluster domain '%s' is managed externally.\n", domain.Name)
+		return nil
+	}
 
 	fmt.Println("Updating cluster domain records in Uncloud DNS to point to machines running caddy service...")
 	// TODO: split the method into two: one to get the records and one to update them to ask for update confirmation.
@@ -216,7 +222,7 @@ func UpdateDomainRecords(ctx context.Context, clusterClient *client.Client, prog
 		if errors.Is(err, client.ErrNoReachableMachines) {
 			fmt.Println()
 			fmt.Printf("DNS records for domain '%s' could not be updated as there are no internet-reachable "+
-				"machines running caddy containers.\n", domain)
+				"machines running caddy containers.\n", domain.Name)
 			fmt.Println()
 			fmt.Println("Possible solutions:")
 			fmt.Println("- Ensure your machines have public IP addresses")

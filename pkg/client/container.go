@@ -11,9 +11,9 @@ import (
 	"github.com/docker/compose/v2/pkg/progress"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/jsonmessage"
+	"github.com/psviderski/uncloud/api/pb"
 	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/docker"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -74,7 +74,7 @@ func (cli *Client) createServiceContainerWithPull(
 	resp.Name = containerName
 
 	// Proxy Docker gRPC requests to the selected machine.
-	ctx = cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
+	ctx = ProxySingleMachineContext(ctx, machine.Machine.Id)
 
 	pw := progress.ContextWriter(ctx)
 	eventID := cliprogress.NewContainerEventID(ctx, containerName, machine.Machine.Name)
@@ -277,7 +277,7 @@ func (cli *Client) resolveContainerOperation(
 
 	eventID := cliprogress.ContainerEventID(ctx, ctr.Container.ServiceSpec.Name, ctr.Container.ID, ctr.MachineName)
 	return containerOperationContext{
-		ctx:         cli.ProxySingleMachineContext(ctx, ctr.MachineID),
+		ctx:         ProxySingleMachineContext(ctx, ctr.MachineID),
 		containerID: ctr.Container.ID,
 		eventID:     eventID,
 	}, nil
@@ -375,7 +375,7 @@ func (cli *Client) ExecContainer(
 	}
 
 	// Proxy Docker gRPC requests to the machine hosting the container
-	ctx = cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
+	ctx = ProxySingleMachineContext(ctx, machine.Machine.Id)
 
 	// Execute the command in the container
 	exitCode, err := cli.Docker.ExecContainer(ctx, machinedocker.ExecConfig{
@@ -452,7 +452,7 @@ func (cli *Client) WaitContainerHealthy(
 	}
 
 	// For containers with a health check, wait until Docker reports healthy or unhealthy.
-	mctx := cli.ProxySingleMachineContext(ctx, machine.Machine.Id)
+	mctx := ProxySingleMachineContext(ctx, machine.Machine.Id)
 	mctx, cancel := context.WithTimeout(mctx, healthcheckTimeout(mc.Container.Config.Healthcheck))
 	defer cancel()
 	ticker := time.NewTicker(1 * time.Second)

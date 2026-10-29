@@ -27,7 +27,7 @@ const (
 type Controller struct {
 	// machineID is the ID of the machine where the managed Docker daemon is running.
 	machineID string
-	client    *client.Client
+	client    client.APIClient
 	service   *Service
 	store     *store.Store
 }

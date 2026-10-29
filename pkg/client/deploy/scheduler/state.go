@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/docker/docker/api/types/volume"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 )
 

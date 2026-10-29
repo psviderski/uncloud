@@ -7,8 +7,6 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-
-	"github.com/psviderski/uncloud/internal/secret"
 )
 
 type MachineConnection struct {
@@ -23,10 +21,8 @@ type MachineConnection struct {
 	// The pointer is used to omit the field when not set. Otherwise, yaml marshalling includes an empty object.
 	TCP *netip.AddrPort `yaml:"tcp,omitempty"`
 	// Unix is the path to the machine's API unix socket.
-	Unix      string        `yaml:"unix,omitempty"`
-	Host      string        `yaml:"host,omitempty"`
-	PublicKey secret.Secret `yaml:"public_key,omitempty"`
-	MachineID string        `yaml:"machine_id,omitempty"`
+	Unix      string `yaml:"unix,omitempty"`
+	MachineID string `yaml:"machine_id,omitempty"`
 }
 
 func (c *MachineConnection) String() string {

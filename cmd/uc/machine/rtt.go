@@ -54,8 +54,8 @@ func rtt(ctx context.Context, uncli *cli.CLI) error {
 			tui.PrintWarning("metadata is missing in response from unknown server")
 			continue
 		}
-		if m.Metadata.Error != "" {
-			tui.PrintWarning(fmt.Sprintf("failed to inspect machine '%s': %s", m.Metadata.MachineName, m.Metadata.Error))
+		if err := m.Metadata.Err(); err != nil {
+			tui.PrintWarning(fmt.Sprintf("failed to inspect machine '%s': %s", m.Metadata.MachineName, err))
 			continue
 		}
 		if m.Machine == nil {

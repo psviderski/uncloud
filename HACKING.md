@@ -35,10 +35,11 @@ Build the CLI:
 go build -o uc ./cmd/uc
 ```
 
-Or build and run the CLI with a single command:
+Or build and run the CLI with mise. It forwards arguments, including help flags, directly to the CLI:
 
 ```shell
-go run ./cmd/uc --help
+mise uc --help
+mise uc image rm -h
 ```
 
 The Uncloud daemon (`uncloudd`) only supports Linux, so you need to cross-compile it if you're developing on macOS or
@@ -107,7 +108,7 @@ make lint-and-fix
 
 ## Code generation
 
-Update the generated Go code for the machine gRPC API after modifying `.proto` files:
+Update the generated Go code for the gRPC API after modifying files in [`api/pb`](./api/pb):
 
 ```shell
 mise run proto
@@ -116,8 +117,30 @@ mise run proto
 Regenerate mocks:
 
 ```shell
-make mocks
+mise run mocks
 ```
+
+## Documentation
+
+Regenerate the CLI reference docs after changing commands or flags:
+
+```shell
+mise run docs:cli
+```
+
+To preview the documentation website, install its dependencies from the project root:
+
+```shell
+npm ci --prefix website
+```
+
+Then start the local development server:
+
+```shell
+mise run docs:dev
+```
+
+The server opens the site (http://localhost:3000/) in your browser and reloads it as you edit files in `website/`.
 
 ## Uncloud in Docker (UCinD)
 

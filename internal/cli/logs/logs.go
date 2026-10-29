@@ -19,6 +19,18 @@ type Options struct {
 	Machines []string
 }
 
+// TailLines resolves the default tail limit after parsing flags. An empty opts.Tail means the user
+// did not specify a limit, so --since can select all matching logs without overriding an explicit --tail.
+func (opts Options) TailLines() (int, error) {
+	if opts.Tail == "" {
+		if opts.Since != "" {
+			return -1, nil
+		}
+		return 100, nil
+	}
+	return ParseTail(opts.Tail)
+}
+
 func Flags(options *Options) *pflag.FlagSet {
 	set := &pflag.FlagSet{}
 
@@ -29,14 +41,17 @@ func Flags(options *Options) *pflag.FlagSet {
 	set.StringVar(&options.Since, "since", "",
 		"Show logs generated on or after the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
 			"Examples:\n"+
-			"  --since 2m30s                      Relative duration (2 minutes 30 seconds ago)\n"+
-			"  --since 1h                         Relative duration (1 hour ago)\n"+
-			"  --since 2025-11-24                 RFC 3339 date only (midnight using local timezone)\n"+
-			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using local timezone\n"+
+			"  --since 1h45m                      Relative duration (1 hour 45 minutes ago)\n"+
+			"                                     Supported units: d (day = 24h), h (hour), m (minute),\n"+
+			"                                                      s (second), ms (millisecond),\n"+
+			"                                                      us/µs (microsecond), ns (nanosecond)\n"+
+			"  --since 2025-11-24                 RFC 3339 date only (midnight using client local timezone)\n"+
+			"  --since 2024-05-14T22:50:00        RFC 3339 date/time using client local timezone\n"+
 			"  --since 2024-01-31T10:30:00Z       RFC 3339 date/time in UTC\n"+
 			"  --since 1763953966                 Unix timestamp (seconds since January 1, 1970)")
-	set.StringVarP(&options.Tail, "tail", "n", "100",
-		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.")
+	set.StringVarP(&options.Tail, "tail", "n", "",
+		"Show the most recent logs and limit the number of lines shown per replica. Use 'all' to show all logs.\n"+
+			"Defaults to 100, or 'all' when --since is set.")
 	set.StringVar(&options.Until, "until", "",
 		"Show logs generated before the given timestamp. Accepts relative duration, RFC 3339 date, or Unix timestamp.\n"+
 			"See --since for examples.")
@@ -46,7 +61,7 @@ func Flags(options *Options) *pflag.FlagSet {
 	return set
 }
 
-func Tail(tail string) (int, error) {
+func ParseTail(tail string) (int, error) {
 	if tail == "all" {
 		return -1, nil
 	}

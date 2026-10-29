@@ -3,7 +3,6 @@ package caddyconfig
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -26,15 +25,15 @@ func NewCaddyAdminClient(socketPath string) *CaddyAdminClient {
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
 				},
 			},
 		},
 	}
 }
 
-// IsAvailable checks if the local Caddy instance is listening on the admin socket.
+// IsAvailable checks whether a Caddy process accepts connections at the admin socket.
 func (c *CaddyAdminClient) IsAvailable() bool {
 	conn, err := net.DialTimeout("unix", c.socketPath, 1*time.Second)
 	// A stale socket file left over from a crashed Caddy container returns ECONNREFUSED so this is correctly handled
@@ -80,15 +79,16 @@ func (c *CaddyAdminClient) Adapt(ctx context.Context, caddyfile string) (string,
 	// If the response is a 400 Bad Request, try to parse the error message from it.
 	if resp.StatusCode == http.StatusBadRequest {
 		var apiError caddy.APIError
-		if err = json.Unmarshal(body, &apiError); err == nil {
-			return "", errors.New(apiError.Message)
+		if err = json.Unmarshal(body, &apiError); err == nil && apiError.Message != "" {
+			return "", &InvalidCaddyfileError{Message: apiError.Message}
 		}
+		return "", &InvalidCaddyfileError{Message: string(body)}
 	}
 
-	return "", errors.New(string(body))
+	return "", fmt.Errorf("adapt request failed: HTTP %d: %s", resp.StatusCode, string(body))
 }
 
-// Load loads a Caddyfile configuration into the Caddy instance running on the machine.
+// Load loads a Caddyfile configuration into the Caddy instance.
 // Due to a Caddy bug (https://github.com/caddyserver/caddy/issues/7246), we first adapt the Caddyfile to JSON
 // and then load the JSON config to get proper error handling.
 func (c *CaddyAdminClient) Load(ctx context.Context, caddyfile string) error {
@@ -96,7 +96,11 @@ func (c *CaddyAdminClient) Load(ctx context.Context, caddyfile string) error {
 	if err != nil {
 		return fmt.Errorf("adapt Caddyfile to JSON config: %w", err)
 	}
+	return c.LoadJSON(ctx, jsonConfig)
+}
 
+// LoadJSON loads a JSON configuration into the Caddy instance.
+func (c *CaddyAdminClient) LoadJSON(ctx context.Context, jsonConfig string) error {
 	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/load", strings.NewReader(jsonConfig))
 	if err != nil {
 		return fmt.Errorf("create load request: %w", err)

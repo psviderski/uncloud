@@ -142,7 +142,9 @@ WARNING: Access to the remote API on a privileged Docker daemon is equivalent
 ✓ uncloudd binary installed: /usr/local/bin/uncloudd
 ⏳ Downloading uninstall script: https://raw.githubusercontent.com/psviderski/uncloud/refs/heads/main/scripts/uninstall.sh
 ✓ uncloud-uninstall script installed: /usr/local/bin/uncloud-uninstall
+✓ Systemd unit file created: /etc/systemd/system/uncloud.socket
 ✓ Systemd unit file created: /etc/systemd/system/uncloud.service
+Created symlink /etc/systemd/system/sockets.target.wants/uncloud.socket → /etc/systemd/system/uncloud.socket.
 Created symlink /etc/systemd/system/multi-user.target.wants/uncloud.service → /etc/systemd/system/uncloud.service.
 ⏳ Starting Uncloud machine daemon (uncloud.service)...
 ✓ Uncloud machine daemon started.
@@ -393,9 +395,11 @@ The following actions will be performed:
 Do you want to proceed with uninstallation? [y/N] y
 ⏳ Stopping systemd services...
 Removed /etc/systemd/system/multi-user.target.wants/uncloud.service.
+Removed /etc/systemd/system/sockets.target.wants/uncloud.socket.
 ✓ Systemd services stopped.
 ⏳ Removing systemd service files...
 removed '/etc/systemd/system/uncloud.service'
+removed '/etc/systemd/system/uncloud.socket'
 ✓ Systemd service files removed.
 ⏳ Removing binaries...
 removed '/usr/local/bin/uncloudd'

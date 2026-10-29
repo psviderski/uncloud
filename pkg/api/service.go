@@ -13,7 +13,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 )
 
 const (
@@ -41,12 +41,30 @@ const (
 )
 
 var (
-	serviceIDRegexp = regexp.MustCompile("^[0-9a-f]{32}$")
-	dnsLabelRegexp  = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+	IDRegex       = regexp.MustCompile("^[0-9a-f]{32}$")
+	DNSLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
 )
 
 func ValidateServiceID(id string) bool {
-	return serviceIDRegexp.MatchString(id)
+	return IDRegex.MatchString(id)
+}
+
+// ValidateServiceName checks that a service name is a lowercase DNS label and doesn't conflict with
+// the machine DNS namespace or service IDs.
+func ValidateServiceName(name string) error {
+	if !DNSLabelRegex.MatchString(name) {
+		return fmt.Errorf("invalid service name %q: must be 1-63 characters, lowercase letters, numbers, "+
+			"and hyphens only, starting and ending with a letter or number", name)
+	}
+	if name == "m" {
+		return fmt.Errorf("invalid service name %q: reserved for the machine DNS namespace", name)
+	}
+	if IDRegex.MatchString(name) {
+		return fmt.Errorf(
+			"invalid service name %q: must not match the service ID format (32 hexadecimal characters)", name)
+	}
+
+	return nil
 }
 
 // ServiceSpec defines the desired state of a service.
@@ -147,12 +165,8 @@ func (s *ServiceSpec) Validate() error {
 	}
 
 	if s.Name != "" {
-		if len(s.Name) > 63 {
-			return fmt.Errorf("service name too long (max 63 characters): %q", s.Name)
-		}
-		if !dnsLabelRegexp.MatchString(s.Name) {
-			return fmt.Errorf("invalid service name: %q. must be 1-63 characters, lowercase letters, numbers, "+
-				"and dashes only; must start and end with a letter or number", s.Name)
+		if err := ValidateServiceName(s.Name); err != nil {
+			return err
 		}
 	}
 
@@ -214,6 +228,10 @@ func (s *ServiceSpec) Validate() error {
 		}
 	}
 
+	if err := validateRuntimeTemplates(s); err != nil {
+		return fmt.Errorf("validate runtime templates: %w", err)
+	}
+
 	return nil
 }
 
@@ -265,6 +283,11 @@ type ContainerSpec struct {
 	LogDriver *LogDriver
 	// PidMode sets the PID namespace mode for the container. Currently only "" or "host" is supported.
 	PidMode string
+	// Tty allocates a pseudo-TTY and connects the container's standard streams to it.
+	// Standard output and standard error share one stream.
+	Tty bool
+	// OpenStdin allocates standard input and keeps it open.
+	OpenStdin bool
 	// Privileged gives extended privileges to the container. This is a security risk and should be used with caution.
 	Privileged bool
 	// PullPolicy determines when to pull the image from the registry or use the image already available in the cluster.

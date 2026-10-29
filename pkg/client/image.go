@@ -23,17 +23,21 @@ import (
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-connections/nat"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/psviderski/uncloud/api/pb"
+	cliprogress "github.com/psviderski/uncloud/internal/cli/progress"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/internal/docker"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/proxy"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/pkg/api"
 	netproxy "golang.org/x/net/proxy"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // This is the container image used to run socat proxy containers.
@@ -59,9 +63,9 @@ func (cli *Client) InspectRemoteImage(ctx context.Context, id string) ([]api.Mac
 // it lists images on all machines.
 func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]api.MachineImages, error) {
 	// Broadcast the image list request to the specified machines or all machines if none specified.
-	listCtx := cli.ProxyMachinesContext(ctx, filter.Machines)
+	listCtx := ProxyMachinesContext(ctx, filter.Machines)
 
-	opts := image.ListOptions{Manifests: true}
+	opts := image.ListOptions{All: true, Manifests: true}
 	if filter.Name != "" {
 		opts.Filters = filters.NewArgs(
 			filters.Arg("reference", filter.Name),
@@ -92,7 +96,7 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 			ContainerdStore: msg.ContainerdStore,
 		}
 
-		if msg.Metadata.Error == "" && len(msg.Images) > 0 {
+		if msg.Metadata.Err() == nil && len(msg.Images) > 0 {
 			if err = json.Unmarshal(msg.Images, &mi.Images); err != nil {
 				return nil, fmt.Errorf("unmarshal images: %w", err)
 			}
@@ -104,6 +108,81 @@ func (cli *Client) ListImages(ctx context.Context, filter api.ImageFilter) ([]ap
 	return machineImages, nil
 }
 
+// RemoveImage removes one exact image name or ID on the selected machines with protection of used references.
+// Results include the outcome of removing an image on each machine.
+//
+// An absent image on some machines is normal if removal succeeds on at least one machine. If every selected machine
+// reports NotFound, the returned error is api.ErrNotFound. Other machine failures are combined, with successful
+// results still returned.
+func (cli *Client) RemoveImage(
+	ctx context.Context, imageNameOrID string, opts api.RemoveImageOptions,
+) ([]api.MachineImageRemoval, error) {
+	if strings.TrimSpace(imageNameOrID) == "" {
+		return nil, errors.New("image name or ID is required")
+	}
+
+	resp, err := cli.Docker.GRPCClient.RemoveImage(ProxyMachinesContext(ctx, opts.Machines),
+		&pb.RemoveImageRequest{Id: imageNameOrID, PruneChildren: true})
+	if err != nil {
+		return nil, err
+	}
+
+	pw := progress.ContextWriter(ctx)
+	var results []api.MachineImageRemoval
+	var errs []error
+	notFoundCount := 0
+	for _, msg := range resp.Messages {
+		result := api.MachineImageRemoval{Metadata: msg.Metadata}
+		for _, removal := range msg.Results {
+			result.Results = append(result.Results, image.DeleteResponse{
+				Deleted:  removal.Deleted,
+				Untagged: removal.Untagged,
+			})
+		}
+		results = append(results, result)
+
+		eventID := cliprogress.ImageEventID(imageNameOrID, msg.Metadata.MachineName)
+		if err = result.Metadata.Err(); err != nil {
+			event := progress.NewEvent(eventID, progress.Done, "Not found")
+			if status.Code(err) == codes.NotFound {
+				notFoundCount++
+			} else {
+				errs = append(errs, fmt.Errorf("machine '%s': %w", msg.Metadata.MachineName, err))
+				event.Status = progress.Error
+				event.StatusText = status.Convert(err).Message()
+			}
+			pw.Event(event)
+			continue
+		}
+
+		// An unnamed image can return Deleted without Untagged. Use the requested name or ID as its row fallback.
+		deleted := false
+		for _, removal := range result.Results {
+			if removal.Untagged != "" {
+				eventID = cliprogress.ImageEventID(removal.Untagged, msg.Metadata.MachineName)
+				pw.Event(progress.NewEvent(eventID, progress.Done, "Untagged"))
+			}
+			if removal.Deleted != "" && !deleted {
+				// Docker reports the deletion of the selected image before any pruned parents or released layers.
+				// Only that first deletion updates the last untagged row marking the image as Removed.
+				deleted = true
+				pw.Event(progress.NewEvent(eventID, progress.Done,
+					fmt.Sprintf("Removed (%s)", stringid.TruncateID(removal.Deleted))))
+			}
+		}
+	}
+
+	if err = errors.Join(errs...); err != nil {
+		return results, err
+	}
+	if notFoundCount == len(results) {
+		return results, api.ErrNotFound
+	}
+
+	return results, nil
+}
+
+// TODO: move PushImageOptions to api package and include PushImage in ImageClient interface.
 type PushImageOptions struct {
 	// AllMachines pushes the image to all machines in the cluster. Takes precedence over Machines field.
 	AllMachines bool
@@ -215,7 +294,7 @@ func (cli *Client) pushImageToMachine(
 		Name:     "%invalid-name-to-only-check-store-type%",
 	})
 	if err == nil {
-		err = images[0].Error()
+		err = images[0].Metadata.Err()
 	}
 	if err != nil {
 		return fmt.Errorf("check Docker image store type on machine '%s': %w", machine.Name, err)

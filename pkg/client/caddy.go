@@ -1,15 +1,19 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/Masterminds/semver"
 	"github.com/distribution/reference"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (
@@ -20,12 +24,66 @@ const (
 
 var caddyImageTagRegex = regexp.MustCompile(`^2\.\d+\.\d+$`)
 
-// NewCaddyDeployment creates a new deployment for a Caddy reverse proxy service.
+// CaddyClient provides Caddy operations over its parent Client's connection.
+// The parent client owns the connection and must be used to close it.
+type CaddyClient struct {
+	// Storage provides low-level access to Caddy's cluster-backed storage.
+	Storage pb.CaddyStorageClient
+	grpc    pb.CaddyClient
+	client  *Client
+}
+
+// CaddyConfigOptions controls which machine's saved Caddy configuration is retrieved.
+type CaddyConfigOptions struct {
+	// Machine is the machine name or ID. If empty, the configuration is retrieved from the machine the client
+	// is connected to.
+	Machine string
+}
+
+// Config retrieves the saved Caddy configuration from the machine selected by opts.
+func (c *CaddyClient) Config(ctx context.Context, opts CaddyConfigOptions) (api.CaddyConfig, error) {
+	if opts.Machine != "" {
+		ctx = ProxySingleMachineContext(ctx, opts.Machine)
+	}
+
+	resp, err := c.grpc.GetConfig(ctx, &emptypb.Empty{})
+	if err != nil {
+		return api.CaddyConfig{}, fmt.Errorf("get Caddy config: %w", err)
+	}
+	config := api.CaddyConfig{
+		Caddyfile:               resp.Caddyfile,
+		LastReconciliationError: resp.LastReconciliationError,
+	}
+	if resp.ModifiedAt != nil {
+		if err := resp.ModifiedAt.CheckValid(); err != nil {
+			return api.CaddyConfig{}, fmt.Errorf("invalid Caddy config modification timestamp: %w", err)
+		}
+		config.ModifiedAt = resp.ModifiedAt.AsTime()
+	}
+
+	return config, nil
+}
+
+// CaddyDeploymentOptions configures a Caddy reverse proxy deployment.
+type CaddyDeploymentOptions struct {
+	// Image defaults to the latest stable 2.x.x official Caddy image.
+	// Custom images must include curl and start Caddy with /etc/caddy/Caddyfile.
+	Image string
+	// Config contains an optional global Caddyfile.
+	Config    string
+	Placement api.Placement
+}
+
+// NewDeployment creates a new deployment for a Caddy reverse proxy service.
 // The service is deployed in global mode to all machines in the cluster. If the image is not provided, the latest
 // version of the official Caddy Docker image is used.
-func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placement) (*deploy.Deployment, error) {
+func (c *CaddyClient) NewDeployment(ctx context.Context, opts CaddyDeploymentOptions) (*deploy.Deployment, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	image := opts.Image
 	if image == "" {
-		latest, err := LatestCaddyImage()
+		latest, err := latestCaddyImage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("look up latest Caddy image: %w", err)
 		}
@@ -35,17 +93,32 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 
 	spec := api.ServiceSpec{
 		Container: api.ContainerSpec{
-			Command: []string{"caddy", "run", "-c", "/config/Caddyfile"},
 			Env: map[string]string{
 				"CADDY_ADMIN": "unix//run/caddy/admin.sock",
+			},
+			Healthcheck: &api.HealthcheckSpec{
+				Test: []string{
+					"CMD",
+					"curl", "-fsS",
+					"-o", "/dev/null",
+					"--unix-socket", "/run/caddy/admin.sock",
+					"http://localhost/config/",
+				},
+				Interval:      30 * time.Second,
+				Timeout:       5 * time.Second,
+				Retries:       3,
+				StartPeriod:   10 * time.Second,
+				StartInterval: 1 * time.Second,
 			},
 			Image: image,
 			VolumeMounts: []api.VolumeMount{
 				{
 					VolumeName:    "data",
-					ContainerPath: "/config",
+					ContainerPath: "/etc/caddy",
+					ReadOnly:      true,
 				},
 				{
+					// Keep local TLS assets persistent while Caddy uses the default file system storage.
 					VolumeName:    "data",
 					ContainerPath: "/data",
 				},
@@ -53,11 +126,16 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 					VolumeName:    "run",
 					ContainerPath: "/run/caddy",
 				},
+				{
+					VolumeName:    "uncloud-api",
+					ContainerPath: "/run/uncloud/api",
+					ReadOnly:      true,
+				},
 			},
 		},
 		Mode:      api.ServiceModeGlobal,
 		Name:      CaddyServiceName,
-		Placement: placement,
+		Placement: opts.Placement,
 		Ports: []api.PortSpec{
 			{
 				PublishedPort: 80,
@@ -95,31 +173,57 @@ func (cli *Client) NewCaddyDeployment(image, config string, placement api.Placem
 					CreateHostPath: true,
 				},
 			},
+			// Bind the Uncloud API socket so caddy.storage.uncloud module can use it to store assets in the cluster.
+			{
+				Name: "uncloud-api",
+				Type: api.VolumeTypeBind,
+				BindOptions: &api.BindOptions{
+					// Mount the parent directory that contains the socket so it lets the container see a replacement
+					// socket after the Uncloud daemon restarts (in case it doesn't use a systemd-activated socket).
+					HostPath: "/run/uncloud/api",
+				},
+			},
 		},
 	}
 
-	if config != "" {
+	if opts.Config != "" {
 		spec.Caddy = &api.CaddySpec{
-			Config: config,
+			Config: opts.Config,
 		}
 	}
 
-	return cli.NewDeployment(spec, nil), nil
+	return c.client.NewDeployment(spec, nil), nil
 }
 
-// LatestCaddyImage returns the latest image of the official Caddy Docker image on Docker Hub.
+// latestCaddyImage returns the latest image of the official Caddy Docker image on Docker Hub.
 // The latest image is determined by the latest version tag 2.x.x.
-func LatestCaddyImage() (reference.NamedTagged, error) {
+func latestCaddyImage(ctx context.Context) (reference.NamedTagged, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	repo, err := name.NewRepository(CaddyImage)
 	if err != nil {
 		return nil, fmt.Errorf("parse image: %w", err)
 	}
-	tags, err := remote.List(repo)
+	tags, err := remote.List(repo, remote.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list image tags: %w", err)
 	}
 
-	// Default to the 'latest' tag but try to find the latest version tag 2.x.x.
+	image, err := reference.ParseDockerRef(CaddyImage)
+	if err != nil {
+		return nil, fmt.Errorf("parse image: %w", err)
+	}
+	imageWithTag, err := reference.WithTag(image, latestCaddyTag(tags))
+	if err != nil {
+		return nil, fmt.Errorf("set image tag: %w", err)
+	}
+
+	return imageWithTag, nil
+}
+
+// latestCaddyTag selects the newest stable 2.x.x tag, falling back to latest.
+func latestCaddyTag(tags []string) string {
 	latestTag := "latest"
 	var latestVersion *semver.Version
 	for _, t := range tags {
@@ -137,14 +241,5 @@ func LatestCaddyImage() (reference.NamedTagged, error) {
 		}
 	}
 
-	image, err := reference.ParseDockerRef(CaddyImage)
-	if err != nil {
-		return nil, fmt.Errorf("parse image: %w", err)
-	}
-	imageWithTag, err := reference.WithTag(image, latestTag)
-	if err != nil {
-		return nil, fmt.Errorf("set image tag: %w", err)
-	}
-
-	return imageWithTag, nil
+	return latestTag
 }

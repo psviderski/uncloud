@@ -22,15 +22,6 @@ func NewShowCommand() *cobra.Command {
 }
 
 func show(uncli *cli.CLI) error {
-	// discard errors, only show the current context, otherwise nothing
-	if uncli.Config == nil {
-		return nil
-	}
-
-	if len(uncli.Config.Contexts) == 0 {
-		return nil
-	}
-	fmt.Println(uncli.Config.CurrentContext)
-
+	fmt.Println(uncli.ContextOverrideOrCurrent())
 	return nil
 }

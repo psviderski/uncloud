@@ -3,17 +3,18 @@ package caddy
 import (
 	"context"
 	"fmt"
-	"os"
 
+	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/psviderski/uncloud/internal/cli"
 	"github.com/psviderski/uncloud/internal/cli/completion"
+	"github.com/psviderski/uncloud/internal/cli/tui"
+	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/spf13/cobra"
 )
 
 type configOptions struct {
 	machine string
-	noColor bool
 }
 
 func NewConfigCommand() *cobra.Command {
@@ -31,8 +32,6 @@ func NewConfigCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&opts.machine, "machine", "m", "",
 		"Name or ID of the machine to get the configuration from. (default is connected machine)")
-	cmd.Flags().BoolVar(&opts.noColor, "no-color", false,
-		"Disable syntax highlighting for the output.")
 
 	completion.MachinesFlag(cmd)
 
@@ -46,24 +45,20 @@ func runConfig(ctx context.Context, uncli *cli.CLI, opts configOptions) error {
 	}
 	defer clusterClient.Close()
 
-	if opts.machine != "" {
-		// If a specific machine is requested, use it to get the Caddy configuration.
-		ctx = clusterClient.ProxySingleMachineContext(ctx, opts.machine)
-	}
-
-	config, err := clusterClient.Caddy.GetConfig(ctx, nil)
+	config, err := clusterClient.Caddy.Config(ctx, client.CaddyConfigOptions{Machine: opts.machine})
 	if err != nil {
 		return fmt.Errorf("get Caddy config: %w", err)
 	}
 
 	// Print the Caddyfile with syntax highlighting.
-	if opts.noColor {
-		fmt.Print(config.Caddyfile)
-	} else {
-		if err = quick.Highlight(os.Stdout, config.Caddyfile, "caddy", "terminal256", "monokai"); err != nil {
-			// If highlighting fails, fall back to plain output.
-			fmt.Print(config.Caddyfile)
-		}
+	if err = quick.Highlight(lipgloss.Writer, config.Caddyfile, "caddy", "terminal256", "monokai"); err != nil {
+		// If highlighting fails, fall back to plain output.
+		lipgloss.Print(config.Caddyfile)
+	}
+
+	if config.LastReconciliationError != "" {
+		tui.PrintWarning(fmt.Sprintf("last Caddy config load failed: %s\nShowing the last saved Caddyfile.",
+			config.LastReconciliationError))
 	}
 
 	return nil

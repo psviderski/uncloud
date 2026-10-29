@@ -14,12 +14,13 @@ on:
       - "**.proto"
       - "go.*"
       - "Makefile"
+      - "mise.toml"
       - "scripts/**"
       - "test/**"
 permissions:
   contents: read
 env:
-  MISE_VERSION: "2026.3.7"
+  MISE_VERSION: "2026.10.22"
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -42,9 +43,9 @@ jobs:
 
       - name: Generate docs
         run: |
-          make cli-docs
+          mise run docs:cli
           git diff --exit-code ||
-            (echo "Documentation is out of date. Please run 'make cli-docs' and commit the changes." && exit 1)
+            (echo "Documentation is out of date. Please run 'mise run docs:cli' and commit the changes." && exit 1)
 
       - name: Run tests
         run: |
@@ -70,7 +71,7 @@ jobs:
           version: ${{ env.MISE_VERSION }}
 
       # TODO: figure out how to properly lock all platforms in the lockfile and remove this hack.
-      # `mise lock` (mise run mise:lock) doesn't generate checksums for some of the tools, e.g. protoc*
+      # `mise lock` doesn't generate checksums for some of the tools, e.g. protoc*
       - name: Reset changes in mise.lock after fresh mise install
         run: git checkout mise.lock
 

@@ -187,7 +187,7 @@ func printContainers(containers []containerInfo) error {
 }
 
 func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo, error) {
-	listCtx := cli.ProxyMachinesContext(ctx, nil)
+	listCtx := client.ProxyMachinesContext(ctx, nil)
 
 	// List all service containers across all machines in the cluster.
 	machineContainers, err := cli.Docker.ListServiceContainers(
@@ -207,9 +207,9 @@ func collectContainers(ctx context.Context, cli *client.Client) ([]containerInfo
 
 		machineName := msc.Metadata.MachineName
 
-		if msc.Metadata.Error != "" {
+		if err := msc.Metadata.Err(); err != nil {
 			tui.PrintWarning(fmt.Sprintf("failed to list service containers on machine %s: %s",
-				machineName, msc.Metadata.Error))
+				machineName, err))
 			continue
 		}
 

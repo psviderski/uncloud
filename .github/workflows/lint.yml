@@ -14,7 +14,7 @@ on:
 permissions:
   contents: read
 env:
-  MISE_VERSION: "2026.3.7"
+  MISE_VERSION: "2026.10.22"
 jobs:
   lint:
     runs-on: ubuntu-latest

@@ -1,0 +1,206 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/psviderski/uncloud/api/pb";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "api/pb/common.proto";
+
+service Machine {
+  // CheckPrerequisites verifies if the machine meets all necessary system requirements to participate in the cluster.
+  rpc CheckPrerequisites(google.protobuf.Empty) returns (CheckPrerequisitesResponse);
+  rpc InitCluster(InitClusterRequest) returns (InitClusterResponse);
+  rpc JoinCluster(JoinClusterRequest) returns (google.protobuf.Empty);
+  rpc Token(google.protobuf.Empty) returns (TokenResponse);
+  // Deprecated: use InspectMachine instead.
+  rpc Inspect(google.protobuf.Empty) returns (MachineInfo);
+  // InspectMachine retrieves detailed information about the machine. Supports broadcasting to multiple machines.
+  rpc InspectMachine(google.protobuf.Empty) returns (InspectMachineResponse);
+  // WaitForStoreVersion waits until the cluster store on this machine has reached each requested actor version, with
+  // no known missing or pending transactions through those versions from active members.
+  // Corrosion may satisfy a version by applying its surviving changes or by marking it complete because its changes
+  // have been superseded.
+  //
+  // Waiting normally makes the captured data available on this machine. However, another write may replace some of that
+  // data before it arrives. Corrosion can then complete the older version without transferring the replaced data.
+  // If the replacement is outside the requested versions, this RPC can succeed while the affected data is still missing
+  // or outdated. This can happen during concurrent updates even when all machines are well connected.
+  //
+  // Success does not guarantee an exact snapshot or delivery of every historical value. Callers that require a specific
+  // record or condition should verify it after waiting.
+  //
+  // This RPC observes native replication without initiating synchronisation.
+  // Use the RPC deadline to bound the wait.
+  rpc WaitForStoreVersion(WaitForStoreVersionRequest) returns (google.protobuf.Empty);
+  // UpdateMachine updates the configuration of the machine.
+  rpc UpdateMachine(UpdateMachineRequest) returns (UpdateMachineResponse);
+  // InspectWireGuardNetwork retrieves the current WireGuard network configuration and peer status.
+  rpc InspectWireGuardNetwork(google.protobuf.Empty) returns (InspectWireGuardNetworkResponse);
+  // Reset restores the machine to a clean state, removing all cluster-related configuration and data.
+  rpc Reset(ResetRequest) returns (google.protobuf.Empty);
+
+  rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
+
+  rpc MachineLogs(LogsRequest) returns (stream LogEntry);
+}
+
+message MachineInfo {
+  string id = 1;
+  string name = 2;
+  NetworkConfig network = 3;
+  IP public_ip = 4;
+  // Version of the machine daemon (uncloudd).
+  string daemon_version = 7;
+  // Version of the Docker engine running on the machine. Could be empty if unable to get.
+  string docker_version = 8;
+
+  // Operating system hostname.
+  string hostname = 5;
+  // CPU architecture.
+  string arch = 6;
+  // Human-readable operating system name and version, e.g. "Ubuntu 24.04.4 LTS". Empty if cannot be determined.
+  string os_pretty_name = 9;
+  // Kernel release version, e.g. "6.8.0-31-generic".
+  string kernel_version = 10;
+}
+
+message NetworkConfig {
+  IPPrefix subnet = 1;
+  IP management_ip = 2;
+  repeated IPPort endpoints = 3;
+  bytes public_key = 4;
+}
+
+message UpdateMachineRequest {
+  // Updated machine information. Only the set fields are applied.
+  optional string name = 1;
+  optional IP public_ip = 2;
+  repeated IPPort endpoints = 3;
+}
+
+message UpdateMachineResponse {
+  MachineInfo machine = 1;
+}
+
+message CheckPrerequisitesResponse {
+  // Overall status of the checks.
+  bool satisfied = 1;
+  // Error message if not satisfied (empty if all checks pass).
+  string error = 2;
+}
+
+message InitClusterRequest {
+  string machineName = 1;
+  IPPrefix network = 2;
+
+  oneof public_ip_config {
+    IP public_ip = 3;
+    bool public_ip_auto = 4;
+  }
+
+  // Optional WireGuard endpoints other machines will use to connect to this machine instead of auto-discovered ones.
+  repeated IPPort wireguard_endpoints = 5;
+  // WireGuard listen port for this machine. Uses the default port (51820) if 0 or not set.
+  int32 wireguard_port = 6;
+  // MTU of the WireGuard interface on this machine. The daemon auto-detects the optimal MTU if 0 or not set.
+  int32 wireguard_mtu = 7;
+}
+
+message InitClusterResponse {
+  MachineInfo machine = 1;
+}
+
+message JoinClusterRequest {
+  MachineInfo machine = 1;
+  repeated MachineInfo other_machines = 3;
+  // WireGuard listen port for this machine. Uses the default port (51820) if 0 or not set.
+  int32 wireguard_port = 5;
+  // MTU of the WireGuard interface on this machine. The daemon auto-detects the optimal MTU if 0 or not set.
+  int32 wireguard_mtu = 7;
+  // Cluster store version this machine must reach before participating.
+  // Per-actor vector (Corrosion actor UUID → minimum required db_version).
+  map<string, uint64> min_store_version = 6;
+}
+
+message InspectMachineResponse {
+  // Must contain only one repeated messages field to allow broadcasting InspectMachine requests to multiple machines.
+  repeated MachineDetails machines = 1;
+}
+
+message MachineDetails {
+  Metadata metadata = 1;
+  MachineInfo machine = 2;
+  // Round-trip times to other machines in the cluster, keyed by peer machine ID.
+  map<string, RTTStats> rtts = 4;
+  // Store replication progress observed on this machine.
+  // Maps each Corrosion actor UUID to its highest processed database version. Corrosion also counts versions whose
+  // changes were superseded and skipped. Versions at or below a reported version may still be missing or pending
+  // locally.
+  //
+  // Pass this vector to WaitForStoreVersion on another machine to wait for replication through these versions.
+  // See that RPC's data-availability limitations. To combine observations from several machines, take the maximum
+  // for each actor.
+  // Capturing this vector does not wait for replication or prevent further writes.
+  map<string, uint64> store_version = 5;
+}
+
+message WaitForStoreVersionRequest {
+  // Minimum database version to reach for each Corrosion actor UUID.
+  // Obtain a vector from InspectMachine. To combine several responses, take the maximum version for each actor.
+  // Actors omitted from this vector and versions above its targets are not awaited. An empty vector requires
+  // no replication. Unknown actors with positive targets remain pending until replication reaches them or the RPC ends.
+  map<string, uint64> min_version = 1;
+}
+
+message TokenResponse {
+  string token = 1;
+}
+
+message ResetRequest {
+}
+
+message Service {
+  string id = 1;
+  string name = 2;
+  string mode = 3;
+
+  message Container {
+    string machine_id = 1;
+    // JSON encoded Docker types.Container.
+    bytes container = 2;
+  }
+
+  repeated Container containers = 4;
+}
+
+message InspectServiceRequest {
+  string id = 1;
+}
+
+message InspectServiceResponse {
+  Service service = 1;
+}
+
+message InspectWireGuardNetworkResponse {
+  string interface_name = 1;
+  bytes public_key = 2;
+  int32 listen_port = 3;
+  repeated WireGuardPeer peers = 4;
+}
+
+message WireGuardPeer {
+  bytes public_key = 1;
+  string endpoint = 2;
+  google.protobuf.Timestamp last_handshake_time = 3;
+  int64 receive_bytes = 4;
+  int64 transmit_bytes = 5;
+  repeated string allowed_ips = 6;
+}
+
+message RTTStats {
+  google.protobuf.Duration median = 1;
+  google.protobuf.Duration std_dev = 2;
+}

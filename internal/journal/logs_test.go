@@ -115,6 +115,9 @@ func TestEntry(t *testing.T) {
 }
 
 func TestLogs(t *testing.T) {
+	originalCommandContext := commandContext
+	t.Cleanup(func() { commandContext = originalCommandContext })
+
 	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 		return exec.CommandContext(ctx, "/usr/bin/tail", "testdata/logs")
 	}
@@ -149,4 +152,39 @@ func TestLogs(t *testing.T) {
 	}
 	// Still six because heartbeats are not written here and Tail is ignored as the command is overridden.
 	assert.Equal(t, 6, i)
+}
+
+func TestLogs_TimeFilters(t *testing.T) {
+	originalCommandContext := commandContext
+	t.Cleanup(func() { commandContext = originalCommandContext })
+
+	var args []string
+	commandContext = func(ctx context.Context, command string, commandArgs ...string) *exec.Cmd {
+		assert.Equal(t, "journalctl", command)
+		args = commandArgs
+		return exec.CommandContext(ctx, "/usr/bin/tail", "testdata/logs")
+	}
+
+	ch, err := Logs(context.Background(), "uncloud", api.ServiceLogsOptions{
+		Since: "2026-07-01T10:30:45.123456789+10:00",
+		Until: "2026-07-01T01:30:45Z",
+	})
+	require.NoError(t, err)
+	for range ch {
+	}
+	assert.Equal(t, []string{
+		"-u", "uncloud", "--no-hostname", "-n", "0", "-o", "short-unix",
+		"-S", "2026-07-01 00:30:45.123456 UTC",
+		"-U", "2026-07-01 01:30:45 UTC",
+	}, args)
+
+	// Older clients and SDK callers can still pass journalctl's native filters.
+	ch, err = Logs(context.Background(), "uncloud", api.ServiceLogsOptions{Since: "1h ago", Until: "today"})
+	require.NoError(t, err)
+	for range ch {
+	}
+	assert.Equal(t, []string{
+		"-u", "uncloud", "--no-hostname", "-n", "0", "-o", "short-unix",
+		"-S", "1h ago", "-U", "today",
+	}, args)
 }

@@ -12,8 +12,8 @@ values at deploy time from your password manager, a cloud secrets store, or loca
 Two things go into your Compose file:
 
 1. Define a secret in the top-level `secrets` section. This tells Uncloud how to get the secret value.
-2. Reference that secret value in a service's `environment` using the `secret://<name>` format. This tells Uncloud to
-   resolve the secret and set the environment variable to its value at deploy time.
+2. Reference that secret value in a service's `environment` or `x-pre_deploy.environment` using the `secret://<name>`
+   format. This tells Uncloud to resolve the secret and set the environment variable to its value at deploy time.
 
 ```yaml title="compose.yaml"
 services:

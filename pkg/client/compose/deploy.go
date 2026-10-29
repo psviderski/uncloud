@@ -13,8 +13,8 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
-	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
+	"github.com/psviderski/uncloud/pkg/client/operation"
 )
 
 type Client interface {
@@ -46,8 +46,8 @@ func NewDeploymentWithStrategy(ctx context.Context, cli Client, project *types.P
 		return nil, fmt.Errorf("get cluster domain: %w", err)
 	}
 	resolver := &deploy.ServiceSpecResolver{
-		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: domain,
+		// If no domain is configured, an empty domain is used for the resolver.
+		ClusterDomain: domain.Name,
 	}
 
 	return &Deployment{

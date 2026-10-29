@@ -54,6 +54,8 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 			Image:       service.Image,
 			Init:        service.Init,
 			PidMode:     service.Pid,
+			Tty:         service.Tty,
+			OpenStdin:   service.StdinOpen,
 			Privileged:  service.Privileged,
 			PullPolicy:  pullPolicy,
 			Resources:   resourcesFromCompose(service),
@@ -452,13 +454,22 @@ func validateServicesExtensions(project *types.Project) error {
 
 // validateServicesFeatures checks services for unsupported features and returns all found.
 func validateServicesFeatures(project *types.Project) []error {
-	err := func(service, feature string) error {
-		return fmt.Errorf("service '%s': unsupported feature '%s', see %s",
-			service, feature, "https://uncloud.run/docs/compose-file-reference/support-matrix")
+	// XXX(miek): as of Sep 2026 these checks are in check with the support-matrix, except for a short syntax
+	// check.
+	var errs []error
+	const supportmatrix = "https://uncloud.run/docs/compose-file-reference/support-matrix"
+
+	for _, config := range project.Configs {
+		if config.External {
+			errs = append(errs, fmt.Errorf("config '%s': unsupported feature '%s', see %s",
+				config.Name, "external", supportmatrix))
+		}
 	}
 
-	// TODO: check other commonly used but unsupported features.
-	var errs []error
+	err := func(service, feature string) error {
+		return fmt.Errorf("service '%s': unsupported feature '%s', see %s",
+			service, feature, supportmatrix)
+	}
 	for _, service := range project.Services {
 		if service.SecurityOpt != nil {
 			errs = append(errs, err(service.Name, "security_opt"))
@@ -486,6 +497,29 @@ func validateServicesFeatures(project *types.Project) []error {
 		}
 		if service.StorageOpt != nil {
 			errs = append(errs, err(service.Name, "storage_opt"))
+		}
+		if service.ContainerName != "" {
+			errs = append(errs, err(service.Name, "container_name"))
+		}
+		if service.Deploy != nil {
+			if len(service.Deploy.Placement.Constraints) > 0 || len(service.Deploy.Placement.Preferences) > 0 ||
+				service.Deploy.Placement.MaxReplicas > 0 {
+				errs = append(errs, fmt.Errorf(
+					"service '%s': deploy placement is not supported, "+
+						"use x-machines instead: %s", service.Name,
+					"https://uncloud.run/docs/compose-file-reference/extensions#x-machines"))
+			}
+
+			if service.Deploy.RestartPolicy != nil {
+				errs = append(errs, fmt.Errorf(
+					"service '%s': deploy restart_policy defaults to 'unless-stopped'", service.Name))
+			}
+			if service.Deploy.RollbackConfig != nil {
+				errs = append(errs, err(service.Name, "deploy rollback_config"))
+			}
+			if len(service.Deploy.Labels) != 0 {
+				errs = append(errs, err(service.Name, "deploy labels"))
+			}
 		}
 		// we only allow the 'default' network, nothing else.
 		if x := service.Networks; x != nil {

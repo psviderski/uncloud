@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/internal/machine/caddyconfig"
 	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/corromigrate"
@@ -176,7 +176,7 @@ func (cc *clusterController) Run(ctx context.Context) error {
 	// Start the network API server before waiting for the store sync so the machine is reachable on the mesh
 	// during the sync and can serve requests that don't depend on the store.
 	// Assume the management IP can't be changed when the network is running.
-	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.MachineAPIPort))
+	apiAddr := net.JoinHostPort(cc.state.Network.ManagementIP.String(), strconv.Itoa(constants.UncloudAPIPort))
 	listener, err := net.Listen("tcp", apiAddr)
 	if err != nil {
 		return fmt.Errorf("listen API port: %w", err)
@@ -189,9 +189,10 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// Wait for the store database to sync to the minimum version before starting store-dependent components.
-	// This prevents issues with using partially replicated data when the machine just joined the cluster,
-	// e.g., an empty machine list causing WireGuard peer misconfiguration.
+	// Wait for initial replication before starting store-dependent components, such as WireGuard peer reconciliation.
+	// This prevents issues with using partially replicated data when the machine just joined the cluster, e.g.,
+	// an empty machine list causing WireGuard peer misconfiguration.
+	// This uses Store.WaitForVersion's replication-progress semantics, not an exact snapshot of the join-time data.
 	if err = cc.waitStoreSync(ctx); err != nil {
 		return fmt.Errorf("wait initial cluster store sync: %w", err)
 	}
@@ -366,120 +367,67 @@ func (cc *clusterController) handleEndpointChanges(ctx context.Context) {
 	}
 }
 
-// waitStoreSync blocks until the local store version >= state.MinStoreVersion and any known gaps are synced.
-// No-op when MinStoreVersion is empty. Clears state.MinStoreVersion when reached.
+// waitStoreSync waits for initial replication using [store.Store.WaitForVersion].
+// No-op when MinStoreVersion is empty. Retries until cancellation and clears state.MinStoreVersion after success.
 func (cc *clusterController) waitStoreSync(ctx context.Context) error {
-	target := cc.state.MinStoreVersion
-	if len(target) == 0 {
+	minVersion := cc.state.MinStoreVersion
+	if len(minVersion) == 0 {
 		return nil
 	}
 
-	slog.Info("Waiting for the initial cluster store sync.", "actors", len(target))
+	slog.Info("Waiting for the initial cluster store sync.", "min_version", minVersion)
 
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-	// Periodic warning to surface stuck NAT/connectivity issues without aborting.
+	// Periodic deadlines surface stuck NAT/connectivity issues without aborting startup.
 	warnInterval := 5 * time.Minute
-	warnTimer := time.NewTimer(warnInterval)
-	defer warnTimer.Stop()
-
-	var (
-		lastLagging    int
-		lastErrLogTime time.Time
-	)
+	nextWarning := time.Now().Add(warnInterval)
+	var lastErrLogTime time.Time
 
 	for {
+		waitCtx, cancel := context.WithDeadline(ctx, nextWarning)
+		err := cc.store.WaitForVersion(waitCtx, minVersion)
+		cancel()
+		if ctx.Err() != nil {
+			return nil
+		}
+		if err == nil {
+			break
+		}
+		if errors.Is(err, store.ErrInvalidStoreVersion) {
+			return fmt.Errorf("wait for minimum cluster store version: %w", err)
+		}
+
+		if !time.Now().Before(nextWarning) {
+			slog.Warn("Cluster store sync still pending. Check connectivity to peers.")
+			nextWarning = time.Now().Add(warnInterval)
+			continue
+		}
+
+		// Retry store errors, throttling logs to once every 5 seconds.
+		if time.Since(lastErrLogTime) >= 5*time.Second {
+			slog.Error("Failed to check cluster store replication, retrying.", "err", err)
+			lastErrLogTime = time.Now()
+		}
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-warnTimer.C:
-			local, err := cc.store.Version(ctx)
-			if err == nil {
-				slog.Error("Cluster store sync still pending. Check connectivity to peers.",
-					"lagging_actors", laggingActors(local, target))
-			} else {
-				slog.Error("Cluster store sync still pending. Check connectivity to peers.", "err", err)
-			}
-			warnTimer.Reset(warnInterval)
-		case <-ticker.C:
-			local, err := cc.store.Version(ctx)
-			if err != nil {
-				// Throttle error logs to once every 5 seconds.
-				if time.Since(lastErrLogTime) >= 5*time.Second {
-					slog.Error("Failed to get the cluster store version, retrying.", "err", err)
-					lastErrLogTime = time.Now()
-				}
-				continue
-			}
-
-			lagging := laggingActors(local, target)
-			if len(lagging) == 0 {
-				// Per-actor max doesn't imply contiguous apply: corrosion can buffer X:N before
-				// X:N-1 arrives and track the gap separately. Wait for any remaining gaps to be synced.
-				if err := cc.waitKnownMissingChanges(ctx); err != nil {
-					return fmt.Errorf("wait for known missing changes: %w", err)
-				}
-				// If the context was cancelled mid-gap-fill, don't persist a "synced" state.
-				if ctx.Err() != nil {
-					return nil
-				}
-
-				// Clear MinStoreVersion so next restart doesn't wait for sync.
-				cc.state.mu.Lock()
-				cc.state.MinStoreVersion = nil
-				err = cc.state.Save()
-				cc.state.mu.Unlock()
-				if err != nil {
-					return fmt.Errorf("save machine state after the initial cluster store sync: %w", err)
-				}
-
-				slog.Info("Cluster store completed the initial sync.", "actors", len(target))
-				return nil
-			}
-
-			if len(lagging) != lastLagging {
-				slog.Info("Syncing cluster store.", "lagging_actors", lagging)
-				lastLagging = len(lagging)
-			}
+		case <-time.After(500 * time.Millisecond):
 		}
 	}
-}
 
-// laggingActors returns target actors whose local version is below the required value, as [have, need].
-func laggingActors(local, target map[string]int64) map[string][2]int64 {
-	lagging := make(map[string][2]int64)
-	for actor, need := range target {
-		if have := local[actor]; have < need {
-			lagging[actor] = [2]int64{have, need}
-		}
+	// Clear MinStoreVersion so the next restart doesn't wait for sync.
+	cc.state.mu.Lock()
+	cc.state.MinStoreVersion = nil
+	err := cc.state.Save()
+	if err != nil {
+		cc.state.MinStoreVersion = minVersion
 	}
-	return lagging
-}
-
-// waitKnownMissingChanges polls the store until all known missing changes have been synced.
-func (cc *clusterController) waitKnownMissingChanges(ctx context.Context) error {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			changes, err := cc.store.KnownMissingChanges(ctx)
-			if err != nil {
-				return fmt.Errorf("query known missing changes from cluster store: %w", err)
-			}
-
-			if len(changes) == 0 {
-				slog.Debug("All known missing changes have been synced to the cluster store.")
-				return nil
-			}
-
-			slog.Debug("Waiting for known missing changes to be synced to the cluster store.", "remaining",
-				len(changes))
-		}
+	cc.state.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("save machine state after the initial cluster store sync: %w", err)
 	}
+
+	slog.Info("Cluster store completed the initial sync.", "min_version", minVersion)
+	return nil
 }
 
 // runMachineSync keeps this machine's info in the cluster store in sync with the local state and the Docker engine

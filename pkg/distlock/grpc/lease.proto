@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package distlock.v1;
+
+option go_package = "github.com/psviderski/uncloud/pkg/distlock/grpc";
+
+import "google/protobuf/duration.proto";
+
+// Lease provides atomic operations for time-bound ownership of resources on one node.
+service Lease {
+  // Acquire creates a lease when the resource has no unexpired lease.
+  rpc Acquire(AcquireLeaseRequest) returns (AcquireLeaseResponse);
+  // Renew extends an unexpired lease when its ownership token matches.
+  rpc Renew(RenewLeaseRequest) returns (RenewLeaseResponse);
+  // Release removes an unexpired lease when its ownership token matches.
+  rpc Release(ReleaseLeaseRequest) returns (ReleaseLeaseResponse);
+}
+
+message AcquireLeaseRequest {
+  string resource = 1;
+  // Token uniquely identifies the lease owner.
+  bytes token = 2;
+  // TTL sets how long the lease remains valid without renewal.
+  google.protobuf.Duration ttl = 3;
+}
+
+message AcquireLeaseResponse {
+  // Acquired is true when this request successfully created the lease.
+  bool acquired = 1;
+}
+
+message RenewLeaseRequest {
+  string resource = 1;
+  // Token identifies the owner of the existing lease.
+  bytes token = 2;
+  // TTL sets how long the renewed lease remains valid.
+  google.protobuf.Duration ttl = 3;
+}
+
+message RenewLeaseResponse {
+  // Renewed is true when an unexpired lease matched the ownership token and was successfully renewed.
+  bool renewed = 1;
+}
+
+message ReleaseLeaseRequest {
+  string resource = 1;
+  // Token identifies the owner of the existing lease.
+  bytes token = 2;
+}
+
+message ReleaseLeaseResponse {
+  // Released is true when an unexpired lease existed, matched the ownership token, and was successfully released.
+  bool released = 1;
+}

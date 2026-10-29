@@ -57,6 +57,12 @@ curl -fsS https://get.uncloud.run/install.sh | VERSION=nightly sh
 
 More information about nightly builds of the CLI and daemon can be found [here](https://github.com/psviderski/uncloud/releases/tag/nightly).
 
+## mise
+You can install uncloud with [mise](https://mise.jdx.dev/):
+```
+mise use github:psviderski/uncloud[exe=uc]
+```
+
 ## GitHub download (macOS, Linux)
 
 You can manually download and use a pre-built binary from the

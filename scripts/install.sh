@@ -277,11 +277,33 @@ install_uncloud_binaries() {
 }
 
 install_uncloud_systemd() {
+    local uncloud_socket_path="${INSTALL_SYSTEMD_DIR}/uncloud.socket"
     local uncloud_service_path="${INSTALL_SYSTEMD_DIR}/uncloud.service"
+
+    mkdir -p "${INSTALL_SYSTEMD_DIR}"
+
+    cat > "${uncloud_socket_path}" << EOF
+[Unit]
+Description=Uncloud API socket
+Before=docker.service
+
+[Socket]
+ListenStream=/run/uncloud/api/uncloud.sock
+SocketUser=root
+SocketGroup=uncloud
+SocketMode=0660
+DirectoryMode=0750
+
+[Install]
+WantedBy=sockets.target
+EOF
+    log "✓ Systemd unit file created: ${uncloud_socket_path}"
+
     cat > "${uncloud_service_path}" << EOF
 [Unit]
 Description=Uncloud machine daemon
-After=network-online.target docker.service
+Requires=uncloud.socket
+After=network-online.target uncloud.socket docker.service
 Wants=network-online.target
 
 [Service]
@@ -306,12 +328,11 @@ WantedBy=multi-user.target
 EOF
     log "✓ Systemd unit file created: ${uncloud_service_path}"
 
-
     if [[ "${INSTALL_ONLY}" != "true" ]]; then
         # Reload systemd to recognize the new or updated unit file.
         systemctl daemon-reload
     fi
-    systemctl enable uncloud.service
+    systemctl enable uncloud.socket uncloud.service
 }
 
 start_uncloud() {

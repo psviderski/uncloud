@@ -37,6 +37,7 @@ func release(ctx context.Context, uncli *cli.CLI) error {
 		if status.Convert(err).Code() == codes.NotFound {
 			return errors.New("no domain reserved")
 		}
+		return fmt.Errorf("release cluster domain: %w", err)
 	}
 
 	fmt.Printf("Released cluster domain: %s\n", domain.Name)

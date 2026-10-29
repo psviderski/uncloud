@@ -12,8 +12,8 @@ import (
 	"github.com/distribution/reference"
 	"github.com/psviderski/uncloud/internal/cli/tui"
 	"github.com/psviderski/uncloud/pkg/api"
-	"github.com/psviderski/uncloud/pkg/client/deploy/operation"
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
+	"github.com/psviderski/uncloud/pkg/client/operation"
 )
 
 type Client interface {
@@ -306,8 +306,8 @@ func (d *Deployment) Plan(ctx context.Context) (ServicePlan, error) {
 		return ServicePlan{}, fmt.Errorf("get cluster domain: %w", err)
 	}
 	specResolver := &ServiceSpecResolver{
-		// If the domain is not found (not reserved), an empty domain is used for the resolver.
-		ClusterDomain: clusterDomain,
+		// If no domain is configured, an empty domain is used for the resolver.
+		ClusterDomain: clusterDomain.Name,
 	}
 
 	resolvedSpec, err := specResolver.Resolve(d.Spec)

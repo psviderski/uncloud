@@ -188,7 +188,7 @@ uc context use <name>           # Switch context
 - **Package naming**: Use clear, descriptive names
 - **Error handling**: Wrap errors with context using `fmt.Errorf`
 - **Logging**: Use structured logging with levels
-- **gRPC**: Services defined in `internal/machine/api/pb/`
+- **gRPC**: Services defined in `api/pb/`
 
 ### Testing
 
@@ -196,7 +196,6 @@ uc context use <name>           # Switch context
     - Unit tests alongside source files (`*_test.go`)
     - Integration tests in `test/e2e/`
     - Test fixtures in `test/fixtures/`
-- Use table driven tests whenever possible
 - Use the `testify` library for assertions (e.g., `require.Equal`, `assert.Nil`)
 
 ### Dependencies

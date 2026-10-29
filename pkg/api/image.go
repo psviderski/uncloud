@@ -1,12 +1,10 @@
 package api
 
 import (
-	"errors"
-
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/image"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 )
 
 type MachineImage struct {
@@ -24,14 +22,6 @@ type MachineImages struct {
 	ContainerdStore bool
 }
 
-// Error returns a non-nil error if listing images on this machine failed.
-func (mi MachineImages) Error() error {
-	if mi.Metadata != nil && mi.Metadata.Error != "" {
-		return errors.New(mi.Metadata.Error)
-	}
-	return nil
-}
-
 // ImageFilter defines criteria to filter images in ListImages.
 type ImageFilter struct {
 	// Machines filters images to those present on the specified machines (names or IDs).
@@ -40,6 +30,18 @@ type ImageFilter struct {
 	// Name filters images by name (with or without tag). Accepts a wildcard pattern.
 	// If empty, it matches all image names.
 	Name string
+}
+
+// RemoveImageOptions defines options for removing an image from cluster machines.
+type RemoveImageOptions struct {
+	// Machines selects machines to remove the image from (names or IDs). If empty, all cluster machines are selected.
+	Machines []string
+}
+
+// MachineImageRemoval contains the outcome of removing an image on one machine.
+type MachineImageRemoval struct {
+	Metadata *pb.Metadata
+	Results  []image.DeleteResponse
 }
 
 // MachineRemoteImage represents an image in a remote registry fetched by a particular machine.

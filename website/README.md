@@ -18,14 +18,22 @@ npm run dev
 
 `/docs` and `/blog` are built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
 
-### Local Development
+### Local development
 
-```
-npm start
+To preview the documentation website, install its dependencies first:
+
+```shell
+npm ci
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without
-having to restart the server.
+Then start the local development server:
+
+```shell
+mise run docs:dev
+```
+
+It opens up a browser window at http://localhost:3000/. Most changes are reflected live without having to restart the
+server.
 
 ## Deployment
 

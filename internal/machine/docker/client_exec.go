@@ -10,7 +10,7 @@ import (
 	"os/signal"
 
 	"github.com/moby/term"
-	"github.com/psviderski/uncloud/internal/machine/api/pb"
+	"github.com/psviderski/uncloud/api/pb"
 	"github.com/psviderski/uncloud/pkg/api"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
