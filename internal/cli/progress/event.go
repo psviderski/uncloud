@@ -9,7 +9,7 @@ import (
 
 type eventIDKey struct{}
 
-// WithEventID returns a context that overrides the default event ID used by client methods.
+// WithEventID returns a context that overrides the event ID already set in the context.
 func WithEventID(ctx context.Context, eventID string) context.Context {
 	return context.WithValue(ctx, eventIDKey{}, eventID)
 }
@@ -48,7 +48,7 @@ func OldPreDeployHookEventID(serviceName, containerID, machineName string) strin
 		tui.Faint.Render(" on ") + machineName
 }
 
-// ImageEventID returns a progress event ID for image pull operations.
+// ImageEventID returns a progress event ID for image operations on a machine.
 func ImageEventID(image, machineName string) string {
 	return tui.Faint.Render("Image ") + image +
 		tui.Faint.Render(" on ") + machineName

@@ -91,9 +91,14 @@ func list(ctx context.Context, uncli *cli.CLI, opts listOptions) error {
 
 	machines := cli.ExpandCommaSeparatedValues(opts.machines)
 
-	clusterImages, err := clusterClient.ListImages(ctx, api.ImageFilter{
-		Machines: machines,
-		Name:     opts.nameFilter,
+	var clusterImages []api.MachineImages
+	err = tui.RunSpinner(ctx, "Listing images...", func(ctx context.Context) error {
+		var err error
+		clusterImages, err = clusterClient.ListImages(ctx, api.ImageFilter{
+			Machines: machines,
+			Name:     opts.nameFilter,
+		})
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("list images: %w", err)
