@@ -15,6 +15,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -69,8 +70,10 @@ type CaddyfileGenerator struct {
 	machineID string
 	// machineName is the human-friendly name of the machine.
 	machineName string
-	validator   CaddyfileValidator
-	log         *slog.Logger
+	// rttCache provides RTT lookup by machine ID. Nil-safe: RTTFor returns UnknownRTT on nil.
+	rttCache  *rtt.Cache
+	validator CaddyfileValidator
+	log       *slog.Logger
 }
 
 // CaddyfileValidator checks a candidate Caddyfile without loading it. Validate returns InvalidCaddyfileError only
@@ -86,7 +89,8 @@ type InvalidCaddyfileError struct{ Message string }
 func (e *InvalidCaddyfileError) Error() string { return e.Message }
 
 func NewCaddyfileGenerator(
-	machineID, machineName string, validator CaddyfileValidator, log *slog.Logger,
+	machineID, machineName string, rttCache *rtt.Cache,
+	validator CaddyfileValidator, log *slog.Logger,
 ) *CaddyfileGenerator {
 	if log == nil {
 		log = slog.Default()
@@ -94,6 +98,7 @@ func NewCaddyfileGenerator(
 	return &CaddyfileGenerator{
 		machineID:   machineID,
 		machineName: machineName,
+		rttCache:    rttCache,
 		validator:   validator,
 		log:         log,
 	}
@@ -123,14 +128,14 @@ func (g *CaddyfileGenerator) Generate(
 	bootstrap bool,
 ) (string, error) {
 	records = slices.Clone(records)
-	// Sort records by local machine first, then by service name and creation time. Placing containers on the local
-	// machine first lets user-defined Caddy configs pair this ordering with the "first" lb_policy to always send
-	// traffic to the same-host replica (skipping the cross-machine hop) and only fall back to remote upstreams when
-	// the local one is unhealthy.
+	// Sort records by RTT to the local machine, then by service name and creation time. Placing the closest
+	// containers first (the local machine has RTT 0) lets user-defined Caddy configs pair this ordering with the
+	// "first" lb_policy to always send traffic to the nearest replica (skipping the cross-machine hop) and only
+	// fall back to more distant upstreams when the nearest one is unhealthy.
 	// The service name, creation time, and container ID tiebreakers keep the file stable across regenerations.
 	slices.SortStableFunc(records, func(a, b store.ContainerRecord) int {
 		return cmp.Or(
-			g.localMachineRank(a.MachineID)-g.localMachineRank(b.MachineID),
+			cmp.Compare(g.rttCache.RTTFor(a.MachineID), g.rttCache.RTTFor(b.MachineID)),
 			strings.Compare(a.Container.ServiceName(), b.Container.ServiceName()),
 			a.Container.CreatedTime().Compare(b.Container.CreatedTime()),
 			strings.Compare(a.Container.ID, b.Container.ID),
@@ -250,14 +255,6 @@ func (g *CaddyfileGenerator) Generate(
 	}
 
 	return caddyfileHeader + "\n" + caddyfile, nil
-}
-
-// localMachineRank is a sorting function for containers that puts running on the local machine first.
-func (g *CaddyfileGenerator) localMachineRank(machineID string) int {
-	if g.machineID == machineID {
-		return 0
-	}
-	return 1
 }
 
 func (g *CaddyfileGenerator) generateBaseFromPorts(containers []api.ServiceContainer) (string, error) {
