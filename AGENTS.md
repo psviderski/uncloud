@@ -98,33 +98,6 @@ management.
 
 - **`misc/`**: Design documents and guides
 
-## Key Technologies
-
-### Core Dependencies
-
-```go
-// Networking and orchestration
-github.com/docker/docker // Docker API client
-github.com/docker/compose/v2 // Docker Compose integration
-golang.zx2c4.com/wireguard // WireGuard implementation
-github.com/hashicorp/serf // Gossip protocol
-
-// State management
-github.com/ipfs/go-ds-crdt // CRDT distributed storage
-github.com/dgraph-io/badger/v3 // Embedded database
-
-// Web proxy
-github.com/caddyserver/caddy/v2 // HTTP server and reverse proxy
-
-// CLI and UX
-github.com/spf13/cobra // CLI framework
-github.com/charmbracelet/huh // Interactive forms
-
-// gRPC and networking
-google.golang.org/grpc                     // gRPC framework
-github.com/siderolabs/grpc-proxy // gRPC proxy for forwarding
-```
-
 ## Development Workflow
 
 ### Build and Development
@@ -135,16 +108,18 @@ go build -o uc ./cmd/uc
 go build -o uncloudd ./cmd/uncloudd
 ```
 
-### Key Make Targets
+### Formatting and Linting
+
+- `mise run lint`: Check Go code and formatting without changing files
+- `mise run lint:fix`: Apply formatting and available lint fixes
+
+### Other Development Tasks
 
 - `proto`: Generate protobuf code
 - `ucind-cluster`: Create development cluster
 - `update-dev`: Deploy to development machines
 - `demo-reset`: Reset demo environment
-- `fmt`: Format code
 - `test`: Run all tests
-- `lint`: Lint the code using golangci-lint
-- `lint-and-fix`: Lint the code and fix issues whenever possible
 
 ## CLI Commands Structure
 

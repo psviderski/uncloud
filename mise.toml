@@ -46,6 +46,25 @@ description = "Run the documentation website locally"
 dir = "website"
 run = "npm start --"
 
+[tasks.fmt]
+description = "Format Go code and imports"
+alias = "format"
+env.GOOS = "linux"
+run = "golangci-lint fmt"
+
+[tasks.lint]
+description = "Check Go code and formatting"
+# Explicitly set OS to Linux to not skip *_linux.go files when running on macOS.
+# Uncloud daemon won't likely support OS other than Linux anytime soon, so for now we can rely on that.
+env.GOOS = "linux"
+run = "golangci-lint run"
+
+[tasks."lint:fix"]
+description = "Format Go code and apply available lint fixes"
+alias = "lint-and-fix"
+env.GOOS = "linux"
+run = "golangci-lint run --fix"
+
 [tasks.mocks]
 description = "Regenerate Go test mocks"
 run = "mockery"

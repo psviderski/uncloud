@@ -100,10 +100,16 @@ mise run dev:reset user@host1 user@host2
 
 ## Linting and formatting
 
-Lint and format the code:
+Check the code and formatting without changing files:
 
 ```shell
-make lint-and-fix
+mise run lint
+```
+
+Apply formatting and available lint fixes:
+
+```shell
+mise run lint:fix
 ```
 
 ## Code generation

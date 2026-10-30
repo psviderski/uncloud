@@ -30,6 +30,6 @@ jobs:
         run: git checkout mise.lock
 
       - name: Lint
-        run: make lint
+        run: mise run lint
 
     timeout-minutes: 10
