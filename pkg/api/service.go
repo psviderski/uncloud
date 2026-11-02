@@ -600,6 +600,36 @@ func (s *Service) FindContainer(nameOrID string) (MachineServiceContainer, error
 	return MachineServiceContainer{}, ErrNotFound
 }
 
+// Spec returns the service spec derived from its containers.
+// Containers may have different specs, for example, after a failed deployment. The result is the spec of the newest
+// running container, or the newest container if none are running. Replicas is set to the actual number of containers
+// for a replicated service.
+func (s *Service) Spec() ServiceSpec {
+	if len(s.Containers) == 0 {
+		return ServiceSpec{}
+	}
+
+	isRunning := func(c MachineServiceContainer) bool {
+		return c.Container.State.Running && !c.Container.State.Paused
+	}
+	selected := slices.MaxFunc(s.Containers, func(a, b MachineServiceContainer) int {
+		if aRunning, bRunning := isRunning(a), isRunning(b); aRunning != bRunning {
+			if aRunning {
+				return 1
+			}
+			return -1
+		}
+		return a.Container.CreatedTime().Compare(b.Container.CreatedTime())
+	})
+
+	spec := selected.Container.ServiceSpec.Clone()
+	// The replicas stored in a container spec go stale when the service is scaled without recreating the container.
+	if spec.Mode == ServiceModeReplicated {
+		spec.Replicas = uint(len(s.Containers))
+	}
+	return spec
+}
+
 // MachineIDs returns a list of unique machine IDs where the service containers are running.
 func (s *Service) MachineIDs() []string {
 	ids := mapset.NewSet[string]()

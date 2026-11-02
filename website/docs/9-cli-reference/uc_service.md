@@ -29,4 +29,5 @@ Manage services in the cluster.
 * [uc service scale](uc_service_scale.md)	 - Scale a replicated service by changing the number of replicas.
 * [uc service start](uc_service_start.md)	 - Start one or more services.
 * [uc service stop](uc_service_stop.md)	 - Stop one or more services.
+* [uc service update](uc_service_update.md)	 - Update a service in place without recreating its containers.
 

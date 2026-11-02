@@ -404,3 +404,110 @@ func TestContainerSpec_Clone(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o644), *cloned.ConfigMounts[0].Mode, "Mode should be deep copied")
 	assert.Equal(t, "1", cloned.Sysctls["net.ipv4.ip_forward"])
 }
+
+func TestService_Spec(t *testing.T) {
+	t.Parallel()
+
+	newContainer := func(name, created string, running bool, mode string, replicas uint) MachineServiceContainer {
+		return MachineServiceContainer{Container: ServiceContainer{
+			Container: Container{InspectResponse: container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
+					Created: created,
+					State:   &container.State{Running: running},
+				},
+			}},
+			ServiceSpec: ServiceSpec{
+				Labels:   map[string]string{"from": name},
+				Mode:     mode,
+				Replicas: replicas,
+			},
+		}}
+	}
+	const (
+		older = "2026-01-01T00:00:00Z"
+		newer = "2026-01-02T00:00:00Z"
+	)
+
+	t.Run("no containers", func(t *testing.T) {
+		t.Parallel()
+
+		svc := Service{HookContainers: []MachineServiceContainer{
+			newContainer("hook", newer, true, ServiceModeReplicated, 1),
+		}}
+
+		assert.Equal(t, ServiceSpec{}, svc.Spec())
+	})
+
+	t.Run("newest running container wins", func(t *testing.T) {
+		t.Parallel()
+
+		svc := Service{Containers: []MachineServiceContainer{
+			newContainer("old-running", older, true, ServiceModeReplicated, 1),
+			newContainer("new-running", newer, true, ServiceModeReplicated, 1),
+		}}
+
+		spec := svc.Spec()
+		assert.Equal(t, "new-running", spec.Labels["from"])
+	})
+
+	t.Run("running container wins over newer stopped one", func(t *testing.T) {
+		t.Parallel()
+
+		svc := Service{Containers: []MachineServiceContainer{
+			newContainer("new-stopped", newer, false, ServiceModeReplicated, 1),
+			newContainer("old-running", older, true, ServiceModeReplicated, 1),
+		}}
+
+		spec := svc.Spec()
+		assert.Equal(t, "old-running", spec.Labels["from"])
+	})
+
+	t.Run("newest container wins when none are running", func(t *testing.T) {
+		t.Parallel()
+
+		svc := Service{Containers: []MachineServiceContainer{
+			newContainer("old-stopped", older, false, ServiceModeReplicated, 1),
+			newContainer("new-stopped", newer, false, ServiceModeReplicated, 1),
+		}}
+
+		spec := svc.Spec()
+		assert.Equal(t, "new-stopped", spec.Labels["from"])
+	})
+
+	t.Run("replicas match the number of containers", func(t *testing.T) {
+		t.Parallel()
+
+		svc := Service{Containers: []MachineServiceContainer{
+			newContainer("a", older, true, ServiceModeReplicated, 5),
+			newContainer("b", newer, true, ServiceModeReplicated, 5),
+			newContainer("c", newer, false, ServiceModeReplicated, 5),
+		}}
+
+		spec := svc.Spec()
+		assert.EqualValues(t, 3, spec.Replicas)
+	})
+
+	t.Run("global service has no replicas", func(t *testing.T) {
+		t.Parallel()
+
+		svc := Service{Containers: []MachineServiceContainer{
+			newContainer("a", older, true, ServiceModeGlobal, 0),
+			newContainer("b", newer, true, ServiceModeGlobal, 0),
+		}}
+
+		spec := svc.Spec()
+		assert.Zero(t, spec.Replicas)
+	})
+
+	t.Run("result is independent of the container spec", func(t *testing.T) {
+		t.Parallel()
+
+		svc := Service{Containers: []MachineServiceContainer{
+			newContainer("a", older, true, ServiceModeReplicated, 1),
+		}}
+
+		spec := svc.Spec()
+		spec.Labels["from"] = "changed"
+		assert.Equal(t, "a", svc.Containers[0].Container.ServiceSpec.Labels["from"])
+	})
+}
