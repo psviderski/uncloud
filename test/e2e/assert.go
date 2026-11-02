@@ -39,7 +39,7 @@ func assertServiceMatchesSpec(t *testing.T, svc api.Service, spec api.ServiceSpe
 
 func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api.ServiceSpec) {
 	desiredSpec := spec.SetDefaults()
-	status := deploy.EvalContainerSpecChange(ctr.ServiceSpec, desiredSpec)
+	status := deploy.EvalContainerChange(ctr, desiredSpec)
 	assert.Equal(t, deploy.ContainerUpToDate, status)
 	spec = renderRuntimeTemplatesForContainer(t, desiredSpec, ctr.Name)
 
@@ -48,6 +48,9 @@ func assertContainerMatchesSpec(t *testing.T, ctr api.ServiceContainer, spec api
 	assert.Equal(t, spec.Name, ctr.Config.Labels[api.LabelServiceName])
 	assert.Equal(t, spec.Mode, ctr.Config.Labels[api.LabelServiceMode])
 	assert.Contains(t, ctr.Config.Labels, api.LabelManaged)
+	for k, v := range spec.Container.Labels {
+		assert.Equal(t, v, ctr.Config.Labels[k], "Expected container label '%s'", k)
+	}
 
 	// Command and Entrypoint can only be compared if they are set in the spec.
 	// Otherwise, the container takes them from the image.

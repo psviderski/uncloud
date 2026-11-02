@@ -77,6 +77,9 @@ type ServiceSpec struct {
 	Configs []ConfigSpec
 	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
+	// Labels are user-defined key-value metadata attached to the service. Unlike container labels, they're not
+	// applied to Docker containers. Keys must not use the reserved "uncloud." prefix.
+	Labels map[string]string
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
 	Mode string
 	Name string
@@ -156,6 +159,9 @@ func (s *ServiceSpec) SetDefaults() ServiceSpec {
 func (s *ServiceSpec) Validate() error {
 	if err := s.Container.Validate(); err != nil {
 		return err
+	}
+	if err := ValidateLabels(s.Labels); err != nil {
+		return fmt.Errorf("invalid service labels: %w", err)
 	}
 
 	switch s.Mode {
@@ -243,6 +249,7 @@ func (s *ServiceSpec) Clone() ServiceSpec {
 		spec.Caddy = &caddyCopy
 	}
 	spec.Container = s.Container.Clone()
+	spec.Labels = maps.Clone(s.Labels)
 	spec.PreDeploy = s.PreDeploy.Clone()
 
 	if s.Ports != nil {
@@ -279,6 +286,10 @@ type ContainerSpec struct {
 	Image       string
 	// Run a custom init inside the container. If nil, use the daemon's configured settings.
 	Init *bool
+	// Labels are user-defined key-value metadata applied as Docker labels to each container in the service.
+	// Docker labels are immutable so changing them requires recreating the containers.
+	// Keys must not use the reserved "uncloud." prefix.
+	Labels map[string]string
 	// LogDriver overrides the default logging driver for the container. Each Docker daemon can have its own default.
 	LogDriver *LogDriver
 	// PidMode sets the PID namespace mode for the container. Currently only "" or "host" is supported.
@@ -332,6 +343,9 @@ func (s *ContainerSpec) SetDefaults() ContainerSpec {
 func (s *ContainerSpec) Validate() error {
 	if _, err := reference.ParseDockerRef(s.Image); err != nil {
 		return fmt.Errorf("invalid image '%s': %w", s.Image, err)
+	}
+	if err := ValidateLabels(s.Labels); err != nil {
+		return fmt.Errorf("invalid container labels: %w", err)
 	}
 
 	for _, m := range s.VolumeMounts {
@@ -390,6 +404,7 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 		hc.Test = slices.Clone(s.Healthcheck.Test)
 		spec.Healthcheck = &hc
 	}
+	spec.Labels = maps.Clone(s.Labels)
 	if s.LogDriver != nil {
 		logDriver := *s.LogDriver
 		if s.LogDriver.Options != nil {
@@ -426,6 +441,20 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	}
 
 	return spec
+}
+
+// ValidateLabels checks that label keys are non-empty and don't use the reserved Uncloud prefixes.
+func ValidateLabels(labels map[string]string) error {
+	for k := range labels {
+		if strings.TrimSpace(k) == "" {
+			return fmt.Errorf("label key must not be empty")
+		}
+		if strings.HasPrefix(k, LabelReservedPrefix) || strings.HasPrefix(k, LabelDaemonReservedPrefix) {
+			return fmt.Errorf("label '%s' cannot use the reserved prefix '%s' or '%s'",
+				k, LabelReservedPrefix, LabelDaemonReservedPrefix)
+		}
+	}
+	return nil
 }
 
 type EnvVars map[string]string

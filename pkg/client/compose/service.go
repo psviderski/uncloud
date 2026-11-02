@@ -66,6 +66,10 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		Mode: api.ServiceModeReplicated,
 	}
 
+	if labels := mergeLabels(service.Labels, service.CustomLabels); len(labels) > 0 {
+		spec.Container.Labels = labels
+	}
+
 	// Map x-caddy extension to spec.Caddy if specified.
 	if caddy, ok := service.Extensions[CaddyExtensionKey].(Caddy); ok && caddy.Config != "" {
 		spec.Caddy = &api.CaddySpec{
@@ -123,6 +127,10 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 
 			d := time.Duration(cfg.Monitor)
 			spec.UpdateConfig.MonitorPeriod = &d
+		}
+
+		if len(service.Deploy.Labels) > 0 {
+			spec.Labels = maps.Clone(service.Deploy.Labels)
 		}
 	}
 
@@ -480,9 +488,6 @@ func validateServicesFeatures(project *types.Project) []error {
 		if service.DNSSearch != nil {
 			errs = append(errs, err(service.Name, "dns_search"))
 		}
-		if service.Labels != nil {
-			errs = append(errs, err(service.Name, "labels"))
-		}
 		if service.Links != nil {
 			errs = append(errs, err(service.Name, "links"))
 		}
@@ -516,9 +521,6 @@ func validateServicesFeatures(project *types.Project) []error {
 			}
 			if service.Deploy.RollbackConfig != nil {
 				errs = append(errs, err(service.Name, "deploy rollback_config"))
-			}
-			if len(service.Deploy.Labels) != 0 {
-				errs = append(errs, err(service.Name, "deploy labels"))
 			}
 		}
 		// we only allow the 'default' network, nothing else.

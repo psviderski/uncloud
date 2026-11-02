@@ -345,20 +345,6 @@ configs:
 			warnContains: []string{"container_name"},
 		},
 		{
-			name: "deploy labels",
-			composeYAML: `services:
-  app:
-    image: myapp:latest
-    deploy:
-      mode: replicated
-      labels:
-        - foo
-      replicas: 2
-`,
-			warnCount:    1,
-			warnContains: []string{"deploy labels"},
-		},
-		{
 			name: "deploy restart_policy",
 			composeYAML: `services:
   app:

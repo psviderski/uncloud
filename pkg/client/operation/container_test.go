@@ -123,6 +123,13 @@ func (c *recordingClient) RemoveContainer(
 	return nil
 }
 
+func (c *recordingClient) UpdateContainer(
+	_ context.Context, _, containerID string, _ api.UpdateContainerOptions,
+) error {
+	c.calls = append(c.calls, "update:"+containerID)
+	return nil
+}
+
 func (c *recordingClient) CreatePreDeployHookContainer(
 	context.Context, string, api.ServiceSpec, string,
 ) (api.CreateContainerResponse, error) {

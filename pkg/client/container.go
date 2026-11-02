@@ -343,6 +343,39 @@ func (cli *Client) RemoveContainer(
 	return nil
 }
 
+// UpdateContainer updates the requested properties of the container within the service in place without recreating it.
+func (cli *Client) UpdateContainer(
+	ctx context.Context, serviceNameOrID, containerNameOrID string, opts api.UpdateContainerOptions,
+) error {
+	op, err := cli.resolveContainerOperation(ctx, serviceNameOrID, containerNameOrID)
+	if err != nil {
+		return err
+	}
+
+	req := &pb.UpdateServiceContainerRequest{
+		Id:                op.containerID,
+		Cpu:               opts.CPU,
+		Memory:            opts.Memory,
+		MemoryReservation: opts.MemoryReservation,
+	}
+	if opts.ServiceLabels != nil {
+		req.ServiceLabels = &pb.Labels{Labels: *opts.ServiceLabels}
+	}
+
+	pw := progress.ContextWriter(op.ctx)
+	pw.Event(progress.NewEvent(op.eventID, progress.Working, "Updating"))
+	if _, err = cli.Docker.GRPCClient.UpdateServiceContainer(op.ctx, req); err != nil {
+		pw.Event(progress.ErrorEvent(op.eventID))
+		if status.Code(err) == codes.NotFound {
+			return api.ErrNotFound
+		}
+		return err
+	}
+	pw.Event(progress.NewEvent(op.eventID, progress.Done, "Updated"))
+
+	return nil
+}
+
 // ExecContainer executes a command in a container within the service.
 // If containerNameOrID is empty, the first container in the service will be used.
 func (cli *Client) ExecContainer(

@@ -38,6 +38,7 @@ const (
 	Docker_RemoveVolume_FullMethodName            = "/api.Docker/RemoveVolume"
 	Docker_CreateServiceContainer_FullMethodName  = "/api.Docker/CreateServiceContainer"
 	Docker_InspectServiceContainer_FullMethodName = "/api.Docker/InspectServiceContainer"
+	Docker_UpdateServiceContainer_FullMethodName  = "/api.Docker/UpdateServiceContainer"
 	Docker_ListServiceContainers_FullMethodName   = "/api.Docker/ListServiceContainers"
 	Docker_RemoveServiceContainer_FullMethodName  = "/api.Docker/RemoveServiceContainer"
 )
@@ -66,6 +67,8 @@ type DockerClient interface {
 	RemoveVolume(ctx context.Context, in *RemoveVolumeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	CreateServiceContainer(ctx context.Context, in *CreateServiceContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
 	InspectServiceContainer(ctx context.Context, in *InspectContainerRequest, opts ...grpc.CallOption) (*ServiceContainer, error)
+	// UpdateServiceContainer updates the requested properties of a service container in place without recreating it.
+	UpdateServiceContainer(ctx context.Context, in *UpdateServiceContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListServiceContainers(ctx context.Context, in *ListServiceContainersRequest, opts ...grpc.CallOption) (*ListServiceContainersResponse, error)
 	RemoveServiceContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -279,6 +282,16 @@ func (c *dockerClient) InspectServiceContainer(ctx context.Context, in *InspectC
 	return out, nil
 }
 
+func (c *dockerClient) UpdateServiceContainer(ctx context.Context, in *UpdateServiceContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Docker_UpdateServiceContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dockerClient) ListServiceContainers(ctx context.Context, in *ListServiceContainersRequest, opts ...grpc.CallOption) (*ListServiceContainersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListServiceContainersResponse)
@@ -323,6 +336,8 @@ type DockerServer interface {
 	RemoveVolume(context.Context, *RemoveVolumeRequest) (*emptypb.Empty, error)
 	CreateServiceContainer(context.Context, *CreateServiceContainerRequest) (*CreateContainerResponse, error)
 	InspectServiceContainer(context.Context, *InspectContainerRequest) (*ServiceContainer, error)
+	// UpdateServiceContainer updates the requested properties of a service container in place without recreating it.
+	UpdateServiceContainer(context.Context, *UpdateServiceContainerRequest) (*emptypb.Empty, error)
 	ListServiceContainers(context.Context, *ListServiceContainersRequest) (*ListServiceContainersResponse, error)
 	RemoveServiceContainer(context.Context, *RemoveContainerRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDockerServer()
@@ -388,6 +403,9 @@ func (UnimplementedDockerServer) CreateServiceContainer(context.Context, *Create
 }
 func (UnimplementedDockerServer) InspectServiceContainer(context.Context, *InspectContainerRequest) (*ServiceContainer, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectServiceContainer not implemented")
+}
+func (UnimplementedDockerServer) UpdateServiceContainer(context.Context, *UpdateServiceContainerRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateServiceContainer not implemented")
 }
 func (UnimplementedDockerServer) ListServiceContainers(context.Context, *ListServiceContainersRequest) (*ListServiceContainersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListServiceContainers not implemented")
@@ -715,6 +733,24 @@ func _Docker_InspectServiceContainer_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Docker_UpdateServiceContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateServiceContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerServer).UpdateServiceContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Docker_UpdateServiceContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerServer).UpdateServiceContainer(ctx, req.(*UpdateServiceContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Docker_ListServiceContainers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListServiceContainersRequest)
 	if err := dec(in); err != nil {
@@ -817,6 +853,10 @@ var Docker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InspectServiceContainer",
 			Handler:    _Docker_InspectServiceContainer_Handler,
+		},
+		{
+			MethodName: "UpdateServiceContainer",
+			Handler:    _Docker_UpdateServiceContainer_Handler,
 		},
 		{
 			MethodName: "ListServiceContainers",

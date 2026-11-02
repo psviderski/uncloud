@@ -30,6 +30,7 @@ type ContainerClient interface {
 	StartContainer(ctx context.Context, serviceNameOrID, containerNameOrID string) error
 	StopContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.StopOptions) error
 	RemoveContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts container.RemoveOptions) error
+	UpdateContainer(ctx context.Context, serviceNameOrID, containerNameOrID string, opts UpdateContainerOptions) error
 	WaitContainerHealthy(
 		ctx context.Context, serviceNameOrID, containerNameOrID string, opts WaitContainerHealthyOptions,
 	) error

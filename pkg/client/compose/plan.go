@@ -55,7 +55,7 @@ func (p *Plan) Format() string {
 
 // formatSummary counts all operations across the plan and renders the summary footer.
 func (p *Plan) formatSummary() string {
-	var createCount, startFirstCount, stopFirstCount, removeCount int
+	var createCount, startFirstCount, stopFirstCount, updateCount, removeCount int
 	machines := make(map[string]struct{})
 
 	for _, op := range p.Volumes {
@@ -76,6 +76,9 @@ func (p *Plan) formatSummary() string {
 				} else {
 					startFirstCount++
 				}
+			case *operation.UpdateContainerOperation:
+				machines[o.MachineID] = struct{}{}
+				updateCount++
 			case *operation.RemoveContainerOperation:
 				machines[o.MachineID] = struct{}{}
 				removeCount++
@@ -98,6 +101,10 @@ func (p *Plan) formatSummary() string {
 	if stopFirstCount > 0 {
 		parts = append(parts,
 			tui.BoldYellow.Render(strconv.Itoa(stopFirstCount))+" "+tui.Yellow.Render("replace (stop-first)"))
+	}
+	if updateCount > 0 {
+		parts = append(parts,
+			tui.BoldYellow.Render(strconv.Itoa(updateCount))+" "+tui.Yellow.Render("update (in place)"))
 	}
 	if removeCount > 0 {
 		parts = append(parts,

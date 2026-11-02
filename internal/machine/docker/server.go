@@ -594,21 +594,26 @@ func (s *Server) CreateServiceContainer(
 		}
 	}
 
+	// Apply user-defined labels first so that the system labels always take precedence.
+	labels := maps.Clone(spec.Container.Labels)
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[api.LabelServiceID] = req.ServiceId
+	labels[api.LabelServiceName] = spec.Name
+	labels[api.LabelServiceMode] = spec.Mode
+	labels[api.LabelManaged] = ""
+
 	config := &container.Config{
 		Cmd:        spec.Container.Command,
 		Env:        envVars.ToSlice(),
 		Entrypoint: spec.Container.Entrypoint,
 		Hostname:   containerName,
 		Image:      spec.Container.Image,
-		Labels: map[string]string{
-			api.LabelServiceID:   req.ServiceId,
-			api.LabelServiceName: spec.Name,
-			api.LabelServiceMode: spec.Mode,
-			api.LabelManaged:     "",
-		},
-		User:      spec.Container.User,
-		Tty:       spec.Container.Tty,
-		OpenStdin: spec.Container.OpenStdin,
+		Labels:     labels,
+		User:       spec.Container.User,
+		Tty:        spec.Container.Tty,
+		OpenStdin:  spec.Container.OpenStdin,
 	}
 	if spec.Mode == "" {
 		config.Labels[api.LabelServiceMode] = api.ServiceModeReplicated
@@ -729,12 +734,10 @@ func (s *Server) CreateServiceContainer(
 
 	// Strip the container configuration that doesn't make sense for the pre-deploy hook and apply its overrides.
 	if spec.PreDeploy != nil && req.ContainerType == pb.CreateServiceContainerRequest_PRE_DEPLOY {
-		config.Labels = map[string]string{
-			api.LabelServiceID:   req.ServiceId,
-			api.LabelServiceName: spec.Name,
-			api.LabelHook:        api.LabelHookPreDeploy,
-			api.LabelManaged:     "",
-		}
+		// Keep the user-defined labels but replace the service mode and ports labels with the hook label.
+		delete(config.Labels, api.LabelServiceMode)
+		delete(config.Labels, api.LabelServicePorts)
+		config.Labels[api.LabelHook] = api.LabelHookPreDeploy
 		config.Healthcheck = &container.HealthConfig{
 			Test: []string{"NONE"},
 		}
@@ -1177,6 +1180,36 @@ func (s *Server) RemoveServiceContainer(ctx context.Context, req *pb.RemoveConta
 	}
 
 	return resp, nil
+}
+
+// UpdateServiceContainer updates the requested properties of a service container in place without recreating it.
+func (s *Server) UpdateServiceContainer(
+	ctx context.Context, req *pb.UpdateServiceContainerRequest,
+) (*emptypb.Empty, error) {
+	opts := api.UpdateContainerOptions{
+		CPU:               req.Cpu,
+		Memory:            req.Memory,
+		MemoryReservation: req.MemoryReservation,
+	}
+	if req.ServiceLabels != nil {
+		labels := req.ServiceLabels.Labels
+		opts.ServiceLabels = &labels
+	}
+
+	if err := s.service.UpdateServiceContainer(ctx, req.Id, opts); err != nil {
+		switch {
+		case errdefs.IsNotFound(err):
+			return nil, status.Error(codes.NotFound, err.Error())
+		case errdefs.IsInvalidArgument(err):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		case errdefs.IsFailedPrecondition(err):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // logsHeartbeatInterval is the interval at which heartbeat entries are sent when there are no logs to stream.

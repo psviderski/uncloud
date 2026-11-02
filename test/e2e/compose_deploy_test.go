@@ -2,7 +2,9 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
@@ -10,6 +12,7 @@ import (
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client/compose"
 	"github.com/psviderski/uncloud/pkg/client/deploy"
+	"github.com/psviderski/uncloud/pkg/client/operation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -546,6 +549,85 @@ func TestComposeDeployment(t *testing.T) {
 		// Verify machines match the expected machine IDs (machine-1 = c.Machines[0], machine-3 = c.Machines[2])
 		assert.ElementsMatch(t, serviceMachines.ToSlice(), []string{c.Machines[0].ID, c.Machines[2].ID},
 			"Service containers should be on machines 1 and 3 from comma-separated list")
+	})
+
+	t.Run("labels and in-place update of service labels and resources", func(t *testing.T) {
+		t.Parallel()
+
+		name := "test-compose-labels"
+		t.Cleanup(func() {
+			removeServices(t, cli, name)
+		})
+
+		composeYAML := func(tier, memLimit string) string {
+			return fmt.Sprintf(`
+services:
+  %s:
+    image: portainer/pause:3.9
+    mem_limit: %s
+    labels:
+      com.example.team: web
+    deploy:
+      replicas: 2
+      labels:
+        tier: %s
+`, name, memLimit, tier)
+		}
+
+		project, err := compose.LoadProjectFromContent(ctx, composeYAML("frontend", "64m"))
+		require.NoError(t, err)
+		deployment, err := compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+		require.NoError(t, deployment.Run(ctx))
+
+		svc, err := cli.InspectService(ctx, name)
+		require.NoError(t, err)
+		expectedSpec := api.ServiceSpec{
+			Name: name,
+			Mode: api.ServiceModeReplicated,
+			Container: api.ContainerSpec{
+				Image:     "portainer/pause:3.9",
+				Labels:    map[string]string{"com.example.team": "web"},
+				Resources: api.ContainerResources{Memory: 64 * 1024 * 1024},
+			},
+			Labels:   map[string]string{"tier": "frontend"},
+			Replicas: 2,
+		}
+		assertServiceMatchesSpec(t, svc, expectedSpec)
+		for _, mc := range svc.Containers {
+			assert.NotContains(t, mc.Container.Config.Labels, "tier",
+				"Service labels must not be applied to containers")
+		}
+		containers := serviceContainerIDs(svc)
+
+		// Changing the service labels and memory limit should update the containers in place.
+		project, err = compose.LoadProjectFromContent(ctx, composeYAML("backend", "128m"))
+		require.NoError(t, err)
+		deployment, err = compose.NewDeployment(ctx, cli, project)
+		require.NoError(t, err)
+
+		plan, err := deployment.Plan(ctx)
+		require.NoError(t, err)
+		require.Len(t, plan.Services, 1)
+		require.Len(t, plan.Services[0].Operations, 2)
+		for _, op := range plan.Services[0].Operations {
+			assert.IsType(t, &operation.UpdateContainerOperation{}, op)
+		}
+		require.NoError(t, deployment.Run(ctx))
+
+		// The updated spec propagates to the cluster store asynchronously.
+		expectedSpec.Labels = map[string]string{"tier": "backend"}
+		expectedSpec.Container.Resources.Memory = 128 * 1024 * 1024
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			svc, err = cli.InspectService(ctx, name)
+			require.NoError(c, err)
+			for _, mc := range svc.Containers {
+				assert.Equal(c, expectedSpec.Labels, mc.Container.ServiceSpec.Labels)
+				assert.Equal(c, expectedSpec.Container.Resources.Memory, mc.Container.HostConfig.Memory)
+			}
+		}, 10*time.Second, 200*time.Millisecond)
+		assertServiceMatchesSpec(t, svc, expectedSpec)
+		assert.Equal(t, containers, serviceContainerIDs(svc), "Expected containers to be updated in place")
 	})
 
 	// Catches regression: https://github.com/psviderski/uncloud/issues/176

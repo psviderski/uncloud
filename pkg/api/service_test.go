@@ -63,6 +63,47 @@ func TestServiceSpec_Validate_Name(t *testing.T) {
 	}
 }
 
+func TestServiceSpec_Validate_Labels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		labels  map[string]string
+		wantErr string
+	}{
+		{name: "nil labels"},
+		{name: "valid labels", labels: map[string]string{"com.example.team": "web", "tier": ""}},
+		{name: "prefix without dot", labels: map[string]string{"uncloudfoo": "bar"}},
+		{name: "empty key", labels: map[string]string{"": "bar"}, wantErr: "must not be empty"},
+		{name: "reserved prefix", labels: map[string]string{LabelManaged: ""}, wantErr: "reserved prefix"},
+		{name: "reserved daemon prefix", labels: map[string]string{"uncloudd.foo": "bar"}, wantErr: "reserved prefix"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+"/service", func(t *testing.T) {
+			t.Parallel()
+			spec := ServiceSpec{Container: ContainerSpec{Image: "nginx:latest"}, Labels: tt.labels}
+			err := spec.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, "invalid service labels")
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+		t.Run(tt.name+"/container", func(t *testing.T) {
+			t.Parallel()
+			spec := ServiceSpec{Container: ContainerSpec{Image: "nginx:latest", Labels: tt.labels}}
+			err := spec.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, "invalid container labels")
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestServiceSpec_Validate_CaddyAndPorts(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -267,8 +308,9 @@ func TestContainerSpec_Clone(t *testing.T) {
 			"FOO": "bar",
 			"BAZ": "qux",
 		},
-		Image: "nginx:latest",
-		Init:  new(true),
+		Image:  "nginx:latest",
+		Init:   new(true),
+		Labels: map[string]string{"com.example.team": "web"},
 		LogDriver: &LogDriver{
 			Name: "json-file",
 			Options: map[string]string{
@@ -313,6 +355,7 @@ func TestContainerSpec_Clone(t *testing.T) {
 	original.Command[0] = stringModified
 	original.Entrypoint[0] = stringModified
 	original.Env["FOO"] = stringModified
+	original.Labels["com.example.team"] = stringModified
 	original.LogDriver.Options["max-size"] = stringModified
 	original.Volumes[0] = stringModified
 	original.VolumeMounts[0].ContainerPath = stringModified
@@ -328,6 +371,7 @@ func TestContainerSpec_Clone(t *testing.T) {
 	assert.Equal(t, "NET_ADMIN", cloned.CapAdd[0])
 	assert.Equal(t, "ALL", cloned.CapDrop[0])
 	assert.Equal(t, "sh", cloned.Command[0])
+	assert.Equal(t, "web", cloned.Labels["com.example.team"])
 	assert.Equal(t, "/bin/bash", cloned.Entrypoint[0])
 	assert.Equal(t, "bar", cloned.Env["FOO"])
 	assert.Equal(t, "qux", cloned.Env["BAZ"])

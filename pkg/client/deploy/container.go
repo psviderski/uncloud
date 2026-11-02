@@ -1,7 +1,7 @@
 package deploy
 
 import (
-	"reflect"
+	"maps"
 	"sort"
 
 	"github.com/google/go-cmp/cmp"
@@ -12,7 +12,8 @@ import (
 type ContainerSpecStatus string
 
 const (
-	ContainerUpToDate      ContainerSpecStatus = "up-to-date"
+	ContainerUpToDate ContainerSpecStatus = "up-to-date"
+	// ContainerNeedsUpdate means the container can be updated in place without recreating it.
 	ContainerNeedsUpdate   ContainerSpecStatus = "needs-update"
 	ContainerNeedsRecreate ContainerSpecStatus = "needs-recreate"
 )
@@ -83,15 +84,7 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		}
 	}
 
-	// Device reservations and mappings are immutable, so we'll need to recreate if any have changed
-	if !reflect.DeepEqual(current.Container.Resources.DeviceReservations, newResources.DeviceReservations) {
-		return ContainerNeedsRecreate
-	}
-	if !reflect.DeepEqual(current.Container.Resources.Devices, newResources.Devices) {
-		return ContainerNeedsRecreate
-	}
-	// Ulimits are immutable, so we'll need to recreate if any have changed.
-	if !reflect.DeepEqual(current.Container.Resources.Ulimits, newResources.Ulimits) {
+	if current.Container.Resources.ValidateUpdateInPlace(newResources) != nil {
 		return ContainerNeedsRecreate
 	}
 
@@ -100,8 +93,10 @@ func EvalContainerSpecChange(current api.ServiceSpec, new api.ServiceSpec) Conta
 		return ContainerNeedsRecreate
 	}
 
-	// Remaining resources are mutable.
-	if !reflect.DeepEqual(current.Container.Resources, newResources) {
+	// CPU and memory limits are updated on the running container. Service labels are only stored in the service spec
+	// and not applied to Docker containers.
+	if !current.Container.Resources.Equals(newResources) ||
+		!cmp.Equal(current.Labels, new.Labels, cmpopts.EquateEmpty()) {
 		return ContainerNeedsUpdate
 	}
 
@@ -118,4 +113,54 @@ func sortConfigs(configs []api.ConfigSpec) {
 	sort.Slice(configs, func(i, j int) bool {
 		return configs[i].Name < configs[j].Name
 	})
+}
+
+// EvalContainerChange evaluates whether the running container matches the new spec, can be updated in place to
+// match it, or needs to be recreated. Unlike EvalContainerSpecChange, it also compares the new spec with the CPU and
+// memory limits that Docker applies to the container, so the container is updated when they drifted from its spec.
+func EvalContainerChange(current api.ServiceContainer, new api.ServiceSpec) ContainerSpecStatus {
+	status := EvalContainerSpecChange(current.ServiceSpec, new)
+	if status == ContainerNeedsRecreate {
+		return status
+	}
+
+	applied := current.AppliedResources()
+	newResources := new.Container.Resources
+	if applied.ValidateUpdateInPlace(newResources) != nil {
+		return ContainerNeedsRecreate
+	}
+	// Only CPU and memory limits can differ after the in-place update check above.
+	if !applied.Equals(newResources) {
+		return ContainerNeedsUpdate
+	}
+	return status
+}
+
+// ContainerUpdateOptions returns the container properties that can be updated in place and differ between the new
+// spec and either the container spec or the limits Docker applies to the container. It should only be used when
+// EvalContainerChange returns ContainerNeedsUpdate.
+func ContainerUpdateOptions(current api.ServiceContainer, new api.ServiceSpec) api.UpdateContainerOptions {
+	var opts api.UpdateContainerOptions
+
+	stored, applied := current.ServiceSpec.Container.Resources, current.AppliedResources()
+	res := new.Container.Resources
+	if res.CPU != stored.CPU || res.CPU != applied.CPU {
+		opts.CPU = &res.CPU
+	}
+	if res.Memory != stored.Memory || res.Memory != applied.Memory {
+		opts.Memory = &res.Memory
+	}
+	if res.MemoryReservation != stored.MemoryReservation || res.MemoryReservation != applied.MemoryReservation {
+		opts.MemoryReservation = &res.MemoryReservation
+	}
+
+	if !cmp.Equal(current.ServiceSpec.Labels, new.Labels, cmpopts.EquateEmpty()) {
+		labels := maps.Clone(new.Labels)
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		opts.ServiceLabels = &labels
+	}
+
+	return opts
 }

@@ -173,7 +173,7 @@ func (sp *ServicePlan) Format() string {
 
 // FormatSummary counts operations in the service plan and renders a styled summary line.
 func (sp *ServicePlan) FormatSummary() string {
-	var createCount, startFirstCount, stopFirstCount, removeCount int
+	var createCount, startFirstCount, stopFirstCount, updateCount, removeCount int
 	machines := make(map[string]struct{})
 
 	for _, op := range sp.Operations {
@@ -188,6 +188,9 @@ func (sp *ServicePlan) FormatSummary() string {
 			} else {
 				startFirstCount++
 			}
+		case *operation.UpdateContainerOperation:
+			machines[o.MachineID] = struct{}{}
+			updateCount++
 		case *operation.RemoveContainerOperation:
 			machines[o.MachineID] = struct{}{}
 			removeCount++
@@ -209,6 +212,10 @@ func (sp *ServicePlan) FormatSummary() string {
 	if stopFirstCount > 0 {
 		parts = append(parts,
 			tui.BoldYellow.Render(strconv.Itoa(stopFirstCount))+" "+tui.Yellow.Render("replace (stop-first)"))
+	}
+	if updateCount > 0 {
+		parts = append(parts,
+			tui.BoldYellow.Render(strconv.Itoa(updateCount))+" "+tui.Yellow.Render("update (in place)"))
 	}
 	if removeCount > 0 {
 		parts = append(parts,

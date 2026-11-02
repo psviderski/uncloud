@@ -19,6 +19,11 @@ const (
 	// in internal/machine/docker/manager.go.
 	DockerNetworkName = "uncloud"
 
+	// LabelReservedPrefix is the prefix of labels reserved for Uncloud that users can't set on services and containers.
+	LabelReservedPrefix = "uncloud."
+	// LabelDaemonReservedPrefix is the prefix of labels reserved for the Uncloud daemon system containers.
+	LabelDaemonReservedPrefix = "uncloudd."
+
 	// LabelDaemonManaged marks system containers as managed by the Uncloud daemon.
 	LabelDaemonManaged = "uncloudd.managed"
 
@@ -175,6 +180,19 @@ type CreateContainerResponse struct {
 	Name string
 }
 
+// UpdateContainerOptions defines the properties of a service container to update in place without recreating it.
+// Nil fields are left unchanged.
+type UpdateContainerOptions struct {
+	// CPU is the new CPU limit in nanocores. The limit can be changed but not removed.
+	CPU *int64
+	// Memory is the new memory limit in bytes. The limit can be changed but not removed.
+	Memory *int64
+	// MemoryReservation is the new memory reservation in bytes. The reservation can be changed but not removed.
+	MemoryReservation *int64
+	// ServiceLabels replaces all service labels. A pointer to an empty map removes all service labels.
+	ServiceLabels *map[string]string
+}
+
 type ServiceContainer struct {
 	Container
 	ServiceSpec ServiceSpec
@@ -193,6 +211,21 @@ func (c *ServiceContainer) ServiceID() string {
 // ServiceName returns the name of the service this container belongs to.
 func (c *ServiceContainer) ServiceName() string {
 	return c.Config.Labels[LabelServiceName]
+}
+
+// AppliedResources returns the resources from the service spec with the CPU and memory limits that Docker currently
+// applies to the container. The applied limits may differ from the spec if an in-place update was interrupted or
+// the container was updated outside of Uncloud.
+func (c *ServiceContainer) AppliedResources() ContainerResources {
+	resources := c.ServiceSpec.Container.Resources
+	if c.ContainerJSONBase == nil || c.HostConfig == nil {
+		return resources
+	}
+
+	resources.CPU = c.HostConfig.NanoCPUs
+	resources.Memory = c.HostConfig.Memory
+	resources.MemoryReservation = c.HostConfig.MemoryReservation
+	return resources
 }
 
 // ServiceMode returns the replication mode of the service this container belongs to.

@@ -86,6 +86,223 @@ func TestEvalContainerSpecChange_ContainerTty(t *testing.T) {
 	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
 }
 
+func TestEvalContainerSpecChange_ContainerLabels(t *testing.T) {
+	t.Parallel()
+
+	currentSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:  "nginx:latest",
+			Labels: map[string]string{"com.example.team": "web"},
+		},
+	}
+	emptySpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:  "nginx:latest",
+			Labels: map[string]string{},
+		},
+	}
+
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(currentSpec, newSpec))
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(newSpec, currentSpec))
+	assert.Equal(t, ContainerUpToDate, EvalContainerSpecChange(newSpec, newSpec))
+	assert.Equal(t, ContainerUpToDate, EvalContainerSpecChange(currentSpec, emptySpec))
+}
+
+func TestEvalContainerSpecChange_ServiceLabels(t *testing.T) {
+	t.Parallel()
+
+	currentSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+	}
+	newSpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+		Labels: map[string]string{"tier": "frontend"},
+	}
+	emptySpec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image: "nginx:latest",
+		},
+		Labels: map[string]string{},
+	}
+
+	assert.Equal(t, ContainerNeedsUpdate, EvalContainerSpecChange(currentSpec, newSpec))
+	assert.Equal(t, ContainerNeedsUpdate, EvalContainerSpecChange(newSpec, currentSpec))
+	assert.Equal(t, ContainerUpToDate, EvalContainerSpecChange(newSpec, newSpec))
+	assert.Equal(t, ContainerUpToDate, EvalContainerSpecChange(currentSpec, emptySpec))
+
+	// Changes that require recreating the container take precedence over the in-place update.
+	newSpecWithImage := newSpec.Clone()
+	newSpecWithImage.Container.Image = "nginx:alpine"
+	assert.Equal(t, ContainerNeedsRecreate, EvalContainerSpecChange(currentSpec, newSpecWithImage))
+}
+
+func TestEvalContainerChange(t *testing.T) {
+	t.Parallel()
+
+	spec := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:     "nginx:latest",
+			Resources: api.ContainerResources{CPU: api.Core, Memory: 256 * 1024 * 1024},
+		},
+	}
+	appliedSpec := container.Resources{NanoCPUs: api.Core, Memory: 256 * 1024 * 1024}
+
+	tests := []struct {
+		name       string
+		hostConfig *container.HostConfig
+		change     func(spec *api.ServiceSpec)
+		expected   ContainerSpecStatus
+	}{
+		{
+			name:       "applied limits match spec",
+			hostConfig: &container.HostConfig{Resources: appliedSpec},
+			change:     func(*api.ServiceSpec) {},
+			expected:   ContainerUpToDate,
+		},
+		{
+			name:     "unknown host config falls back to spec limits",
+			change:   func(*api.ServiceSpec) {},
+			expected: ContainerUpToDate,
+		},
+		{
+			name:       "applied memory limit drifted from spec",
+			hostConfig: &container.HostConfig{Resources: container.Resources{NanoCPUs: api.Core, Memory: 512 * 1024 * 1024}},
+			change:     func(*api.ServiceSpec) {},
+			expected:   ContainerNeedsUpdate,
+		},
+		{
+			name:       "applied limits already match new spec but stored spec doesn't",
+			hostConfig: &container.HostConfig{Resources: container.Resources{NanoCPUs: api.Core, Memory: 512 * 1024 * 1024}},
+			change:     func(spec *api.ServiceSpec) { spec.Container.Resources.Memory = 512 * 1024 * 1024 },
+			expected:   ContainerNeedsUpdate,
+		},
+		{
+			name: "applied limit not in spec can't be removed in place",
+			hostConfig: &container.HostConfig{Resources: container.Resources{
+				NanoCPUs: api.Core, Memory: 256 * 1024 * 1024, MemoryReservation: 128 * 1024 * 1024,
+			}},
+			change:   func(*api.ServiceSpec) {},
+			expected: ContainerNeedsRecreate,
+		},
+		{
+			name:       "spec change that requires recreating",
+			hostConfig: &container.HostConfig{Resources: appliedSpec},
+			change:     func(spec *api.ServiceSpec) { spec.Container.Image = "nginx:alpine" },
+			expected:   ContainerNeedsRecreate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			newSpec := spec.Clone()
+			tt.change(&newSpec)
+			assert.Equal(t, tt.expected, EvalContainerChange(serviceContainer(spec, tt.hostConfig), newSpec))
+		})
+	}
+}
+
+func TestContainerUpdateOptions(t *testing.T) {
+	t.Parallel()
+
+	current := api.ServiceSpec{
+		Container: api.ContainerSpec{
+			Image:     "nginx:latest",
+			Resources: api.ContainerResources{CPU: api.Core, Memory: 256 * 1024 * 1024},
+		},
+		Labels: map[string]string{"tier": "frontend"},
+	}
+	applied := &container.HostConfig{Resources: container.Resources{NanoCPUs: api.Core, Memory: 256 * 1024 * 1024}}
+
+	tests := []struct {
+		name       string
+		hostConfig *container.HostConfig
+		change     func(spec *api.ServiceSpec)
+		expected   api.UpdateContainerOptions
+	}{
+		{
+			name:       "no changes",
+			hostConfig: applied,
+			change:     func(*api.ServiceSpec) {},
+		},
+		{
+			name:       "CPU only",
+			hostConfig: applied,
+			change:     func(spec *api.ServiceSpec) { spec.Container.Resources.CPU = 2 * api.Core },
+			expected:   api.UpdateContainerOptions{CPU: new(int64(2 * api.Core))},
+		},
+		{
+			name:       "memory and reservation",
+			hostConfig: applied,
+			change: func(spec *api.ServiceSpec) {
+				spec.Container.Resources.Memory = 512 * 1024 * 1024
+				spec.Container.Resources.MemoryReservation = 128 * 1024 * 1024
+			},
+			expected: api.UpdateContainerOptions{
+				Memory:            new(int64(512 * 1024 * 1024)),
+				MemoryReservation: new(int64(128 * 1024 * 1024)),
+			},
+		},
+		{
+			name: "applied memory limit drifted from spec",
+			hostConfig: &container.HostConfig{Resources: container.Resources{
+				NanoCPUs: api.Core, Memory: 512 * 1024 * 1024,
+			}},
+			change:   func(*api.ServiceSpec) {},
+			expected: api.UpdateContainerOptions{Memory: new(int64(256 * 1024 * 1024))},
+		},
+		{
+			name: "applied memory limit already matches new spec",
+			hostConfig: &container.HostConfig{Resources: container.Resources{
+				NanoCPUs: api.Core, Memory: 512 * 1024 * 1024,
+			}},
+			change:   func(spec *api.ServiceSpec) { spec.Container.Resources.Memory = 512 * 1024 * 1024 },
+			expected: api.UpdateContainerOptions{Memory: new(int64(512 * 1024 * 1024))},
+		},
+		{
+			name:       "change service labels",
+			hostConfig: applied,
+			change:     func(spec *api.ServiceSpec) { spec.Labels = map[string]string{"tier": "backend"} },
+			expected:   api.UpdateContainerOptions{ServiceLabels: &map[string]string{"tier": "backend"}},
+		},
+		{
+			name:       "remove all service labels",
+			hostConfig: applied,
+			change:     func(spec *api.ServiceSpec) { spec.Labels = nil },
+			expected:   api.UpdateContainerOptions{ServiceLabels: &map[string]string{}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			newSpec := current.Clone()
+			tt.change(&newSpec)
+			assert.Equal(t, tt.expected, ContainerUpdateOptions(serviceContainer(current, tt.hostConfig), newSpec))
+		})
+	}
+}
+
+func serviceContainer(spec api.ServiceSpec, hostConfig *container.HostConfig) api.ServiceContainer {
+	return api.ServiceContainer{
+		Container: api.Container{InspectResponse: container.InspectResponse{
+			ContainerJSONBase: &container.ContainerJSONBase{HostConfig: hostConfig},
+		}},
+		ServiceSpec: spec,
+	}
+}
+
 func TestEvalContainerSpecChange_ContainerResources(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +344,7 @@ func TestEvalContainerSpecChange_ContainerResources(t *testing.T) {
 				CPU: 1000000000,
 			},
 			new:  api.ContainerResources{},
-			want: ContainerNeedsUpdate,
+			want: ContainerNeedsRecreate,
 		},
 
 		// Memory
@@ -189,19 +406,33 @@ func TestEvalContainerSpecChange_ContainerResources(t *testing.T) {
 			name:    "unset memory",
 			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
 			new:     api.ContainerResources{MemoryReservation: 50 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
+			want:    ContainerNeedsRecreate,
 		},
 		{
 			name:    "unset reservation",
 			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
 			new:     api.ContainerResources{Memory: 100 * 1024 * 1024},
-			want:    ContainerNeedsUpdate,
+			want:    ContainerNeedsRecreate,
 		},
 		{
 			name:    "unset memory and reservation",
 			current: api.ContainerResources{Memory: 100 * 1024 * 1024, MemoryReservation: 50 * 1024 * 1024},
 			new:     api.ContainerResources{},
-			want:    ContainerNeedsUpdate,
+			want:    ContainerNeedsRecreate,
+		},
+
+		// Shared memory
+		{
+			name:    "change shared memory",
+			current: api.ContainerResources{SharedMemory: 64 * 1024 * 1024},
+			new:     api.ContainerResources{SharedMemory: 128 * 1024 * 1024},
+			want:    ContainerNeedsRecreate,
+		},
+		{
+			name:    "change memory and shared memory",
+			current: api.ContainerResources{Memory: 100 * 1024 * 1024},
+			new:     api.ContainerResources{Memory: 200 * 1024 * 1024, SharedMemory: 64 * 1024 * 1024},
+			want:    ContainerNeedsRecreate,
 		},
 
 		// Memory and CPU

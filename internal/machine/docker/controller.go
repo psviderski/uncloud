@@ -132,6 +132,11 @@ func (c *Controller) WatchAndSyncContainers(ctx context.Context) error {
 			if err := c.syncContainersToStore(ctx); err != nil {
 				return fmt.Errorf("sync containers to cluster store: %w", err)
 			}
+		case <-c.service.ContainersChanged():
+			slog.Debug("Syncing containers to cluster store triggered by a container change in machine database.")
+			if err := c.syncContainersToStore(ctx); err != nil {
+				return fmt.Errorf("sync containers to cluster store: %w", err)
+			}
 		case <-ticker.C:
 			slog.Debug("Syncing containers to cluster store triggered by a regular interval.",
 				"interval", SyncInterval)

@@ -1761,6 +1761,90 @@ func TestServiceLifecycle(t *testing.T) {
 		require.ErrorIs(t, err, api.ErrNotFound)
 	})
 
+	t.Run("update container in place", func(t *testing.T) {
+		t.Parallel()
+
+		serviceID := newServiceID()
+		spec := api.ServiceSpec{
+			Name: "container-update",
+			Container: api.ContainerSpec{
+				Image: "portainer/pause:latest",
+				Resources: api.ContainerResources{
+					CPU:    100 * api.MilliCore,
+					Memory: 20 * units.MiB,
+				},
+			},
+			Labels: map[string]string{"tier": "frontend"},
+		}
+
+		ctr, err := cli.CreateContainer(ctx, serviceID, spec, c.Machines[0].Name)
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			err := cli.RemoveContainer(ctx, serviceID, ctr.ID, container.RemoveOptions{Force: true})
+			if !errors.Is(err, api.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		})
+
+		require.NoError(t, cli.StartContainer(ctx, serviceID, ctr.ID))
+
+		// Update the CPU and memory limits and replace the service labels.
+		err = cli.UpdateContainer(ctx, serviceID, ctr.ID, api.UpdateContainerOptions{
+			CPU:               new(int64(200 * api.MilliCore)),
+			Memory:            new(int64(40 * units.MiB)),
+			MemoryReservation: new(int64(10 * units.MiB)),
+			ServiceLabels:     &map[string]string{"tier": "backend"},
+		})
+		require.NoError(t, err)
+
+		spec.Container.Resources.CPU = 200 * api.MilliCore
+		spec.Container.Resources.Memory = 40 * units.MiB
+		spec.Container.Resources.MemoryReservation = 10 * units.MiB
+		spec.Labels = map[string]string{"tier": "backend"}
+
+		mc, err := cli.InspectContainer(ctx, serviceID, ctr.ID)
+		require.NoError(t, err)
+		assert.Equal(t, ctr.ID, mc.Container.ID, "Expected container to be updated in place")
+		assert.True(t, mc.Container.State.Running, "Expected container to keep running")
+		assertContainerMatchesSpec(t, mc.Container, spec)
+		assert.Equal(t, spec.Labels, mc.Container.ServiceSpec.Labels)
+		assert.EqualValues(t, 80*units.MiB, mc.Container.HostConfig.MemorySwap,
+			"Expected swap limit to be twice the memory limit")
+
+		// Remove all service labels and leave the limits unchanged.
+		err = cli.UpdateContainer(ctx, serviceID, ctr.ID, api.UpdateContainerOptions{
+			ServiceLabels: &map[string]string{},
+		})
+		require.NoError(t, err)
+		spec.Labels = nil
+
+		mc, err = cli.InspectContainer(ctx, serviceID, ctr.ID)
+		require.NoError(t, err)
+		assertContainerMatchesSpec(t, mc.Container, spec)
+		assert.Nil(t, mc.Container.ServiceSpec.Labels)
+
+		// A limit can't be removed without recreating the container.
+		err = cli.UpdateContainer(ctx, serviceID, ctr.ID, api.UpdateContainerOptions{Memory: new(int64(0))})
+		require.ErrorContains(t, err, "memory limit can't be removed")
+
+		mc, err = cli.InspectContainer(ctx, serviceID, ctr.ID)
+		require.NoError(t, err)
+		assertContainerMatchesSpec(t, mc.Container, spec)
+
+		// Reserved service labels are rejected.
+		err = cli.UpdateContainer(ctx, serviceID, ctr.ID, api.UpdateContainerOptions{
+			ServiceLabels: &map[string]string{api.LabelManaged: ""},
+		})
+		require.ErrorContains(t, err, "reserved prefix")
+
+		require.NoError(t, cli.RemoveContainer(ctx, serviceID, ctr.ID, container.RemoveOptions{Force: true}))
+		err = cli.UpdateContainer(ctx, serviceID, ctr.ID, api.UpdateContainerOptions{
+			ServiceLabels: &map[string]string{"tier": "frontend"},
+		})
+		require.ErrorIs(t, err, api.ErrNotFound)
+	})
+
 	t.Run("1 replica", func(t *testing.T) {
 		t.Parallel()
 

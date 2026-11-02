@@ -1,6 +1,8 @@
 package deploy
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
@@ -11,6 +13,7 @@ import (
 	"github.com/psviderski/uncloud/pkg/client/deploy/scheduler"
 	"github.com/psviderski/uncloud/pkg/client/operation"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDetermineUpdateOrder(t *testing.T) {
@@ -424,6 +427,121 @@ func TestReconcileGlobalContainer(t *testing.T) {
 	}
 }
 
+func TestRollingStrategy_Plan_UpdateInPlace(t *testing.T) {
+	t.Parallel()
+
+	state := &scheduler.ClusterState{
+		Machines: []*scheduler.Machine{
+			{Info: &pb.MachineInfo{Id: "m-1", Name: "machine-1"}},
+			{Info: &pb.MachineInfo{Id: "m-2", Name: "machine-2"}},
+		},
+	}
+	newContainer := func(id string, spec api.ServiceSpec) api.ServiceContainer {
+		ctr := newServiceContainer(id, container.State{Running: true, Status: "running"})
+		ctr.ServiceSpec = spec
+		return ctr
+	}
+
+	tests := []struct {
+		name   string
+		change func(spec *api.ServiceSpec)
+		// options are the expected in-place update options. Nil means the containers must be recreated.
+		options *api.UpdateContainerOptions
+	}{
+		{
+			name:    "service labels",
+			change:  func(spec *api.ServiceSpec) { spec.Labels = map[string]string{"tier": "backend"} },
+			options: &api.UpdateContainerOptions{ServiceLabels: &map[string]string{"tier": "backend"}},
+		},
+		{
+			name: "CPU and memory limits",
+			change: func(spec *api.ServiceSpec) {
+				spec.Container.Resources.CPU = 2 * api.Core
+				spec.Container.Resources.Memory = 512 * 1024 * 1024
+			},
+			options: &api.UpdateContainerOptions{
+				CPU:    new(int64(2 * api.Core)),
+				Memory: new(int64(512 * 1024 * 1024)),
+			},
+		},
+		{
+			name:   "remove memory limit",
+			change: func(spec *api.ServiceSpec) { spec.Container.Resources.Memory = 0 },
+		},
+	}
+
+	for _, tt := range tests {
+		for _, mode := range []string{api.ServiceModeReplicated, api.ServiceModeGlobal} {
+			t.Run(tt.name+"/"+mode, func(t *testing.T) {
+				currentSpec := api.ServiceSpec{
+					Name: "app",
+					Mode: mode,
+					Container: api.ContainerSpec{
+						Image: "nginx:latest",
+						Resources: api.ContainerResources{
+							CPU:    api.Core,
+							Memory: 256 * 1024 * 1024,
+						},
+					},
+					Labels:    map[string]string{"tier": "frontend"},
+					PreDeploy: &api.PreDeployHook{Command: []string{"db", "migrate"}},
+				}
+				if mode == api.ServiceModeReplicated {
+					currentSpec.Replicas = 2
+				}
+				newSpec := currentSpec.Clone()
+				tt.change(&newSpec)
+
+				ctr1 := newContainer("container-1", currentSpec)
+				ctr2 := newContainer("container-2", currentSpec)
+				svc := &api.Service{
+					ID:   "svc-1",
+					Name: "app",
+					Mode: mode,
+					Containers: []api.MachineServiceContainer{
+						{MachineID: "m-1", MachineName: "machine-1", Container: ctr1},
+						{MachineID: "m-2", MachineName: "machine-2", Container: ctr2},
+					},
+				}
+
+				plan, err := (&RollingStrategy{}).Plan(state, svc, newSpec)
+				require.NoError(t, err)
+
+				if tt.options == nil {
+					require.NotEmpty(t, plan.Operations)
+					for _, op := range plan.Operations {
+						_, isUpdate := op.(*operation.UpdateContainerOperation)
+						assert.False(t, isUpdate, "Expected containers to be recreated, got %s", op)
+					}
+					return
+				}
+				// The replicated strategy shuffles machines so sort the operations to compare them deterministically.
+				ops := slices.Clone(plan.Operations)
+				slices.SortFunc(ops, func(a, b operation.Operation) int {
+					return strings.Compare(a.String(), b.String())
+				})
+				// The containers are updated in place and the pre-deploy hook is not run.
+				assertOperationsEqual(t, []operation.Operation{
+					&operation.UpdateContainerOperation{
+						ServiceID:   "svc-1",
+						MachineID:   "m-1",
+						MachineName: "machine-1",
+						Container:   ctr1,
+						Options:     *tt.options,
+					},
+					&operation.UpdateContainerOperation{
+						ServiceID:   "svc-1",
+						MachineID:   "m-2",
+						MachineName: "machine-2",
+						Container:   ctr2,
+						Options:     *tt.options,
+					},
+				}, ops)
+			})
+		}
+	}
+}
+
 func TestPreDeployOperations(t *testing.T) {
 	hook := &api.PreDeployHook{
 		Command: []string{"db", "migrate"},
@@ -501,6 +619,20 @@ func TestPreDeployOperations(t *testing.T) {
 					MachineName: "machine-2",
 				},
 			},
+		},
+		{
+			name: "plan has only UpdateContainerOperation",
+			plan: ServicePlan{
+				ServiceID:   "svc-1",
+				ServiceName: "app",
+				Spec:        api.ServiceSpec{PreDeploy: hook},
+				SequenceOperation: operation.SequenceOperation{
+					Operations: []operation.Operation{
+						&operation.UpdateContainerOperation{MachineID: "m-1", MachineName: "machine-1"},
+					},
+				},
+			},
+			expected: nil,
 		},
 		{
 			name: "plan has only RemoveContainerOperation",
@@ -614,7 +746,8 @@ func TestPreDeployOperations(t *testing.T) {
 			},
 			svc: &api.Service{
 				HookContainers: []api.MachineServiceContainer{
-					{MachineID: "m-1", Container: newServiceContainer("stopped-hook", container.State{Status: "exited"})},
+					{MachineID: "m-1", Container: newServiceContainer("stopped-hook",
+						container.State{Status: "exited"})},
 					{MachineID: "m-1", Container: runningHook1},
 					{MachineID: "m-3", Container: runningHook2},
 				},
@@ -660,6 +793,7 @@ func newServiceContainer(id string, state container.State) api.ServiceContainer 
 				ID:    id,
 				State: &state,
 			},
+			Config: &container.Config{},
 		},
 	}}
 }

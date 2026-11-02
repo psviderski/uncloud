@@ -875,6 +875,81 @@ services:
 	}
 }
 
+func TestServiceSpecFromCompose_Labels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		composeYAML             string
+		expectedContainerLabels map[string]string
+		expectedServiceLabels   map[string]string
+	}{
+		{
+			name: "no labels",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+`,
+		},
+		{
+			name: "container labels as list",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    labels:
+      - com.example.team=web
+      - com.example.empty
+`,
+			expectedContainerLabels: map[string]string{
+				"com.example.team":  "web",
+				"com.example.empty": "",
+			},
+		},
+		{
+			name: "container and service labels as maps",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    labels:
+      com.example.team: web
+    deploy:
+      labels:
+        tier: frontend
+`,
+			expectedContainerLabels: map[string]string{"com.example.team": "web"},
+			expectedServiceLabels:   map[string]string{"tier": "frontend"},
+		},
+		{
+			name: "service labels only",
+			composeYAML: `
+services:
+  web:
+    image: nginx
+    deploy:
+      labels:
+        - tier=frontend
+`,
+			expectedServiceLabels: map[string]string{"tier": "frontend"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "web")
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedContainerLabels, spec.Container.Labels)
+			assert.Equal(t, tt.expectedServiceLabels, spec.Labels)
+		})
+	}
+}
+
 func TestServiceSpecFromCompose_UpdateConfig(t *testing.T) {
 	t.Parallel()
 

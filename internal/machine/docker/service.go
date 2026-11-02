@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
@@ -34,6 +35,9 @@ type Service struct {
 	Client client.APIClient
 	// db is a connection to the machine database.
 	db *sqlx.DB
+	// containersChanged signals that service containers changed in the machine database without a corresponding
+	// Docker event, for example, when a container spec is updated in place.
+	containersChanged chan struct{}
 }
 
 // NewService creates a new Docker service instance.
@@ -41,7 +45,24 @@ func NewService(client client.APIClient, db *sqlx.DB) *Service {
 	return &Service{
 		Client: client,
 		db:     db,
+		// Buffering as a pending signal is enough for the consumer to pick up all changes made before it reacts.
+		containersChanged: make(chan struct{}, 1),
 	}
+}
+
+// NotifyContainersChanged signals that service containers changed in the machine database. It doesn't block
+// if a signal is already pending.
+func (s *Service) NotifyContainersChanged() {
+	select {
+	case s.containersChanged <- struct{}{}:
+	default:
+	}
+}
+
+// ContainersChanged returns a channel that receives a signal when service containers change in the machine database
+// without a corresponding Docker event.
+func (s *Service) ContainersChanged() <-chan struct{} {
+	return s.containersChanged
 }
 
 // WatchDaemonRestart watches the Docker engine and signals on the returned channel whenever the daemon
@@ -139,6 +160,90 @@ func (s *Service) InspectServiceContainer(ctx context.Context, nameOrID string) 
 	}
 
 	return serviceCtr, nil
+}
+
+// UpdateServiceContainer updates the requested properties of a service container in place without recreating it.
+// It applies the CPU and memory limits to the container and updates the service spec stored for the container.
+func (s *Service) UpdateServiceContainer(ctx context.Context, id string, opts api.UpdateContainerOptions) error {
+	if opts.ServiceLabels != nil {
+		if err := api.ValidateLabels(*opts.ServiceLabels); err != nil {
+			return errdefs.ErrInvalidArgument.WithMessage(fmt.Sprintf("invalid service labels: %v", err))
+		}
+	}
+
+	ctr, err := s.InspectServiceContainer(ctx, id)
+	if err != nil {
+		return err
+	}
+	spec := ctr.ServiceSpec
+
+	resources := spec.Container.Resources
+	if opts.CPU != nil {
+		resources.CPU = *opts.CPU
+	}
+	if opts.Memory != nil {
+		resources.Memory = *opts.Memory
+	}
+	if opts.MemoryReservation != nil {
+		resources.MemoryReservation = *opts.MemoryReservation
+	}
+	if resources.CPU < 0 || resources.Memory < 0 || resources.MemoryReservation < 0 {
+		return errdefs.ErrInvalidArgument.WithMessage("CPU and memory limits must not be negative")
+	}
+	// Compare with the limits Docker applies to the container rather than the stored spec. They may differ if
+	// a previous update applied the limits but failed to store the spec, or the container was updated outside
+	// of Uncloud.
+	applied := ctr.AppliedResources()
+	if err = applied.ValidateUpdateInPlace(resources); err != nil {
+		return errdefs.ErrFailedPrecondition.WithMessage(
+			fmt.Sprintf("container '%s' can't be updated without recreating it: %v", ctr.ID, err))
+	}
+
+	// Only CPU and memory limits can differ after the in-place update check above.
+	if !applied.Equals(resources) {
+		updateResources := container.Resources{
+			NanoCPUs:          resources.CPU,
+			Memory:            resources.Memory,
+			MemoryReservation: resources.MemoryReservation,
+		}
+		// Docker defaults the swap limit to twice the memory limit when creating a container and rejects raising
+		// the memory limit above the current swap limit, so update both to keep the same semantics.
+		if resources.Memory > 0 {
+			updateResources.MemorySwap = 2 * resources.Memory
+		}
+		if _, err = s.Client.ContainerUpdate(ctx, ctr.ID, container.UpdateConfig{
+			Resources: updateResources,
+		}); err != nil {
+			return fmt.Errorf("update container resources: %w", err)
+		}
+	}
+	spec.Container.Resources = resources
+
+	if opts.ServiceLabels != nil {
+		spec.Labels = nil
+		if len(*opts.ServiceLabels) > 0 {
+			spec.Labels = *opts.ServiceLabels
+		}
+	}
+
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("marshal service spec: %w", err)
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE containers SET service_spec = $1, updated_at = datetime('subsecond') WHERE id = $2`,
+		string(specBytes), ctr.ID)
+	if err != nil {
+		return fmt.Errorf("update container in database: %w", err)
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return errdefs.ErrNotFound.WithMessage(fmt.Sprintf("container '%s' not found in machine database", ctr.ID))
+	}
+
+	// Propagate the updated spec to the cluster store without waiting for the next regular sync.
+	s.NotifyContainersChanged()
+
+	return nil
 }
 
 // ListServiceContainersResult holds the result of listing service containers, split into regular

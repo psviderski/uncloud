@@ -10,16 +10,16 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 
 :::
 
-| Feature                          | Support Status     | Notes                                                                                                                                      |
-|----------------------------------|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| **Services**                     |                    |                                                                                                                                            |
+| Feature                          | Support Status      | Notes                                                                                                                                      |
+|----------------------------------|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| **Services**                     |                     |                                                                                                                                            |
 | `build`                          | ✅ Supported        | Build context and Dockerfile                                                                                                               |
 | `cap_add`                        | ✅ Supported        | Additional kernel [capabilities](https://man7.org/linux/man-pages/man7/capabilities.7.html)                                                |
 | `cap_drop`                       | ✅ Supported        | Which kernel [capabilities](https://man7.org/linux/man-pages/man7/capabilities.7.html) to drop                                             |
 | `command`                        | ✅ Supported        | Override container command                                                                                                                 |
 | `configs`                        | ✅ Supported        | File-based and inline configs                                                                                                              |
 | `cpus`                           | ✅ Supported        | CPU limit                                                                                                                                  |
-| `depends_on`                     | ⚠️ Limited         | Deployed in dependency order. Use [pre-deploy hooks](../4-guides/1-deployments/5-pre-deploy-hooks.md) for `service_completed_successfully` |
+| `depends_on`                     | ⚠️ Limited          | Deployed in dependency order. Use [pre-deploy hooks](../4-guides/1-deployments/5-pre-deploy-hooks.md) for `service_completed_successfully` |
 | `devices`                        | ✅ Supported        | Device mappings                                                                                                                            |
 | `dns`                            | ❌ Not supported    | Built-in service discovery                                                                                                                 |
 | `dns_search`                     | ❌ Not supported    | Built-in service discovery                                                                                                                 |
@@ -30,7 +30,7 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `healthcheck`                    | ✅ Supported        | Health check configuration                                                                                                                 |
 | `image`                          | ✅ Supported        | Container image specification                                                                                                              |
 | `init`                           | ✅ Supported        | Run init process in container                                                                                                              |
-| `labels`                         | ❌ Not supported    |                                                                                                                                            |
+| `labels`                         | ✅ Supported        | Docker labels on containers                                                                                                                |
 | `links`                          | ❌ Not supported    | Use service names for communication                                                                                                        |
 | `logging`                        | ✅ Supported        | Defaults to [local](https://docs.docker.com/engine/logging/drivers/local/) log driver                                                      |
 | `mem_limit`                      | ✅ Supported        | Memory limit                                                                                                                               |
@@ -39,10 +39,10 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `memswap_limit`                  | ❌ Not supported    |                                                                                                                                            |
 | `networks`                       | ❌ Not supported    | All containers share cluster network                                                                                                       |
 | `pid`                            | ✅ Supported        | Set the PID namespace mode, `pid: host` only                                                                                               |
-| `ports`                          | ⚠️ Limited         | `mode: host` only, use [`x-ports`](2-extensions.md#x-ports) for HTTP/HTTPS                                                                 |
+| `ports`                          | ⚠️ Limited          | `mode: host` only, use [`x-ports`](2-extensions.md#x-ports) for HTTP/HTTPS                                                                 |
 | `privileged`                     | ✅ Supported        | Run containers in privileged mode                                                                                                          |
 | `pull_policy`                    | ✅ Supported        | `always`, `missing`, `never`                                                                                                               |
-| `secrets`                        | ⚠️ Limited         | Reference secrets in `environment`, see [Secrets](../3-concepts/8-secrets.md). File mounts not supported                                   |
+| `secrets`                        | ⚠️ Limited          | Reference secrets in `environment`, see [Secrets](../3-concepts/8-secrets.md). File mounts not supported                                   |
 | `security_opt`                   | ❌ Not supported    |                                                                                                                                            |
 | `shm_size`                       | ✅ Supported        | Shared memory size                                                                                                                         |
 | `stdin_open`                     | ✅ Supported        | Allocate standard input and keep it open                                                                                                   |
@@ -53,28 +53,28 @@ If you rely on a specific Compose feature that is not supported by Uncloud, plea
 | `ulimits`                        | ✅ Supported        | Resource limits                                                                                                                            |
 | `user`                           | ✅ Supported        | Set container user                                                                                                                         |
 | `volumes`                        | ✅ Supported        | Named volumes, bind mounts, tmpfs                                                                                                          |
-| **Deploy**                       |                    |                                                                                                                                            |
-| `labels`                         | ❌ Not supported    |                                                                                                                                            |
+| **Deploy**                       |                     |                                                                                                                                            |
+| `labels`                         | ✅ Supported        | Service labels, not applied to containers. Use `services.<name>.labels` to set Docker labels on containers                                 |
 | `mode`                           | ✅ Supported        | Either `global` or `replicated`                                                                                                            |
 | `placement`                      | ❌ Not supported    | Use [`x-machines`](2-extensions.md#x-machines) extension                                                                                   |
 | `replicas`                       | ✅ Supported        | Number of container replicas                                                                                                               |
-| `resources`                      | ⚠️ Limited         | CPU, memory limits and device reservations                                                                                                 |
+| `resources`                      | ⚠️ Limited          | CPU, memory limits and device reservations                                                                                                 |
 | `restart_policy`                 | ❌ Not supported    | Defaults to `unless-stopped`                                                                                                               |
 | `rollback_config`                | ❌ Not supported    | See [#151](https://github.com/psviderski/uncloud/issues/151)                                                                               |
-| `update_config`                  | ⚠️ Limited         | `order` and `monitor` supported. See [rolling deployments](../4-guides/1-deployments/4-rolling-deployments.md)                             |
-| **Volumes**                      |                    |                                                                                                                                            |
+| `update_config`                  | ⚠️ Limited          | `order` and `monitor` supported. See [rolling deployments](../4-guides/1-deployments/4-rolling-deployments.md)                             |
+| **Volumes**                      |                     |                                                                                                                                            |
 | Named volumes                    | ✅ Supported        | Docker volumes                                                                                                                             |
 | Bind mounts                      | ✅ Supported        | Host path binding with optional [runtime templates](../3-concepts/6-services/3-runtime-templates.md)                                       |
 | Tmpfs mounts                     | ✅ Supported        | In-memory filesystems                                                                                                                      |
 | Volume labels                    | ✅ Supported        | Custom labels                                                                                                                              |
 | External volumes                 | ✅ Supported        | Must exist before deployment                                                                                                               |
 | [Volume drivers][volume-drivers] | ✅ Supported        | `local` (supports [NFS][volume-nfs], [CIFS/Samba][volume-cifs]) and manually installed third-party drivers                                 |
-| **Configs**                      |                    |                                                                                                                                            |
+| **Configs**                      |                     |                                                                                                                                            |
 | File-based configs               | ✅ Supported        | Read from file                                                                                                                             |
 | Inline configs                   | ✅ Supported        | Defined in compose file                                                                                                                    |
 | External configs                 | ❌ Not supported    | Not supported                                                                                                                              |
 | Short syntax                     | ❌ Not supported    | Use long syntax only                                                                                                                       |
-| **Extensions**                   |                    |                                                                                                                                            |
+| **Extensions**                   |                     |                                                                                                                                            |
 | `x-context`                      | ✅ Uncloud-specific | Cluster context override                                                                                                                   |
 | `x-caddy`                        | ✅ Uncloud-specific | Custom Caddy configuration                                                                                                                 |
 | `x-machines`                     | ✅ Uncloud-specific | Machine placement constraints                                                                                                              |

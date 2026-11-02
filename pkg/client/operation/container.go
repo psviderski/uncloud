@@ -285,6 +285,39 @@ func (o *ReplaceContainerOperation) String() string {
 		o.MachineID, o.ServiceID, o.OldContainer.ID, o.Order)
 }
 
+// UpdateContainerOperation updates the requested properties of a running container in place without recreating it.
+type UpdateContainerOperation struct {
+	ServiceID string
+	MachineID string
+	// MachineName is used for formatting the operation as part of the deployment plan.
+	MachineName string
+	Container   api.ServiceContainer
+	Options     api.UpdateContainerOptions
+}
+
+func (o *UpdateContainerOperation) Execute(ctx context.Context, cli Client) error {
+	if err := cli.UpdateContainer(ctx, o.ServiceID, o.Container.ID, o.Options); err != nil {
+		return fmt.Errorf("update container: %w", err)
+	}
+	return nil
+}
+
+func (o *UpdateContainerOperation) Format() string {
+	displayName := o.Container.ServiceSpec.Name + tui.Faint.Render("/") + o.Container.ShortID()
+
+	return tui.BoldYellow.Render("~") + "   " +
+		tui.Faint.Render("update container") + " " +
+		displayName + " " +
+		tui.Faint.Render("on") + " " +
+		o.MachineName + " " +
+		tui.Faint.Render("(in place)")
+}
+
+func (o *UpdateContainerOperation) String() string {
+	return fmt.Sprintf("UpdateContainerOperation[machine_id=%s service_id=%s container_id=%s]",
+		o.MachineID, o.ServiceID, o.Container.ID)
+}
+
 // stopOptions converts a stop grace period duration to Docker container stop options.
 func stopOptions(gracePeriod *time.Duration) container.StopOptions {
 	if gracePeriod == nil {

@@ -32,6 +32,8 @@ service Docker {
 
   rpc CreateServiceContainer(CreateServiceContainerRequest) returns (CreateContainerResponse);
   rpc InspectServiceContainer(InspectContainerRequest) returns (ServiceContainer);
+  // UpdateServiceContainer updates the requested properties of a service container in place without recreating it.
+  rpc UpdateServiceContainer(UpdateServiceContainerRequest) returns (google.protobuf.Empty);
   rpc ListServiceContainers(ListServiceContainersRequest) returns (ListServiceContainersResponse);
   rpc RemoveServiceContainer(RemoveContainerRequest) returns (google.protobuf.Empty);
 }
@@ -279,6 +281,23 @@ message ServiceContainer {
   bytes container = 1;
   // JSON serialised api.ServiceSpec.
   bytes service_spec = 2;
+}
+
+message UpdateServiceContainerRequest {
+  string id = 1;
+  // Fields that are not set are left unchanged. CPU and memory limits can be changed but not removed.
+  // CPU limit in nanocores.
+  optional int64 cpu = 2;
+  // Memory limit in bytes.
+  optional int64 memory = 3;
+  // Memory reservation in bytes.
+  optional int64 memory_reservation = 4;
+  // Service labels that replace all current service labels.
+  Labels service_labels = 5;
+}
+
+message Labels {
+  map<string, string> labels = 1;
 }
 
 message ListServiceContainersRequest {

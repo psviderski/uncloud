@@ -92,7 +92,7 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 
 	// Organise existing containers by machine.
 	containersOnMachine := make(map[string][]api.ServiceContainer)
-	upToDateContainersOnMachine := make(map[string]int)
+	reusableContainersOnMachine := make(map[string]int)
 	containerSpecStatuses := make(map[string]ContainerSpecStatus)
 	if svc != nil {
 		for _, c := range svc.Containers {
@@ -105,40 +105,50 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 			if s.ForceRecreate {
 				status = ContainerNeedsRecreate
 			} else {
-				status = EvalContainerSpecChange(c.Container.ServiceSpec, spec)
+				status = EvalContainerChange(c.Container, spec)
 			}
 			containerSpecStatuses[c.Container.ID] = status
 
-			if status == ContainerUpToDate {
-				upToDateContainersOnMachine[c.MachineID] += 1
+			if status != ContainerNeedsRecreate {
+				reusableContainersOnMachine[c.MachineID] += 1
 			}
 		}
 
-		// Sort containers such that running containers with the desired spec are first.
+		// Sort containers such that running containers with the desired spec or that can be updated in place to
+		// the desired spec are first.
+		// TODO: consider ranking up-to-date containers above ones that need an in-place update (here, when sorting
+		//  machines, and in reconcileGlobalContainer) to avoid updating a container while removing an up-to-date one.
+		isReusable := func(c api.MachineServiceContainer) bool {
+			// Not running containers have no status.
+			status, ok := containerSpecStatuses[c.Container.ID]
+			return ok && status != ContainerNeedsRecreate
+		}
 		slices.SortFunc(svc.Containers, func(c1, c2 api.MachineServiceContainer) int {
-			if status, ok := containerSpecStatuses[c1.Container.ID]; ok && status == ContainerUpToDate {
+			r1, r2 := isReusable(c1), isReusable(c2)
+			switch {
+			case r1 == r2:
+				return 0
+			case r1:
 				return -1
-			}
-			if status, ok := containerSpecStatuses[c2.Container.ID]; ok && status == ContainerUpToDate {
+			default:
 				return 1
 			}
-			return 0
 		})
 
 		for _, c := range svc.Containers {
 			containersOnMachine[c.MachineID] = append(containersOnMachine[c.MachineID], c.Container)
 		}
 
-		// Sort machines such that machines with the most up-to-date containers are first, followed by machines with
-		// existing containers, and finally machines without containers.
+		// Sort machines such that machines with the most containers that are up to date or can be updated in place
+		// are first, followed by machines with existing containers, and finally machines without containers.
 		slices.SortFunc(matchedMachines, func(m1, m2 *pb.MachineInfo) int {
-			if upToDateContainersOnMachine[m1.Id] > 0 && upToDateContainersOnMachine[m2.Id] > 0 {
-				return upToDateContainersOnMachine[m2.Id] - upToDateContainersOnMachine[m1.Id]
+			if reusableContainersOnMachine[m1.Id] > 0 && reusableContainersOnMachine[m2.Id] > 0 {
+				return reusableContainersOnMachine[m2.Id] - reusableContainersOnMachine[m1.Id]
 			}
-			if upToDateContainersOnMachine[m1.Id] > 0 {
+			if reusableContainersOnMachine[m1.Id] > 0 {
 				return -1
 			}
-			if upToDateContainersOnMachine[m2.Id] > 0 {
+			if reusableContainersOnMachine[m2.Id] > 0 {
 				return 1
 			}
 			return len(containersOnMachine[m2.Id]) - len(containersOnMachine[m1.Id])
@@ -170,7 +180,16 @@ func (s *RollingStrategy) planReplicated(svc *api.Service, spec api.ServiceSpec)
 			if status == ContainerUpToDate {
 				continue
 			}
-			// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
+			if status == ContainerNeedsUpdate {
+				plan.Operations = append(plan.Operations, &operation.UpdateContainerOperation{
+					ServiceID:   plan.ServiceID,
+					MachineID:   m.Id,
+					MachineName: m.Name,
+					Container:   ctr,
+					Options:     ContainerUpdateOptions(ctr, spec),
+				})
+				continue
+			}
 		}
 
 		// Replace the old container with a new one.
@@ -301,7 +320,7 @@ func reconcileGlobalContainer(
 	}
 
 	// Check if there is a container with the same spec already running. If so, remove the rest.
-	upToDate := false
+	reused := false
 	for i, c := range containers {
 		if !c.Container.State.Running || c.Container.State.Paused {
 			// Skip containers that are not running.
@@ -312,12 +331,21 @@ func reconcileGlobalContainer(
 		if forceRecreate {
 			status = ContainerNeedsRecreate
 		} else {
-			status = EvalContainerSpecChange(c.Container.ServiceSpec, spec)
+			status = EvalContainerChange(c.Container, spec)
 		}
 
-		if status == ContainerUpToDate {
-			// The container is already running with the same spec.
-			upToDate = true
+		if status != ContainerNeedsRecreate {
+			// The container is already running with the desired spec or can be updated in place to it.
+			reused = true
+			if status == ContainerNeedsUpdate {
+				ops = append(ops, &operation.UpdateContainerOperation{
+					ServiceID:   serviceID,
+					MachineID:   machine.Id,
+					MachineName: machine.Name,
+					Container:   c.Container,
+					Options:     ContainerUpdateOptions(c.Container, spec),
+				})
+			}
 			for j, old := range containers {
 				if i == j {
 					continue
@@ -331,10 +359,8 @@ func reconcileGlobalContainer(
 			}
 			break
 		}
-		// TODO: handle ContainerNeedsUpdate when update of mutable fields on a container is supported.
-		//  Make sure to update preDeployOperation accordingly.
 	}
-	if upToDate {
+	if reused {
 		return ops, nil
 	}
 
