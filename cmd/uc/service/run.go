@@ -21,13 +21,16 @@ import (
 type runOptions struct {
 	caddyfile         string
 	command           []string
+	containerLabels   []string
 	cpu               dockeropts.NanoCPUs
 	entrypoint        string
 	entrypointChanged bool
 	env               []string
 	image             string
+	labels            []string
 	machines          []string
 	memory            dockeropts.MemBytes
+	memoryReservation dockeropts.MemBytes
 	mode              string
 	shmSize           dockeropts.MemBytes
 	name              string
@@ -64,6 +67,9 @@ func NewRunCommand(groupID string) *cobra.Command {
 	cmd.Flags().StringVar(&opts.caddyfile, "caddyfile", "",
 		"Path to a custom Caddy config (Caddyfile) for the service. "+
 			"Cannot be used together with non-@host published ports.")
+	cmd.Flags().StringArrayVar(&opts.containerLabels, "container-label", nil,
+		"Set a Docker label on service containers. Can be specified multiple times.\n"+
+			"Format: key=value or just key for an empty value.")
 	cmd.Flags().VarP(&opts.cpu, "cpu", "",
 		"Maximum number of CPU cores a service container can use. Fractional values are allowed: "+
 			"0.5 for half a core or 2.25 for two and a quarter cores.")
@@ -72,6 +78,9 @@ func NewRunCommand(groupID string) *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.env, "env", "e", nil,
 		"Set an environment variable for service containers. Can be specified multiple times.\n"+
 			"Format: VAR=value or just VAR to use the value from the local environment.")
+	cmd.Flags().StringArrayVarP(&opts.labels, "label", "l", nil,
+		"Set a service label. Service labels aren't applied to Docker containers, use --container-label for that.\n"+
+			"Can be specified multiple times. Format: key=value or just key for an empty value.")
 	cmd.Flags().StringVar(&opts.mode, "mode", api.ServiceModeReplicated,
 		fmt.Sprintf("Replication mode of the service: either '%s' (a specified number of containers across "+
 			"the machines) or '%s' (one container on every machine).",
@@ -83,6 +92,9 @@ func NewRunCommand(groupID string) *cobra.Command {
 		"Maximum amount of memory a service container can use. Value is a positive integer with optional unit suffix (b, k, m, g).\n"+
 			"Default unit is bytes if no suffix specified.\n"+
 			"Examples: 1073741824, 1024m, 1g (all equal 1 gibibyte)")
+	cmd.Flags().Var(&opts.memoryReservation, "memory-reservation",
+		"Minimum amount of memory reserved for a service container. Value is a positive integer with optional unit suffix (b, k, m, g).\n"+
+			"Default unit is bytes if no suffix specified.")
 	cmd.Flags().VarP(&opts.shmSize, "shm-size", "",
 		"Maximum amount of shared memory (mounted at /dev/shm) a service container can use. Value is a positive integer\n"+
 			"with optional unit suffix (b, k, m, g). Default unit is bytes if no suffix specified.\n"+
@@ -192,6 +204,15 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 		return spec, err
 	}
 
+	labels, err := parseLabels(opts.labels)
+	if err != nil {
+		return spec, err
+	}
+	containerLabels, err := parseLabels(opts.containerLabels)
+	if err != nil {
+		return spec, err
+	}
+
 	switch opts.mode {
 	case api.ServiceModeReplicated, api.ServiceModeGlobal:
 	default:
@@ -232,17 +253,20 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 			Command:    opts.command,
 			Env:        env,
 			Image:      opts.image,
+			Labels:     containerLabels,
 			Privileged: opts.privileged,
 			PullPolicy: opts.pull,
 			Resources: api.ContainerResources{
-				CPU:          opts.cpu.Value(),
-				Memory:       opts.memory.Value(),
-				SharedMemory: opts.shmSize.Value(),
-				Ulimits:      ulimits,
+				CPU:               opts.cpu.Value(),
+				Memory:            opts.memory.Value(),
+				MemoryReservation: opts.memoryReservation.Value(),
+				SharedMemory:      opts.shmSize.Value(),
+				Ulimits:           ulimits,
 			},
 			User:         opts.user,
 			VolumeMounts: mounts,
 		},
+		Labels:    labels,
 		Mode:      opts.mode,
 		Name:      opts.name,
 		Placement: placement,
@@ -299,6 +323,24 @@ func parseEnv(env []string) (api.EnvVars, error) {
 	}
 
 	return envVars, nil
+}
+
+// parseLabels parses labels from the command line arguments in the format "key=value" or just "key" for an empty value.
+func parseLabels(labels []string) (map[string]string, error) {
+	if len(labels) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]string, len(labels))
+	for _, label := range labels {
+		key, value, _ := strings.Cut(label, "=")
+		if strings.TrimSpace(key) == "" {
+			return nil, fmt.Errorf("invalid label '%s': key must not be empty", label)
+		}
+		result[key] = value
+	}
+
+	return result, nil
 }
 
 // parseVolumeFlags parses volume flag values in Docker CLI format and returns VolumeSpecs and VolumeMounts.

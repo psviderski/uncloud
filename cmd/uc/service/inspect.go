@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -58,6 +59,16 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 	fmt.Printf("Service ID: %s\n", svc.ID)
 	fmt.Printf("Name:       %s\n", svc.Name)
 	fmt.Printf("Mode:       %s\n", svc.Mode)
+
+	spec := svc.Spec()
+	if len(spec.Labels) > 0 {
+		fmt.Println("Labels:")
+		printLabels(spec.Labels)
+	}
+	if len(spec.Container.Labels) > 0 {
+		fmt.Println("Container labels:")
+		printLabels(spec.Container.Labels)
+	}
 	fmt.Println()
 
 	// Combine regular and hook containers.
@@ -129,4 +140,11 @@ func inspect(ctx context.Context, uncli *cli.CLI, opts inspectOptions) error {
 
 	lipgloss.Println(t)
 	return nil
+}
+
+// printLabels prints the labels sorted by key followed by a blank line.
+func printLabels(labels map[string]string) {
+	for _, key := range slices.Sorted(maps.Keys(labels)) {
+		lipgloss.Println("  " + key + tui.Faint.Render("=") + labels[key])
+	}
 }

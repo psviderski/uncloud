@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/distribution/reference"
@@ -443,11 +444,15 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	return spec
 }
 
-// ValidateLabels checks that label keys are non-empty and don't use the reserved Uncloud prefixes.
+// ValidateLabels checks that label keys are non-empty, don't contain whitespace, and don't use the reserved Uncloud
+// prefixes.
 func ValidateLabels(labels map[string]string) error {
 	for k := range labels {
 		if strings.TrimSpace(k) == "" {
 			return fmt.Errorf("label key must not be empty")
+		}
+		if strings.ContainsFunc(k, unicode.IsSpace) {
+			return fmt.Errorf("label '%s' must not contain whitespace", k)
 		}
 		if strings.HasPrefix(k, LabelReservedPrefix) || strings.HasPrefix(k, LabelDaemonReservedPrefix) {
 			return fmt.Errorf("label '%s' cannot use the reserved prefix '%s' or '%s'",
