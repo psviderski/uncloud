@@ -363,6 +363,7 @@ func TestReconcileGlobalContainer(t *testing.T) {
 			expectedOps: []operation.Operation{
 				&operation.StopContainerOperation{
 					ServiceID:   "service-1",
+					ServiceName: container2WithPort9090.ServiceSpec.Name,
 					ContainerID: "container-2",
 					MachineID:   "machine-1",
 					MachineName: "machine-1",

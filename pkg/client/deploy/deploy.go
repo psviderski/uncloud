@@ -195,8 +195,8 @@ func (sp *ServicePlan) FormatSummary() string {
 			machines[o.MachineID] = struct{}{}
 			removeCount++
 		case *operation.StopContainerOperation:
+			// Stop operations aren't counted because a later operation in the plan removes the stopped container.
 			machines[o.MachineID] = struct{}{}
-			removeCount++
 		}
 	}
 

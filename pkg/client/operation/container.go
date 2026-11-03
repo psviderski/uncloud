@@ -82,7 +82,9 @@ func (o *RunContainerOperation) String() string {
 
 // StopContainerOperation stops a container on a specific machine.
 type StopContainerOperation struct {
-	ServiceID   string
+	ServiceID string
+	// ServiceName is used for formatting the operation as part of the deployment plan.
+	ServiceName string
 	ContainerID string
 	MachineID   string
 	// MachineName is used for formatting the operation as part of the deployment plan.
@@ -98,8 +100,7 @@ func (o *StopContainerOperation) Execute(ctx context.Context, cli Client) error 
 }
 
 func (o *StopContainerOperation) Format() string {
-	// TODO: pass service name to format the display name consistently with other operations.
-	displayName := stringid.TruncateID(o.ContainerID)
+	displayName := o.ServiceName + tui.Faint.Render("/") + stringid.TruncateID(o.ContainerID)
 
 	return tui.BoldRed.Render("-") + "   " +
 		tui.Faint.Render("stop container") + " " +

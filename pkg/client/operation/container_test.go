@@ -5,12 +5,25 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStopContainerOperation_Format(t *testing.T) {
+	t.Parallel()
+
+	op := &StopContainerOperation{
+		ServiceName: "app",
+		ContainerID: "0f6df6593e1b0123456789abcdef",
+		MachineName: "machine-1",
+	}
+
+	assert.Equal(t, "-   stop container app/0f6df6593e1b on machine-1", ansi.Strip(op.Format()))
+}
 
 func TestReplaceContainerOperation_StopFirstPreparation(t *testing.T) {
 	t.Parallel()

@@ -386,6 +386,7 @@ func reconcileGlobalContainer(
 			if err != nil || len(conflictingPorts) > 0 {
 				ops = append(ops, &operation.StopContainerOperation{
 					ServiceID:       serviceID,
+					ServiceName:     c.Container.ServiceSpec.Name,
 					ContainerID:     c.Container.ID,
 					MachineID:       machine.Id,
 					MachineName:     machine.Name,

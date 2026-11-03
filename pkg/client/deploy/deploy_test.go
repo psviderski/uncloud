@@ -26,6 +26,16 @@ func TestServicePlan_FormatSummary(t *testing.T) {
 			expected: "2 update (in place) · across 2 machines",
 		},
 		{
+			name: "stop operations not counted as they are followed by remove",
+			ops: []operation.Operation{
+				&operation.StopContainerOperation{MachineID: "m-1"},
+				&operation.StopContainerOperation{MachineID: "m-1"},
+				&operation.ReplaceContainerOperation{MachineID: "m-1", Order: api.UpdateOrderStopFirst},
+				&operation.RemoveContainerOperation{MachineID: "m-1"},
+			},
+			expected: "1 replace (stop-first) · 1 remove · across 1 machine",
+		},
+		{
 			name: "all operation types",
 			ops: []operation.Operation{
 				&operation.RunContainerOperation{MachineID: "m-1"},
