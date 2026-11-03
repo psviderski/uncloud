@@ -1,11 +1,15 @@
 package deploy
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -50,25 +54,31 @@ type ServicePlan struct {
 // Format renders the service plan as a styled block with a spec diff and nested container operations.
 func (sp *ServicePlan) Format() string {
 	// Determine service-level operation type and extract the old spec from container operations.
-	// Assume replace operations precede remove operations (rolling strategy) so the first replace operation
-	// (if exists) determines the old spec for the diff. Otherwise, fallback to the first remove operation.
+	// Containers may have different specs after a failed deployment. The first replaced container determines the old
+	// spec for the diff because a container updated in place already has the new image. Otherwise, fallback to the
+	// first updated container and then the first removed one.
 	var hasRun, hasRemove bool
-	var oldSpec *api.ServiceSpec
+	var replacedSpec, updatedSpec, removedSpec *api.ServiceSpec
 	for _, op := range sp.Operations {
 		switch o := op.(type) {
 		case *operation.RunContainerOperation:
 			hasRun = true
 		case *operation.ReplaceContainerOperation:
-			if oldSpec == nil {
-				oldSpec = &o.OldContainer.ServiceSpec
+			if replacedSpec == nil {
+				replacedSpec = &o.OldContainer.ServiceSpec
+			}
+		case *operation.UpdateContainerOperation:
+			if updatedSpec == nil {
+				updatedSpec = &o.Container.ServiceSpec
 			}
 		case *operation.RemoveContainerOperation:
 			hasRemove = true
-			if oldSpec == nil {
-				oldSpec = &o.Container.ServiceSpec
+			if removedSpec == nil {
+				removedSpec = &o.Container.ServiceSpec
 			}
 		}
 	}
+	oldSpec := cmp.Or(replacedSpec, updatedSpec, removedSpec)
 
 	// Service line modifier and verb.
 	var modifier, verb string
@@ -91,7 +101,7 @@ func (sp *ServicePlan) Format() string {
 	out.WriteString("\n")
 
 	// Build spec diff table: columns are [modifier, attribute, value or change].
-	// TODO: print diff for all changed attributes, not just image and replicas.
+	// TODO: print diff for all changed attributes, not just image, replicas, and labels.
 	//  Consider reusing the logic in EvalContainerSpecChange to return a structured diff.
 	specTable := table.New().
 		Border(lipgloss.Border{}).
@@ -141,17 +151,23 @@ func (sp *ServicePlan) Format() string {
 		}
 	}
 
-	// Stack "  │ " tree prefixes vertically, then join horizontally with the table.
-	tableStr := specTable.String()
-	treePrefix := tui.Faint.Render("  │ ")
-	treeColRows := make([]string, specTable.GetData().Rows())
-	for i := range treeColRows {
-		treeColRows[i] = treePrefix
-	}
-	treeCol := lipgloss.JoinVertical(lipgloss.Left, treeColRows...)
+	specDiff := specTable.String() + "\n"
 
-	out.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, treeCol, tableStr))
-	out.WriteString("\n")
+	// Render labels as nested blocks outside the table to not widen its attribute column. An existing service without
+	// an old spec only has new containers added to up-to-date ones so its labels didn't change.
+	if sp.IsNewService || oldSpec != nil {
+		var oldLabels, oldContainerLabels map[string]string
+		if oldSpec != nil {
+			oldLabels, oldContainerLabels = oldSpec.Labels, oldSpec.Container.Labels
+		}
+		specDiff += formatLabelsDiff("labels:", oldLabels, sp.Spec.Labels, sp.IsNewService)
+		specDiff += formatLabelsDiff("container labels:", oldContainerLabels, sp.Spec.Container.Labels, sp.IsNewService)
+	}
+
+	treePrefix := tui.Faint.Render("  │ ")
+	for line := range strings.Lines(specDiff) {
+		out.WriteString(treePrefix + line)
+	}
 
 	// Blank separator line before container operations.
 	out.WriteString(tui.Faint.Render("  │"))
@@ -270,6 +286,66 @@ func formatImageDiff(oldImage, newImage string) string {
 	return tui.FormatImage(oldImage, tui.Red) + " " +
 		tui.Faint.Render("→") + " " +
 		tui.FormatImage(newImage, tui.Green)
+}
+
+// formatLabelsDiff renders a block with the attribute name followed by a nested line for each added, changed, or
+// removed label, sorted by key. It returns an empty string if the labels are the same.
+func formatLabelsDiff(attribute string, oldLabels, newLabels map[string]string, isNewService bool) string {
+	keys := slices.Concat(slices.Collect(maps.Keys(oldLabels)), slices.Collect(maps.Keys(newLabels)))
+	slices.Sort(keys)
+
+	var lines strings.Builder
+	for _, key := range slices.Compact(keys) {
+		oldValue, inOld := oldLabels[key]
+		newValue, inNew := newLabels[key]
+
+		var mod, diff string
+		switch {
+		case !inOld:
+			mod = tui.Green.Render("+")
+			// All attributes of a new service are new so only the green color marks them, without a modifier.
+			if isNewService {
+				mod = " "
+			}
+			diff = tui.Green.Render(key+tui.Faint.Render("=")) + tui.Green.Render(formatLabelValue(newValue))
+		case !inNew:
+			mod = tui.Red.Render("-")
+			diff = tui.Red.Render(key+tui.Faint.Render("=")) + tui.Red.Render(formatLabelValue(oldValue))
+		case oldValue != newValue:
+			mod = tui.Yellow.Render("~")
+			diff = key +
+				tui.Faint.Render("=") +
+				tui.Red.Render(formatLabelValue(oldValue)) + " " +
+				tui.Faint.Render("→") + " " +
+				tui.Green.Render(formatLabelValue(newValue))
+		default:
+			continue
+		}
+
+		lines.WriteString("    " + mod + " " + diff + "\n")
+	}
+	if lines.Len() == 0 {
+		return ""
+	}
+
+	blockMod := tui.Yellow.Render("~")
+	switch {
+	case isNewService:
+		blockMod = " "
+	case len(newLabels) == 0:
+		blockMod = tui.Red.Render("-")
+	}
+
+	return blockMod + " " + tui.Faint.Render(attribute) + "\n" + lines.String()
+}
+
+// formatLabelValue returns the label value on a single line. It quotes and escapes empty values and values with
+// non-printable characters such as newlines so that they're visible in the diff. Other values are returned as is.
+func formatLabelValue(value string) string {
+	if value == "" || strings.ContainsFunc(value, func(r rune) bool { return !unicode.IsPrint(r) }) {
+		return strconv.Quote(value)
+	}
+	return value
 }
 
 // NewDeployment creates a new deployment for the given service specification.
