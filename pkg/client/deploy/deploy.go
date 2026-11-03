@@ -332,6 +332,8 @@ func formatLabelsDiff(attribute string, oldLabels, newLabels map[string]string, 
 	switch {
 	case isNewService:
 		blockMod = " "
+	case len(oldLabels) == 0:
+		blockMod = tui.Green.Render("+")
 	case len(newLabels) == 0:
 		blockMod = tui.Red.Render("-")
 	}

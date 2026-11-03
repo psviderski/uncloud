@@ -205,7 +205,7 @@ func TestServicePlan_Format(t *testing.T) {
 			expected: []string{
 				"~ update service web",
 				"  │   image: nginx:1.25",
-				"  │ ~ labels:",
+				"  │ + labels:",
 				"  │     + a=1",
 				"  │",
 				"  ╰── ~   update container web/0f6df6593e1b on machine-1 (in place)",
