@@ -208,6 +208,9 @@ func prepareServiceSpec(opts runOptions) (api.ServiceSpec, error) {
 	if err != nil {
 		return spec, err
 	}
+	if err = api.ValidateLabels(labels); err != nil {
+		return spec, fmt.Errorf("invalid service labels: %w", err)
+	}
 	containerLabels, err := parseLabels(opts.containerLabels)
 	if err != nil {
 		return spec, err

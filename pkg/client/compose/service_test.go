@@ -950,6 +950,42 @@ services:
 	}
 }
 
+func TestServiceSpecFromCompose_InvalidServiceLabels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		label   string
+		wantErr string
+	}{
+		{name: "reserved prefix", label: api.LabelManaged, wantErr: "reserved prefix"},
+		{name: "reserved daemon prefix", label: "uncloudd.foo", wantErr: "reserved prefix"},
+		{name: "managed service", label: api.LabelReservedPrefix + "service.managed", wantErr: "reserved prefix"},
+		{name: "whitespace in key", label: "my label", wantErr: "must not contain whitespace"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			composeYAML := `
+services:
+  web:
+    image: nginx
+    deploy:
+      labels:
+        - ` + tt.label + `=value
+`
+			project, err := LoadProjectFromContent(context.Background(), composeYAML)
+			require.NoError(t, err)
+
+			_, err = ServiceSpecFromCompose(project, "web")
+			require.ErrorContains(t, err, "invalid deploy.labels")
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
 func TestServiceSpecFromCompose_UpdateConfig(t *testing.T) {
 	t.Parallel()
 

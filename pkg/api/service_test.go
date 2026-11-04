@@ -82,8 +82,6 @@ func TestServiceSpec_Validate_Labels(t *testing.T) {
 		{name: "trailing space in key", labels: map[string]string{"tier ": "bar"}, wantErr: "must not contain whitespace"},
 		{name: "tab in key", labels: map[string]string{"my\tlabel": "bar"}, wantErr: "must not contain whitespace"},
 		{name: "newline in key", labels: map[string]string{"my\nlabel": "bar"}, wantErr: "must not contain whitespace"},
-		{name: "reserved prefix", labels: map[string]string{LabelManaged: ""}, wantErr: "reserved prefix"},
-		{name: "reserved daemon prefix", labels: map[string]string{"uncloudd.foo": "bar"}, wantErr: "reserved prefix"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+"/service", func(t *testing.T) {
@@ -107,6 +105,38 @@ func TestServiceSpec_Validate_Labels(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestServiceSpec_Validate_ReservedLabels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{name: "reserved prefix", labels: map[string]string{LabelManaged: ""}},
+		{name: "reserved daemon prefix", labels: map[string]string{"uncloudd.foo": "bar"}},
+		{name: "managed service", labels: map[string]string{
+			LabelReservedPrefix + "service.managed": "",
+			LabelReservedPrefix + "custom.key":      "value",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Uncloud sets its own labels on services, so a service spec can have them.
+			spec := ServiceSpec{Container: ContainerSpec{Image: "nginx:latest"}, Labels: tt.labels}
+			require.NoError(t, spec.Validate())
+
+			// Container labels and labels provided by users can't use the reserved prefixes.
+			spec = ServiceSpec{Container: ContainerSpec{Image: "nginx:latest", Labels: tt.labels}}
+			err := spec.Validate()
+			require.ErrorContains(t, err, "invalid container labels")
+			require.ErrorContains(t, err, "reserved prefix")
+			require.ErrorContains(t, ValidateLabels(tt.labels), "reserved prefix")
 		})
 	}
 }

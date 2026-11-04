@@ -78,8 +78,8 @@ type ServiceSpec struct {
 	Configs []ConfigSpec
 	// Container defines the desired state of each container in the service.
 	Container ContainerSpec
-	// Labels are user-defined key-value metadata attached to the service. Unlike container labels, they're not
-	// applied to Docker containers. Keys must not use the reserved "uncloud." prefix.
+	// Labels are key-value metadata attached to the service. Unlike container labels, they're not applied to Docker
+	// containers. The "uncloud." key prefix is reserved for labels set by Uncloud.
 	Labels map[string]string
 	// Mode is the replication mode of the service. Default is ServiceModeReplicated if empty.
 	Mode string
@@ -161,7 +161,9 @@ func (s *ServiceSpec) Validate() error {
 	if err := s.Container.Validate(); err != nil {
 		return err
 	}
-	if err := ValidateLabels(s.Labels); err != nil {
+	// We want to allow reserved uncloud. labels in the service spec, because we can't distinguish between user-defined
+	// in a Compose file and those set by a uc command.
+	if err := ValidateLabelKeys(s.Labels); err != nil {
 		return fmt.Errorf("invalid service labels: %w", err)
 	}
 
@@ -444,9 +446,8 @@ func (s *ContainerSpec) Clone() ContainerSpec {
 	return spec
 }
 
-// ValidateLabels checks that label keys are non-empty, don't contain whitespace, and don't use the reserved Uncloud
-// prefixes.
-func ValidateLabels(labels map[string]string) error {
+// ValidateLabelKeys checks that label keys are non-empty and don't contain whitespace.
+func ValidateLabelKeys(labels map[string]string) error {
 	for k := range labels {
 		if strings.TrimSpace(k) == "" {
 			return fmt.Errorf("label key must not be empty")
@@ -454,6 +455,17 @@ func ValidateLabels(labels map[string]string) error {
 		if strings.ContainsFunc(k, unicode.IsSpace) {
 			return fmt.Errorf("label '%s' must not contain whitespace", k)
 		}
+	}
+	return nil
+}
+
+// ValidateLabels checks that label keys are valid and don't use the reserved Uncloud prefixes. Use it for labels
+// provided by users and for container labels.
+func ValidateLabels(labels map[string]string) error {
+	if err := ValidateLabelKeys(labels); err != nil {
+		return err
+	}
+	for k := range labels {
 		if strings.HasPrefix(k, LabelReservedPrefix) || strings.HasPrefix(k, LabelDaemonReservedPrefix) {
 			return fmt.Errorf("label '%s' cannot use the reserved prefix '%s' or '%s'",
 				k, LabelReservedPrefix, LabelDaemonReservedPrefix)

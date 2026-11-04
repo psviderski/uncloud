@@ -130,6 +130,9 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		}
 
 		if len(service.Deploy.Labels) > 0 {
+			if err = api.ValidateLabels(service.Deploy.Labels); err != nil {
+				return spec, fmt.Errorf("invalid deploy.labels: %w", err)
+			}
 			spec.Labels = maps.Clone(service.Deploy.Labels)
 		}
 	}

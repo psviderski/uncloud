@@ -166,7 +166,7 @@ func (s *Service) InspectServiceContainer(ctx context.Context, nameOrID string) 
 // It applies the CPU and memory limits to the container and updates the service spec stored for the container.
 func (s *Service) UpdateServiceContainer(ctx context.Context, id string, opts api.UpdateContainerOptions) error {
 	if opts.ServiceLabels != nil {
-		if err := api.ValidateLabels(*opts.ServiceLabels); err != nil {
+		if err := api.ValidateLabelKeys(*opts.ServiceLabels); err != nil {
 			return errdefs.ErrInvalidArgument.WithMessage(fmt.Sprintf("invalid service labels: %v", err))
 		}
 	}
