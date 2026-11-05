@@ -83,6 +83,21 @@ func TestServicePlan_Format(t *testing.T) {
 		}
 	}
 
+	withCaddy := func(config string) api.ServiceSpec {
+		s := spec("nginx:1.25", nil, nil)
+		s.Caddy = &api.CaddySpec{Config: config}
+		return s
+	}
+	replaceFrom := func(old api.ServiceSpec) func(api.ServiceSpec) []operation.Operation {
+		return func(new api.ServiceSpec) []operation.Operation {
+			return []operation.Operation{&operation.ReplaceContainerOperation{
+				Spec:         new,
+				MachineName:  "machine-1",
+				OldContainer: newContainer(old),
+			}}
+		}
+	}
+
 	tests := []struct {
 		name         string
 		isNewService bool
@@ -90,6 +105,112 @@ func TestServicePlan_Format(t *testing.T) {
 		ops          func(spec api.ServiceSpec) []operation.Operation
 		expected     []string
 	}{
+		{
+			name: "caddy config lines added and removed",
+			spec: withCaddy("{\n\tstorage uncloud\n}"),
+			ops:  replaceFrom(withCaddy("{\n\tdebug\n\tauto_https off\n}")),
+			expected: []string{
+				"~ update service web",
+				"  │   image:        nginx:1.25",
+				"  │ ~ caddy config: +1 -2 lines",
+				"  │",
+				"  ╰── +/- replace container web/0f6df6593e1b on machine-1",
+			},
+		},
+		{
+			name: "caddy config single line added",
+			spec: withCaddy("{\n\tstorage uncloud\n\tdebug\n}"),
+			ops:  replaceFrom(withCaddy("{\n\tstorage uncloud\n}")),
+			expected: []string{
+				"~ update service web",
+				"  │   image:        nginx:1.25",
+				"  │ ~ caddy config: +1 line",
+				"  │",
+				"  ╰── +/- replace container web/0f6df6593e1b on machine-1",
+			},
+		},
+		{
+			name: "caddy config added to existing service",
+			spec: withCaddy("{\n\tstorage uncloud\n}"),
+			ops:  replaceFrom(spec("nginx:1.25", nil, nil)),
+			expected: []string{
+				"~ update service web",
+				"  │   image:        nginx:1.25",
+				"  │ + caddy config: +3 lines",
+				"  │",
+				"  ╰── +/- replace container web/0f6df6593e1b on machine-1",
+			},
+		},
+		{
+			name: "caddy config removed",
+			spec: spec("nginx:1.25", nil, nil),
+			ops:  replaceFrom(withCaddy("{\n\tstorage uncloud\n}")),
+			expected: []string{
+				"~ update service web",
+				"  │   image:        nginx:1.25",
+				"  │ - caddy config: -3 lines",
+				"  │",
+				"  ╰── +/- replace container web/0f6df6593e1b on machine-1",
+			},
+		},
+		{
+			name: "caddy config with only reordered lines",
+			spec: withCaddy("a {\n}\nb {\n}"),
+			ops:  replaceFrom(withCaddy("b {\n}\na {\n}")),
+			expected: []string{
+				"~ update service web",
+				"  │   image:        nginx:1.25",
+				"  │ ~ caddy config: changed",
+				"  │",
+				"  ╰── +/- replace container web/0f6df6593e1b on machine-1",
+			},
+		},
+		{
+			name: "caddy config unchanged ignoring surrounding whitespace",
+			spec: withCaddy("{\n\tdebug\n}"),
+			ops:  replaceFrom(withCaddy("\n{\n\tdebug\n}\n")),
+			expected: []string{
+				"~ update service web",
+				"  │   image: nginx:1.25",
+				"  │",
+				"  ╰── +/- replace container web/0f6df6593e1b on machine-1",
+			},
+		},
+		{
+			name:         "new service with caddy config",
+			isNewService: true,
+			spec:         withCaddy("{\n\tstorage uncloud\n}"),
+			ops: func(new api.ServiceSpec) []operation.Operation {
+				return []operation.Operation{&operation.RunContainerOperation{Spec: new, MachineName: "machine-1"}}
+			},
+			expected: []string{
+				"+ create service web",
+				"  │   image:        nginx:1.25",
+				"  │   caddy config: +3 lines",
+				"  │",
+				"  ╰── +   run container web on machine-1",
+			},
+		},
+		{
+			name:         "caddy config before replicas",
+			isNewService: true,
+			spec: func() api.ServiceSpec {
+				s := withCaddy("{\n\tstorage uncloud\n}")
+				s.Replicas = 3
+				return s
+			}(),
+			ops: func(new api.ServiceSpec) []operation.Operation {
+				return []operation.Operation{&operation.RunContainerOperation{Spec: new, MachineName: "machine-1"}}
+			},
+			expected: []string{
+				"+ create service web",
+				"  │   image:        nginx:1.25",
+				"  │   caddy config: +3 lines",
+				"  │   replicas:     3",
+				"  │",
+				"  ╰── +   run container web on machine-1",
+			},
+		},
 		{
 			name: "service labels added, changed, and removed in place",
 			spec: spec("nginx:1.25", map[string]string{"env": "prod", "team": "platform", "same": "1"}, nil),

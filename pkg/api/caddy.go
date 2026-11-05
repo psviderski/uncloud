@@ -5,6 +5,15 @@ import (
 	"time"
 )
 
+const (
+	// LabelCaddyManaged marks the caddy service as managed by 'uc caddy deploy'.
+	LabelCaddyManaged = LabelReservedPrefix + "caddy.managed"
+	// LabelCaddyImageCustom marks the caddy image as explicitly set instead of following the latest default image.
+	LabelCaddyImageCustom = LabelReservedPrefix + "caddy.image.custom"
+	// LabelCaddyConfigCustom marks the global Caddy config as explicitly set instead of following the default config.
+	LabelCaddyConfigCustom = LabelReservedPrefix + "caddy.config.custom"
+)
+
 // CaddyConfig is the saved Caddy configuration on a machine.
 type CaddyConfig struct {
 	Caddyfile string

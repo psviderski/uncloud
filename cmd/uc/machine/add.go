@@ -187,14 +187,12 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 	}
 	fmt.Println("Machine joined the cluster.")
 
-	// TODO: scale the existing Caddy service to the new machine instead of running a new deployment
-	//  that may cause a small downtime.
-	// Deploy a Caddy service container to the added machine. If caddy service is already deployed on other machines,
-	// use the deployed image version.
+	// Deploy the current caddy service spec to run a container on the added machine. This keeps the service
+	// configuration however it was deployed and shouldn't change the containers on other machines if specs on them
+	// haven't diverged.
 	// NOTE: We use the cluster client to inspect and scale the Caddy service because the newly added machine may have
 	// issues accessing the API of existing machines in the cluster.
 	// See the issue for more details: https://github.com/psviderski/uncloud/issues/65.
-	caddyImage := ""
 	caddySvc, err := clusterClient.InspectService(ctx, client.CaddyServiceName)
 	if err != nil {
 		if errors.Is(err, api.ErrNotFound) {
@@ -203,26 +201,10 @@ func add(ctx context.Context, uncli *cli.CLI, remoteMachine *cli.RemoteMachine, 
 		}
 		return fmt.Errorf("inspect caddy service: %w", err)
 	}
-	caddyImage = caddySvc.Containers[0].Container.Config.Image
-	// Find the latest created container and use its image.
-	var latestCreated time.Time
-	for _, c := range caddySvc.Containers[1:] {
-		created, err := time.Parse(time.RFC3339Nano, c.Container.Created)
-		if err != nil {
-			continue
-		}
-		if created.After(latestCreated) {
-			latestCreated = created
-			caddyImage = c.Container.Config.Image
-		}
-	}
 
 	fmt.Println()
 	fmt.Println("Preparing Caddy deployment...")
-	d, err := clusterClient.Caddy.NewDeployment(ctx, client.CaddyDeploymentOptions{Image: caddyImage})
-	if err != nil {
-		return fmt.Errorf("create caddy deployment: %w", err)
-	}
+	d := clusterClient.NewDeployment(caddySvc.Spec(), nil)
 
 	plan, err := d.Plan(ctx)
 	if err != nil {

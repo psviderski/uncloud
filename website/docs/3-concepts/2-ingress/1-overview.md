@@ -25,10 +25,6 @@ When you [publish a service port](2-publishing-services.md), Uncloud automatical
 For advanced use cases, Uncloud allows to customise the Caddy config using the `x-caddy` extension in Compose files.
 See [Custom Caddy configuration](2-publishing-services.md#custom-caddy-configuration) for details.
 
-:::tip Shared TLS certificates
-
-Uncloud also provides native cluster storage for Caddy. It shares TLS certificates and ACME challenge tokens across
+Uncloud configures Caddy to use cluster storage by default. It shares TLS certificates and ACME challenge tokens across
 machines and coordinates certificate issuance. See [Cluster storage for Caddy](4-cluster-storage-for-caddy.md)
-to enable it.
-
-:::
+for details.

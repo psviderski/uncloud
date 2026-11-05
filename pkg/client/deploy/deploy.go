@@ -134,6 +134,22 @@ func (sp *ServicePlan) Format() string {
 		specTable.Row(mod, "image:", formatImageDiff(oldSpec.Container.Image, sp.Spec.Container.Image))
 	}
 
+	// An existing service without an old spec only has new containers added to up-to-date ones so its Caddy config and
+	// labels didn't change.
+	specChanged := sp.IsNewService || oldSpec != nil
+	var old api.ServiceSpec
+	if oldSpec != nil {
+		old = *oldSpec
+	}
+
+	// Caddy config row.
+	if specChanged {
+		mod, value := formatCaddyConfigDiff(old.CaddyConfig(), sp.Spec.CaddyConfig(), sp.IsNewService)
+		if value != "" {
+			specTable.Row(mod, "caddy config:", value)
+		}
+	}
+
 	// Replicas row for replicated services.
 	if sp.Spec.Mode == api.ServiceModeReplicated {
 		replicasStr := fmt.Sprintf("%d", sp.Spec.Replicas)
@@ -153,15 +169,11 @@ func (sp *ServicePlan) Format() string {
 
 	specDiff := specTable.String() + "\n"
 
-	// Render labels as nested blocks outside the table to not widen its attribute column. An existing service without
-	// an old spec only has new containers added to up-to-date ones so its labels didn't change.
-	if sp.IsNewService || oldSpec != nil {
-		var oldLabels, oldContainerLabels map[string]string
-		if oldSpec != nil {
-			oldLabels, oldContainerLabels = oldSpec.Labels, oldSpec.Container.Labels
-		}
-		specDiff += formatLabelsDiff("labels:", oldLabels, sp.Spec.Labels, sp.IsNewService)
-		specDiff += formatLabelsDiff("container labels:", oldContainerLabels, sp.Spec.Container.Labels, sp.IsNewService)
+	// Render the labels outside the table because they span multiple lines.
+	if specChanged {
+		specDiff += formatLabelsDiff("labels:", old.Labels, sp.Spec.Labels, sp.IsNewService)
+		specDiff += formatLabelsDiff("container labels:", old.Container.Labels, sp.Spec.Container.Labels,
+			sp.IsNewService)
 	}
 
 	treePrefix := tui.Faint.Render("  │ ")
@@ -286,6 +298,65 @@ func formatImageDiff(oldImage, newImage string) string {
 	return tui.FormatImage(oldImage, tui.Red) + " " +
 		tui.Faint.Render("→") + " " +
 		tui.FormatImage(newImage, tui.Green)
+}
+
+// formatCaddyConfigDiff returns the modifier and the number of added and removed lines in the Caddy config. It omits
+// the config content because it can be large. It returns an empty value if the configs are the same.
+func formatCaddyConfigDiff(oldConfig, newConfig string, isNewService bool) (mod, value string) {
+	if oldConfig == newConfig {
+		return "", ""
+	}
+
+	// Count lines regardless of their order, which is enough for a summary and doesn't require a diff algorithm.
+	remaining := make(map[string]int)
+	var removed int
+	if oldConfig != "" {
+		for line := range strings.SplitSeq(oldConfig, "\n") {
+			remaining[line]++
+			removed++
+		}
+	}
+	var added int
+	if newConfig != "" {
+		for line := range strings.SplitSeq(newConfig, "\n") {
+			if remaining[line] > 0 {
+				remaining[line]--
+				removed--
+			} else {
+				added++
+			}
+		}
+	}
+
+	var parts []string
+	if added > 0 {
+		parts = append(parts, tui.Green.Render("+"+strconv.Itoa(added)))
+	}
+	if removed > 0 {
+		parts = append(parts, tui.Red.Render("-"+strconv.Itoa(removed)))
+	}
+
+	switch {
+	case added+removed == 0:
+		value = "changed"
+	case added+removed == 1:
+		value = parts[0] + " line"
+	default:
+		value = strings.Join(parts, " ") + " lines"
+	}
+
+	switch {
+	case isNewService:
+		mod = ""
+	case oldConfig == "":
+		mod = tui.Green.Render("+")
+	case newConfig == "":
+		mod = tui.Red.Render("-")
+	default:
+		mod = "~"
+	}
+
+	return mod, value
 }
 
 // formatLabelsDiff renders a block with the attribute name followed by a nested line for each added, changed, or

@@ -156,7 +156,7 @@ Waiting for the machine to be ready...
 Reserved cluster domain: sh8hsb.uncld.dev
 [+] Deploying service caddy 2/2
  ✔ Container caddy-d7uk on machine-dc3c     Running                                           11.1s
-   ✔ Image caddy:2.11.4 on machine-dc3c     Pulled                                             3.7s
+   ✔ Image ghcr.io/unlabs-dev/caddy-uncloud:0.1.3 on machine-dc3c     Pulled                   3.7s
 
 Updating cluster domain records in Uncloud DNS to point to machines running caddy service...
 [+] Verifying internet access to caddy service 1/1
@@ -216,9 +216,9 @@ uc ls
 ```
 
 ```
-NAME         MODE         REPLICAS   IMAGE                          ENDPOINTS
-caddy        global       1          caddy:2.11.4
-excalidraw   replicated   1          excalidraw/excalidraw:latest   https://excalidraw.sh8hsb.uncld.dev → :80
+NAME         MODE         REPLICAS   IMAGE                                    ENDPOINTS
+caddy        global       1          ghcr.io/unlabs-dev/caddy-uncloud:0.1.3
+excalidraw   replicated   1          excalidraw/excalidraw:latest             https://excalidraw.sh8hsb.uncld.dev → :80
 ```
 
 You can see `caddy` service listed here. That's your reverse proxy, running as a regular Uncloud service.
