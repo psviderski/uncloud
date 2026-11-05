@@ -105,8 +105,16 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 	if service.NetworkMode == "host" {
 		// If network_mode is "host" we are likely listening on a port, a subsequent start will fail, so we
 		// need stop-first.
+
+		// Nothing specified on how to deploy, use StopFirst.
 		if service.Deploy == nil || service.Deploy.UpdateConfig == nil {
 			spec.UpdateConfig.Order = api.UpdateOrderStopFirst
+		}
+		// There is update config, but the order isn't set explictly, also use StopFirst.
+		if service.Deploy != nil && service.Deploy.UpdateConfig != nil {
+			if service.Deploy.UpdateConfig.Order == "" {
+				spec.UpdateConfig.Order = api.UpdateOrderStopFirst
+			}
 		}
 	}
 
@@ -515,6 +523,18 @@ func validateServicesFeatures(project *types.Project) []error {
 		if service.ContainerName != "" {
 			errs = append(errs, err(service.Name, "container_name"))
 		}
+		if service.NetworkMode != "" && service.NetworkMode != "host" {
+			errs = append(errs, err(service.Name, "network_mode"))
+		}
+		if service.NetworkMode == "host" {
+			if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok {
+				if len(ports) > 0 {
+					errs = append(errs, fmt.Errorf(
+						"service '%s': x-ports in network_mode 'host' is not supported", service.Name))
+				}
+			}
+		}
+
 		if service.Deploy != nil {
 			if len(service.Deploy.Placement.Constraints) > 0 || len(service.Deploy.Placement.Preferences) > 0 ||
 				service.Deploy.Placement.MaxReplicas > 0 {
