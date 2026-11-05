@@ -216,6 +216,10 @@ Example output:
 # Docs: https://uncloud.run/docs/concepts/ingress/overview
 
 # User-defined global config from service 'caddy'.
+{
+	storage uncloud
+}
+
 *.example.com {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
