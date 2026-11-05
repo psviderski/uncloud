@@ -10,6 +10,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/network"
 	"github.com/opencontainers/go-digest"
 	"github.com/psviderski/uncloud/pkg/api"
 	cdi "tags.cncf.io/container-device-interface/pkg/parser"
@@ -102,7 +103,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		spec.Replicas = uint(*service.Scale)
 	}
 
-	if service.NetworkMode == "host" {
+	if service.NetworkMode == network.NetworkHost {
 		// If network_mode is "host" we are likely listening on a port, a subsequent start will fail, so we
 		// need stop-first.
 
@@ -110,7 +111,7 @@ func ServiceSpecFromCompose(project *types.Project, serviceName string) (api.Ser
 		if service.Deploy == nil || service.Deploy.UpdateConfig == nil {
 			spec.UpdateConfig.Order = api.UpdateOrderStopFirst
 		}
-		// There is update config, but the order isn't set explictly, also use StopFirst.
+		// There is update config, but the order isn't set explicitly, also use StopFirst.
 		if service.Deploy != nil && service.Deploy.UpdateConfig != nil {
 			if service.Deploy.UpdateConfig.Order == "" {
 				spec.UpdateConfig.Order = api.UpdateOrderStopFirst
@@ -523,10 +524,10 @@ func validateServicesFeatures(project *types.Project) []error {
 		if service.ContainerName != "" {
 			errs = append(errs, err(service.Name, "container_name"))
 		}
-		if service.NetworkMode != "" && service.NetworkMode != "host" {
+		if service.NetworkMode != "" && service.NetworkMode != network.NetworkHost {
 			errs = append(errs, err(service.Name, "network_mode"))
 		}
-		if service.NetworkMode == "host" {
+		if service.NetworkMode == network.NetworkHost {
 			if ports, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec); ok {
 				if len(ports) > 0 {
 					errs = append(errs, fmt.Errorf(
