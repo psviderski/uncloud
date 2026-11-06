@@ -6,10 +6,13 @@ List certificates in cluster storage for Caddy.
 
 List certificates stored in the Uncloud cluster storage for Caddy.
 
-Caddy must use the Uncloud storage module (https://github.com/unlabs-dev/caddy-uncloud)
-configured with 'storage uncloud' in the global options for its certificates to appear here.
+Caddy uses cluster storage by default. Certificates don't appear here if Caddy uses local storage,
+for example, if it runs with a custom global config without 'storage uncloud' or was deployed with
+uc v0.21.0 or earlier and not upgraded.
 
 This inventory does not check whether Caddy currently serves or trusts a certificate.
+
+See https://uncloud.run/docs/concepts/ingress/cluster-storage-for-caddy for details.
 
 ```
 uc caddy cert ls [flags]
