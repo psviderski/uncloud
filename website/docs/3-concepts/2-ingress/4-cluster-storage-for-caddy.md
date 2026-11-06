@@ -1,73 +1,114 @@
 # Cluster storage for Caddy
 
+Starting with Uncloud [v0.22.0](https://github.com/psviderski/uncloud/releases/tag/v0.22.0), Caddy uses cluster storage
+by default.
+
 The [Uncloud storage module](https://github.com/unlabs-dev/caddy-uncloud) lets Caddy instances share TLS certificates,
-private keys, and ACME challenge tokens through Uncloud's cluster store. It uses distributed locks to coordinate
-certificate issuance. Once one instance obtains a certificate, the others can use it too.
+private keys, and ACME challenge tokens through Uncloud's cluster store.
 
-## Why use cluster storage?
+This matters when you run Caddy on multiple machines and distribute traffic between them using DNS or a load balancer.
+In this case, an ACME challenge can reach a different Caddy instance from the one requesting the certificate. Cluster
+storage lets any Caddy instance read the challenge token from the shared cluster store and complete the ACME challenge.
+It uses distributed locks to coordinate certificate issuance. Once one instance obtains a certificate, the others can
+use it too.
 
-By default, each Caddy instance stores its certificates locally. When DNS points to multiple machines or a load balancer
-distributes traffic between them, an ACME challenge can reach a different instance from the one requesting the
-certificate. That instance may not have the challenge token, which can delay or prevent certificate issuance.
+## Upgrading from earlier versions
 
-Cluster storage is optional. The default Caddy image does not include the module, so you need to deploy an image that
-includes it and configure Caddy to use it.
+Starting with Uncloud v0.22.0, `uc caddy deploy` deploys the Uncloud Caddy image ([
+`ghcr.io/unlabs-dev/caddy-uncloud`](https://github.com/unlabs-dev/caddy-uncloud/pkgs/container/caddy-uncloud)) with
+cluster storage enabled by default.
 
-## Enabling cluster storage
+Earlier versions deployed the official [`caddy`](https://hub.docker.com/_/caddy) image with local certificate storage.
+Upgrading Uncloud does not change the running Caddy service. Redeploy it to switch to the new default image and cluster
+storage.
 
-:::warning Certificate migration
+Before you deploy, upgrade the [`uc` CLI](../../2-getting-started/1-install-cli.md) and the daemon on all machines to
+v0.22.0 or newer. Follow the [upgrade instructions](https://github.com/psviderski/uncloud/releases/latest) for daemon
+upgrades, including any required migrations from older releases. Check current versions with `uc version` and `uc
+machine ls`.
 
-Caddy doesn't migrate existing certificates automatically when you change its storage backend. **All certificates will
-need to be reissued unless you migrate your existing storage first.** Use the experimental
-[`caddy storage export` and `caddy storage import`](https://caddyserver.com/docs/command-line#caddy-storage)
-commands with the old and new configs to transfer the storage contents.
+The first `uc caddy deploy` after the upgrade doesn't know the values you set with earlier versions of `uc`. It replaces
+your image, global config, and machine list with the defaults unless you pass them as flags.
 
-:::
+If you already use `storage uncloud`, your certificates stay where they are, so you only need to run `uc caddy deploy`.
 
-:::info Requirements
+### Quick upgrade
 
-Cluster storage requires Uncloud **v0.21.0 or newer** for both the `uc` CLI and the daemon on every cluster machine.
-Check your CLI version with `uc version` and daemon versions with `uc machine ls`. Upgrade older versions before
-enabling cluster storage.
+Caddy does not copy certificates when you change storage backends. Unless you migrate them first, Caddy will reissue
+them. HTTPS may fail for those domains until that finishes, and a large number of certificates can hit
+[Let's Encrypt rate limits](https://letsencrypt.org/docs/rate-limits/).
 
-:::
-
-Create a global Caddyfile, or add `storage uncloud` to the global options in your existing one:
-
-```caddyfile title="global.Caddyfile"
-{
-    storage uncloud
-
-    # Uncomment to enable debug logs useful for troubleshooting storage operations:
-    # debug
-}
-```
-
-Deploy Caddy with the pre-built module image and your global config:
+Run the command below if you don't mind reissuing all certificates:
 
 ```shell
-uc caddy deploy --image ghcr.io/unlabs-dev/caddy-uncloud:0.1.3 --caddyfile global.Caddyfile
+uc caddy deploy
 ```
 
-See the [module README](https://github.com/unlabs-dev/caddy-uncloud#usage) for custom image builds, Compose deployment,
-and additional storage options.
+### Migrating certificates
 
-## Verifying storage
+Follow these steps to keep your existing certificates and avoid HTTPS failures:
 
-Check that `storage uncloud` appears in the Caddy config:
+1. Deploy the new image but stay on local storage. Use your existing global config if you have one, or an empty file:
 
-```shell
-uc caddy config
-```
+   ```shell
+   touch local.Caddyfile
+   uc caddy deploy --caddyfile local.Caddyfile
+   ```
 
-List issued certificates in cluster storage with [`uc caddy cert ls`](../../9-cli-reference/uc_caddy_cert_ls.md):
+2. Find the ID of the Caddy container on each machine:
 
-```shell
-uc caddy cert ls
+   ```shell
+   uc inspect caddy
+   ```
 
-ID             NAME                            ISSUER                    EXPIRES
-c111e23615f7   dns.uncloud.run                 Let's Encrypt             2026-12-31 (2 months)
-b5dcd2a03e1b   nginx.2t5ex2.uncld.dev          Let's Encrypt             2026-12-31 (2 months)
-70707fd2fea2   test-staging.2t5ex2.uncld.dev   Let's Encrypt (staging)   2026-12-31 (2 months)
-c5f9301e1c06   uncloud.run                     Let's Encrypt             2026-12-31 (2 months)
-```
+3. Copy the certificates to cluster storage by running this command for each container ID. Each machine stores its own
+   certificates, so don't skip any of them. These
+   [`caddy storage`](https://caddyserver.com/docs/command-line#caddy-storage) commands are experimental.
+
+   ```shell
+   uc exec -T --container CONTAINER_ID caddy sh -c '
+     printf "{\n\tstorage uncloud\n}\n" > /tmp/Caddyfile.cluster
+     caddy storage export --config /etc/caddy/Caddyfile --output - |
+       caddy storage import --config /tmp/Caddyfile.cluster --input -
+     rm /tmp/Caddyfile.cluster
+   '
+   ```
+
+4. Check that all your certificates are in cluster storage:
+
+   ```shell
+   uc caddy cert ls
+   ```
+
+5. Switch Caddy to cluster storage. If you have a custom global config, add `storage uncloud` to it and pass it with
+   `--caddyfile global.Caddyfile` instead. The command warns that all certificates will be reissued. You can ignore this
+   because you've already copied them.
+
+   ```shell
+   uc caddy deploy --caddyfile ""
+   ```
+
+6. Check that the Caddy config includes `storage uncloud` and doesn't show any config load warnings:
+
+   ```shell
+   uc caddy config
+   ```
+
+### Upgrading a Compose deployment
+
+If you manage Caddy with Compose, keep using `uc deploy` and update your Compose file to match
+[Compose example](3-managing-caddy.md#managing-caddy-with-compose). To keep your certificates, follow the
+[migration steps](#migrating-certificates) with these changes:
+
+- In step 1, update the image and add the `/run/uncloud/api:/run/uncloud/api:ro` volume mount but leave out
+  `storage uncloud` in your global Caddy config (`x-caddy`). Then run `uc deploy`.
+- In step 5, add `storage uncloud` to your global Caddy config, then run `uc deploy`.
+
+## Keeping local storage
+
+To keep local storage, pass a custom Caddyfile without `storage uncloud` using `--caddyfile`. The default Uncloud Caddy
+image supports local storage too. If you use the official `caddy` image, you must also provide a Caddyfile without
+`storage uncloud`.
+
+Deployments using `uc caddy deploy` keep the `/data` mount so local certificates survive container updates. For Compose
+deployments using local storage, keep or add `/var/lib/uncloud/caddy:/data`.
