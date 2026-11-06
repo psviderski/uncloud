@@ -30,6 +30,8 @@ uc inspect caddy
 Service ID: b5b269d5dc5ed4fdae6542894f94de82
 Name:       caddy
 Mode:       global
+Labels:
+  uncloud.caddy.managed=
 
 CONTAINER ID   IMAGE                                    CREATED        STATUS       IP ADDRESS   MACHINE
 fb8f390e634d   ghcr.io/unlabs-dev/caddy-uncloud:0.1.4   3 weeks ago    Up 3 weeks   10.210.1.2   prod-ap1
@@ -132,7 +134,7 @@ storage. It must also include `curl` for the health check and start Caddy with `
 
 The default Uncloud Caddy image
 [`ghcr.io/unlabs-dev/caddy-uncloud`](https://github.com/unlabs-dev/caddy-uncloud/pkgs/container/caddy-uncloud) satisfies
-these requirements. See the [release notest](https://github.com/unlabs-dev/caddy-uncloud/releases/latest) for the Caddy
+these requirements. See the [release notes](https://github.com/unlabs-dev/caddy-uncloud/releases/latest) for the Caddy
 version and the list of included modules.
 
 If you need other Caddy modules or want to choose a compatible Caddy version, you can

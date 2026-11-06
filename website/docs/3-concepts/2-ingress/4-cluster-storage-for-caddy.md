@@ -24,13 +24,19 @@ storage.
 
 Before you deploy, upgrade the [`uc` CLI](../../2-getting-started/1-install-cli.md) and the daemon on all machines to
 v0.22.0 or newer. Follow the [upgrade instructions](https://github.com/psviderski/uncloud/releases/latest) for daemon
-upgrades, including any required migrations from older releases. Check current versions with `uc version` and `uc
-machine ls`.
+upgrades, including any required migrations from older releases. Check current versions with `uc version` and
+`uc machine ls`.
 
 The first `uc caddy deploy` after the upgrade doesn't know the values you set with earlier versions of `uc`. It replaces
-your image, global config, and machine list with the defaults unless you pass them as flags.
+your image, global config, and machine list with the defaults unless you pass them as flags. If you deployed Caddy only
+to some machines, add `--machine` with the same machines to every `uc caddy deploy` command below.
 
-If you already use `storage uncloud`, your certificates stay where they are, so you only need to run `uc caddy deploy`.
+If you already use `storage uncloud`, your certificates stay where they are. Run `uc caddy deploy` and pass the global
+config you deployed it with, unless it only contains `storage uncloud`:
+
+```shell
+uc caddy deploy --caddyfile global.Caddyfile
+```
 
 ### Quick upgrade
 
@@ -96,7 +102,7 @@ Follow these steps to keep your existing certificates and avoid HTTPS failures:
 
 ### Upgrading a Compose deployment
 
-If you manage Caddy with Compose, keep using `uc deploy` and update your Compose file to match
+If you manage Caddy with Compose, keep using `uc deploy` and update your Compose file to match the
 [Compose example](3-managing-caddy.md#managing-caddy-with-compose). To keep your certificates, follow the
 [migration steps](#migrating-certificates) with these changes:
 

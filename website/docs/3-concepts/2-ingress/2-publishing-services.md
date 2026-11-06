@@ -132,8 +132,8 @@ Use it when you need:
 - Advanced TLS settings.
 - Other Caddy features and plugins.
 
-See [Deploying or updating Caddy](3-managing-caddy.md#deploying-or-updating-caddy) for details on deploying Caddy with a
-custom global configuration.
+See [Custom global configuration](3-managing-caddy.md#custom-global-configuration) to learn how to deploy Caddy
+with a custom global config.
 
 ### Templates
 
@@ -278,7 +278,7 @@ example.com {
 The generated config combines:
 
 - Global Caddy configuration (`x-caddy` from the `caddy` service).
-  See [Deploying or updating Caddy](3-managing-caddy.md#deploying-or-updating-caddy) for details.
+  See [Custom global configuration](3-managing-caddy.md#custom-global-configuration) for details.
 - Auto-generated configs from published service ports (`x-ports`).
 - Custom Caddy configs from services (`x-caddy`).
 - Skipped invalid configs with error messages as comments.
