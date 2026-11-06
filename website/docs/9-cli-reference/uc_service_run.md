@@ -30,11 +30,12 @@ uc service run IMAGE [COMMAND...] [flags]
       --privileged                    Give extended privileges to service containers. This is a security risk and should be used with caution.
   -p, --publish strings               Publish a service port to make it accessible outside the cluster. Can be specified multiple times.
                                       Format: [hostname:]container_port[/protocol] or [host_ip|host_prefix:]host_port:container_port[/protocol]@host
-                                      Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified
-                                      and a cluster domain is reserved, service-name.cluster-domain will be used as the hostname.
+                                      Supported protocols: tcp, udp, http, https. The protocol defaults to https if a hostname is specified,
+                                      otherwise tcp. http(s) ports without a hostname use 'service-name.cluster-domain' as the default hostname
+                                      if a cluster domain is reserved.
                                       Examples:
                                         -p 8080/https                       Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname
-                                        -p app.example.com:8080/https       Publish port 8080 as HTTPS via reverse proxy with custom hostname
+                                        -p app.example.com:8080             Publish port 8080 as HTTPS via reverse proxy with custom hostname
                                         -p 53:5353/udp@host                 Bind UDP port 5353 to host port 53
                                         -p 192.168.76.0/24:53:5353/udp@host Bind UDP port 5353 to host port 53 on every host IP address
                                                                             contained in the prefix 192.168.76.0/24

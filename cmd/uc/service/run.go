@@ -106,11 +106,12 @@ func NewRunCommand(groupID string) *cobra.Command {
 	cmd.Flags().StringSliceVarP(&opts.publish, "publish", "p", nil,
 		"Publish a service port to make it accessible outside the cluster. Can be specified multiple times.\n"+
 			"Format: [hostname:]container_port[/protocol] or [host_ip|host_prefix:]host_port:container_port[/protocol]@host\n"+
-			"Supported protocols: tcp, udp, http, https (default is tcp). If a hostname for http(s) port is not specified\n"+
-			"and a cluster domain is reserved, service-name.cluster-domain will be used as the hostname.\n"+
+			"Supported protocols: tcp, udp, http, https. The protocol defaults to https if a hostname is specified,\n"+
+			"otherwise tcp. http(s) ports without a hostname use 'service-name.cluster-domain' as the default hostname\n"+
+			"if a cluster domain is reserved.\n"+
 			"Examples:\n"+
 			"  -p 8080/https                       Publish port 8080 as HTTPS via reverse proxy with default service-name.cluster-domain hostname\n"+
-			"  -p app.example.com:8080/https       Publish port 8080 as HTTPS via reverse proxy with custom hostname\n"+
+			"  -p app.example.com:8080             Publish port 8080 as HTTPS via reverse proxy with custom hostname\n"+
 			// TODO: add support for publishing L4 tcp/udp ports.
 			//"  -p 9000:8080                   Publish port 8080 as TCP port 9000 via reverse proxy\n"+
 			"  -p 53:5353/udp@host                 Bind UDP port 5353 to host port 53\n"+
