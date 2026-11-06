@@ -93,8 +93,9 @@ func (s *Store) CreateOrUpdateContainer(ctx context.Context, ctr api.ServiceCont
 // return in non-deterministic order so that byte-level comparison of the serialised container does not flag spurious
 // changes.
 func normaliseContainerForStore(ctr *api.ServiceContainer) {
-	// Remove the environment variables to avoid leaking secrets.
+	// Remove the environment variables and secrets to avoid leaking secrets.
 	ctr.Config.Env = nil
+	ctr.ServiceSpec.Secrets = nil
 	ctr.ServiceSpec.Container.Env = nil
 	if ctr.ServiceSpec.PreDeploy != nil {
 		ctr.ServiceSpec.PreDeploy.Env = nil
