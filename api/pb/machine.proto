@@ -79,6 +79,8 @@ message UpdateMachineRequest {
   optional string name = 1;
   optional IP public_ip = 2;
   repeated IPPort endpoints = 3;
+  // UDP port WireGuard listens on for incoming connections from other machines.
+  optional int32 wireguard_port = 4;
 }
 
 message UpdateMachineResponse {
