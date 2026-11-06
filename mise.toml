@@ -76,6 +76,12 @@ protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=p
   --proto_path=. --proto_path=api/pb/vendor api/pb/*.proto pkg/distlock/grpc/*.proto
 """
 
+[tasks.release]
+description = "Create a draft GitHub release with GoReleaser"
+# The 1Password CLI resolves op:// secret references in the environment, e.g. GITHUB_TOKEN loaded from .env.
+# Extra arguments are passed to goreleaser, e.g. 'mise run release --release-notes data/release-notes-X.Y.Z.md'.
+run = "op run -- goreleaser release --clean --draft"
+
 [tasks.uc]
 description = "Run the Uncloud CLI"
 raw_args = true
