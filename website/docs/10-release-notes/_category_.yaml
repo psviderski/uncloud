@@ -1,0 +1,7 @@
+label: Release notes
+collapsed: true # keep the category closed by default
+link:
+  type: generated-index
+  description: What's new in each Uncloud release and how to upgrade.
+# Each release page sets sidebar_position to the negative minor.patch version (for example, -22.0 for v0.22.0)
+# to list the newest release first.
