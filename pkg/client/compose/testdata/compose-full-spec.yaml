@@ -81,6 +81,8 @@ services:
       - test.example.com:80/https
       - 8000/http
       - 5000:3000@host
+    expose:
+      - 80
     x-pre_deploy:
       command: ["sh", "-c", "migrate"]
       environment:

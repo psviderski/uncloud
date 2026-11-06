@@ -110,6 +110,7 @@ func TestServiceSpecFromCompose(t *testing.T) {
 							"EMPTY": "",
 							"VAR":   "value",
 						},
+						ExposedPorts: []string{"80"},
 						Healthcheck: &api.HealthcheckSpec{
 							Test:          []string{"CMD", "curl", "-f", "http://localhost"},
 							Interval:      1*time.Minute + 30*time.Second,
