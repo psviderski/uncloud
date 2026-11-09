@@ -54,7 +54,14 @@ Verify:
 
 ### Deploy to production
 
+Deploy and purge the Cloudflare cache:
+
 ```shell
-make website-image-push
-uc deploy
+mise run website:deploy
+```
+
+To purge the cache without deploying, run:
+
+```shell
+mise run website:purge-cache
 ```

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Deploy the website and purge the Cloudflare cache"
+#MISE raw=true
+
+# Extra arguments are passed to 'uc deploy', e.g. 'mise run website:deploy --yes'.
+cd "${MISE_PROJECT_ROOT}/website"
+uc deploy "$@"
+
+# Purge after the rollout completes so Cloudflare doesn't keep pages served by old replicas.
+mise run website:purge-cache

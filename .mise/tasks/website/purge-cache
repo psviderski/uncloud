@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Purge the Cloudflare cache for the website"
+
+# Read the secrets from 1Password vault Uncloud.
+# The API token requires the Zone > Cache Purge permission.
+zone_id="$(op read "op://Uncloud/website-deploy/cloudflare_zone_id")"
+api_token="$(op read "op://Uncloud/website-deploy/cloudflare_api_token")"
+
+echo "==> Purging Cloudflare cache for uncloud.run..."
+# Pass the auth header through stdin to keep the token out of the process list.
+printf 'Authorization: Bearer %s\n' "$api_token" | curl -sS --fail-with-body -X POST \
+  "https://api.cloudflare.com/client/v4/zones/${zone_id}/purge_cache" \
+  -H @- \
+  -H "Content-Type: application/json" \
+  --data '{"hosts":["uncloud.run"]}'
+echo

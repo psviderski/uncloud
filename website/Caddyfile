@@ -22,11 +22,39 @@
         }
     }
 
-    root * /usr/share/caddy
+    # Static files are cached by Cloudflare. Browser TTLs (max-age) stay short for unhashed files because
+    # browser caches can't be purged. Edge TTLs (s-maxage) are long because the Cloudflare cache can be purged
+    # after a deploy (mise run website:purge-cache).
+    handle {
+        root * /usr/share/caddy
 
-    # Serve clean URLs for landing pages, e.g. /hub -> hub.html.
-    try_files {path}.html
+        # Serve clean URLs for landing pages, e.g. /hub -> hub.html.
+        try_files {path}.html
 
-    file_server
+        # Docusaurus build assets have a content hash in their names so they never change.
+        @hashed path /assets/*
+        header @hashed Cache-Control "public, max-age=31536000, immutable"
+        # Unhashed landing page and Docusaurus static assets.
+        @unhashed path /images/* /img/* /js/* /style.css
+        header @unhashed Cache-Control "public, max-age=3600, s-maxage=2592000"
+        # HTML and everything else. Browsers always revalidate, Cloudflare caches until purged.
+        header ?Cache-Control "public, max-age=0, must-revalidate, s-maxage=2592000"
+
+        file_server
+    }
+
+    handle_errors {
+        # Never cache errors. Otherwise, a 404 for a new hashed asset requested from an old replica during
+        # a rolling deploy would keep the immutable header above and get cached for a year.
+        header Cache-Control "no-store"
+
+        @not_found expression {err.status_code} == 404
+        handle @not_found {
+            root * /usr/share/caddy
+            rewrite * /404.html
+            file_server
+        }
+    }
+
     log
 }
