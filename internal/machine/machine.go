@@ -39,6 +39,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/osinfo"
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/internal/secret"
 	"github.com/psviderski/uncloud/internal/version"
@@ -193,6 +194,8 @@ type Machine struct {
 	// store is the cluster store backed by a distributed Corrosion database.
 	store   *store.Store
 	cluster *cluster.Cluster
+	// rttCache caches round-trip time statistics to other machines in the cluster.
+	rttCache *rtt.Cache
 	// dockerService provides high-level operations for managing Docker containers.
 	dockerService *machinedocker.Service
 	dockerServer  *machinedocker.Server
@@ -293,14 +296,17 @@ func NewMachine(config *Config) (*Machine, error) {
 	)
 
 	m := &Machine{
-		config:           *config,
-		state:            state,
-		started:          make(chan struct{}),
-		initialised:      initialised,
-		networkReady:     make(chan struct{}),
-		clusterReady:     clusterReady,
-		store:            corroStore,
-		cluster:          c,
+		config:       *config,
+		state:        state,
+		started:      make(chan struct{}),
+		initialised:  initialised,
+		networkReady: make(chan struct{}),
+		clusterReady: clusterReady,
+		store:        corroStore,
+		cluster:      c,
+		// Created before the machine is initialised as a cluster member. The machine ID is patched
+		// in via UpdateMachineID once it becomes known, the same way as for the cluster above.
+		rttCache:         rtt.NewCache(state.ID, c, corroStore),
 		dockerService:    dockerService,
 		clusterAPIServer: clusterAPIServer,
 		proxyDirector:    proxyDirector,
@@ -513,6 +519,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		select {
 		case <-m.initialised:
 			m.cluster.UpdateMachineID(m.state.ID)
+			m.rttCache.UpdateMachineID(m.state.ID)
 
 			// Ensure the corrosion config is up to date, including a new gossip address if the machine
 			// has just joined a cluster.
@@ -541,6 +548,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				m.caddyService,
 				DefaultCaddyAdminSockPath,
 				m.store,
+				m.rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create caddyconfig controller: %w", err)
@@ -549,9 +557,9 @@ func (m *Machine) Run(ctx context.Context) error {
 			dnsResolver := dns.NewClusterResolver(m.store)
 			dnsServer, err := dns.NewServer(
 				m.IP(),
-				m.state.Network.Subnet,
 				dnsResolver,
 				m.config.DNSUpstreams,
+				m.rttCache,
 			)
 			if err != nil {
 				return fmt.Errorf("create embedded DNS server: %w", err)
@@ -606,6 +614,14 @@ func (m *Machine) Run(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("initialise cluster controller: %w", err)
 			}
+
+			// Start the RTT cache for periodic refresh of cluster RTT data.
+			errGroup.Go(func() error {
+				if err := m.rttCache.Run(ctx); err != nil {
+					return fmt.Errorf("run RTT cache: %w", err)
+				}
+				return nil
+			})
 
 			if err = m.clusterCtrl.Run(ctx); err != nil {
 				return fmt.Errorf("run cluster controller: %w", err)
@@ -1274,37 +1290,25 @@ func (m *Machine) applyMachineUpdate(ctx context.Context, req *pb.UpdateMachineR
 	return nil
 }
 
-// getMachineRTTs retrieves round-trip times to other machines in the cluster.
+// getMachineRTTs retrieves round-trip times to other machines in the cluster
+// by performing a live refresh from Corrosion.
 func (m *Machine) getMachineRTTs(ctx context.Context) (map[string]*pb.RTTStats, error) {
-	rtts, err := m.cluster.MemberRTTs()
+	if m.rttCache == nil {
+		return nil, nil
+	}
+
+	peers, err := m.rttCache.LivePeerRTTs(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get member rtts: %v", err)
+		return nil, status.Errorf(codes.Internal, "get peer RTTs: %v", err)
 	}
 
-	// List machines to map IPs to Machine IDs.
-	machines, err := m.store.ListMachines(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list machines: %v", err)
-	}
-
-	// Map Management IP -> Machine ID
-	ipToMachineID := make(map[netip.Addr]string)
-	for _, mach := range machines {
-		ip, _ := mach.Network.ManagementIp.ToAddr()
-		ipToMachineID[ip] = mach.Id
-	}
-
-	pbRTTs := make(map[string]*pb.RTTStats)
-	for _, stats := range rtts {
-		// Corrosion uses the management IP for gossip.
-		if mid, ok := ipToMachineID[stats.Addr.Addr()]; ok {
-			pbRTTs[mid] = &pb.RTTStats{
-				Median: durationpb.New(stats.Median),
-				StdDev: durationpb.New(stats.StdDev),
-			}
+	pbRTTs := make(map[string]*pb.RTTStats, len(peers))
+	for mid, stats := range peers {
+		pbRTTs[mid] = &pb.RTTStats{
+			Median: durationpb.New(stats.Median),
+			StdDev: durationpb.New(stats.StdDev),
 		}
 	}
-
 	return pbRTTs, nil
 }
 

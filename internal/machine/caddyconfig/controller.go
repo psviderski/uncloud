@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/psviderski/uncloud/internal/fs"
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 )
@@ -40,6 +41,7 @@ type Controller struct {
 	generator     *CaddyfileGenerator
 	client        *CaddyAdminClient
 	store         *store.Store
+	rttCache      *rtt.Cache
 	log           *slog.Logger
 	// Tests use their own group so they can exercise real file publication without the daemon's uncloud group.
 	fileGroup string
@@ -70,7 +72,7 @@ func (f containerFingerprint) Equal(other containerFingerprint) bool {
 		f.CaddyConfig == other.CaddyConfig
 }
 
-func NewController(machineID string, service *Service, adminSock string, store *store.Store) (*Controller, error) {
+func NewController(machineID string, service *Service, adminSock string, store *store.Store, rttCache *rtt.Cache) (*Controller, error) {
 	configDir := service.configDir
 	if err := os.MkdirAll(configDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create directory for Caddy configuration '%s': %w", configDir, err)
@@ -89,6 +91,7 @@ func NewController(machineID string, service *Service, adminSock string, store *
 		service:       service,
 		client:        client,
 		store:         store,
+		rttCache:      rttCache,
 		log:           log,
 		fileGroup:     CaddyGroup,
 	}, nil
@@ -107,7 +110,7 @@ func (c *Controller) Run(ctx context.Context) error {
 	} else {
 		machineName = m.Name
 	}
-	c.generator = NewCaddyfileGenerator(c.machineID, machineName, c.client, c.log)
+	c.generator = NewCaddyfileGenerator(c.machineID, machineName, c.rttCache, c.client, c.log)
 
 	containers, changes, err := c.store.SubscribeContainers(ctx)
 	if err != nil {
