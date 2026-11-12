@@ -26,7 +26,7 @@ func TestParseVersionOrZero(t *testing.T) {
 		{
 			name:     "valid semver with prerelease",
 			input:    "0.19.0-nightly-abc1234",
-			expected: "0.19.0-nightly-abc1234",
+			expected: "0.19.0",
 		},
 		{
 			name:     "dev version",

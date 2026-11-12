@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync/atomic"
 
 	"github.com/Masterminds/semver"
@@ -56,8 +57,13 @@ var (
 	WarnWriter io.Writer = os.Stderr
 )
 
-// parseVersionOrZero parses v as a semver, returning zeroVersion if parsing fails.
+// parseVersionOrZero parses v as a semver, a string as 0.19.1-nightly-abcd is stripped
+// to 0.19.1. and then parsed. It returns zeroVersion if parsing fails.
 func parseVersionOrZero(v string) *semver.Version {
+	nightly, _, ok := strings.Cut(v, "-nightly")
+	if ok {
+		v = nightly
+	}
 	parsed, err := semver.NewVersion(v)
 	if err != nil {
 		return zeroVersion
