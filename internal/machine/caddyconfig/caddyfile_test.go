@@ -103,6 +103,10 @@ https://secure.example.com {
 	reverse_proxy 10.210.0.2:8000 {
 		import common_proxy
 	}
+	handle_errors {
+		# Close the connection on proxy errors so a client stuck on an old config after a reload reconnects.
+		header Connection close
+	}
 	log
 }
 `,
@@ -156,6 +160,10 @@ http://web.example.com {
 https://secure.example.com {
 	reverse_proxy 10.210.0.3:8888 10.210.0.4:8888 10.210.0.5:8888 {
 		import common_proxy
+	}
+	handle_errors {
+		# Close the connection on proxy errors so a client stuck on an old config after a reload reconnects.
+		header Connection close
 	}
 	log
 }

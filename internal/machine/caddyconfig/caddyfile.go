@@ -55,6 +55,10 @@ https://{{$hostname}} {
 	reverse_proxy {{join $upstreams " "}} {
 		import common_proxy
 	}
+	handle_errors {
+		# Close the connection on proxy errors so a client stuck on an old config after a reload reconnects.
+		header Connection close
+	}
 	log
 }{{end}}
 `
