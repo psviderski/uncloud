@@ -2,8 +2,28 @@
 
 Switch between different cluster contexts. Contains subcommands to manage contexts.
 
+## Synopsis
+
+Switch between different cluster contexts.
+
+A single argument that is not a subcommand, switch to the context with that name, with arguments you
+can select a context interactively.
+
 ```
 uc ctx [flags]
+```
+
+## Examples
+
+```
+  # Interactively pick a context.
+  uc ctx
+
+  # Switch directly to the context "prod".
+  uc ctx prod
+
+  # List contexts.
+  uc ctx ls
 ```
 
 ## Options
