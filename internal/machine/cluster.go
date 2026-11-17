@@ -474,6 +474,23 @@ func (cc *clusterController) RequestMachineSync() {
 	}
 }
 
+// ReconfigureNetwork re-applies the firewall rules and WireGuard device configuration from the current machine
+// state. It is used to apply changes to the WireGuard listen port at runtime without restarting the daemon.
+func (cc *clusterController) ReconfigureNetwork() error {
+	cc.state.mu.RLock()
+	defer cc.state.mu.RUnlock()
+
+	if err := firewall.ConfigureIptablesChains(network.MachineIP(cc.state.Network.Subnet),
+		cc.state.Network.EffectiveWireGuardPort()); err != nil {
+		return fmt.Errorf("configure iptables chains: %w", err)
+	}
+	if err := cc.wgnet.Configure(*cc.state.Network); err != nil {
+		return fmt.Errorf("configure WireGuard network: %w", err)
+	}
+	slog.Info("Reconfigured WireGuard network.", "listen_port", cc.state.Network.EffectiveWireGuardPort())
+	return nil
+}
+
 // syncMachineInfo republishes this machine's info from local state to the cluster store, skipping the
 // write if the info is unchanged since the last successful write.
 func (cc *clusterController) syncMachineInfo(ctx context.Context) error {
