@@ -28,11 +28,12 @@ The **update order** controls whether Uncloud starts the new container before or
 | `start-first` | Start new container, then stop old<br/>(running containers briefly overlap) | Stateless services (web apps, APIs) |
 | `stop-first`  | Stop old container, then start new                                          | Stateful services (databases)       |
 
-The default is `start-first` so there's **no downtime**. But it automatically switches to `stop-first` in two cases:
+The default is `start-first` so there's **no downtime**. But it automatically switches to `stop-first` in three cases:
 
 - **Host port conflicts**: the old container must free the port before the new one can bind to it.
 - **Single-replica service with a volume**: two containers simultaneously writing to the same volume can
   **corrupt data**, so Uncloud stops the old container first to prevent this.
+- **Network mode 'host'**: when using `network_mode = host` it is similar to host port conflicts.
 
 `stop-first` can cause a **brief downtime** while the old container stops and the new one starts in these cases. The
 deployment plan printed by `uc deploy` indicates which containers will be replaced with `stop-first`.
