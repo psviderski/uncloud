@@ -1,18 +1,20 @@
 package grpcversion
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
 func TestParseVersionOrZero(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -54,6 +56,8 @@ func TestParseVersionOrZero(t *testing.T) {
 }
 
 func TestExtractVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		md       metadata.MD
@@ -107,6 +111,8 @@ func TestExtractVersion(t *testing.T) {
 }
 
 func TestCheckClientVersionHeaders(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		md         metadata.MD
@@ -172,65 +178,85 @@ func TestCheckClientVersionHeaders(t *testing.T) {
 	}
 }
 
-func captureWarnings(t *testing.T, fn func()) string {
-	t.Helper()
-	var buf bytes.Buffer
-	old := WarnWriter
-	WarnWriter = &buf
-	t.Cleanup(func() { WarnWriter = old })
-	fn()
-	return buf.String()
-}
+func TestClientInterceptors(t *testing.T) {
+	t.Parallel()
 
-func TestCheckServerVersionInResponse(t *testing.T) {
 	tests := []struct {
-		name        string
-		md          metadata.MD
-		wantWarning bool
+		name          string
+		ctx           context.Context
+		wantMinServer string
 	}{
 		{
-			name:        "daemon version below minimum",
-			md:          metadata.Pairs(MetadataKeyServerVersion, "0.0.0-dev"),
-			wantWarning: true,
+			name:          "default min server version",
+			ctx:           context.Background(),
+			wantMinServer: MinServerVersion,
 		},
 		{
-			name:        "daemon version above minimum",
-			md:          metadata.Pairs(MetadataKeyServerVersion, "999.0.0"),
-			wantWarning: false,
+			name:          "higher per-call min server version",
+			ctx:           WithMinServerVersion(context.Background(), "999.0.0"),
+			wantMinServer: "999.0.0",
 		},
+		{
+			name:          "lower per-call min server version",
+			ctx:           WithMinServerVersion(context.Background(), "0.1.0"),
+			wantMinServer: MinServerVersion,
+		},
+		{
+			name:          "highest of multiple per-call min server versions",
+			ctx:           WithMinServerVersion(WithMinServerVersion(context.Background(), "999.0.0"), "998.0.0"),
+			wantMinServer: "999.0.0",
+		},
+		{
+			name: "existing outgoing metadata",
+			ctx: metadata.AppendToOutgoingContext(
+				WithMinServerVersion(context.Background(), "999.0.0"), "machine", "machine-1"),
+			wantMinServer: "999.0.0",
+		},
+	}
+
+	assertVersionMetadata := func(t *testing.T, inCtx, outCtx context.Context, wantMinServer string) {
+		t.Helper()
+		md, ok := metadata.FromOutgoingContext(outCtx)
+		require.True(t, ok)
+		assert.Equal(t, []string{currentVersion.String()}, md.Get(MetadataKeyClientVersion))
+		assert.Equal(t, []string{wantMinServer}, md.Get(MetadataKeyMinServerVersion))
+
+		// Other outgoing metadata must be preserved.
+		inMD, _ := metadata.FromOutgoingContext(inCtx)
+		for k, v := range inMD {
+			if k != MetadataKeyMinServerVersion {
+				assert.Equal(t, v, md.Get(k), "metadata key %q", k)
+			}
+		}
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warned.Store(false)
+			var unaryCtx context.Context
+			err := ClientUnaryInterceptor(tt.ctx, "/test/Unary", nil, nil, nil,
+				func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+					unaryCtx = ctx
+					return nil
+				})
+			require.NoError(t, err)
+			assertVersionMetadata(t, tt.ctx, unaryCtx, tt.wantMinServer)
 
-			output := captureWarnings(t, func() {
-				checkServerVersionInResponse(tt.md)
-			})
-
-			if tt.wantWarning {
-				assert.Contains(t, output, "WARNING")
-			} else {
-				assert.Empty(t, output)
-			}
+			var streamCtx context.Context
+			_, err = ClientStreamInterceptor(tt.ctx, &grpc.StreamDesc{}, nil, "/test/Stream",
+				func(ctx context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption) (grpc.ClientStream, error) {
+					streamCtx = ctx
+					return nil, nil
+				})
+			require.NoError(t, err)
+			assertVersionMetadata(t, tt.ctx, streamCtx, tt.wantMinServer)
 		})
 	}
 }
 
-func TestCheckServerVersionInResponse_WarnOnce(t *testing.T) {
-	warned.Store(false)
+func TestWithMinServerVersion_InvalidVersionPanics(t *testing.T) {
+	t.Parallel()
 
-	md := metadata.Pairs(MetadataKeyServerVersion, "0.0.0-dev")
-
-	// First call should warn.
-	output1 := captureWarnings(t, func() {
-		checkServerVersionInResponse(md)
+	assert.Panics(t, func() {
+		WithMinServerVersion(context.Background(), "not-a-version")
 	})
-	assert.Contains(t, output1, "WARNING", "first call should warn")
-
-	// Second call should not warn (warned flag is now true).
-	output2 := captureWarnings(t, func() {
-		checkServerVersionInResponse(md)
-	})
-	assert.Empty(t, output2, "second call should not warn")
 }

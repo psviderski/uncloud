@@ -12,13 +12,17 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/google/uuid"
 	"github.com/psviderski/uncloud/api/pb"
+	"github.com/psviderski/uncloud/internal/grpcversion"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/psviderski/uncloud/pkg/client"
 	"github.com/psviderski/uncloud/pkg/distlock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -387,6 +391,60 @@ func TestClusterLifecycle(t *testing.T) {
 
 			err := cli.WaitForStoreVersion(waitCtx, api.StoreVersion{uuid.NewString(): 1})
 			require.Equal(t, codes.Canceled, status.Code(err))
+		})
+	})
+
+	t.Run("gRPC version check", func(t *testing.T) {
+		cli, err := c.Machines[0].Connect(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, cli.Close())
+		})
+
+		// A connection without the version interceptors acts like a client that predates version checks.
+		oldConn, err := grpc.NewClient(
+			c.Machines[0].APIAddress.String(), grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, oldConn.Close())
+		})
+		oldClient := pb.NewMachineClient(oldConn)
+
+		assertVersionCheckFailed := func(t *testing.T, err error, msg string) {
+			t.Helper()
+			require.Error(t, err)
+			st := status.Convert(err)
+			assert.Equal(t, codes.FailedPrecondition, st.Code(), st.Message())
+			assert.Contains(t, st.Message(), msg)
+		}
+
+		t.Run("reject unary request from old client", func(t *testing.T) {
+			_, err := oldClient.Inspect(ctx, &emptypb.Empty{})
+			assertVersionCheckFailed(t, err, "client version is below minimum")
+		})
+
+		t.Run("reject streaming request from old client", func(t *testing.T) {
+			stream, err := oldClient.MachineLogs(ctx, &pb.LogsRequest{})
+			require.NoError(t, err)
+			_, err = stream.Recv()
+			assertVersionCheckFailed(t, err, "client version is below minimum")
+		})
+
+		t.Run("reject request that requires newer daemon", func(t *testing.T) {
+			reqCtx := grpcversion.WithMinServerVersion(ctx, "1000.0.0")
+			_, err := cli.MachineClient.Inspect(reqCtx, &emptypb.Empty{})
+			assertVersionCheckFailed(t, err, "below client's minimum required version 1000.0.0")
+		})
+
+		t.Run("accept request proxied to another machine", func(t *testing.T) {
+			reqCtx := client.ProxySingleMachineContext(ctx, c.Machines[1].ID)
+			var header metadata.MD
+			info, err := cli.MachineClient.Inspect(reqCtx, &emptypb.Empty{}, grpc.Header(&header))
+			require.NoError(t, err)
+			assert.Equal(t, c.Machines[1].ID, info.Id)
+			// Clients up to v0.22.0 warn if the daemon version header is missing.
+			assert.NotEmpty(t, header.Get(grpcversion.MetadataKeyServerVersion))
 		})
 	})
 

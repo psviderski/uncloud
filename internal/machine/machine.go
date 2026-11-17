@@ -285,7 +285,7 @@ func NewMachine(config *Config) (*Machine, error) {
 	proxyDirector := apiproxy.NewDirector(config.MachineAPISockPath, constants.UncloudAPIPort, mapper)
 	clusterAPIServer := grpc.NewServer(
 		grpc.ForceServerCodecV2(proxy.Codec()),
-		grpc.UnaryInterceptor(grpcversion.ServerUnaryInterceptor),
+		// The unknown service handler serves all requests as streams so only a stream interceptor is needed.
 		grpc.StreamInterceptor(grpcversion.ServerStreamInterceptor),
 		grpc.UnknownServiceHandler(
 			proxy.TransparentHandler(proxyDirector.Director),
@@ -527,7 +527,6 @@ func (m *Machine) Run(ctx context.Context) error {
 			m.proxyDirector.UpdateLocalAddress(m.state.Network.ManagementIP.String())
 			proxyServer := grpc.NewServer(
 				grpc.ForceServerCodecV2(proxy.Codec()),
-				grpc.UnaryInterceptor(grpcversion.ServerUnaryInterceptor),
 				grpc.StreamInterceptor(grpcversion.ServerStreamInterceptor),
 				grpc.UnknownServiceHandler(
 					proxy.TransparentHandler(m.proxyDirector.Director),
