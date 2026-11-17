@@ -21,8 +21,13 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
+// uncloudRouteProtocol identifies routes managed by Uncloud. Linux route protocols are 8-bit values.
+// 201 is not assigned by the kernel or iproute2.
+const uncloudRouteProtocol = netlink.RouteProtocol(201)
+
 type WireGuardNetwork struct {
-	link netlink.Link
+	link      netlink.Link
+	userspace *userspaceWireGuard
 	// peers is a map of peers indexed by their public key.
 	peers map[string]*peer
 	// watchers is a list of channels that are notified when the endpoints of the peers change.
@@ -34,39 +39,67 @@ type WireGuardNetwork struct {
 }
 
 func NewWireGuardNetwork() (*WireGuardNetwork, error) {
-	link, err := createOrGetLink(WireGuardInterfaceName)
+	link, userspace, err := createOrGetLink(WireGuardInterfaceName)
 	if err != nil {
 		return nil, fmt.Errorf("create or get WireGuard link %q: %v", WireGuardInterfaceName, err)
 	}
-	return &WireGuardNetwork{link: link}, nil
+	return &WireGuardNetwork{link: link, userspace: userspace}, nil
 }
 
-// createOrGetLink creates a new WireGuard link with the given name if it doesn't already exist, otherwise it returns the existing link.
-func createOrGetLink(name string) (netlink.Link, error) {
-	link, err := netlink.LinkByName(name)
+// createOrGetLink creates a kernel WireGuard link or falls back to a userspace implementation when the kernel does not
+// support WireGuard. It returns an existing link without changing its implementation.
+func createOrGetLink(name string) (netlink.Link, *userspaceWireGuard, error) {
+	return createOrGetLinkWith(name, netlink.LinkByName, netlink.LinkAdd, startUserspaceWireGuard)
+}
+
+func createOrGetLinkWith(
+	name string,
+	linkByName func(string) (netlink.Link, error),
+	linkAdd func(netlink.Link) error,
+	startUserspace func(string) (*userspaceWireGuard, error),
+) (netlink.Link, *userspaceWireGuard, error) {
+	link, err := linkByName(name)
 	if err == nil {
 		slog.Info("Found existing WireGuard interface.", "name", name)
-		return link, nil
+		return link, nil, nil
 	}
 	//goland:noinspection GoTypeAssertionOnErrors
 	if _, ok := err.(netlink.LinkNotFoundError); !ok {
-		return nil, fmt.Errorf("find WireGuard link %q: %v", name, err)
+		return nil, nil, fmt.Errorf("find WireGuard link %q: %v", name, err)
 	}
+
 	link = &netlink.GenericLink{
 		LinkAttrs: netlink.LinkAttrs{Name: name},
 		LinkType:  "wireguard",
 	}
-	if err = netlink.LinkAdd(link); err != nil {
-		return nil, fmt.Errorf("create WireGuard link %q: %v", name, err)
+	var userspace *userspaceWireGuard
+	if err = linkAdd(link); err != nil {
+		if !kernelWireGuardUnavailable(err) {
+			return nil, nil, fmt.Errorf("create kernel WireGuard link %q: %w", name, err)
+		}
+
+		userspace, err = startUserspace(name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("start userspace WireGuard for link %q: %w", name, err)
+		}
+		slog.Info("Created userspace WireGuard interface.", "name", name)
+	} else {
+		slog.Info("Created WireGuard interface.", "name", name)
 	}
-	slog.Info("Created WireGuard interface.", "name", name)
 
 	// Refetch the link to get the most up-to-date information.
-	link, err = netlink.LinkByName(name)
+	link, err = linkByName(name)
 	if err != nil {
-		return nil, fmt.Errorf("find created WireGuard link %q: %v", name, err)
+		if userspace != nil {
+			userspace.Close()
+		}
+		return nil, nil, fmt.Errorf("find created WireGuard link %q: %w", name, err)
 	}
-	return link, nil
+	return link, userspace, nil
+}
+
+func kernelWireGuardUnavailable(err error) bool {
+	return errors.Is(err, unix.EOPNOTSUPP) || errors.Is(err, unix.ENODEV)
 }
 
 // Configure applies the given configuration to the WireGuard network interface.
@@ -240,6 +273,8 @@ func (n *WireGuardNetwork) updatePeerRoutes(machineIP netip.Addr) error {
 				Scope:     netlink.SCOPE_LINK,
 				Dst:       &dst,
 				Src:       src,
+				Protocol:  uncloudRouteProtocol,
+				Table:     unix.RT_TABLE_MAIN,
 			},
 		); err != nil {
 			if !errors.Is(err, unix.EEXIST) {
@@ -253,9 +288,17 @@ func (n *WireGuardNetwork) updatePeerRoutes(machineIP netip.Addr) error {
 		}
 	}
 
-	// Remove old routes to IP ranges that are no longer in the configuration.
+	// Remove Uncloud-managed routes to IP ranges that are no longer in the configuration.
 	addedRoutes := ipset.Prefixes()
-	routes, err := netlink.RouteList(n.link, netlink.FAMILY_ALL)
+	routes, err := netlink.RouteListFiltered(
+		netlink.FAMILY_ALL,
+		&netlink.Route{
+			LinkIndex: n.link.Attrs().Index,
+			Protocol:  uncloudRouteProtocol,
+			Table:     unix.RT_TABLE_MAIN,
+		},
+		netlink.RT_FILTER_OIF|netlink.RT_FILTER_PROTOCOL|netlink.RT_FILTER_TABLE,
+	)
 	if err != nil {
 		return fmt.Errorf("list routes on WireGuard link %q: %w", n.link.Attrs().Name, err)
 	}
@@ -294,6 +337,12 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 	n.mu.Unlock()
 
 	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	var userspaceDone <-chan error
+	if n.userspace != nil {
+		userspaceDone = n.userspace.done
+	}
 	for {
 		select {
 		case <-ticker.C:
@@ -307,6 +356,11 @@ func (n *WireGuardNetwork) Run(ctx context.Context) error {
 					"name", n.link.Attrs().Name, "err", err)
 			}
 			n.mu.Unlock()
+		case err = <-userspaceDone:
+			n.mu.Lock()
+			n.running = false
+			n.mu.Unlock()
+			return err
 		case <-ctx.Done():
 			for _, ch := range n.watchers {
 				close(ch)
@@ -465,6 +519,13 @@ func (n *WireGuardNetwork) Cleanup() error {
 
 	// Delete the WireGuard link.
 	name := n.link.Attrs().Name
+	if n.userspace != nil {
+		n.userspace.Close()
+		n.userspace = nil
+		n.link = nil
+		slog.Info("Deleted userspace WireGuard interface.", "name", name)
+		return nil
+	}
 	if err := netlink.LinkDel(n.link); err != nil {
 		return fmt.Errorf("delete WireGuard link %q: %w", name, err)
 	}
