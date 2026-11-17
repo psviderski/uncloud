@@ -657,36 +657,9 @@ func (s *Server) CreateServiceContainer(
 		return nil, err
 	}
 
-	portBindings := make(nat.PortMap)
-	for _, p := range spec.Ports {
-		if p.Mode != api.PortModeHost {
-			continue
-		}
-		port := nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, p.Protocol))
-		portBindings[port] = []nat.PortBinding{
-			{
-				HostPort: strconv.Itoa(int(p.PublishedPort)),
-			},
-		}
-		if p.HostIP.IsValid() {
-			portBindings[port][0].HostIP = p.HostIP.String()
-		}
-
-		if p.HostPrefix.IsValid() {
-			addrs, err := addrOfPrefix(p.HostPrefix)
-			if err != nil {
-				return nil, err
-			}
-			// p.HostIP was not valid, so the first IP can be set in the above added PortBindings, the rest is
-			// just appended.
-			portBindings[port][0].HostIP = addrs[0]
-			for _, addr := range addrs[1:] {
-				portBindings[port] = append(portBindings[port], nat.PortBinding{
-					HostPort: strconv.Itoa(int(p.PublishedPort)),
-					HostIP:   addr,
-				})
-			}
-		}
+	portBindings, err := hostPortBindings(spec.Ports)
+	if err != nil {
+		return nil, err
 	}
 
 	hostConfig := &container.HostConfig{
@@ -1010,6 +983,39 @@ func toDockerUlimits(ulimits map[string]api.Ulimit) []*units.Ulimit {
 	}
 
 	return dockerUlimits
+}
+
+// hostPortBindings converts the host mode ports to Docker port bindings. Several ports can publish the same
+// container port, for example on an IPv4 and an IPv6 address. Their bindings are all kept for that container port.
+func hostPortBindings(ports []api.PortSpec) (nat.PortMap, error) {
+	portBindings := make(nat.PortMap)
+	for _, p := range ports {
+		if p.Mode != api.PortModeHost {
+			continue
+		}
+		hostPort := strconv.Itoa(int(p.PublishedPort))
+
+		hostIPs := []string{""}
+		if p.HostIP.IsValid() {
+			hostIPs = []string{p.HostIP.String()}
+		} else if p.HostPrefix.IsValid() {
+			addrs, err := addrOfPrefix(p.HostPrefix)
+			if err != nil {
+				return nil, err
+			}
+			hostIPs = addrs
+		}
+
+		port := nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, p.Protocol))
+		for _, ip := range hostIPs {
+			portBindings[port] = append(portBindings[port], nat.PortBinding{
+				HostIP:   ip,
+				HostPort: hostPort,
+			})
+		}
+	}
+
+	return portBindings, nil
 }
 
 func toDockerDevices(devices []api.DeviceMapping) []container.DeviceMapping {
