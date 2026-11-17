@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/docker/cli/cli/connhelper/commandconn"
-	"github.com/psviderski/uncloud/internal/grpcversion"
+	"github.com/psviderski/uncloud/client"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -84,12 +84,10 @@ func (c *SSHCLIConnector) Connect(ctx context.Context) (*grpc.ClientConn, error)
 
 	// Create gRPC client with a dialer that spawns new SSH connections on demand,
 	// reusing the control socket established above.
-	grpcConn, err := grpc.NewClient(
+	grpcConn, err := client.NewConn(
 		"passthrough:///", // Dummy target since we're using a custom dialer.
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(defaultServiceConfig),
-		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
-		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			dialArgs := append(c.buildSSHArgs(true), "uncloudd", "dial-stdio")
 			if c.config.SockPath != "" {

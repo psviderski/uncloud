@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/psviderski/uncloud/internal/grpcversion"
+	"github.com/psviderski/uncloud/client"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -28,7 +28,7 @@ func (c *TCPConnector) Connect(_ context.Context) (*grpc.ClientConn, error) {
 	backoffConfig := backoff.DefaultConfig
 	backoffConfig.MaxDelay = 5 * time.Second
 
-	conn, err := grpc.NewClient(
+	conn, err := client.NewConn(
 		c.apiAddr.String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(defaultServiceConfig),
@@ -36,8 +36,6 @@ func (c *TCPConnector) Connect(_ context.Context) (*grpc.ClientConn, error) {
 			Backoff:           backoffConfig,
 			MinConnectTimeout: 5 * time.Second,
 		}),
-		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
-		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create Uncloud API client: %w", err)

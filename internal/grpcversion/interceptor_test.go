@@ -31,6 +31,11 @@ func TestParseVersionOrZero(t *testing.T) {
 			expected: "0.19.0-nightly-abc1234",
 		},
 		{
+			name:     "go module pseudo-version",
+			input:    "0.22.1-0.20261117120000-abcdef123456",
+			expected: "0.22.1-0.20261117120000-abcdef123456",
+		},
+		{
 			name:     "dev version",
 			input:    "999.0.0-dev",
 			expected: "999.0.0-dev",

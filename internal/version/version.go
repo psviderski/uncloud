@@ -3,13 +3,18 @@ package version
 import (
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	goversion "github.com/caarlos0/go-version"
 )
 
 const (
+	modulePath = "github.com/psviderski/uncloud"
+	devVersion = "999.0.0-dev"
+
 	WebsiteURL = "https://uncloud.run"
 	DocsURL    = "https://uncloud.run/docs"
 	DiscordURL = "https://uncloud.run/discord"
@@ -25,11 +30,44 @@ var (
 	builtBy string
 )
 
+// String returns the Uncloud version of this binary. It's the version injected at build time, the version of
+// the Uncloud module if another module uses it as a dependency, or devVersion for development builds.
 func String() string {
-	if version == "" {
-		return "999.0.0-dev"
+	if version != "" {
+		return version
 	}
-	return version
+	if v := dependencyVersion(); v != "" {
+		return v
+	}
+	return devVersion
+}
+
+var dependencyVersion = sync.OnceValue(func() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	return moduleVersion(info)
+})
+
+// moduleVersion returns the version of the Uncloud module without the "v" prefix if the main module in info uses it
+// as a dependency. It returns an empty string if Uncloud is the main module or is replaced with a local directory.
+func moduleVersion(info *debug.BuildInfo) string {
+	for _, dep := range info.Deps {
+		if dep.Path != modulePath {
+			continue
+		}
+		if dep.Replace != nil {
+			dep = dep.Replace
+		}
+		// A local directory replacement has the "(devel)" version.
+		v, ok := strings.CutPrefix(dep.Version, "v")
+		if !ok {
+			return ""
+		}
+		return v
+	}
+	return ""
 }
 
 // Info holds version and build metadata for an Uncloud binary.

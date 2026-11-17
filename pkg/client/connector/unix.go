@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/psviderski/uncloud/internal/grpcversion"
+	"github.com/psviderski/uncloud/client"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,12 +23,10 @@ func (c *UnixConnector) Connect(_ context.Context) (*grpc.ClientConn, error) {
 	// gRPC uses "unix:path" syntax for unix sockets.
 	target := "unix:" + c.socketPath
 
-	conn, err := grpc.NewClient(
+	conn, err := client.NewConn(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(defaultServiceConfig),
-		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
-		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create Uncloud API client: %w", err)

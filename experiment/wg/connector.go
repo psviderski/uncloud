@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/psviderski/uncloud/internal/grpcversion"
+	"github.com/psviderski/uncloud/client"
 	"github.com/psviderski/uncloud/internal/machine/constants"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/secret"
@@ -73,14 +73,12 @@ func (c *WireGuardConnector) Connect(ctx context.Context) (*grpc.ClientConn, err
 		return nil, fmt.Errorf("establish WireGuard tunnel to %q: %w", endpoint, err)
 	}
 
-	conn, err := grpc.NewClient(
+	conn, err := client.NewConn(
 		machineAPIAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return c.tun.DialContext(ctx, "tcp", addr)
 		}),
-		grpc.WithUnaryInterceptor(grpcversion.ClientUnaryInterceptor),
-		grpc.WithStreamInterceptor(grpcversion.ClientStreamInterceptor),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("connect to machine API through WireGuard tunnel: %w", err)
