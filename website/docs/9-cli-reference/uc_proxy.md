@@ -7,12 +7,13 @@ Proxy a service port to a local port.
 Proxy a service port in the cluster to a local port on this machine.
 
 If the service runs multiple containers, the command connects to the first running and healthy one.
-If you don't provide a local port, the command picks a random one.
+If you don't provide a local port, the command picks a random one. If no remote port is given the command
+will use the exposed port - if multiple ports are exposed a list of available ones will be displayed for selection.
 
 The connection stays open for as long as the command runs.
 
 ```
-uc proxy SERVICE [LOCAL_PORT:]REMOTE_PORT [flags]
+uc proxy SERVICE [LOCAL_PORT:][REMOTE_PORT] [flags]
 ```
 
 ## Options
