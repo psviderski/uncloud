@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/psviderski/uncloud/api/pb";
+
+import "api/pb/machine.proto";
+
+// Hub is the API that Uncloud Hub serves to cluster machines. Machines only make outbound calls to Hub. Hub calls
+// the Uncloud API on machines through the tunnels they open.
+service Hub {
+  // ConnectCluster connects a cluster to the Hub organisation that issued the connection token. The token is
+  // single-use and short-lived. Hub registers the machines so they can open tunnels.
+  // Connecting a cluster again with a new token replaces its previously registered machines.
+  rpc ConnectCluster(ConnectClusterRequest) returns (ConnectClusterResponse);
+
+  // Tunnel opens a reverse tunnel from a machine to Hub. The machine authenticates with its WireGuard key in
+  // a handshake: it sends hello, Hub replies with a challenge, the machine sends a proof, and Hub replies with
+  // accepted. After that, both sides only send data messages that carry a gRPC connection where Hub is the client
+  // and the machine serves the Uncloud API.
+  //
+  // Hub ends the stream with Unauthenticated if it doesn't know the machine or the proof is invalid.
+  rpc Tunnel(stream TunnelMessage) returns (stream TunnelMessage);
+}
+
+message ConnectClusterRequest {
+  // Single-use connection token issued in Hub.
+  string token = 1;
+  // The current machines of the cluster that Hub will allow handshakes from.
+  repeated MachineInfo machines = 2;
+}
+
+message ConnectClusterResponse {
+  // ID of the cluster in Hub. Machines must send it in the tunnel hello.
+  string cluster_id = 1;
+}
+
+// TunnelMessage is a message in either direction of a tunnel stream.
+message TunnelMessage {
+  oneof message {
+    // Handshake 1: machine to Hub.
+    TunnelHello hello = 1;
+    // Handshake 2: Hub to machine.
+    TunnelChallenge challenge = 2;
+    // Handshake 3: machine to Hub.
+    TunnelProof proof = 3;
+    // Handshake 4: Hub to machine.
+    TunnelAccepted accepted = 4;
+    // Both directions after the handshake.
+    bytes data = 5;
+  }
+}
+
+// TunnelHello identifies the machine that opens a tunnel.
+message TunnelHello {
+  string cluster_id = 1;
+  string machine_id = 2;
+}
+
+// TunnelChallenge asks the machine to prove that it holds the private key of its WireGuard public key.
+message TunnelChallenge {
+  // Ephemeral X25519 public key that Hub generates for each handshake.
+  bytes public_key = 1;
+}
+
+// TunnelProof proves that the machine holds its WireGuard private key.
+message TunnelProof {
+  // HMAC-SHA256 of the handshake transcript keyed with a key derived from the X25519 shared secret of the machine
+  // WireGuard key and the challenge key.
+  bytes hmac = 1;
+}
+
+// TunnelAccepted confirms that Hub authenticated the machine and the tunnel is open.
+message TunnelAccepted {}
