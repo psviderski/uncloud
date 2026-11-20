@@ -19,6 +19,7 @@ uc proxy SERVICE [LOCAL_PORT:]REMOTE_PORT [flags]
 
 ```
   -h, --help   help for proxy
+      --http   Always prefix the proxy address with http://.
 ```
 
 ## Options inherited from parent commands
