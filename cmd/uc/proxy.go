@@ -20,6 +20,7 @@ type proxyOptions struct {
 	localPort  int
 	remotePort int
 	service    string
+	forceHTTP  bool
 }
 
 // NewProxyCommand creates a new command to proxy a local port to a service's port in the cluster.
@@ -73,6 +74,8 @@ The connection stays open for as long as the command runs.`,
 			return completion.Services(cmd.Context(), uncli, args, toComplete)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.forceHTTP, "http", false,
+		"Always prefix the proxy address with http://.")
 
 	return cmd
 }
@@ -154,7 +157,7 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 
 	// Prefix the local address with the scheme for common HTTP ports so it becomes control-clickable in most
 	// terminals. We assume plain HTTP since TLS is typically terminated by Caddy in front of the service.
-	fmt.Printf("%s%s → %s (%s%s%s)\n", schemeForPort(opts.remotePort), p.Listener.Addr().String(),
+	fmt.Printf("%s%s → %s (%s%s%s)\n", schemeForPort(opts.remotePort, opts.forceHTTP), p.Listener.Addr().String(),
 		remoteAddr, opts.service, tui.Faint.Render("/"), containerID)
 
 	if err = p.Run(ctx); err != nil {
@@ -164,8 +167,12 @@ func runProxy(ctx context.Context, uncli *cli.CLI, opts proxyOptions) error {
 }
 
 // schemeForPort returns the "http://" URL scheme prefix for the ports most likely to serve plain HTTP,
-// or an empty string otherwise.
-func schemeForPort(port int) string {
+// or an empty string otherwise. If forceHTTP is true, "http://" is always returned.
+func schemeForPort(port int, forceHTTP bool) string {
+	if forceHTTP {
+		return "http://"
+	}
+
 	switch port {
 	case 80, 3000, 8000, 8080, 8081, 8888, 9090:
 		return "http://"
