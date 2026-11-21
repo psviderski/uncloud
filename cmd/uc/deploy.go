@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	composecli "github.com/compose-spec/compose-go/v2/cli"
@@ -262,7 +263,52 @@ func runDeploy(ctx context.Context, uncli *cli.CLI, opts deployOptions) error {
 
 		return err
 	}
+
+	// Print the endpoints of the deployed services so they don't need a follow-up 'uc ls'.
+	names := make([]string, len(plan.Services))
+	for i, servicePlan := range plan.Services {
+		names[i] = servicePlan.ServiceName
+	}
+	if services, err := clusterClient.ListServices(ctx); err == nil {
+		if text := formatServiceEndpoints(services, names); text != "" {
+			fmt.Println()
+			fmt.Print(text)
+		}
+	}
+
 	return nil
+}
+
+// formatServiceEndpoints returns the HTTP(S) endpoints of the services with the given names, grouped by service.
+// Services without exposed endpoints are skipped. It returns an empty string if there is nothing to print.
+func formatServiceEndpoints(services []api.Service, names []string) string {
+	servicesByName := make(map[string]api.Service, len(services))
+	for _, svc := range services {
+		servicesByName[svc.Name] = svc
+	}
+
+	var out strings.Builder
+	for _, name := range names {
+		svc, ok := servicesByName[name]
+		if !ok {
+			continue
+		}
+
+		endpoints := svc.Endpoints()
+		if len(endpoints) == 0 {
+			continue
+		}
+
+		if out.Len() > 0 {
+			out.WriteString("\n")
+		}
+		fmt.Fprintf(&out, "%s endpoints:\n", name)
+		for _, endpoint := range endpoints {
+			fmt.Fprintf(&out, " • %s\n", endpoint)
+		}
+	}
+
+	return out.String()
 }
 
 // printFailedContainerLogs fetches the last tail log lines from a container that failed during deployment and prints
