@@ -52,6 +52,10 @@ func LoadProject(ctx context.Context, paths []string, opts ...composecli.Project
 		return nil, fmt.Errorf("create compose parser options: %w", err)
 	}
 
+	if err = checkEnvFileTypes(options.WorkingDir, options.ConfigPaths); err != nil {
+		return nil, err
+	}
+
 	project, err := options.LoadProject(ctx)
 	if err != nil {
 		return nil, err
