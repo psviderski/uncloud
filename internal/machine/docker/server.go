@@ -985,6 +985,10 @@ func toDockerUlimits(ulimits map[string]api.Ulimit) []*units.Ulimit {
 	return dockerUlimits
 }
 
+// hostPublicAddrs returns the globally routable IP addresses of the host. It is a variable so tests can
+// substitute the addresses of the machine they run on.
+var hostPublicAddrs = publicAddrs
+
 // hostPortBindings converts the host mode ports to Docker port bindings. Several ports can publish the same
 // container port, for example on an IPv4 and an IPv6 address. Their bindings are all kept for that container port.
 func hostPortBindings(ports []api.PortSpec) (nat.PortMap, error) {
@@ -1000,6 +1004,12 @@ func hostPortBindings(ports []api.PortSpec) (nat.PortMap, error) {
 			hostIPs = []string{p.HostIP.String()}
 		} else if p.HostPrefix.IsValid() {
 			addrs, err := addrOfPrefix(p.HostPrefix)
+			if err != nil {
+				return nil, err
+			}
+			hostIPs = addrs
+		} else if p.HostIPPublic {
+			addrs, err := hostPublicAddrs()
 			if err != nil {
 				return nil, err
 			}

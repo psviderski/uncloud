@@ -202,6 +202,16 @@ func TestPortSpec_Validate(t *testing.T) {
 			wantErr: "host prefix cannot be specified in ingress mode",
 		},
 		{
+			name: "public host IPs in ingress mode",
+			spec: PortSpec{
+				HostIPPublic:  true,
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+				Mode:          PortModeIngress,
+			},
+			wantErr: "public host IPs cannot be specified in ingress mode",
+		},
+		{
 			name: "zero published port in host mode",
 			spec: PortSpec{
 				ContainerPort: 8080,
@@ -252,6 +262,18 @@ func TestPortSpec_Validate(t *testing.T) {
 				Mode:          PortModeHost,
 			},
 			wantErr: "host IP and prefix cannot both be specified in host mode",
+		},
+		{
+			name: "public host IPs with host IP in host mode",
+			spec: PortSpec{
+				HostIP:        netip.MustParseAddr("127.0.0.1"),
+				HostIPPublic:  true,
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+				Mode:          PortModeHost,
+			},
+			wantErr: "public host IPs cannot be combined with a host IP or prefix in host mode",
 		},
 	}
 
@@ -401,6 +423,17 @@ func TestPortSpec_String(t *testing.T) {
 				Mode:          PortModeHost,
 			},
 			expected: "127.0.0.1/8:80:8080/udp@host",
+		},
+		{
+			name: "host mode with public IPs",
+			spec: PortSpec{
+				HostIPPublic:  true,
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+				Mode:          PortModeHost,
+			},
+			expected: "public:80:8080/tcp@host",
 		},
 		{
 			name: "host mode with IPv6",
@@ -598,6 +631,28 @@ func TestParsePortSpec(t *testing.T) {
 			},
 		},
 		{
+			name: "host mode with public IPs",
+			port: "public:80:8080/udp@host",
+			expected: PortSpec{
+				HostIPPublic:  true,
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolUDP,
+				Mode:          PortModeHost,
+			},
+		},
+		{
+			name: "host mode with public IPs and default protocol",
+			port: "public:80:8080@host",
+			expected: PortSpec{
+				HostIPPublic:  true,
+				PublishedPort: 80,
+				ContainerPort: 8080,
+				Protocol:      ProtocolTCP,
+				Mode:          PortModeHost,
+			},
+		},
+		{
 			name: "host mode with prefix and protocol",
 			port: "192.168.76.0/24:80:8080/udp@host",
 			expected: PortSpec{
@@ -711,6 +766,11 @@ func TestParsePortSpec(t *testing.T) {
 			name:    "invalid hostname",
 			port:    "app:8080/http",
 			wantErr: "invalid hostname 'app': must be a valid domain name containing at least one dot",
+		},
+		{
+			name:    "public keyword without host mode",
+			port:    "public:8080",
+			wantErr: "invalid hostname 'public': must be a valid domain name containing at least one dot",
 		},
 		{
 			name:    "hostname with tcp protocol",

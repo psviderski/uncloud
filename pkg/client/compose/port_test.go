@@ -424,3 +424,36 @@ services:
 	// Just verify that x-ports still work - don't check exact values as that's tested elsewhere
 	assert.Len(t, specs, 3)
 }
+
+func TestTransformServicesPortsExtension_PublicHostIPs(t *testing.T) {
+	t.Parallel()
+
+	content := `
+services:
+  dns:
+    image: cznic/knot:3.6
+    x-ports:
+      - "public:53:53/udp@host"
+      - "public:53:53/tcp@host"
+`
+
+	project, err := LoadProjectFromContent(context.Background(), content)
+	require.NoError(t, err)
+
+	service, err := project.GetService("dns")
+	require.NoError(t, err)
+
+	specs, ok := service.Extensions[PortsExtensionKey].([]api.PortSpec)
+	require.True(t, ok, "Service should have port specs")
+	require.Len(t, specs, 2)
+
+	for _, spec := range specs {
+		assert.True(t, spec.HostIPPublic)
+		assert.False(t, spec.HostIP.IsValid())
+		assert.False(t, spec.HostPrefix.IsValid())
+
+		port, err := spec.String()
+		require.NoError(t, err)
+		assert.Contains(t, port, "public:53:53/")
+	}
+}
