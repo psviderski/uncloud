@@ -96,6 +96,36 @@ func TestNewConnector_InvalidConfig(t *testing.T) {
 
 // TestConnector_HubReadOnlyAccess checks the whole path from Hub through a tunnel and the API server to the local
 // machine API, and that the API server only allows read-only methods.
+func TestStatus_Next(t *testing.T) {
+	t.Parallel()
+
+	t0 := time.Now()
+	t1 := t0.Add(time.Second)
+	t2 := t1.Add(time.Second)
+	t3 := t2.Add(time.Second)
+	t4 := t3.Add(time.Second)
+	errClosed := assert.AnError
+
+	s := Status{}.next(StateConnecting, t0, nil, time.Time{})
+	assert.Equal(t, t0, s.Since)
+
+	s = s.next(StateRetrying, t1, errClosed, t2)
+	assert.Equal(t, t0, s.Since, "retrying must not reset the time since the machine started connecting")
+	assert.Equal(t, t2, s.RetryAt)
+	assert.Equal(t, t1, s.LastErrorAt)
+
+	s = s.next(StateConnecting, t2, nil, time.Time{})
+	assert.Equal(t, t0, s.Since)
+	assert.True(t, s.RetryAt.IsZero())
+
+	s = s.next(StateConnected, t3, nil, time.Time{})
+	assert.Equal(t, t3, s.Since)
+	assert.Equal(t, errClosed, s.LastError, "the last error must be kept after the tunnel opens")
+
+	s = s.next(StateRetrying, t4, errClosed, t4)
+	assert.Equal(t, t4, s.Since)
+}
+
 func TestConnector_HubReadOnlyAccess(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -134,19 +164,21 @@ func TestConnector_ReopensClosedTunnel(t *testing.T) {
 	hub := tunneltest.NewHub(t)
 	proxy := newCountingProxy(t, hub.Addr())
 	connector := newTestConnector(t, hub, true, newClusterServer(t))
-	connector.target = proxy.addr
+	connector.endpoint = "http://" + proxy.addr
 	runConnector(t, ctx, connector)
 
 	_, err := hub.Client(ctx, machineID)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return connector.Status().Connected }, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return connector.Status().State == StateConnected
+	}, 5*time.Second, 10*time.Millisecond)
 	opened := connector.Status().Since
 
 	hub.Drop(machineID)
 
 	require.Eventually(t, func() bool {
 		s := connector.Status()
-		return s.Connected && s.Since.After(opened) && s.LastError != nil
+		return s.State == StateConnected && s.Since.After(opened) && s.LastError != nil
 	}, 5*time.Second, 10*time.Millisecond, "connector didn't reopen the tunnel")
 	// The connection of the closed tunnel could be dead, so the connector must not reuse it.
 	assert.EqualValues(t, 2, proxy.conns.Load(), "connector didn't reopen the tunnel over a new connection")
@@ -169,7 +201,9 @@ func TestConnector_Unauthenticated(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return status.Code(connector.Status().LastError) == codes.Unauthenticated
 	}, 5*time.Second, 10*time.Millisecond)
-	assert.False(t, connector.Status().Connected)
+	s := connector.Status()
+	assert.Contains(t, []State{StateConnecting, StateRetrying}, s.State)
+	assert.False(t, s.LastErrorAt.IsZero())
 	assert.False(t, hub.Connected(machineID))
 }
 
@@ -183,7 +217,9 @@ func TestConnector_StopsWhenCancelled(t *testing.T) {
 
 	runErr := make(chan error, 1)
 	go func() { runErr <- connector.Run(ctx) }()
-	require.Eventually(t, func() bool { return connector.Status().Connected }, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return connector.Status().State == StateConnected
+	}, 5*time.Second, 10*time.Millisecond)
 
 	cancel()
 
@@ -193,7 +229,7 @@ func TestConnector_StopsWhenCancelled(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("connector didn't stop after the context was cancelled")
 	}
-	assert.False(t, connector.Status().Connected)
+	assert.Equal(t, StateInactive, connector.Status().State)
 	assert.Eventually(t, func() bool { return !hub.Connected(machineID) }, 5*time.Second, 10*time.Millisecond)
 }
 

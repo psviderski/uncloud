@@ -20,14 +20,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Cluster_AddMachine_FullMethodName          = "/api.Cluster/AddMachine"
-	Cluster_ListMachines_FullMethodName        = "/api.Cluster/ListMachines"
-	Cluster_RemoveMachine_FullMethodName       = "/api.Cluster/RemoveMachine"
-	Cluster_ReserveDomain_FullMethodName       = "/api.Cluster/ReserveDomain"
-	Cluster_SetDomain_FullMethodName           = "/api.Cluster/SetDomain"
-	Cluster_GetDomain_FullMethodName           = "/api.Cluster/GetDomain"
-	Cluster_ReleaseDomain_FullMethodName       = "/api.Cluster/ReleaseDomain"
-	Cluster_CreateDomainRecords_FullMethodName = "/api.Cluster/CreateDomainRecords"
+	Cluster_AddMachine_FullMethodName           = "/api.Cluster/AddMachine"
+	Cluster_ListMachines_FullMethodName         = "/api.Cluster/ListMachines"
+	Cluster_RemoveMachine_FullMethodName        = "/api.Cluster/RemoveMachine"
+	Cluster_ReserveDomain_FullMethodName        = "/api.Cluster/ReserveDomain"
+	Cluster_SetDomain_FullMethodName            = "/api.Cluster/SetDomain"
+	Cluster_GetDomain_FullMethodName            = "/api.Cluster/GetDomain"
+	Cluster_ReleaseDomain_FullMethodName        = "/api.Cluster/ReleaseDomain"
+	Cluster_CreateDomainRecords_FullMethodName  = "/api.Cluster/CreateDomainRecords"
+	Cluster_ConnectHub_FullMethodName           = "/api.Cluster/ConnectHub"
+	Cluster_DisconnectHub_FullMethodName        = "/api.Cluster/DisconnectHub"
+	Cluster_InspectHubConnection_FullMethodName = "/api.Cluster/InspectHubConnection"
 )
 
 // ClusterClient is the client API for Cluster service.
@@ -42,6 +45,15 @@ type ClusterClient interface {
 	GetDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	ReleaseDomain(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Domain, error)
 	CreateDomainRecords(ctx context.Context, in *CreateDomainRecordsRequest, opts ...grpc.CallOption) (*CreateDomainRecordsResponse, error)
+	// ConnectHub connects the cluster to Uncloud Hub with a connection token issued in Hub. Every machine then opens
+	// a tunnel to Hub. Fails with AlreadyExists if the cluster is already connected.
+	ConnectHub(ctx context.Context, in *ConnectHubRequest, opts ...grpc.CallOption) (*HubConnection, error)
+	// DisconnectHub disconnects the cluster from Hub and returns the removed connection. Every machine then closes its
+	// tunnel. It doesn't need access to Hub. Fails with NotFound if the cluster isn't connected.
+	DisconnectHub(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*HubConnection, error)
+	// InspectHubConnection returns the connection of the cluster to Hub. Fails with NotFound if the cluster isn't
+	// connected.
+	InspectHubConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*HubConnection, error)
 }
 
 type clusterClient struct {
@@ -132,6 +144,36 @@ func (c *clusterClient) CreateDomainRecords(ctx context.Context, in *CreateDomai
 	return out, nil
 }
 
+func (c *clusterClient) ConnectHub(ctx context.Context, in *ConnectHubRequest, opts ...grpc.CallOption) (*HubConnection, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HubConnection)
+	err := c.cc.Invoke(ctx, Cluster_ConnectHub_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterClient) DisconnectHub(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*HubConnection, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HubConnection)
+	err := c.cc.Invoke(ctx, Cluster_DisconnectHub_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterClient) InspectHubConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*HubConnection, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HubConnection)
+	err := c.cc.Invoke(ctx, Cluster_InspectHubConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServer is the server API for Cluster service.
 // All implementations must embed UnimplementedClusterServer
 // for forward compatibility.
@@ -144,6 +186,15 @@ type ClusterServer interface {
 	GetDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	ReleaseDomain(context.Context, *emptypb.Empty) (*Domain, error)
 	CreateDomainRecords(context.Context, *CreateDomainRecordsRequest) (*CreateDomainRecordsResponse, error)
+	// ConnectHub connects the cluster to Uncloud Hub with a connection token issued in Hub. Every machine then opens
+	// a tunnel to Hub. Fails with AlreadyExists if the cluster is already connected.
+	ConnectHub(context.Context, *ConnectHubRequest) (*HubConnection, error)
+	// DisconnectHub disconnects the cluster from Hub and returns the removed connection. Every machine then closes its
+	// tunnel. It doesn't need access to Hub. Fails with NotFound if the cluster isn't connected.
+	DisconnectHub(context.Context, *emptypb.Empty) (*HubConnection, error)
+	// InspectHubConnection returns the connection of the cluster to Hub. Fails with NotFound if the cluster isn't
+	// connected.
+	InspectHubConnection(context.Context, *emptypb.Empty) (*HubConnection, error)
 	mustEmbedUnimplementedClusterServer()
 }
 
@@ -177,6 +228,15 @@ func (UnimplementedClusterServer) ReleaseDomain(context.Context, *emptypb.Empty)
 }
 func (UnimplementedClusterServer) CreateDomainRecords(context.Context, *CreateDomainRecordsRequest) (*CreateDomainRecordsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDomainRecords not implemented")
+}
+func (UnimplementedClusterServer) ConnectHub(context.Context, *ConnectHubRequest) (*HubConnection, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ConnectHub not implemented")
+}
+func (UnimplementedClusterServer) DisconnectHub(context.Context, *emptypb.Empty) (*HubConnection, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DisconnectHub not implemented")
+}
+func (UnimplementedClusterServer) InspectHubConnection(context.Context, *emptypb.Empty) (*HubConnection, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectHubConnection not implemented")
 }
 func (UnimplementedClusterServer) mustEmbedUnimplementedClusterServer() {}
 func (UnimplementedClusterServer) testEmbeddedByValue()                 {}
@@ -343,6 +403,60 @@ func _Cluster_CreateDomainRecords_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cluster_ConnectHub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConnectHubRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).ConnectHub(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_ConnectHub_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).ConnectHub(ctx, req.(*ConnectHubRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Cluster_DisconnectHub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).DisconnectHub(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_DisconnectHub_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).DisconnectHub(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Cluster_InspectHubConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).InspectHubConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_InspectHubConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).InspectHubConnection(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Cluster_ServiceDesc is the grpc.ServiceDesc for Cluster service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -381,6 +495,18 @@ var Cluster_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateDomainRecords",
 			Handler:    _Cluster_CreateDomainRecords_Handler,
+		},
+		{
+			MethodName: "ConnectHub",
+			Handler:    _Cluster_ConnectHub_Handler,
+		},
+		{
+			MethodName: "DisconnectHub",
+			Handler:    _Cluster_DisconnectHub_Handler,
+		},
+		{
+			MethodName: "InspectHubConnection",
+			Handler:    _Cluster_InspectHubConnection_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

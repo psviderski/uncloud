@@ -5,6 +5,7 @@ package api;
 option go_package = "github.com/psviderski/uncloud/api/pb";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "api/pb/common.proto";
 import "api/pb/machine.proto";
 
@@ -18,6 +19,16 @@ service Cluster {
   rpc GetDomain(google.protobuf.Empty) returns (Domain);
   rpc ReleaseDomain(google.protobuf.Empty) returns (Domain);
   rpc CreateDomainRecords(CreateDomainRecordsRequest) returns (CreateDomainRecordsResponse);
+
+  // ConnectHub connects the cluster to Uncloud Hub with a connection token issued in Hub. Every machine then opens
+  // a tunnel to Hub. Fails with AlreadyExists if the cluster is already connected.
+  rpc ConnectHub(ConnectHubRequest) returns (HubConnection);
+  // DisconnectHub disconnects the cluster from Hub and returns the removed connection. Every machine then closes its
+  // tunnel. It doesn't need access to Hub. Fails with NotFound if the cluster isn't connected.
+  rpc DisconnectHub(google.protobuf.Empty) returns (HubConnection);
+  // InspectHubConnection returns the connection of the cluster to Hub. Fails with NotFound if the cluster isn't
+  // connected.
+  rpc InspectHubConnection(google.protobuf.Empty) returns (HubConnection);
 }
 
 message AddMachineRequest {
@@ -89,4 +100,21 @@ message DNSRecord {
   }
   RecordType type = 2;
   repeated string values = 3;
+}
+
+message ConnectHubRequest {
+  // Hub API endpoint, an http or https URL without a path.
+  string endpoint = 1;
+  // Single-use connection token issued in Hub.
+  string token = 2;
+}
+
+// HubConnection is the connection of the cluster to Uncloud Hub.
+message HubConnection {
+  // Hub API endpoint that machines open tunnels to.
+  string endpoint = 1;
+  // ID of the cluster in Hub.
+  string cluster_id = 2;
+  // Time when the cluster was connected to Hub.
+  google.protobuf.Timestamp created_at = 3;
 }

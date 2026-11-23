@@ -45,6 +45,10 @@ service Machine {
   rpc InspectService(InspectServiceRequest) returns (InspectServiceResponse);
 
   rpc MachineLogs(LogsRequest) returns (stream LogEntry);
+
+  // InspectHubTunnel returns the state of the tunnel from the machine to Uncloud Hub and closes the stream.
+  // If watch is set, it keeps streaming the new state every time it changes.
+  rpc InspectHubTunnel(InspectHubTunnelRequest) returns (stream HubTunnel);
 }
 
 message MachineInfo {
@@ -203,4 +207,41 @@ message WireGuardPeer {
 message RTTStats {
   google.protobuf.Duration median = 1;
   google.protobuf.Duration std_dev = 2;
+}
+
+message InspectHubTunnelRequest {
+  // Keep streaming the tunnel state every time it changes until the client cancels the call.
+  bool watch = 1;
+}
+
+// HubTunnel is the state of the tunnel from a machine to Uncloud Hub.
+message HubTunnel {
+  // ID of the cluster in Hub from the cluster connection that the machine uses.
+  string cluster_id = 1;
+  // Hub API endpoint from the cluster connection that the machine uses.
+  string endpoint = 2;
+
+  enum State {
+    UNKNOWN = 0;
+    // The machine doesn't open a tunnel because the cluster is not connected to Hub.
+    INACTIVE = 1;
+    // The machine is opening the tunnel.
+    CONNECTING = 2;
+    // The tunnel is open.
+    CONNECTED = 3;
+    // The tunnel couldn't be opened or has closed, and the machine waits to retry.
+    RETRYING = 4;
+    // The machine can't open the tunnel and doesn't retry.
+    FAILED = 5;
+  }
+  State state = 3;
+
+  // When the tunnel opened if it's connected. Otherwise, when the tunnel closed or the machine started opening it,
+  // or when it entered the inactive or failed state.
+  google.protobuf.Timestamp since = 4;
+  // When the machine retries to open the tunnel. Only set in the retrying state.
+  google.protobuf.Timestamp retry_at = 5;
+  // The error that last closed the tunnel or prevented it from opening. It's kept after the tunnel opens again.
+  string last_error = 6;
+  google.protobuf.Timestamp last_error_at = 7;
 }

@@ -32,6 +32,7 @@ const (
 	Machine_Reset_FullMethodName                   = "/api.Machine/Reset"
 	Machine_InspectService_FullMethodName          = "/api.Machine/InspectService"
 	Machine_MachineLogs_FullMethodName             = "/api.Machine/MachineLogs"
+	Machine_InspectHubTunnel_FullMethodName        = "/api.Machine/InspectHubTunnel"
 )
 
 // MachineClient is the client API for Machine service.
@@ -71,6 +72,9 @@ type MachineClient interface {
 	Reset(ctx context.Context, in *ResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	InspectService(ctx context.Context, in *InspectServiceRequest, opts ...grpc.CallOption) (*InspectServiceResponse, error)
 	MachineLogs(ctx context.Context, in *LogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error)
+	// InspectHubTunnel returns the state of the tunnel from the machine to Uncloud Hub and closes the stream.
+	// If watch is set, it keeps streaming the new state every time it changes.
+	InspectHubTunnel(ctx context.Context, in *InspectHubTunnelRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[HubTunnel], error)
 }
 
 type machineClient struct {
@@ -210,6 +214,25 @@ func (c *machineClient) MachineLogs(ctx context.Context, in *LogsRequest, opts .
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Machine_MachineLogsClient = grpc.ServerStreamingClient[LogEntry]
 
+func (c *machineClient) InspectHubTunnel(ctx context.Context, in *InspectHubTunnelRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[HubTunnel], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Machine_ServiceDesc.Streams[1], Machine_InspectHubTunnel_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[InspectHubTunnelRequest, HubTunnel]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Machine_InspectHubTunnelClient = grpc.ServerStreamingClient[HubTunnel]
+
 // MachineServer is the server API for Machine service.
 // All implementations must embed UnimplementedMachineServer
 // for forward compatibility.
@@ -247,6 +270,9 @@ type MachineServer interface {
 	Reset(context.Context, *ResetRequest) (*emptypb.Empty, error)
 	InspectService(context.Context, *InspectServiceRequest) (*InspectServiceResponse, error)
 	MachineLogs(*LogsRequest, grpc.ServerStreamingServer[LogEntry]) error
+	// InspectHubTunnel returns the state of the tunnel from the machine to Uncloud Hub and closes the stream.
+	// If watch is set, it keeps streaming the new state every time it changes.
+	InspectHubTunnel(*InspectHubTunnelRequest, grpc.ServerStreamingServer[HubTunnel]) error
 	mustEmbedUnimplementedMachineServer()
 }
 
@@ -292,6 +318,9 @@ func (UnimplementedMachineServer) InspectService(context.Context, *InspectServic
 }
 func (UnimplementedMachineServer) MachineLogs(*LogsRequest, grpc.ServerStreamingServer[LogEntry]) error {
 	return status.Errorf(codes.Unimplemented, "method MachineLogs not implemented")
+}
+func (UnimplementedMachineServer) InspectHubTunnel(*InspectHubTunnelRequest, grpc.ServerStreamingServer[HubTunnel]) error {
+	return status.Errorf(codes.Unimplemented, "method InspectHubTunnel not implemented")
 }
 func (UnimplementedMachineServer) mustEmbedUnimplementedMachineServer() {}
 func (UnimplementedMachineServer) testEmbeddedByValue()                 {}
@@ -523,6 +552,17 @@ func _Machine_MachineLogs_Handler(srv interface{}, stream grpc.ServerStream) err
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Machine_MachineLogsServer = grpc.ServerStreamingServer[LogEntry]
 
+func _Machine_InspectHubTunnel_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(InspectHubTunnelRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(MachineServer).InspectHubTunnel(m, &grpc.GenericServerStream[InspectHubTunnelRequest, HubTunnel]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Machine_InspectHubTunnelServer = grpc.ServerStreamingServer[HubTunnel]
+
 // Machine_ServiceDesc is the grpc.ServiceDesc for Machine service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -579,6 +619,11 @@ var Machine_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "MachineLogs",
 			Handler:       _Machine_MachineLogs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "InspectHubTunnel",
+			Handler:       _Machine_InspectHubTunnel_Handler,
 			ServerStreams: true,
 		},
 	},
