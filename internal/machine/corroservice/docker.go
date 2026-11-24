@@ -76,8 +76,12 @@ func (s *DockerService) Start(ctx context.Context) error {
 		}
 	}
 
+	corro, err := NewAPIClient(s.DataDir)
+	if err != nil {
+		return err
+	}
 	slog.Debug("Waiting for corrosion service to be ready.")
-	if err = WaitReady(ctx, s.DataDir); err != nil {
+	if err = WaitReady(ctx, corro); err != nil {
 		return err
 	}
 	slog.Debug("Corrosion service is ready.")

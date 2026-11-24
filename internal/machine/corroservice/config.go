@@ -34,7 +34,7 @@ type GossipConfig struct {
 	Addr netip.AddrPort `toml:"addr"`
 	// MaxMTU is the upper bound for QUIC's MTU, preventing automatic MTU discovery. It is the effective MTU:
 	// the gossip network interface's MTU minus the IP and UDP header sizes. Must be >= 1200. Omitted when zero.
-	MaxMTU    uint32   `toml:"max_mtu,omitempty"`
+	MaxMTU    uint32   `toml:"max_mtu,omitzero"`
 	Bootstrap []string `toml:"bootstrap"`
 	Plaintext bool     `toml:"plaintext"`
 }
@@ -52,20 +52,26 @@ type AdminConfig struct {
 	Path string `toml:"path"`
 }
 
-func (c *Config) Write(path, owner string) error {
+// Marshal encodes the config as TOML.
+func (c *Config) Marshal() ([]byte, error) {
 	var data bytes.Buffer
 	encoder := toml.NewEncoder(&data)
 	encoder.Indent = "" // Disable indentation.
 	if err := encoder.Encode(c); err != nil {
-		return fmt.Errorf("encode config: %w", err)
+		return nil, fmt.Errorf("encode config: %w", err)
 	}
-	if err := os.WriteFile(path, data.Bytes(), 0o600); err != nil {
+	return data.Bytes(), nil
+}
+
+func (c *Config) Write(path, owner string) error {
+	data, err := c.Marshal()
+	if err != nil {
 		return err
 	}
-	if err := fs.Chown(path, owner, owner); err != nil {
+	if err = os.WriteFile(path, data, 0o600); err != nil {
 		return err
 	}
-	return nil
+	return fs.Chown(path, owner, owner)
 }
 
 // MkDir creates a data or runtime directory for the Corrosion service with 0700 permissions and the specified owner.

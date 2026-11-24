@@ -3,7 +3,9 @@
 
 # Allow files and directories.
 !api/
+!client/
 !cmd/
+!hub/
 !internal/
 !pkg/
 !scripts/docker/
