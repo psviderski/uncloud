@@ -232,6 +232,11 @@ func (rs *Rows) Columns() []string {
 	return rs.columns
 }
 
+// RowID returns the ID of the current row. Subscription change events refer to rows by this ID.
+func (rs *Rows) RowID() uint64 {
+	return rs.row.RowID
+}
+
 // Next prepares the next result row for reading with the [Rows.Scan] method. It returns true on success, or false
 // if there is no next result row or an error happened while preparing it. [Rows.Err] should be consulted to distinguish
 // between the two cases.
