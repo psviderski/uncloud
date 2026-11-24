@@ -141,7 +141,7 @@ func TestConnector_HubReadOnlyAccess(t *testing.T) {
 	connector := newTestConnector(t, hub, true, apiServer)
 	runConnector(t, ctx, connector)
 
-	cc, err := hub.Client(ctx, machineID)
+	cc, err := hub.APIConn(ctx, machineID)
 	require.NoError(t, err)
 
 	resp, err := pb.NewClusterClient(cc).ListMachines(ctx, &emptypb.Empty{})
@@ -167,7 +167,7 @@ func TestConnector_ReopensClosedTunnel(t *testing.T) {
 	connector.endpoint = "http://" + proxy.addr
 	runConnector(t, ctx, connector)
 
-	_, err := hub.Client(ctx, machineID)
+	_, err := hub.APIConn(ctx, machineID)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		return connector.Status().State == StateConnected
@@ -183,7 +183,7 @@ func TestConnector_ReopensClosedTunnel(t *testing.T) {
 	// The connection of the closed tunnel could be dead, so the connector must not reuse it.
 	assert.EqualValues(t, 2, proxy.conns.Load(), "connector didn't reopen the tunnel over a new connection")
 
-	cc, err := hub.Client(ctx, machineID)
+	cc, err := hub.APIConn(ctx, machineID)
 	require.NoError(t, err)
 	_, err = pb.NewClusterClient(cc).ListMachines(ctx, &emptypb.Empty{})
 	assert.NoError(t, err)

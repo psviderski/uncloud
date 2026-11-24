@@ -36,7 +36,7 @@ func TestController_HandlesClusterConnection(t *testing.T) {
 		assert.Equal(t, clusterID, s.Connection.ClusterID)
 
 		// Hub can call the read-only machine API through the tunnel.
-		cc, err := hub.Client(ctx, machineID)
+		cc, err := hub.APIConn(ctx, machineID)
 		require.NoError(t, err)
 		resp, err := pb.NewClusterClient(cc).ListMachines(ctx, &emptypb.Empty{})
 		require.NoError(t, err)

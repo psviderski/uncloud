@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"net"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/google/uuid"
 	"github.com/psviderski/uncloud/api/pb"
+	"github.com/psviderski/uncloud/hub/tunnel/tunneltest"
 	"github.com/psviderski/uncloud/internal/grpcversion"
 	"github.com/psviderski/uncloud/internal/ucind"
 	"github.com/psviderski/uncloud/pkg/api"
@@ -448,6 +452,96 @@ func TestClusterLifecycle(t *testing.T) {
 		})
 	})
 
+	t.Run("Hub connection", func(t *testing.T) {
+		hub, endpoint := startFakeHub(t, ctx, c.Name)
+
+		cli, err := c.Machines[0].Connect(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, cli.Close())
+		})
+
+		waitTunnels := func(opts client.WaitHubTunnelOptions) {
+			t.Helper()
+			ctx, cancel := context.WithTimeout(ctx, time.Minute)
+			defer cancel()
+			for _, m := range c.Machines {
+				require.NoError(t, cli.WaitHubTunnel(ctx, m.ID, opts), "machine %s", m.Name)
+			}
+		}
+		inspectTunnel := func(machineID string) (*pb.HubTunnel, error) {
+			stream, err := cli.MachineClient.InspectHubTunnel(
+				client.ProxySingleMachineContext(ctx, machineID), &pb.InspectHubTunnelRequest{})
+			if err != nil {
+				return nil, err
+			}
+			return stream.Recv()
+		}
+
+		_, err = cli.InspectHubConnection(ctx)
+		require.ErrorIs(t, err, api.ErrNotFound)
+
+		_, err = cli.ConnectHub(ctx, endpoint, "invalid-token")
+		assert.Equal(t, codes.Unauthenticated, status.Code(err), err)
+		_, err = cli.InspectHubConnection(ctx)
+		require.ErrorIs(t, err, api.ErrNotFound, "failed connection must not be stored")
+
+		conn, err := cli.ConnectHub(ctx, endpoint, hub.IssueToken("hub-cluster-1"))
+		require.NoError(t, err)
+		assert.Equal(t, "hub-cluster-1", conn.ClusterId)
+		assert.Equal(t, endpoint, conn.Endpoint)
+
+		waitTunnels(client.WaitHubTunnelOptions{ClusterID: "hub-cluster-1"})
+		for _, m := range c.Machines {
+			assert.True(t, hub.Connected(m.ID), "machine %s must have an open tunnel", m.Name)
+		}
+
+		// Hub has read-only access to the cluster through the tunnel of any machine.
+		apiConn, err := hub.APIConn(ctx, c.Machines[1].ID)
+		require.NoError(t, err)
+		resp, err := pb.NewClusterClient(apiConn).ListMachines(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		assert.Len(t, resp.Machines, 3)
+		_, err = pb.NewClusterClient(apiConn).RemoveMachine(ctx, &pb.RemoveMachineRequest{Id: c.Machines[2].ID})
+		assert.Equal(t, codes.PermissionDenied, status.Code(err), err)
+
+		_, err = cli.ConnectHub(ctx, endpoint, hub.IssueToken("hub-cluster-1"))
+		assert.Equal(t, codes.AlreadyExists, status.Code(err), err)
+
+		// A machine reopens its tunnel after Hub closes it. Hub accepts a machine it doesn't know, like a machine
+		// added after the cluster connected, if another machine of the cluster lists it through its tunnel.
+		hub.ForgetMachine("hub-cluster-1", c.Machines[2].ID)
+		hub.Drop(c.Machines[2].ID)
+		assert.Eventually(t, func() bool {
+			tun, err := inspectTunnel(c.Machines[2].ID)
+			return err == nil && tun.State == pb.HubTunnel_CONNECTED && tun.LastError != ""
+		}, 30*time.Second, 100*time.Millisecond, "machine didn't reopen the tunnel")
+
+		disconnected, err := cli.DisconnectHub(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, "hub-cluster-1", disconnected.ClusterId)
+
+		waitTunnels(client.WaitHubTunnelOptions{ClusterID: "hub-cluster-1", Close: true})
+		for _, m := range c.Machines {
+			tun, err := inspectTunnel(m.ID)
+			require.NoError(t, err)
+			assert.Equal(t, pb.HubTunnel_INACTIVE, tun.State)
+			assert.Empty(t, tun.ClusterId)
+			assert.Eventually(t, func() bool { return !hub.Connected(m.ID) }, 10*time.Second, 100*time.Millisecond)
+		}
+
+		_, err = cli.DisconnectHub(ctx)
+		require.ErrorIs(t, err, api.ErrNotFound)
+
+		// The cluster can connect again with a new token.
+		_, err = cli.ConnectHub(ctx, endpoint, hub.IssueToken("hub-cluster-2"))
+		require.NoError(t, err)
+		waitTunnels(client.WaitHubTunnelOptions{ClusterID: "hub-cluster-2"})
+
+		_, err = cli.DisconnectHub(ctx)
+		require.NoError(t, err)
+	})
+
 	t.Run("remove", func(t *testing.T) {
 		err := p.RemoveCluster(ctx, name)
 		require.NoError(t, err)
@@ -455,4 +549,32 @@ func TestClusterLifecycle(t *testing.T) {
 		_, err = p.InspectCluster(ctx, name)
 		require.ErrorIs(t, err, ucind.ErrNotFound)
 	})
+}
+
+// startFakeHub starts a fake Hub that the machines of the ucind cluster can reach and returns its endpoint
+// for the machines.
+func startFakeHub(t *testing.T, ctx context.Context, clusterName string) (*tunneltest.Hub, string) {
+	t.Helper()
+
+	// Docker Desktop and OrbStack forward host.docker.internal from containers to the host's localhost.
+	if runtime.GOOS != "linux" {
+		hub := tunneltest.NewHub(t)
+		_, port, err := net.SplitHostPort(hub.Addr())
+		require.NoError(t, err)
+		return hub, "http://" + net.JoinHostPort("host.docker.internal", port)
+	}
+
+	// On Linux, containers reach the host through the gateway of their Docker network.
+	dockerCli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
+	require.NoError(t, err)
+	defer dockerCli.Close()
+
+	nw, err := dockerCli.NetworkInspect(ctx, clusterName, network.InspectOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, nw.IPAM.Config, "cluster network has no IPAM config")
+	gateway := nw.IPAM.Config[0].Gateway
+	require.NotEmpty(t, gateway, "cluster network has no gateway")
+
+	hub := tunneltest.NewHubWithOptions(t, tunneltest.Options{ListenAddr: net.JoinHostPort(gateway, "0")})
+	return hub, hub.Endpoint()
 }

@@ -1464,6 +1464,39 @@ func (m *Machine) InspectService(
 	return &pb.InspectServiceResponse{Service: svc}, nil
 }
 
+// InspectHubTunnel streams the state of the tunnel connecting the machine to Hub. It sends only the current state
+// unless the request asks to watch it.
+func (m *Machine) InspectHubTunnel(
+	req *pb.InspectHubTunnelRequest, stream grpc.ServerStreamingServer[pb.HubTunnel],
+) error {
+	if !m.Initialised() {
+		return status.Error(codes.FailedPrecondition, "machine is not configured as a cluster member")
+	}
+
+	m.mu.RLock()
+	clusterCtrl := m.clusterCtrl
+	m.mu.RUnlock()
+	if clusterCtrl == nil {
+		return status.Error(codes.Unavailable, "cluster controller is not running")
+	}
+
+	for {
+		s, changed := clusterCtrl.hubCtrl.Status()
+		if err := stream.Send(s.Proto()); err != nil {
+			return err
+		}
+		if !req.Watch {
+			return nil
+		}
+
+		select {
+		case <-changed:
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
+}
+
 // logsHeartbeatInterval is the interval at which heartbeat entries are sent when there are no logs to stream.
 const logsHeartbeatInterval = 200 * time.Millisecond
 

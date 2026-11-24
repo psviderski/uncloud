@@ -31,8 +31,9 @@ const (
 // the Uncloud API on machines through the tunnels they open.
 type HubClient interface {
 	// ConnectCluster connects a cluster to the Hub organisation that issued the connection token. The token is
-	// single-use and short-lived. Hub keeps the machines WireGuard public keys so they can open tunnels.
-	// Connecting a cluster again with a new token replaces the machines Hub knows for the cluster.
+	// single-use and short-lived. Hub keeps the machines WireGuard public keys so they can open tunnels. The call
+	// is idempotent so that clients can retry it with the same token and machines when they don't know whether
+	// it succeeded. Connecting a cluster again with a new token replaces the machines Hub knows for the cluster.
 	ConnectCluster(ctx context.Context, in *ConnectClusterRequest, opts ...grpc.CallOption) (*ConnectClusterResponse, error)
 	// Tunnel opens a reverse tunnel from a machine to Hub. The machine authenticates with its WireGuard key in
 	// a handshake: it sends hello, Hub replies with a challenge, the machine sends a proof, and Hub replies with
@@ -82,8 +83,9 @@ type Hub_TunnelClient = grpc.BidiStreamingClient[TunnelMessage, TunnelMessage]
 // the Uncloud API on machines through the tunnels they open.
 type HubServer interface {
 	// ConnectCluster connects a cluster to the Hub organisation that issued the connection token. The token is
-	// single-use and short-lived. Hub keeps the machines WireGuard public keys so they can open tunnels.
-	// Connecting a cluster again with a new token replaces the machines Hub knows for the cluster.
+	// single-use and short-lived. Hub keeps the machines WireGuard public keys so they can open tunnels. The call
+	// is idempotent so that clients can retry it with the same token and machines when they don't know whether
+	// it succeeded. Connecting a cluster again with a new token replaces the machines Hub knows for the cluster.
 	ConnectCluster(context.Context, *ConnectClusterRequest) (*ConnectClusterResponse, error)
 	// Tunnel opens a reverse tunnel from a machine to Hub. The machine authenticates with its WireGuard key in
 	// a handshake: it sends hello, Hub replies with a challenge, the machine sends a proof, and Hub replies with

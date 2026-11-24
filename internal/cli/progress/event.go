@@ -60,6 +60,11 @@ func VolumeEventID(volumeName, machineName string) string {
 		tui.Faint.Render(" on ") + machineName
 }
 
+// HubTunnelEventID returns a progress event ID for the tunnel from a machine to Hub.
+func HubTunnelEventID(machineName string) string {
+	return tui.Faint.Render("Tunnel on ") + machineName
+}
+
 // MachineEventID returns a progress event ID for machine operations.
 func MachineEventID(machineName, publicIP string) string {
 	return tui.Faint.Render("Machine ") + machineName +

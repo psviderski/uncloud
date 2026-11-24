@@ -49,7 +49,7 @@ func TestTunnel_HubCallsMachine(t *testing.T) {
 	}
 	serveConn(t, conn, cluster)
 
-	cc, err := hub.Client(ctx, machineID)
+	cc, err := hub.APIConn(ctx, machineID)
 	require.NoError(t, err)
 	resp, err := pb.NewClusterClient(cc).ListMachines(ctx, &emptypb.Empty{})
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestTunnel_HubDropEndsMachineConn(t *testing.T) {
 	conn, err := tunnel.Open(ctx, hubClient(t, hub.Addr()), creds)
 	require.NoError(t, err)
 	serveConn(t, conn, &fakeCluster{})
-	_, err = hub.Client(ctx, machineID)
+	_, err = hub.APIConn(ctx, machineID)
 	require.NoError(t, err)
 
 	hub.Drop(machineID)
@@ -128,7 +128,7 @@ func TestNewAPIConn_ConnectsBeforeFirstCall(t *testing.T) {
 	t.Cleanup(func() { conn.Close() })
 	serveConn(t, conn, &fakeCluster{})
 
-	cc, err := hub.Client(ctx, machineID)
+	cc, err := hub.APIConn(ctx, machineID)
 	require.NoError(t, err)
 
 	// The machine pings Hub only on an established connection, so it mustn't wait for the first call.
@@ -149,12 +149,90 @@ func TestTunnel_MachineCloseEndsHubTunnel(t *testing.T) {
 	conn, err := tunnel.Open(ctx, hubClient(t, hub.Addr()), creds)
 	require.NoError(t, err)
 	serveConn(t, conn, &fakeCluster{})
-	_, err = hub.Client(ctx, machineID)
+	_, err = hub.APIConn(ctx, machineID)
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Close())
 
 	assert.Eventually(t, func() bool { return !hub.Connected(machineID) }, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestFakeHub_ConnectCluster(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	hub := tunneltest.NewHub(t)
+	client := hubClient(t, hub.Addr())
+	priv, pub, err := network.NewMachineKeys()
+	require.NoError(t, err)
+
+	token := hub.IssueToken(clusterID)
+	req := &pb.ConnectClusterRequest{
+		Token:    token,
+		Machines: []*pb.MachineInfo{{Id: machineID, Network: &pb.NetworkConfig{PublicKey: pub}}},
+	}
+	resp, err := client.ConnectCluster(ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, clusterID, resp.ClusterId)
+
+	conn, err := tunnel.Open(ctx, client, tunnel.Credentials{
+		ClusterID:  clusterID,
+		MachineID:  machineID,
+		PrivateKey: priv,
+	})
+	require.NoError(t, err)
+	conn.Close()
+
+	resp, err = client.ConnectCluster(ctx, req)
+	require.NoError(t, err, "retry with the same token and machines must succeed")
+	assert.Equal(t, clusterID, resp.ClusterId)
+
+	_, err = client.ConnectCluster(ctx, &pb.ConnectClusterRequest{
+		Token:    token,
+		Machines: []*pb.MachineInfo{{Id: "other-machine", Network: &pb.NetworkConfig{PublicKey: pub}}},
+	})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err), "used token with different machines must be rejected")
+}
+
+func TestFakeHub_LearnsMachineFromClusterTunnel(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	hub := tunneltest.NewHub(t)
+	client := hubClient(t, hub.Addr())
+	creds := addMachine(t, hub)
+	newPriv, newPub, err := network.NewMachineKeys()
+	require.NoError(t, err)
+	unlistedPriv, _, err := network.NewMachineKeys()
+	require.NoError(t, err)
+
+	conn, err := tunnel.Open(ctx, client, creds)
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	serveConn(t, conn, &fakeCluster{machines: []*pb.MachineMember{
+		{Machine: &pb.MachineInfo{Id: "machine-2", Network: &pb.NetworkConfig{PublicKey: newPub}}},
+	}})
+	_, err = hub.APIConn(ctx, machineID)
+	require.NoError(t, err)
+
+	newConn, err := tunnel.Open(ctx, client, tunnel.Credentials{
+		ClusterID:  clusterID,
+		MachineID:  "machine-2",
+		PrivateKey: newPriv,
+	})
+	require.NoError(t, err, "Hub must accept a machine listed by another machine of the cluster")
+	newConn.Close()
+
+	_, err = tunnel.Open(ctx, client, tunnel.Credentials{
+		ClusterID:  clusterID,
+		MachineID:  "machine-3",
+		PrivateKey: unlistedPriv,
+	})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err), err)
 }
 
 // addMachine generates a WireGuard key pair for a machine, adds it to the hub, and returns the machine
