@@ -24,12 +24,24 @@ var (
 
 // Store is a cluster store backed by a distributed Corrosion database.
 type Store struct {
+	// Hub stores the connection of the cluster to Uncloud Hub.
+	Hub *Hub
+
 	corro      *corrosion.APIClient
 	corroAdmin *corrosion.AdminClient
 }
 
 func New(corro *corrosion.APIClient, corroAdmin *corrosion.AdminClient) *Store {
-	return &Store{corro: corro, corroAdmin: corroAdmin}
+	s := &Store{corro: corro, corroAdmin: corroAdmin}
+
+	hubKeyspace, err := s.Keyspace(hubNamespace)
+	if err != nil {
+		// The namespace is a constant, so it can only be invalid because of a programming error.
+		panic(err)
+	}
+	s.Hub = &Hub{ks: hubKeyspace}
+
+	return s
 }
 
 // Get retrieves an unnamespaced legacy value.
