@@ -36,6 +36,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/corroservice"
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	machinedocker "github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/machine/hub"
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/osinfo"
@@ -556,8 +557,6 @@ func (m *Machine) Run(ctx context.Context) error {
 				return fmt.Errorf("create embedded DNS server: %w", err)
 			}
 
-			metricsServer := metrics.New(m.IP())
-
 			var unreg *unregistry.Registry
 			if containerdSock := m.ContainerdSock(); containerdSock != "" {
 				isContainerdStore, err := m.dockerService.IsContainerdImageStoreEnabled(ctx)
@@ -585,6 +584,11 @@ func (m *Machine) Run(ctx context.Context) error {
 				slog.Warn("Skipping embedded unregistry setup as the containerd socket path could not be detected.")
 			}
 
+			// Hub requests through the tunnel are routed to local or remote machines like cluster API requests.
+			hubCtrl := hub.NewController(m.store.Hub, m.state.ID, m.state.Network.PrivateKey, m.proxyDirector.Director)
+
+			metricsServer := metrics.New(m.IP())
+
 			m.mu.Lock()
 			m.clusterCtrl, err = newClusterController(
 				m,
@@ -599,6 +603,7 @@ func (m *Machine) Run(ctx context.Context) error {
 				dnsServer,
 				dnsResolver,
 				unreg,
+				hubCtrl,
 				metricsServer,
 			)
 			m.mu.Unlock()

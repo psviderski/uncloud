@@ -20,6 +20,7 @@ import (
 	"github.com/psviderski/uncloud/internal/machine/dns"
 	"github.com/psviderski/uncloud/internal/machine/docker"
 	"github.com/psviderski/uncloud/internal/machine/firewall"
+	"github.com/psviderski/uncloud/internal/machine/hub"
 	"github.com/psviderski/uncloud/internal/machine/metrics"
 	"github.com/psviderski/uncloud/internal/machine/network"
 	"github.com/psviderski/uncloud/internal/machine/store"
@@ -66,6 +67,8 @@ type clusterController struct {
 	dnsResolver *dns.ClusterResolver
 	// unregistry is the embedded container registry that uses the local Docker (containerd) image store as its backend.
 	unregistry *unregistry.Registry
+	// hubCtrl keeps a tunnel to Hub open while the cluster is connected to Hub.
+	hubCtrl *hub.Controller
 
 	metricsServer *metrics.Server
 
@@ -86,6 +89,7 @@ func newClusterController(
 	dnsServer *dns.Server,
 	dnsResolver *dns.ClusterResolver,
 	unregistry *unregistry.Registry,
+	hubCtrl *hub.Controller,
 	metricsServer *metrics.Server,
 ) (*clusterController, error) {
 	slog.Info("Starting WireGuard network.")
@@ -114,6 +118,7 @@ func newClusterController(
 		dnsResolver:        dnsResolver,
 		unregistry:         unregistry,
 		metricsServer:      metricsServer,
+		hubCtrl:            hubCtrl,
 		stopped:            make(chan struct{}),
 	}, nil
 }
@@ -252,6 +257,14 @@ func (cc *clusterController) Run(ctx context.Context) error {
 		slog.Info("Starting caddyconfig controller.")
 		if err := cc.caddyconfigCtrl.Run(ctx); err != nil {
 			return fmt.Errorf("caddyconfig controller failed: %w", err)
+		}
+		return nil
+	})
+
+	errGroup.Go(func() error {
+		slog.Info("Starting Hub controller.")
+		if err := cc.hubCtrl.Run(ctx); err != nil {
+			return fmt.Errorf("Hub controller failed: %w", err)
 		}
 		return nil
 	})

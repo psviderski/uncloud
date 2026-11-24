@@ -141,7 +141,7 @@ func (c *Connector) Run(ctx context.Context) error {
 	go func() {
 		defer close(serveDone)
 		if sErr := c.server.Serve(listener); sErr != nil && !errors.Is(sErr, net.ErrClosed) {
-			slog.Error("Hub API server failed.", "err", sErr)
+			slog.Error("API server for Hub failed.", "err", sErr)
 		}
 	}()
 	defer func() {
@@ -182,12 +182,15 @@ func (c *Connector) Run(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			return fmt.Errorf("Hub API server stopped serving: %w", err)
+			return fmt.Errorf("API server for Hub stopped serving: %w", err)
 		}
 
 		select {
 		case <-conn.Done():
 		case <-ctx.Done():
+			// TODO: Gracefully stop the server with a timeout before closing the tunnel so that in-flight Hub
+			//  requests can complete. It's only worth it on daemon shutdown, and once Hub can call methods that
+			//  change state or take long. A disconnect from Hub should still cut off Hub immediately.
 			conn.Close()
 			return nil
 		}
