@@ -16,6 +16,10 @@ const (
 	ProtocolHTTPS = "https"
 	ProtocolTCP   = "tcp"
 	ProtocolUDP   = "udp"
+
+	// HostIPPublicKeyword is a pseudo host IP that binds a host mode port to every globally routable IP address
+	// on the machine, like the 2000::/3 prefix covers the public IPv6 space.
+	HostIPPublicKeyword = "public"
 )
 
 type PortSpec struct {
@@ -26,6 +30,8 @@ type PortSpec struct {
 	// HostPrefix is the host prefix to bind the PublishedPort to. Only valid in host mode. Either HostIP
 	// is set or HostPrefix
 	HostPrefix netip.Prefix
+	// HostIPPublic binds the PublishedPort to every globally routable IP address on the host. Only valid in host mode.
+	HostIPPublic bool
 	// PublishedPort is the port number exposed outside the container.
 	// In ingress mode, this is the load balancer port. In host mode, this is the port bound on the host.
 	PublishedPort uint16
@@ -61,6 +67,9 @@ func (p *PortSpec) Validate() error {
 		if p.HostPrefix.IsValid() {
 			return fmt.Errorf("host prefix cannot be specified in %s mode", PortModeIngress)
 		}
+		if p.HostIPPublic {
+			return fmt.Errorf("public host IPs cannot be specified in %s mode", PortModeIngress)
+		}
 		if p.Hostname != "" {
 			if p.Protocol != ProtocolHTTP && p.Protocol != ProtocolHTTPS {
 				return fmt.Errorf("hostname is only valid with '%s' or '%s' protocols", ProtocolHTTP, ProtocolHTTPS)
@@ -72,6 +81,9 @@ func (p *PortSpec) Validate() error {
 	case PortModeHost:
 		if p.HostIP.IsValid() && p.HostPrefix.IsValid() {
 			return fmt.Errorf("host IP and prefix cannot both be specified in %s mode", PortModeHost)
+		}
+		if p.HostIPPublic && (p.HostIP.IsValid() || p.HostPrefix.IsValid()) {
+			return fmt.Errorf("public host IPs cannot be combined with a host IP or prefix in %s mode", PortModeHost)
 		}
 		if p.PublishedPort == 0 {
 			return fmt.Errorf("published port is required in %s mode", PortModeHost)
@@ -113,6 +125,9 @@ func (p *PortSpec) String() (string, error) {
 
 		return fmt.Sprintf("%s/%s", strings.Join(parts, ":"), p.Protocol), nil
 	case PortModeHost: // [host_ip:]:host_port:container_port/protocol@host
+		if p.HostIPPublic {
+			parts = append(parts, HostIPPublicKeyword)
+		}
 		if p.HostIP.IsValid() {
 			if p.HostIP.Is6() {
 				parts = append(parts, fmt.Sprintf("[%s]", p.HostIP))
@@ -227,8 +242,12 @@ func ParsePortSpec(port string) (PortSpec, error) {
 		}
 
 		if spec.Mode == PortModeHost {
-			// In host mode, the first part must be a host IP or prefix.
+			// In host mode, the first part must be a host IP, prefix or the public keyword.
 			ip := parts[0]
+			if ip == HostIPPublicKeyword {
+				spec.HostIPPublic = true
+				break
+			}
 			// Strip brackets from an IPv6 address if present.
 			if strings.Contains(ip, ":") {
 				end := strings.Index(ip, "]")
