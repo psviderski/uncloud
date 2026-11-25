@@ -45,7 +45,7 @@ func selectConnection(uncli *cli.CLI) error {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[int]().
-				Title("Select a default connection").
+				Title(fmt.Sprintf("Select a default connection for context '%s'", currentCtxName)).
 				Options(buildConnectionOptions(currentCtx.Connections)...).
 				Value(&selectedConnection),
 		),
