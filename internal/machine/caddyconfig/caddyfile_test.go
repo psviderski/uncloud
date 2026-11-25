@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/psviderski/uncloud/internal/machine/docker"
+	"github.com/psviderski/uncloud/internal/machine/rtt"
 	"github.com/psviderski/uncloud/internal/machine/store"
 	"github.com/psviderski/uncloud/pkg/api"
 	"github.com/stretchr/testify/assert"
@@ -208,8 +209,13 @@ http://app.example.com {
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Validator is not expected to be called in these tests.
+			// Provide a cache with the local machine so RTT-based sorting works.
+			rttCache := rtt.NewCacheWithStats("test-machine-id", map[string]rtt.Stats{
+				"test-machine-id": {Median: 0},
+			})
 			validator := NewMockCaddyfileValidator(t)
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", rttCache, validator, nil)
 
 			caddyCtr := newContainerRecordWithCaddyConfig("caddy", "10.210.0.1", "", "", time.Now()).Container
 			config, err := generator.Generate(ctx, caddyCtr, tt.containers, false)
@@ -841,7 +847,7 @@ invalid.example.com {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, validator, nil)
 
 			caddyCtr := caddyContainerFromTestContainers(tt.containers)
 			config, err := generator.Generate(ctx, caddyCtr, tt.containers, false)
@@ -943,7 +949,7 @@ http://api.example.com {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			validator := NewMockCaddyfileValidator(t)
-			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+			generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, validator, nil)
 
 			caddyContainer := caddyContainerFromTestContainers(tt.containers)
 			config, err := generator.Generate(ctx, caddyContainer, tt.containers, true)
@@ -958,7 +964,7 @@ func TestCaddyfileGenerator_ValidatorTransportErrorAbortsGeneration(t *testing.T
 	validator := NewMockCaddyfileValidator(t)
 	validator.EXPECT().Validate(mock.Anything, mock.Anything).Return(errors.New("socket disappeared"))
 
-	generator := NewCaddyfileGenerator("test-machine-id", "test-machine", validator, nil)
+	generator := NewCaddyfileGenerator("test-machine-id", "test-machine", nil, validator, nil)
 	app := newContainerRecordWithCaddyConfig(
 		"web",
 		"10.210.0.2",

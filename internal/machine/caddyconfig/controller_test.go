@@ -33,7 +33,7 @@ func testController(t *testing.T, socketPath string) *Controller {
 	return &Controller{
 		machineID:     "test-machine-id",
 		caddyfilePath: path,
-		generator:     NewCaddyfileGenerator("test-machine-id", "test-machine", client, nil),
+		generator:     NewCaddyfileGenerator("test-machine-id", "test-machine", nil, client, nil),
 		client:        client,
 		log:           slog.Default(),
 		fileGroup:     group.Name,
@@ -391,7 +391,7 @@ func TestController_GenerateAndLoadCaddyfile(t *testing.T) {
 		admin := &testCaddyAdmin{}
 		socket := testAdminServer(t, admin.ServeHTTP)
 		controller.client = NewCaddyAdminClient(socket)
-		controller.generator = NewCaddyfileGenerator("test-machine-id", "test-machine", controller.client, nil)
+		controller.generator = NewCaddyfileGenerator("test-machine-id", "test-machine", nil, controller.client, nil)
 		require.NoError(t, controller.generateAndLoadCaddyfile(context.Background(), records))
 		full, err := os.ReadFile(controller.caddyfilePath)
 		require.NoError(t, err)
