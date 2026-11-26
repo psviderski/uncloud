@@ -875,6 +875,65 @@ services:
 	}
 }
 
+func TestServiceSpecFromCompose_TmpfsVolume(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		composeYAML  string
+		expectedOpts *mount.TmpfsOptions
+	}{
+		{
+			name: "tmpfs volume without options",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    volumes:
+      - type: tmpfs
+        target: /data
+`,
+			expectedOpts: nil,
+		},
+		{
+			name: "tmpfs volume with options",
+			composeYAML: `
+services:
+  test:
+    image: nginx
+    volumes:
+      - type: tmpfs
+        target: /data
+        tmpfs:
+          size: 1m
+          mode: 0700
+`,
+			expectedOpts: &mount.TmpfsOptions{
+				SizeBytes: units.MiB,
+				Mode:      0o700,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project, err := LoadProjectFromContent(context.Background(), tt.composeYAML)
+			require.NoError(t, err)
+
+			spec, err := ServiceSpecFromCompose(project, "test")
+			require.NoError(t, err)
+
+			require.Len(t, spec.Volumes, 1)
+			assert.Equal(t, api.VolumeTypeTmpfs, spec.Volumes[0].Type)
+			assert.Equal(t, tt.expectedOpts, spec.Volumes[0].TmpfsOptions)
+
+			require.Len(t, spec.Container.VolumeMounts, 1)
+			assert.Equal(t, spec.Volumes[0].Name, spec.Container.VolumeMounts[0].VolumeName)
+			assert.Equal(t, "/data", spec.Container.VolumeMounts[0].ContainerPath)
+		})
+	}
+}
+
 func TestServiceSpecFromCompose_Labels(t *testing.T) {
 	t.Parallel()
 

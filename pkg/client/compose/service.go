@@ -392,10 +392,13 @@ func tmpfsVolumeSpecFromCompose(serviceVolume types.ServiceVolumeConfig) api.Vol
 	spec := api.VolumeSpec{
 		Name: name,
 		Type: api.VolumeTypeTmpfs,
-		TmpfsOptions: &mount.TmpfsOptions{
+	}
+	// The tmpfs options are optional in the long volume syntax.
+	if serviceVolume.Tmpfs != nil {
+		spec.TmpfsOptions = &mount.TmpfsOptions{
 			SizeBytes: int64(serviceVolume.Tmpfs.Size),
 			Mode:      os.FileMode(serviceVolume.Tmpfs.Mode),
-		},
+		}
 	}
 
 	return spec
